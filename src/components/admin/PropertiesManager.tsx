@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, Users, UserCheck, Car, Search, Filter, Plus, CheckCircle, AlertCircle, Eye, X } from 'lucide-react';
+import { Home, Users, UserCheck, Car, Search, Filter, Plus, CheckCircle, AlertCircle, Eye, X, Download, Hammer, Building2 } from 'lucide-react';
 import type { PropertyListItem } from '../../services/property.service';
 
 interface PropertiesManagerProps {
@@ -93,6 +93,28 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Kode Rumah', 'Nomor', 'Blok', 'Alamat', 'Status Hunian', 'Nama Pemilik / Penghuni', 'Jumlah Penghuni', 'Jumlah Kendaraan'];
+    const rows = properties.map((p) => [
+      p.code,
+      p.number,
+      p.blockCode,
+      `"${p.address}"`,
+      p.occupancyStatus,
+      `"${p.ownerName || '-'}"`,
+      p.residentCount,
+      p.vehicleCount,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `DATA_120_RUMAH_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -102,14 +124,24 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
           <p className="text-sm text-ink-muted mt-1">Master unit 120 rumah Komplek Taman Sejahtera.</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-surface text-xs font-semibold rounded-xl shadow-xs transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Tambah / Update Unit Rumah
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-semibold rounded-xl shadow-xs transition-colors"
+          >
+            <Download className="w-4 h-4 text-ink-muted" />
+            Ekspor CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-surface text-xs font-semibold rounded-xl shadow-xs transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Tambah / Update Unit
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}

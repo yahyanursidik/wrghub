@@ -188,7 +188,55 @@ async function runVerification() {
     const voteData = await voteRes.json();
     assert(voteRes.status === 201 && voteData.data?.status === 'RECORDED_AND_VERIFIED', `API /api/voting/cast-vote: Citizen vote securely registered`);
 
-    // I. Audit Trail Logging Verification
+    // I. Property Management Suite Endpoints
+    const occRes = await fetch(`${BASE_URL}/api/properties/occupants/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyId: 'prop-a-17',
+        fullName: 'Test Penghuni Baru',
+        relation: 'ANAK',
+        idCardNumber: '3171000000000009',
+        phone: '0812-9999-8888',
+        isEmergencyContact: true,
+      })
+    });
+    const occData = await occRes.json();
+    assert(occRes.status === 201 && Boolean(occData.data?.id), `API /api/properties/occupants/create: New family occupant registered`);
+
+    const permitRes = await fetch(`${BASE_URL}/api/properties/permits/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyCode: 'A-17',
+        workType: 'Pengecatan & Kanopi',
+        contractorName: 'Mandor Berkah Test',
+        workersCount: 3,
+        startDate: '2026-09-01',
+        endDate: '2026-09-10',
+        description: 'Uji izin renovasi dan pekerja bangunan',
+      })
+    });
+    const permitData = await permitRes.json();
+    assert(permitRes.status === 201 && permitData.data?.status === 'APPROVED', `API /api/properties/permits/create: Renovation permit issued`);
+
+    const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyCode: 'A-17',
+        buildingType: 'Tipe 72/120',
+        landArea: 120,
+        buildingArea: 72,
+        plnCapacity: '3.500 VA',
+        pamMeterNo: 'PAM-88301',
+        occupancyStatus: 'Dihuni Pemilik',
+      })
+    });
+    const propUpdData = await propUpdRes.json();
+    assert(propUpdRes.status === 200 && propUpdData.data?.pamMeterNo === 'PAM-88301', `API /api/properties/update: Technical specifications updated`);
+
+    // J. Audit Trail Logging Verification
     const auditRes = await sql`
       SELECT count(*) as total FROM audit_logs
     `;
