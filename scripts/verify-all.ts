@@ -235,6 +235,39 @@ async function runVerification() {
     });
     const propUpdData = await propUpdRes.json();
     assert(propUpdRes.status === 200 && propUpdData.data?.pamMeterNo === 'PAM-88301', `API /api/properties/update: Technical specifications updated`);
+    const propCreateFullRes = await fetch(`${BASE_URL}/api/properties/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: 'A-99',
+        number: '99',
+        blockId: 'block-a',
+        address: 'Jl. Taman Sejahtera Blok A No. 99',
+        occupancyStatus: 'OWNER_OCCUPIED',
+        ownerName: 'Warga Baru Uji',
+        ownerPhone: '0812-9999-0000',
+        buildingType: 'Tipe 120/200',
+        landArea: 200,
+        buildingArea: 120,
+        plnCapacity: '5.500 VA',
+        pamMeterNo: 'PAM-88399',
+        monthlyRate: 750000,
+      })
+    });
+    const propCreateFullData = await propCreateFullRes.json();
+    assert(propCreateFullRes.status === 201 && propCreateFullData.data?.code === 'A-99', `API /api/properties/create (Full Columns): Created unit A-99`);
+
+    const propDelRes = await fetch(`${BASE_URL}/api/properties/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyId: 'prop-a-99',
+        propertyCode: 'A-99',
+        reason: 'Uji Otomatis Penghapusan Unit',
+      })
+    });
+    const propDelData = await propDelRes.json();
+    assert(propDelRes.status === 200 && propDelData.data?.success === true, `API /api/properties/delete: Property A-99 archived/deleted`);
 
     // J. Audit Trail Logging Verification
     const auditRes = await sql`
