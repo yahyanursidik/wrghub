@@ -315,6 +315,33 @@ async function runVerification() {
     const utilDelData = await utilDelRes.json();
     assert(utilDelRes.status === 200 && utilDelData.data?.success === true, `API /api/properties/utilities/delete: Utility record reset/archived`);
 
+    const waTplCreateRes = await fetch(`${BASE_URL}/api/whatsapp/templates/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Pengingat Iuran Rutin Bulanan Test',
+        category: 'KEUANGAN',
+        targetType: 'WARGA_INDIVIDU',
+        description: 'Uji otomatis template WhatsApp wa.me',
+        templateText: 'Halo {nama_warga} ({nomor_unit}), tagihan {bulan} sebesar Rp {nominal}.',
+        tags: ['Test', 'IPL', 'WhatsApp']
+      })
+    });
+    const waTplCreateData = await waTplCreateRes.json();
+    assert(waTplCreateRes.status === 201 && Boolean(waTplCreateData.data?.id), `API /api/whatsapp/templates/create: WhatsApp wa.me template created`);
+
+    const waTplDelRes = await fetch(`${BASE_URL}/api/whatsapp/templates/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        templateId: waTplCreateData.data?.id || 'WATPL-TEST',
+        title: 'Pengingat Iuran Rutin Bulanan Test',
+        reason: 'Uji Otomatis Penghapusan Template WA',
+      })
+    });
+    const waTplDelData = await waTplDelRes.json();
+    assert(waTplDelRes.status === 200 && waTplDelData.data?.success === true, `API /api/whatsapp/templates/delete: WhatsApp template deleted/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
