@@ -538,6 +538,47 @@ async function runVerification() {
     const prjCreateData = await prjCreateRes.json();
     assert(prjCreateRes.status === 201 && Boolean(prjCreateData.data?.id), `API /api/expenses/projects/create: Facility maintenance project recorded`);
 
+    const ledCreateRes = await fetch(`${BASE_URL}/api/ledger/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountId: 'acc-main',
+        direction: 'IN',
+        amount: 500000,
+        sourceType: 'SUMBANGAN_WARGA',
+        description: 'Uji Otomatis Penerimaan Sumbangan Warga',
+        entryDate: '2026-08-28',
+      })
+    });
+    const ledCreateData = await ledCreateRes.json();
+    assert(ledCreateRes.status === 201 && Boolean(ledCreateData.data?.id), `API /api/ledger/create: Manual journal entry recorded`);
+
+    const ledUpdRes = await fetch(`${BASE_URL}/api/ledger/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ledgerId: ledCreateData.data?.id || 'led-test',
+        description: 'Uji Otomatis Penerimaan Sumbangan Warga (Updated)',
+        amount: 500000,
+        direction: 'IN',
+      })
+    });
+    const ledUpdData = await ledUpdRes.json();
+    assert(ledUpdRes.status === 200 && ledUpdData.data?.success === true, `API /api/ledger/update: Journal entry updated`);
+
+    const ledDelRes = await fetch(`${BASE_URL}/api/ledger/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ledgerId: ledCreateData.data?.id || 'led-test',
+        description: 'Uji Otomatis Penerimaan Sumbangan Warga',
+        amount: 500000,
+        reason: 'Uji Otomatis Pembatalan Jurnal Kas',
+      })
+    });
+    const ledDelData = await ledDelRes.json();
+    assert(ledDelRes.status === 200 && ledDelData.data?.success === true, `API /api/ledger/delete: Journal entry removed/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
