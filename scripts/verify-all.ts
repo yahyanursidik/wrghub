@@ -437,6 +437,49 @@ async function runVerification() {
     const payDelData = await payDelRes.json();
     assert(payDelRes.status === 200 && payDelData.data?.success === true, `API /api/payments/delete: Payment record removed/archived`);
 
+    const expCreateRes = await fetch(`${BASE_URL}/api/expenses/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Pembelian Lampu PJU LED 50W Komplek Test',
+        amount: 450000,
+        categoryId: 'cat-pemeliharaan',
+        categoryName: 'Pemeliharaan Sarana',
+        vendor: 'Toko Terang Abadi Test',
+        expenseDate: '2026-08-28',
+        description: 'Uji otomatis pencatatan pengeluaran kas'
+      })
+    });
+    const expCreateData = await expCreateRes.json();
+    assert(expCreateRes.status === 201 && Boolean(expCreateData.data?.id), `API /api/expenses/create: Expense voucher & receipt recorded`);
+
+    const expUpdRes = await fetch(`${BASE_URL}/api/expenses/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        expenseId: expCreateData.data?.id || 'exp-test',
+        title: 'Pembelian Lampu PJU LED 50W Komplek Test (Updated)',
+        categoryName: 'Pemeliharaan Sarana',
+        amount: 450000,
+        vendor: 'Toko Terang Abadi Test'
+      })
+    });
+    const expUpdData = await expUpdRes.json();
+    assert(expUpdRes.status === 200 && expUpdData.data?.success === true, `API /api/expenses/update: Expense voucher updated`);
+
+    const expDelRes = await fetch(`${BASE_URL}/api/expenses/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        expenseId: expCreateData.data?.id || 'exp-test',
+        title: 'Pembelian Lampu PJU LED 50W Komplek Test',
+        amount: 450000,
+        reason: 'Uji Otomatis Pembatalan Pengeluaran',
+      })
+    });
+    const expDelData = await expDelRes.json();
+    assert(expDelRes.status === 200 && expDelData.data?.success === true, `API /api/expenses/delete: Expense record removed/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
