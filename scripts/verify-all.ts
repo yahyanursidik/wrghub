@@ -620,6 +620,26 @@ async function runVerification() {
     const budDelData = await budDelRes.json();
     assert(budDelRes.status === 200 && budDelData.data?.success === true, `API /api/budget/delete: Budget allocation removed/archived`);
 
+    const snapCreateRes = await fetch(`${BASE_URL}/api/analytics/snapshot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period: 'Agustus 2026',
+        complianceRate: 94.2,
+        totalIncome: 90000000,
+        totalExpense: 39150000,
+        netSurplus: 50850000,
+        complaintsResolvedPct: 96.5,
+        notes: 'Uji otomatis pencatatan snapshot analitik',
+      })
+    });
+    const snapCreateData = await snapCreateRes.json();
+    assert(snapCreateRes.status === 201 && Boolean(snapCreateData.data?.id), `API /api/analytics/snapshot: Analytics snapshot created`);
+
+    const anaExpRes = await fetch(`${BASE_URL}/api/analytics/export`);
+    const anaExpData = await anaExpRes.json();
+    assert(anaExpRes.status === 200 && anaExpData.data?.totalHouses === 123, `API /api/analytics/export: Executive analytics summary data exported`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
