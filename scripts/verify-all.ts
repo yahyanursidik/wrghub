@@ -480,6 +480,64 @@ async function runVerification() {
     const expDelData = await expDelRes.json();
     assert(expDelRes.status === 200 && expDelData.data?.success === true, `API /api/expenses/delete: Expense record removed/archived`);
 
+    const loanCreateRes = await fetch(`${BASE_URL}/api/expenses/loans/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        staffName: 'Pak Joko Sutrisno',
+        staffRole: 'SATPAM',
+        totalLoanAmount: 1500000,
+        monthlyDeduction: 500000,
+        tenorMonths: 3,
+        purpose: 'Uji Otomatis Kasbon Satpam Masuk Sekolah Anak',
+      })
+    });
+    const loanCreateData = await loanCreateRes.json();
+    assert(loanCreateRes.status === 201 && Boolean(loanCreateData.data?.id), `API /api/expenses/loans/create: Staff loan / kasbon recorded`);
+
+    const loanInstRes = await fetch(`${BASE_URL}/api/expenses/loans/installment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        loanId: loanCreateData.data?.id || 'LOAN-TEST',
+        staffName: 'Pak Joko Sutrisno',
+        installmentAmount: 500000,
+        paymentMethod: 'POTONG_GAJI',
+      })
+    });
+    const loanInstData = await loanInstRes.json();
+    assert(loanInstRes.status === 200 && loanInstData.data?.success === true, `API /api/expenses/loans/installment: Salary advance installment paid`);
+
+    const socialCreateRes = await fetch(`${BASE_URL}/api/expenses/social/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipientName: 'Pak Agus Suparman (Satpam)',
+        recipientRole: 'SATPAM',
+        aidType: 'SANTUNAN_KESEHATAN',
+        amount: 1000000,
+        description: 'Uji otomatis santunan biaya rawat inap istri satpam',
+        hospitalOrDetails: 'RSUD Al-Ihsan Bandung'
+      })
+    });
+    const socialCreateData = await socialCreateRes.json();
+    assert(socialCreateRes.status === 201 && Boolean(socialCreateData.data?.id), `API /api/expenses/social/create: Social & health aid granted`);
+
+    const prjCreateRes = await fetch(`${BASE_URL}/api/expenses/projects/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectName: 'Pengecatan Gapura Utama Komplek Test',
+        projectType: 'PENGECATAN_KOMPLEK',
+        budgetAmount: 3500000,
+        vendorOrContractor: 'Mandor Wawan Test',
+        description: 'Uji otomatis pencatatan proyek cat & perbaikan fasum komplek',
+        location: 'Gerbang Utama & Tembok Pembatas'
+      })
+    });
+    const prjCreateData = await prjCreateRes.json();
+    assert(prjCreateRes.status === 201 && Boolean(prjCreateData.data?.id), `API /api/expenses/projects/create: Facility maintenance project recorded`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
