@@ -342,6 +342,55 @@ async function runVerification() {
     const waTplDelData = await waTplDelRes.json();
     assert(waTplDelRes.status === 200 && waTplDelData.data?.success === true, `API /api/whatsapp/templates/delete: WhatsApp template deleted/archived`);
 
+    const invCreateRes = await fetch(`${BASE_URL}/api/billing/invoices/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyCode: 'A-17',
+        houseCode: 'A-17',
+        ownerName: 'Budi Santoso',
+        periodName: 'Agustus 2026',
+        securityFee: 450000,
+        cleaningFee: 150000,
+        sinkingFund: 150000,
+        additionalFee: 0,
+        total: 750000,
+        dueDate: '2026-08-10',
+        status: 'UNPAID'
+      })
+    });
+    const invCreateData = await invCreateRes.json();
+    assert(invCreateRes.status === 201 && Boolean(invCreateData.data?.invoiceNumber), `API /api/billing/invoices/create: Single invoice created`);
+
+    const invUpdRes = await fetch(`${BASE_URL}/api/billing/invoices/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        invoiceId: invCreateData.data?.id || 'inv-test',
+        invoiceNumber: invCreateData.data?.invoiceNumber || 'INV-202608-A17',
+        propertyCode: 'A-17',
+        status: 'PAID',
+        total: 750000,
+        dueDate: '2026-08-10',
+        paidAt: '2026-08-28'
+      })
+    });
+    const invUpdData = await invUpdRes.json();
+    assert(invUpdRes.status === 200 && invUpdData.data?.success === true, `API /api/billing/invoices/update: Invoice marked as paid`);
+
+    const invDelRes = await fetch(`${BASE_URL}/api/billing/invoices/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        invoiceId: invCreateData.data?.id || 'inv-test',
+        invoiceNumber: invCreateData.data?.invoiceNumber || 'INV-202608-A17',
+        propertyCode: 'A-17',
+        reason: 'Uji Otomatis Pembatalan Invoice',
+      })
+    });
+    const invDelData = await invDelRes.json();
+    assert(invDelRes.status === 200 && invDelData.data?.success === true, `API /api/billing/invoices/delete: Invoice voided/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
