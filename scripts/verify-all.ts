@@ -204,6 +204,19 @@ async function runVerification() {
     const occData = await occRes.json();
     assert(occRes.status === 201 && Boolean(occData.data?.id), `API /api/properties/occupants/create: New family occupant registered`);
 
+    const occDelRes = await fetch(`${BASE_URL}/api/properties/occupants/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        occupantId: occData.data?.id || 'occ-test',
+        fullName: 'Test Penghuni Baru',
+        houseCode: 'A-17',
+        reason: 'Uji Otomatis Penghapusan Penghuni',
+      })
+    });
+    const occDelData = await occDelRes.json();
+    assert(occDelRes.status === 200 && occDelData.data?.success === true, `API /api/properties/occupants/delete: Occupant record removed/archived`);
+
     const permitRes = await fetch(`${BASE_URL}/api/properties/permits/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

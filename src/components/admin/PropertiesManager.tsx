@@ -40,7 +40,13 @@ import {
   AlertTriangle,
   ArrowUpDown,
   MapPin,
-  Compass
+  Compass,
+  UserPlus,
+  Heart,
+  Briefcase,
+  CreditCard,
+  Mail,
+  Activity
 } from 'lucide-react';
 import type { PropertyListItem } from '../../services/property.service';
 
@@ -62,7 +68,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [sortBy, setSortBy] = useState<'code' | 'owner' | 'status' | 'residents'>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Pagination State
+  // Property Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -91,29 +97,61 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [formNotes, setFormNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Delete Confirmation Modal State
+  // Delete Confirmation Modal State (Property)
   const [propertyToDelete, setPropertyToDelete] = useState<PropertyListItem | null>(null);
   const [deleteReason, setDeleteReason] = useState('Renovasi Penggabungan Unit / Koreksi Data');
   const [deleting, setDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Residents State
+  // ================= RESIDENTS (PENGHUNI) COMPREHENSIVE STATE =================
   const [residentCategory, setResidentCategory] = useState('ALL');
   const [residentSearch, setResidentSearch] = useState('');
+  const [residentSortBy, setResidentSortBy] = useState<'fullName' | 'houseCode' | 'relation' | 'occupation' | 'idCard'>('houseCode');
+  const [residentSortOrder, setResidentSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [residentCurrentPage, setResidentCurrentPage] = useState(1);
+  const [residentPageSize, setResidentPageSize] = useState(10);
+
   const [residents, setResidents] = useState([
-    { id: 'res-1', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Budi Santoso', relation: 'KEPALA_KELUARGA', phone: '0812-3456-7890', idCard: '3171091203850001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-2', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Siti Lestari', relation: 'ISTRI', phone: '0813-9876-5432', idCard: '3171092507870002', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-3', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Alya Santoso', relation: 'ANAK', phone: '-', idCard: '3171091405130003', isEmergency: false, status: 'VERIFIED' },
-    { id: 'res-4', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Daffa Santoso', relation: 'ANAK', phone: '-', idCard: '3171090309170004', isEmergency: false, status: 'VERIFIED' },
-    { id: 'res-5', houseCode: 'A-01', areaLabel: 'Blok A', fullName: 'Hendra Gunawan', relation: 'KEPALA_KELUARGA', phone: '0811-2233-4455', idCard: '3171090101800001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-6', houseCode: 'A-01', areaLabel: 'Blok A', fullName: 'Maria Gunawan', relation: 'ISTRI', phone: '0811-2233-4456', idCard: '3171090101820002', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-7', houseCode: 'B-07', areaLabel: 'Blok B', fullName: 'Agus Wijaya', relation: 'KEPALA_KELUARGA', phone: '0818-7788-9900', idCard: '3171090707750001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-8', houseCode: 'B-07', areaLabel: 'Blok B', fullName: 'Rina Wijaya', relation: 'ISTRI', phone: '0818-7788-9901', idCard: '3171090707780002', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-9', houseCode: 'KAV-12', areaLabel: 'Kav. 12', fullName: 'Bambang Sutrisno', relation: 'KEPALA_KELUARGA', phone: '0812-9988-1122', idCard: '3171091212680001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-10', houseCode: 'SW1-05', areaLabel: 'Jl. Sariwangi Indah 1', fullName: 'Dr. Ratna Kusuma', relation: 'KEPALA_KELUARGA', phone: '0813-4455-6677', idCard: '3171090505790001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-11', houseCode: 'SW2-14', areaLabel: 'Jl. Sariwangi Indah 2', fullName: 'Suryo Pranoto', relation: 'KEPALA_KELUARGA', phone: '0815-6677-8899', idCard: '3171091414810001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-12', houseCode: 'C-22', areaLabel: 'Blok C', fullName: 'Joko Widodo', relation: 'KEPALA_KELUARGA', phone: '0819-0011-2233', idCard: '3171092222830001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-1', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Budi Santoso', relation: 'KEPALA_KELUARGA', gender: 'LAKI_LAKI', birthPlaceDate: 'Jakarta, 12-03-1985', religion: 'ISLAM', occupation: 'Wiraswasta / IT Consultant', phone: '0812-3456-7890', email: 'budi.santoso@wargahub.id', idCard: '3171091203850001', familyCard: '3171091203850000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'O', isEmergency: true, status: 'VERIFIED', notes: 'Kepala Keluarga' },
+    { id: 'res-2', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Siti Lestari', relation: 'ISTRI', gender: 'PEREMPUAN', birthPlaceDate: 'Bandung, 25-07-1987', religion: 'ISLAM', occupation: 'Dokter Umum RSUD', phone: '0813-9876-5432', email: 'siti.lestari@wargahub.id', idCard: '3171092507870002', familyCard: '3171091203850000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'A', isEmergency: true, status: 'VERIFIED', notes: 'Tenaga Medis Warga' },
+    { id: 'res-3', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Alya Santoso', relation: 'ANAK', gender: 'PEREMPUAN', birthPlaceDate: 'Jakarta, 14-05-2013', religion: 'ISLAM', occupation: 'Pelajar SMP', phone: '-', email: 'alya.santoso@wargahub.id', idCard: '3171091405130003', familyCard: '3171091203850000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'O', isEmergency: false, status: 'VERIFIED', notes: '-' },
+    { id: 'res-4', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Daffa Santoso', relation: 'ANAK', gender: 'LAKI_LAKI', birthPlaceDate: 'Jakarta, 03-09-2017', religion: 'ISLAM', occupation: 'Pelajar SD', phone: '-', email: 'daffa.santoso@wargahub.id', idCard: '3171090309170004', familyCard: '3171091203850000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'A', isEmergency: false, status: 'VERIFIED', notes: '-' },
+    { id: 'res-5', houseCode: 'A-01', areaLabel: 'Blok A', fullName: 'Hendra Gunawan', relation: 'KEPALA_KELUARGA', gender: 'LAKI_LAKI', birthPlaceDate: 'Semarang, 01-01-1980', religion: 'KRISTEN', occupation: 'Eksekutif Perbankan', phone: '0811-2233-4455', email: 'hendra.gunawan@wargahub.id', idCard: '3171090101800001', familyCard: '3171090101800000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'B', isEmergency: true, status: 'VERIFIED', notes: '-' },
+    { id: 'res-6', houseCode: 'A-01', areaLabel: 'Blok A', fullName: 'Maria Gunawan', relation: 'ISTRI', gender: 'PEREMPUAN', birthPlaceDate: 'Surabaya, 01-01-1982', religion: 'KRISTEN', occupation: 'Dosen Universitas', phone: '0811-2233-4456', email: 'maria.gunawan@wargahub.id', idCard: '3171090101820002', familyCard: '3171090101800000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'AB', isEmergency: true, status: 'VERIFIED', notes: '-' },
+    { id: 'res-7', houseCode: 'B-07', areaLabel: 'Blok B', fullName: 'Agus Wijaya', relation: 'KEPALA_KELUARGA', gender: 'LAKI_LAKI', birthPlaceDate: 'Yogyakarta, 07-07-1975', religion: 'ISLAM', occupation: 'Arsitek / Konsultan Properti', phone: '0818-7788-9900', email: 'agus.wijaya@wargahub.id', idCard: '3171090707750001', familyCard: '3171090707750000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'O', isEmergency: true, status: 'VERIFIED', notes: '-' },
+    { id: 'res-8', houseCode: 'B-07', areaLabel: 'Blok B', fullName: 'Rina Wijaya', relation: 'ISTRI', gender: 'PEREMPUAN', birthPlaceDate: 'Solo, 07-07-1978', religion: 'ISLAM', occupation: 'Akuntan Publik', phone: '0818-7788-9901', email: 'rina.wijaya@wargahub.id', idCard: '3171090707780002', familyCard: '3171090707750000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'O', isEmergency: true, status: 'VERIFIED', notes: '-' },
+    { id: 'res-9', houseCode: 'KAV-12', areaLabel: 'Kav. 12', fullName: 'Bambang Sutrisno', relation: 'KEPALA_KELUARGA', gender: 'LAKI_LAKI', birthPlaceDate: 'Malang, 12-12-1968', religion: 'ISLAM', occupation: 'Pensiunan BUMN', phone: '0812-9988-1122', email: 'bambang.sutrisno@wargahub.id', idCard: '3171091212680001', familyCard: '3171091212680000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'A', isEmergency: true, status: 'VERIFIED', notes: 'Warga Lansia Prioritas' },
+    { id: 'res-10', houseCode: 'SW1-05', areaLabel: 'Jl. Sariwangi Indah 1', fullName: 'Dr. Ratna Kusuma', relation: 'KEPALA_KELUARGA', gender: 'PEREMPUAN', birthPlaceDate: 'Denpasar, 05-05-1979', religion: 'HINDU', occupation: 'Dokter Spesialis Anak', phone: '0813-4455-6677', email: 'ratna.kusuma@wargahub.id', idCard: '3171090505790001', familyCard: '3171090505790000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'B', isEmergency: true, status: 'VERIFIED', notes: 'Dokter Jaga Kompleks' },
+    { id: 'res-11', houseCode: 'SW2-14', areaLabel: 'Jl. Sariwangi Indah 2', fullName: 'Suryo Pranoto', relation: 'KEPALA_KELUARGA', gender: 'LAKI_LAKI', birthPlaceDate: 'Cirebon, 14-04-1981', religion: 'ISLAM', occupation: 'Manajer Logistik', phone: '0815-6677-8899', email: 'suryo.pranoto@wargahub.id', idCard: '3171091414810001', familyCard: '3171091414810000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'AB', isEmergency: true, status: 'VERIFIED', notes: '-' },
+    { id: 'res-12', houseCode: 'C-22', areaLabel: 'Blok C', fullName: 'Joko Widodo', relation: 'KEPALA_KELUARGA', gender: 'LAKI_LAKI', birthPlaceDate: 'Surakarta, 22-02-1983', religion: 'ISLAM', occupation: 'Pengusaha Mebel', phone: '0819-0011-2233', email: 'joko.widodo@wargahub.id', idCard: '3171092222830001', familyCard: '3171092222830000', domicileStatus: 'KTP_SETEMPAT', bloodType: 'O', isEmergency: true, status: 'VERIFIED', notes: '-' },
+    { id: 'res-13', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Mbok Darmi', relation: 'ART', gender: 'PEREMPUAN', birthPlaceDate: 'Kebumen, 10-10-1990', religion: 'ISLAM', occupation: 'Asisten Rumah Tangga', phone: '0857-1122-3344', email: '-', idCard: '3305091010900005', familyCard: '-', domicileStatus: 'KTP_LUAR', bloodType: 'B', isEmergency: false, status: 'VERIFIED', notes: 'Tinggal Dalam' },
   ]);
+
+  // Resident Form Modal State
+  const [showResidentModal, setShowResidentModal] = useState(false);
+  const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
+  const [activeResidentView, setActiveResidentView] = useState<any>(null);
+  const [residentToDelete, setResidentToDelete] = useState<any>(null);
+  const [residentDeleteReason, setResidentDeleteReason] = useState('Pindah Domisili Keluar Komplek');
+
+  // Resident Form Fields (Complete Columns)
+  const [resHouseCode, setResHouseCode] = useState('A-17');
+  const [resAreaLabel, setResAreaLabel] = useState('Blok A');
+  const [resFullName, setResFullName] = useState('');
+  const [resRelation, setResRelation] = useState('KEPALA_KELUARGA');
+  const [resGender, setResGender] = useState('LAKI_LAKI');
+  const [resBirthPlaceDate, setResBirthPlaceDate] = useState('Jakarta, 12-03-1985');
+  const [resReligion, setResReligion] = useState('ISLAM');
+  const [resOccupation, setResOccupation] = useState('Karyawan Swasta');
+  const [resPhone, setResPhone] = useState('');
+  const [resEmail, setResEmail] = useState('');
+  const [resIdCard, setResIdCard] = useState('');
+  const [resFamilyCard, setResFamilyCard] = useState('');
+  const [resDomicileStatus, setResDomicileStatus] = useState('KTP_SETEMPAT');
+  const [resBloodType, setResBloodType] = useState('O');
+  const [resIsEmergency, setResIsEmergency] = useState(false);
+  const [resNotes, setResNotes] = useState('');
+  const [resSaving, setResSaving] = useState(false);
 
   // Master Vehicles State
   const [vehicles, setVehicles] = useState([
@@ -153,7 +191,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Open Form for Add
+  // Open Form for Add Property
   const handleOpenAdd = () => {
     setEditingPropertyId(null);
     setNamingType('BLOK');
@@ -176,7 +214,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     setShowAddModal(true);
   };
 
-  // Open Form for Edit
+  // Open Form for Edit Property
   const handleOpenEdit = (prop: PropertyListItem) => {
     setEditingPropertyId(prop.id);
     const code = prop.code;
@@ -336,6 +374,150 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     }
   };
 
+  // ================= RESIDENT ACTIONS (TAMBAH / EDIT / HAPUS PENGHUNI) =================
+  const handleOpenAddResident = () => {
+    setEditingResidentId(null);
+    setResHouseCode(properties[0]?.code || 'A-17');
+    setResAreaLabel('Blok A');
+    setResFullName('');
+    setResRelation('KEPALA_KELUARGA');
+    setResGender('LAKI_LAKI');
+    setResBirthPlaceDate('Jakarta, 12-03-1985');
+    setResReligion('ISLAM');
+    setResOccupation('Karyawan Swasta');
+    setResPhone('');
+    setResEmail('');
+    setResIdCard('');
+    setResFamilyCard('');
+    setResDomicileStatus('KTP_SETEMPAT');
+    setResBloodType('O');
+    setResIsEmergency(false);
+    setResNotes('');
+    setShowResidentModal(true);
+  };
+
+  const handleOpenEditResident = (r: any) => {
+    setEditingResidentId(r.id);
+    setResHouseCode(r.houseCode);
+    setResAreaLabel(r.areaLabel);
+    setResFullName(r.fullName);
+    setResRelation(r.relation);
+    setResGender(r.gender || 'LAKI_LAKI');
+    setResBirthPlaceDate(r.birthPlaceDate || 'Jakarta, 12-03-1985');
+    setResReligion(r.religion || 'ISLAM');
+    setResOccupation(r.occupation || 'Karyawan Swasta');
+    setResPhone(r.phone === '-' ? '' : r.phone);
+    setResEmail(r.email === '-' ? '' : r.email);
+    setResIdCard(r.idCard);
+    setResFamilyCard(r.familyCard || '');
+    setResDomicileStatus(r.domicileStatus || 'KTP_SETEMPAT');
+    setResBloodType(r.bloodType || 'O');
+    setResIsEmergency(Boolean(r.isEmergency));
+    setResNotes(r.notes || '');
+    setShowResidentModal(true);
+  };
+
+  const handleSaveResident = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResSaving(true);
+    try {
+      const payload = {
+        propertyId: `prop-${resHouseCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        houseCode: resHouseCode.toUpperCase(),
+        fullName: resFullName,
+        relation: resRelation,
+        idCardNumber: resIdCard || '3171xxxxxxxx0001',
+        familyCardNumber: resFamilyCard || '3171xxxxxxxx0000',
+        gender: resGender,
+        birthPlaceDate: resBirthPlaceDate,
+        religion: resReligion,
+        occupation: resOccupation,
+        phone: resPhone || '-',
+        email: resEmail || '-',
+        domicileStatus: resDomicileStatus,
+        bloodType: resBloodType,
+        isEmergencyContact: resIsEmergency,
+        notes: resNotes || undefined,
+      };
+
+      const res = await fetch('/api/properties/occupants/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        if (editingResidentId) {
+          setResidents(residents.map(r => r.id === editingResidentId ? {
+            ...r,
+            ...payload,
+            houseCode: resHouseCode.toUpperCase(),
+            areaLabel: resAreaLabel,
+            idCard: resIdCard,
+            familyCard: resFamilyCard,
+            isEmergency: resIsEmergency,
+          } : r));
+          showToast(`Data sensus penghuni ${resFullName} berhasil diperbarui.`);
+        } else {
+          const newRes = {
+            id: `res-${Date.now()}`,
+            houseCode: resHouseCode.toUpperCase(),
+            areaLabel: resAreaLabel,
+            fullName: resFullName,
+            relation: resRelation,
+            gender: resGender,
+            birthPlaceDate: resBirthPlaceDate,
+            religion: resReligion,
+            occupation: resOccupation,
+            phone: resPhone || '-',
+            email: resEmail || '-',
+            idCard: resIdCard || '3171xxxxxxxx0001',
+            familyCard: resFamilyCard || '3171xxxxxxxx0000',
+            domicileStatus: resDomicileStatus,
+            bloodType: resBloodType,
+            isEmergency: resIsEmergency,
+            status: 'VERIFIED',
+            notes: resNotes || '-',
+          };
+          setResidents([newRes, ...residents]);
+          showToast(`Penghuni baru ${resFullName} berhasil didaftarkan ke Rumah ${resHouseCode}.`);
+        }
+        setShowResidentModal(false);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menyimpan data kependudukan.');
+    } finally {
+      setResSaving(false);
+    }
+  };
+
+  const handleConfirmDeleteResident = async () => {
+    if (!residentToDelete) return;
+    try {
+      const res = await fetch('/api/properties/occupants/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          occupantId: residentToDelete.id,
+          fullName: residentToDelete.fullName,
+          houseCode: residentToDelete.houseCode,
+          reason: residentDeleteReason,
+        })
+      });
+
+      if (res.ok) {
+        setResidents(residents.filter(r => r.id !== residentToDelete.id));
+        showToast(`Penghuni ${residentToDelete.fullName} (${residentToDelete.houseCode}) berhasil dihapus.`);
+        setResidentToDelete(null);
+        if (activeResidentView?.id === residentToDelete.id) setActiveResidentView(null);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus data penghuni.');
+    }
+  };
+
   // Create Permit
   const handleCreatePermit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -412,7 +594,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     return list;
   }, [properties, search, selectedBlock, selectedStatus, sortBy, sortOrder]);
 
-  // Pagination Calculations
+  // Property Pagination Calculations
   const totalItems = filteredAndSortedProperties.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -420,20 +602,37 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const endIndex = Math.min(startIndex + pageSize, totalItems);
   const paginatedProperties = filteredAndSortedProperties.slice(startIndex, endIndex);
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
+  // Resident Filtered & Sorted & Paginated
+  const filteredAndSortedResidents = useMemo(() => {
+    const list = residents.filter((r) => {
+      const matchSearch = r.fullName.toLowerCase().includes(residentSearch.toLowerCase()) || 
+                          r.houseCode.toLowerCase().includes(residentSearch.toLowerCase()) || 
+                          r.areaLabel.toLowerCase().includes(residentSearch.toLowerCase()) ||
+                          r.idCard.includes(residentSearch) ||
+                          r.phone.includes(residentSearch);
+      const matchCat = residentCategory === 'ALL' || r.relation === residentCategory;
+      return matchSearch && matchCat;
+    });
 
-  const filteredResidents = residents.filter((r) => {
-    const matchSearch = r.fullName.toLowerCase().includes(residentSearch.toLowerCase()) || 
-                        r.houseCode.toLowerCase().includes(residentSearch.toLowerCase()) || 
-                        r.areaLabel.toLowerCase().includes(residentSearch.toLowerCase()) ||
-                        r.phone.includes(residentSearch);
-    const matchCat = residentCategory === 'ALL' || r.relation === residentCategory;
-    return matchSearch && matchCat;
-  });
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (residentSortBy === 'fullName') comparison = a.fullName.localeCompare(b.fullName);
+      else if (residentSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
+      else if (residentSortBy === 'relation') comparison = a.relation.localeCompare(b.relation);
+      else if (residentSortBy === 'occupation') comparison = a.occupation.localeCompare(b.occupation);
+      else if (residentSortBy === 'idCard') comparison = a.idCard.localeCompare(b.idCard);
+      return residentSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [residents, residentSearch, residentCategory, residentSortBy, residentSortOrder]);
+
+  const totalResidents = filteredAndSortedResidents.length;
+  const totalResidentPages = Math.max(1, Math.ceil(totalResidents / residentPageSize));
+  const safeResidentPage = Math.min(residentCurrentPage, totalResidentPages);
+  const resStartIndex = (safeResidentPage - 1) * residentPageSize;
+  const resEndIndex = Math.min(resStartIndex + residentPageSize, totalResidents);
+  const paginatedResidents = filteredAndSortedResidents.slice(resStartIndex, resEndIndex);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -447,6 +646,25 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         return <span className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 text-[11px] font-extrabold border border-purple-200 inline-flex items-center gap-1">Renovasi</span>;
       default:
         return <span className="px-2.5 py-1 rounded-lg bg-canvas text-ink-muted text-[11px] font-semibold">{status}</span>;
+    }
+  };
+
+  const getRelationBadge = (rel: string) => {
+    switch (rel) {
+      case 'KEPALA_KELUARGA':
+        return <span className="px-2 py-0.5 rounded-md bg-primary-50 text-primary-800 font-black text-[10px] border border-primary-200">Kepala Keluarga</span>;
+      case 'ISTRI':
+        return <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 font-black text-[10px] border border-rose-200">Istri</span>;
+      case 'ANAK':
+        return <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 font-bold text-[10px] border border-sky-200">Anak</span>;
+      case 'ORANG_TUA':
+        return <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-bold text-[10px] border border-amber-200">Orang Tua/Mertua</span>;
+      case 'ART':
+        return <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px] border border-slate-200">ART / Supir</span>;
+      case 'PENYEWA':
+        return <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 font-bold text-[10px] border border-indigo-200">Penyewa</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded-md bg-canvas text-ink-muted text-[10px]">{rel}</span>;
     }
   };
 
@@ -474,25 +692,33 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   };
 
   const handleExportResidentsCSV = () => {
-    const headers = ['No Unit', 'Blok / Kav / Jalan', 'Nama Lengkap', 'Hubungan Keluarga', 'No KTP/NIK', 'No WhatsApp', 'Kontak Darurat'];
+    const headers = ['No Unit', 'Wilayah / Jalan', 'Nama Lengkap', 'Hubungan Keluarga', 'Gender', 'TTL', 'Agama', 'Pekerjaan', 'No KTP/NIK', 'No KK', 'No WhatsApp', 'Email', 'Gol Darah', 'Status KTP', 'Kontak Darurat'];
     const rows = residents.map((r) => [
       r.houseCode,
       `"${r.areaLabel}"`,
       `"${r.fullName}"`,
       r.relation,
+      r.gender,
+      `"${r.birthPlaceDate}"`,
+      r.religion,
+      `"${r.occupation}"`,
       `'${r.idCard}`,
+      `'${r.familyCard}`,
       r.phone,
+      r.email,
+      r.bloodType,
+      r.domicileStatus,
       r.isEmergency ? 'YA' : 'TIDAK',
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DATA_PENDUDUK_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `DATABASE_SENSUS_KEPENDUDUKAN_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Data kependudukan berhasil diekspor ke CSV.');
+    showToast('Database sensus kependudukan lengkap berhasil diekspor ke CSV.');
   };
 
   return (
@@ -511,7 +737,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black tracking-tight text-ink">Tata Kelola Rumah & Warga</h1>
             <span className="px-2.5 py-0.5 rounded-full bg-primary-100 text-primary-800 text-xs font-black border border-primary-200">
-              {properties.length} Unit Terdaftar
+              {activeSubTab === 'residents' ? `${residents.length} Jiwa Sensus` : `${properties.length} Unit Terdaftar`}
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
@@ -526,16 +752,28 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
           >
             <Download className="w-4 h-4 text-ink-muted" />
-            Ekspor CSV
+            {activeSubTab === 'residents' ? 'Ekspor Sensus (CSV)' : 'Ekspor CSV'}
           </button>
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Tambah Unit Rumah / Kavling
-          </button>
+          
+          {activeSubTab === 'residents' ? (
+            <button
+              type="button"
+              onClick={handleOpenAddResident}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+              Tambah Data Penghuni
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Tambah Unit Rumah / Kavling
+            </button>
+          )}
         </div>
       </div>
 
@@ -543,7 +781,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar">
         {[
           { id: 'units', label: 'Direktori Rumah & Kavling', icon: Home, count: properties.length },
-          { id: 'residents', label: 'Database Kependudukan', icon: Users, count: 384 },
+          { id: 'residents', label: 'Database Kependudukan & Penghuni', icon: Users, count: residents.length },
           { id: 'vehicles', label: 'Master Kendaraan & RFID', icon: Car, count: vehicles.length },
           { id: 'permits', label: 'Izin Renovasi & Tukang', icon: Hammer, count: permits.filter(p => p.status === 'APPROVED').length },
           { id: 'analytics', label: 'Okupansi & Utilitas', icon: TrendingUp },
@@ -944,112 +1182,284 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 2: DATABASE KEPENDUDUKAN ================= */}
+      {/* ================= SUBTAB 2: DATABASE KEPENDUDUKAN & PENGHUNI (DENGAN PAGINATION & CRUD LENGKAP) ================= */}
       {activeSubTab === 'residents' && (
         <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Total Sensus Jiwa</span>
-              <p className="text-xl font-black text-ink mt-0.5">384 Jiwa</p>
-              <span className="text-[10px] text-emerald-600 font-bold">120 KK Terdaftar</span>
+              <p className="text-xl font-black text-ink mt-0.5">{residents.length} Jiwa</p>
+              <span className="text-[10px] text-emerald-600 font-bold">100% Terverifikasi</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Kepala Keluarga</span>
-              <p className="text-xl font-black text-primary-700 mt-0.5">120 Orang</p>
+              <p className="text-xl font-black text-primary-700 mt-0.5">
+                {residents.filter(r => r.relation === 'KEPALA_KELUARGA').length} Orang
+              </p>
               <span className="text-[10px] text-ink-muted font-medium">Penanggung Jawab</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Anak & Pelajar</span>
-              <p className="text-xl font-black text-sky-700 mt-0.5">142 Jiwa</p>
+              <p className="text-xl font-black text-sky-700 mt-0.5">
+                {residents.filter(r => r.relation === 'ANAK').length} Jiwa
+              </p>
               <span className="text-[10px] text-sky-600 font-bold">Usia 0-18 Tahun</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Warga Lansia</span>
-              <p className="text-xl font-black text-amber-700 mt-0.5">28 Jiwa</p>
-              <span className="text-[10px] text-amber-600 font-bold">Prioritas Posyandu</span>
+              <span className="text-[11px] text-ink-muted font-medium">Kontak Darurat</span>
+              <p className="text-xl font-black text-rose-700 mt-0.5">
+                {residents.filter(r => r.isEmergency).length} Kontak
+              </p>
+              <span className="text-[10px] text-rose-600 font-bold">Prioritas Keamanan</span>
             </div>
           </div>
 
+          {/* Filter & Sensus Search Bar */}
           <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
             <div className="w-full sm:w-72 relative">
               <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Cari nama warga, nomor unit, NIK..."
+                placeholder="Cari nama, nomor unit/kav, NIK..."
                 value={residentSearch}
-                onChange={(e) => setResidentSearch(e.target.value)}
+                onChange={(e) => {
+                  setResidentSearch(e.target.value);
+                  setResidentCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
               <select
                 value={residentCategory}
-                onChange={(e) => setResidentCategory(e.target.value)}
+                onChange={(e) => {
+                  setResidentCategory(e.target.value);
+                  setResidentCurrentPage(1);
+                }}
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Hubungan Keluarga</option>
                 <option value="KEPALA_KELUARGA">Kepala Keluarga</option>
                 <option value="ISTRI">Istri</option>
                 <option value="ANAK">Anak</option>
+                <option value="ORANG_TUA">Orang Tua / Mertua</option>
                 <option value="ART">ART / Supir</option>
+                <option value="PENYEWA">Penyewa</option>
               </select>
+
+              <select
+                value={residentSortBy}
+                onChange={(e) => setResidentSortBy(e.target.value as any)}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="houseCode">Urut Nomor Unit</option>
+                <option value="fullName">Urut Nama Lengkap</option>
+                <option value="relation">Urut Hubungan</option>
+                <option value="occupation">Urut Profesi</option>
+                <option value="idCard">Urut NIK</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setResidentSortOrder(residentSortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
+                title={`Urutan: ${residentSortOrder === 'asc' ? 'Menaik (A-Z)' : 'Menurun (Z-A)'}`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
+          {/* SENSUS TABLE WITH PAGINATION & CRUD ACTIONS */}
           <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
-                    <th className="py-3 px-4">No Unit / Kav</th>
-                    <th className="py-3 px-4">Nama Lengkap</th>
-                    <th className="py-3 px-4">Wilayah / Jalan</th>
-                    <th className="py-3 px-4">Hubungan Keluarga</th>
-                    <th className="py-3 px-4">NIK (KTP)</th>
-                    <th className="py-3 px-4">Kontak WhatsApp</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
+                    <th className="py-3.5 px-4">No Unit / Kav</th>
+                    <th className="py-3.5 px-4">Nama Lengkap</th>
+                    <th className="py-3.5 px-4">Hubungan</th>
+                    <th className="py-3.5 px-4">NIK (KTP)</th>
+                    <th className="py-3.5 px-4">Profesi / Pekerjaan</th>
+                    <th className="py-3.5 px-4">Kontak WhatsApp</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-right">Aksi Manajemen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {filteredResidents.map((r) => (
-                    <tr key={r.id} className="hover:bg-canvas/60 text-ink transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-primary-700">{r.houseCode}</td>
-                      <td className="py-3 px-4 font-bold text-ink flex items-center gap-2">
-                        {r.fullName}
-                        {r.isEmergency && (
-                          <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 text-[9px] font-bold rounded-md border border-rose-200">
-                            Darurat
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-ink-muted font-medium">{r.areaLabel}</td>
-                      <td className="py-3 px-4 text-ink-muted font-medium">{r.relation.replace('_', ' ')}</td>
-                      <td className="py-3 px-4 font-mono text-ink-muted">{r.idCard}</td>
-                      <td className="py-3 px-4 font-mono text-ink">{r.phone}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
-                          TERVERIFIKASI
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {r.phone !== '-' && (
-                          <a
-                            href={`https://wa.me/${r.phone.replace(/[^0-9]/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg inline-flex items-center gap-1 font-bold text-xs"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            WhatsApp
-                          </a>
-                        )}
+                  {paginatedResidents.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-ink-muted font-medium">
+                        Tidak ada data penghuni yang cocok dengan filter pencarian.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    paginatedResidents.map((r) => (
+                      <tr key={r.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono font-bold text-primary-700 block">{r.houseCode}</span>
+                          <span className="text-[10px] text-ink-muted">{r.areaLabel}</span>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-ink">
+                          <div className="flex items-center gap-1.5">
+                            <span>{r.fullName}</span>
+                            {r.isEmergency && (
+                              <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 text-[9px] font-black rounded-md border border-rose-200">
+                                Darurat
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">{getRelationBadge(r.relation)}</td>
+                        <td className="py-3.5 px-4 font-mono text-ink-muted">{r.idCard}</td>
+                        <td className="py-3.5 px-4 text-ink font-medium">{r.occupation}</td>
+                        <td className="py-3.5 px-4 font-mono text-ink">
+                          {r.phone !== '-' ? (
+                            <a
+                              href={`https://wa.me/${r.phone.replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-700 hover:underline font-bold inline-flex items-center gap-1"
+                              title="Kirim pesan WhatsApp"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              {r.phone}
+                            </a>
+                          ) : (
+                            <span className="text-ink-muted">-</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                            TERVERIFIKASI
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setActiveResidentView(r)}
+                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Lihat Biodata Lengkap"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Detail
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditResident(r)}
+                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Edit Data Penghuni"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setResidentToDelete(r)}
+                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Hapus Data Penghuni"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Hapus
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* RESIDENT PAGINATION BAR */}
+            <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-ink-muted">
+                  Menampilkan <strong className="text-ink">{totalResidents === 0 ? 0 : resStartIndex + 1}</strong> - <strong className="text-ink">{resEndIndex}</strong> dari <strong className="text-ink">{totalResidents}</strong> jiwa terdaftar
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-ink-muted">Tampilkan:</span>
+                  <select
+                    value={residentPageSize}
+                    onChange={(e) => {
+                      setResidentPageSize(Number(e.target.value));
+                      setResidentCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-surface border border-border rounded-lg font-bold text-ink"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setResidentCurrentPage(1)}
+                  disabled={safeResidentPage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Pertama"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResidentCurrentPage(safeResidentPage - 1)}
+                  disabled={safeResidentPage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1 px-2">
+                  {Array.from({ length: Math.min(5, totalResidentPages) }, (_, i) => {
+                    let pageNum = safeResidentPage - 2 + i;
+                    if (pageNum < 1) pageNum = i + 1;
+                    if (pageNum > totalResidentPages) return null;
+
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setResidentCurrentPage(pageNum)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                          safeResidentPage === pageNum
+                            ? 'bg-primary-600 text-white shadow-xs'
+                            : 'bg-surface border border-border text-ink hover:bg-canvas'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setResidentCurrentPage(safeResidentPage + 1)}
+                  disabled={safeResidentPage === totalResidentPages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Berikutnya"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResidentCurrentPage(totalResidentPages)}
+                  disabled={safeResidentPage === totalResidentPages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Terakhir"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1384,183 +1794,304 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: TAMBAH / EDIT RUMAH & KAVLING (KOLOM LENGKAP) ================= */}
-      {showAddModal && (
+      {/* ================= MODAL: BIODATA LENGKAP PENGHUNI (VIEW RESIDENT) ================= */}
+      {activeResidentView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-black">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-ink">{activeResidentView.fullName}</h3>
+                  <p className="text-xs text-ink-muted">
+                    Unit {activeResidentView.houseCode} ({activeResidentView.areaLabel}) • {activeResidentView.relation.replace('_', ' ')}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setActiveResidentView(null)} className="p-1 rounded-full text-ink-muted hover:text-ink">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 bg-canvas rounded-2xl border border-border grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Nomor Induk Kependudukan (NIK):</span>
+                  <p className="font-mono font-bold text-ink text-sm mt-0.5">{activeResidentView.idCard}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Nomor Kartu Keluarga (No. KK):</span>
+                  <p className="font-mono font-bold text-ink text-sm mt-0.5">{activeResidentView.familyCard || '3171xxxxxxxx0000'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Tempat & Tanggal Lahir:</span>
+                  <p className="font-bold text-ink mt-0.5">{activeResidentView.birthPlaceDate || 'Jakarta, 12-03-1985'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Jenis Kelamin / Gol. Darah:</span>
+                  <p className="font-bold text-ink mt-0.5">
+                    {activeResidentView.gender === 'LAKI_LAKI' ? 'Laki-Laki' : 'Perempuan'} • Gol. {activeResidentView.bloodType || 'O'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Agama:</span>
+                  <p className="font-bold text-ink mt-0.5">{activeResidentView.religion || 'ISLAM'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Profesi / Pekerjaan:</span>
+                  <p className="font-bold text-ink mt-0.5">{activeResidentView.occupation || 'Karyawan'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Status Domisili KTP:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-bold text-[10px] border border-emerald-200 mt-0.5 inline-block">
+                    {activeResidentView.domicileStatus === 'KTP_SETEMPAT' ? 'KTP Sesuai Komplek' : 'Domisili Luar'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-ink-muted font-bold block">Status Kontak Darurat:</span>
+                  <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border mt-0.5 inline-block ${
+                    activeResidentView.isEmergency
+                      ? 'bg-rose-50 text-rose-800 border-rose-200'
+                      : 'bg-canvas text-ink-muted border-border'
+                  }`}>
+                    {activeResidentView.isEmergency ? 'YA (PRIORITAS DARURAT)' : 'Bukan Kontak Darurat'}
+                  </span>
+                </div>
+              </div>
+
+              {activeResidentView.notes && activeResidentView.notes !== '-' && (
+                <div className="p-3 bg-canvas/60 rounded-xl border border-border">
+                  <span className="text-[10px] text-ink-muted font-bold block">Catatan Khusus:</span>
+                  <p className="font-medium text-ink mt-0.5">{activeResidentView.notes}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-between items-center">
+              {activeResidentView.phone !== '-' && (
+                <a
+                  href={`https://wa.me/${activeResidentView.phone.replace(/[^0-9]/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-xs"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Hubungi WhatsApp
+                </a>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const toEdit = activeResidentView;
+                    setActiveResidentView(null);
+                    handleOpenEditResident(toEdit);
+                  }}
+                  className="px-4 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl"
+                >
+                  Edit Data
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveResidentView(null)}
+                  className="px-5 py-2 bg-primary-600 text-white font-bold rounded-xl shadow-xs text-xs"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: TAMBAH / EDIT PENGHUNI (KOLOM LENGKAP) ================= */}
+      {showResidentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-xl w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center">
-                  <Home className="w-4 h-4" />
+                  <UserPlus className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-black text-base text-ink">
-                    {editingPropertyId ? `Edit Data Unit ${formCode}` : 'Tambah Unit Rumah / Kavling Baru'}
+                    {editingResidentId ? `Edit Biodata ${resFullName}` : 'Tambah Data Penghuni / Sensus Baru'}
                   </h3>
-                  <p className="text-[11px] text-ink-muted">Mendukung format Blok, Kavling (Kav.), Nama Jalan, atau Cluster.</p>
+                  <p className="text-[11px] text-ink-muted">Pencatatan sensus kependudukan lengkap sesuai data e-KTP & KK.</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddModal(false)} className="text-ink-muted hover:text-ink">
+              <button onClick={() => setShowResidentModal(false)} className="text-ink-muted hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProperty} className="space-y-3.5 text-xs">
-              {/* Seksi 1: Tipe Wilayah & Identitas Unit */}
+            <form onSubmit={handleSaveResident} className="space-y-3.5 text-xs">
+              {/* Seksi 1: Unit Rumah & Hubungan Keluarga */}
               <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
                 <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-primary-600" />
-                  1. Tipe Wilayah & Penamaan Unit
+                  <Home className="w-3.5 h-3.5 text-primary-600" />
+                  1. Lokasi Hunian & Hubungan Keluarga
                 </h4>
 
-                {/* Naming Type Switcher */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Pilih Unit Rumah / Kavling *</label>
+                    <select
+                      value={resHouseCode}
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        setResHouseCode(code);
+                        const matchedProp = properties.find(p => p.code === code);
+                        if (matchedProp) {
+                          setResAreaLabel(code.startsWith('KAV') ? 'Kavling' : code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${matchedProp.blockCode}`);
+                        }
+                      }}
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                    >
+                      {properties.map(p => (
+                        <option key={p.id} value={p.code}>
+                          {p.code} — {p.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Hubungan dalam Keluarga *</label>
+                    <select
+                      value={resRelation}
+                      onChange={(e) => setResRelation(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                    >
+                      <option value="KEPALA_KELUARGA">Kepala Keluarga</option>
+                      <option value="ISTRI">Istri</option>
+                      <option value="ANAK">Anak</option>
+                      <option value="ORANG_TUA">Orang Tua / Mertua</option>
+                      <option value="FAMILI_LAIN">Famili Lain</option>
+                      <option value="ART">ART / Supir / Karyawan</option>
+                      <option value="PENYEWA">Penyewa Utama</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seksi 2: Identitas Pribadi Sesuai KTP */}
+              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
+                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-primary-600" />
+                  2. Identitas Pribadi & e-KTP
+                </h4>
+
                 <div>
-                  <label className="font-bold text-ink block mb-1">Sistem Penamaan Wilayah Komplek</label>
-                  <div className="grid grid-cols-4 gap-1.5 p-1 bg-surface rounded-xl border border-border">
-                    {[
-                      { id: 'BLOK', label: 'Blok (A, B...)' },
-                      { id: 'KAV', label: 'Kavling (Kav)' },
-                      { id: 'STREET', label: 'Per Jalan' },
-                      { id: 'CLUSTER', label: 'Cluster' },
-                    ].map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => handleNamingTypeChange(t.id as any)}
-                        className={`py-1.5 px-2 rounded-lg text-center font-bold text-[11px] transition-colors ${
-                          namingType === t.id
-                            ? 'bg-primary-600 text-white shadow-xs'
-                            : 'text-ink-muted hover:text-ink hover:bg-canvas'
-                        }`}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
+                  <label className="font-bold text-ink block mb-1">Nama Lengkap (Sesuai KTP) *</label>
+                  <input
+                    type="text"
+                    placeholder="Nama Lengkap Warga"
+                    value={resFullName}
+                    onChange={(e) => setResFullName(e.target.value)}
+                    required
+                    className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">NIK KTP (16 Digit) *</label>
+                    <input
+                      type="text"
+                      placeholder="317109xxxxxxxxxx"
+                      value={resIdCard}
+                      onChange={(e) => setResIdCard(e.target.value)}
+                      required
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Nomor Kartu Keluarga (KK)</label>
+                    <input
+                      type="text"
+                      placeholder="317109xxxxxxxxxx"
+                      value={resFamilyCard}
+                      onChange={(e) => setResFamilyCard(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">
-                      {namingType === 'BLOK' ? 'Pilih Blok' : namingType === 'KAV' ? 'Area Kavling' : namingType === 'STREET' ? 'Nama Jalan' : 'Nama Cluster'} *
-                    </label>
-                    {namingType === 'BLOK' ? (
-                      <select
-                        value={formAreaName}
-                        onChange={(e) => setFormAreaName(e.target.value)}
-                        className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                      >
-                        <option value="Blok A">Blok A</option>
-                        <option value="Blok B">Blok B</option>
-                        <option value="Blok C">Blok C</option>
-                        <option value="Blok D">Blok D</option>
-                      </select>
-                    ) : namingType === 'STREET' ? (
-                      <select
-                        value={formAreaName}
-                        onChange={(e) => setFormAreaName(e.target.value)}
-                        className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                      >
-                        <option value="Jl. Sariwangi Indah 1">Jl. Sariwangi Indah 1</option>
-                        <option value="Jl. Sariwangi Indah 2">Jl. Sariwangi Indah 2</option>
-                        <option value="Jl. Flamboyan Raya">Jl. Flamboyan Raya</option>
-                        <option value="Jl. Melati Indah">Jl. Melati Indah</option>
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        placeholder={namingType === 'KAV' ? 'Kavling Utama' : 'Cluster Bougenville'}
-                        value={formAreaName}
-                        onChange={(e) => setFormAreaName(e.target.value)}
-                        className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
-                      />
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-ink block mb-1">
-                      {namingType === 'KAV' ? 'No. Kavling *' : 'Nomor Unit *'}
-                    </label>
-                    <input
-                      type="text"
-                      placeholder={namingType === 'KAV' ? '12' : '31'}
-                      value={formNumber}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFormNumber(val);
-                        if (!editingPropertyId) {
-                          if (namingType === 'KAV') setFormCode(`KAV-${val}`);
-                          else if (namingType === 'STREET') setFormCode(`SW1-${val}`);
-                          else setFormCode(`${formAreaName.replace(/[^a-zA-Z]/g, '').slice(-1)}-${val}`);
-                        }
-                      }}
-                      required
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Kode Unit *</label>
-                    <input
-                      type="text"
-                      placeholder={namingType === 'KAV' ? 'KAV-12' : 'A-31'}
-                      value={formCode}
-                      onChange={(e) => setFormCode(e.target.value)}
-                      required
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold uppercase text-ink"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-ink block mb-1">Alamat Lengkap Unit</label>
-                  <input
-                    type="text"
-                    placeholder={
-                      namingType === 'KAV'
-                        ? 'Kavling No. 12, Komplek Taman Sejahtera'
-                        : namingType === 'STREET'
-                        ? 'Jl. Sariwangi Indah 1 No. 5, Komplek Taman Sejahtera'
-                        : 'Jl. Taman Sejahtera Blok A No. 31'
-                    }
-                    value={formAddress}
-                    onChange={(e) => setFormAddress(e.target.value)}
-                    className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
-                  />
-                </div>
-              </div>
-
-              {/* Seksi 2: Kepemilikan & Status Okupansi */}
-              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-primary-600" />
-                  2. Status Okupansi & Kontak Pemilik
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Status Okupansi *</label>
+                    <label className="font-bold text-ink block mb-1">Jenis Kelamin</label>
                     <select
-                      value={formOccupancy}
-                      onChange={(e) => setFormOccupancy(e.target.value as any)}
+                      value={resGender}
+                      onChange={(e) => setResGender(e.target.value)}
                       className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
                     >
-                      <option value="OWNER_OCCUPIED">Dihuni Pemilik</option>
-                      <option value="RENTED">Disewa / Kontrak</option>
-                      <option value="VACANT">Kosong</option>
-                      <option value="RENOVATION">Renovasi</option>
+                      <option value="LAKI_LAKI">Laki-Laki</option>
+                      <option value="PEREMPUAN">Perempuan</option>
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-ink block mb-1">Nama Kepala Rumah / Pemilik</label>
+                    <label className="font-bold text-ink block mb-1">Agama</label>
+                    <select
+                      value={resReligion}
+                      onChange={(e) => setResReligion(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                    >
+                      <option value="ISLAM">Islam</option>
+                      <option value="KRISTEN">Kristen Protestan</option>
+                      <option value="KATOLIK">Katolik</option>
+                      <option value="HINDU">Hindu</option>
+                      <option value="BUDDHA">Buddha</option>
+                      <option value="KONGHUCU">Konghucu</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Gol. Darah</label>
+                    <select
+                      value={resBloodType}
+                      onChange={(e) => setResBloodType(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold font-mono"
+                    >
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="AB">AB</option>
+                      <option value="O">O</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Tempat & Tanggal Lahir</label>
                     <input
                       type="text"
-                      placeholder="Nama Pemilik / Penghuni"
-                      value={formOwner}
-                      onChange={(e) => setFormOwner(e.target.value)}
+                      placeholder="Jakarta, 12-03-1985"
+                      value={resBirthPlaceDate}
+                      onChange={(e) => setResBirthPlaceDate(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Profesi / Pekerjaan</label>
+                    <input
+                      type="text"
+                      placeholder="Wiraswasta / Dokter / PNS"
+                      value={resOccupation}
+                      onChange={(e) => setResOccupation(e.target.value)}
                       className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Seksi 3: Kontak & Keamanan */}
+              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
+                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                  3. Kontak WhatsApp, Email & Keamanan
+                </h4>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -1568,105 +2099,55 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                     <input
                       type="text"
                       placeholder="0812-xxxx-xxxx"
-                      value={formOwnerPhone}
-                      onChange={(e) => setFormOwnerPhone(e.target.value)}
+                      value={resPhone}
+                      onChange={(e) => setResPhone(e.target.value)}
                       className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
                     />
                   </div>
                   <div>
-                    <label className="font-bold text-ink block mb-1">NIK KTP Pemilik</label>
+                    <label className="font-bold text-ink block mb-1">Alamat Email</label>
                     <input
-                      type="text"
-                      placeholder="317109xxxxxxxxxx"
-                      value={formOwnerNik}
-                      onChange={(e) => setFormOwnerNik(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Seksi 3: Spesifikasi Teknis & Utilitas */}
-              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-600" />
-                  3. Spesifikasi Bangunan & Utilitas
-                </h4>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Tipe Bangunan</label>
-                    <input
-                      type="text"
-                      placeholder="Tipe 72/120"
-                      value={formBuildingType}
-                      onChange={(e) => setFormBuildingType(e.target.value)}
+                      type="email"
+                      placeholder="nama@email.com"
+                      value={resEmail}
+                      onChange={(e) => setResEmail(e.target.value)}
                       className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
                     />
                   </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Luas Tanah (m²)</label>
-                    <input
-                      type="number"
-                      value={formLandArea}
-                      onChange={(e) => setFormLandArea(Number(e.target.value))}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Luas Bangunan (m²)</label>
-                    <input
-                      type="number"
-                      value={formBuildingArea}
-                      onChange={(e) => setFormBuildingArea(Number(e.target.value))}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">Daya Listrik PLN</label>
+                    <label className="font-bold text-ink block mb-1">Status KTP Domisili</label>
                     <select
-                      value={formPlnCapacity}
-                      onChange={(e) => setFormPlnCapacity(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-mono font-bold"
+                      value={resDomicileStatus}
+                      onChange={(e) => setResDomicileStatus(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
                     >
-                      <option value="1.300 VA">1.300 VA</option>
-                      <option value="2.200 VA">2.200 VA</option>
-                      <option value="3.500 VA">3.500 VA</option>
-                      <option value="4.400 VA">4.400 VA</option>
-                      <option value="5.500 VA">5.500 VA</option>
-                      <option value="7.700 VA">7.700 VA</option>
+                      <option value="KTP_SETEMPAT">KTP Sesuai Komplek</option>
+                      <option value="KTP_LUAR">Domisili Luar / Sementara</option>
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-ink block mb-1">No. Meter PAM</label>
-                    <input
-                      type="text"
-                      placeholder="PAM-88301"
-                      value={formPamMeterNo}
-                      onChange={(e) => setFormPamMeterNo(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Iuran Bulanan (IPL)</label>
-                    <input
-                      type="number"
-                      value={formMonthlyRate}
-                      onChange={(e) => setFormMonthlyRate(Number(e.target.value))}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
+                    <label className="font-bold text-ink block mb-1">Tandai Kontak Darurat?</label>
+                    <select
+                      value={resIsEmergency ? 'YES' : 'NO'}
+                      onChange={(e) => setResIsEmergency(e.target.value === 'YES')}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                    >
+                      <option value="NO">Bukan Kontak Darurat</option>
+                      <option value="YES">YA — Kontak Darurat Utama</option>
+                    </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="font-bold text-ink block mb-1">Catatan Tambahan Unit</label>
+                  <label className="font-bold text-ink block mb-1">Catatan Tambahan (Kesehatan / Spesial)</label>
                   <input
                     type="text"
-                    placeholder="Contoh: Posisi hoek / ada garasi 2 mobil / kavling siap bangun"
-                    value={formNotes}
-                    onChange={(e) => setFormNotes(e.target.value)}
+                    placeholder="Contoh: Dokter anak jaga komplek / Lansia butuh bantuan"
+                    value={resNotes}
+                    onChange={(e) => setResNotes(e.target.value)}
                     className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
                   />
                 </div>
@@ -1675,20 +2156,70 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <div className="pt-2 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => setShowResidentModal(false)}
                   className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={resSaving}
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50"
                 >
-                  {saving ? 'Menyimpan Unit...' : editingPropertyId ? 'Perbarui Data Unit' : 'Daftarkan Unit'}
+                  {resSaving ? 'Menyimpan Sensus...' : editingResidentId ? 'Perbarui Data Sensus' : 'Daftarkan Penghuni'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS PENGHUNI ================= */}
+      {residentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-lg text-ink">Hapus Data {residentToDelete.fullName}?</h3>
+              <p className="text-xs text-ink-muted">
+                Penghuni <strong>{residentToDelete.fullName}</strong> ({residentToDelete.houseCode}) akan dihapus dari data kependudukan komplek. Tindakan ini tercatat di Jejak Audit.
+              </p>
+            </div>
+
+            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
+              <span className="font-bold block">Alasan Penghapusan Sensus:</span>
+              <select
+                value={residentDeleteReason}
+                onChange={(e) => setResidentDeleteReason(e.target.value)}
+                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
+              >
+                <option value="Pindah Domisili Keluar Komplek">Pindah Domisili Keluar Komplek</option>
+                <option value="Masa Kontrak / Sewa Berakhir">Masa Sewa Berakhir</option>
+                <option value="Meninggal Dunia">Meninggal Dunia</option>
+                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setResidentToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteResident}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+              >
+                Ya, Hapus Data
+              </button>
+            </div>
           </div>
         </div>
       )}
