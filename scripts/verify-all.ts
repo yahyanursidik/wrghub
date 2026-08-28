@@ -391,6 +391,52 @@ async function runVerification() {
     const invDelData = await invDelRes.json();
     assert(invDelRes.status === 200 && invDelData.data?.success === true, `API /api/billing/invoices/delete: Invoice voided/archived`);
 
+    const payCreateRes = await fetch(`${BASE_URL}/api/payments/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyCode: 'A-17',
+        houseCode: 'A-17',
+        ownerName: 'Budi Santoso',
+        periodName: 'Agustus 2026',
+        amount: 750000,
+        method: 'BCA_TRANSFER',
+        reference: 'TRX-A17-TEST',
+        paidAt: '2026-08-28',
+        status: 'VERIFIED'
+      })
+    });
+    const payCreateData = await payCreateRes.json();
+    assert(payCreateRes.status === 201 && Boolean(payCreateData.data?.id), `API /api/payments/create: Manual payment recorded`);
+
+    const payUpdRes = await fetch(`${BASE_URL}/api/payments/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentId: payCreateData.data?.id || 'pay-test',
+        amount: 750000,
+        method: 'BCA_TRANSFER',
+        reference: 'TRX-A17-TEST-UPDATED',
+        status: 'VERIFIED',
+        paidAt: '2026-08-28'
+      })
+    });
+    const payUpdData = await payUpdRes.json();
+    assert(payUpdRes.status === 200 && payUpdData.data?.success === true, `API /api/payments/update: Payment record updated`);
+
+    const payDelRes = await fetch(`${BASE_URL}/api/payments/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentId: payCreateData.data?.id || 'pay-test',
+        propertyCode: 'A-17',
+        amount: 750000,
+        reason: 'Uji Otomatis Penghapusan Pembayaran',
+      })
+    });
+    const payDelData = await payDelRes.json();
+    assert(payDelRes.status === 200 && payDelData.data?.success === true, `API /api/payments/delete: Payment record removed/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
