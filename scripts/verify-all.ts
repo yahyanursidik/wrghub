@@ -217,6 +217,41 @@ async function runVerification() {
     const occDelData = await occDelRes.json();
     assert(occDelRes.status === 200 && occDelData.data?.success === true, `API /api/properties/occupants/delete: Occupant record removed/archived`);
 
+    const vehCreateRes = await fetch(`${BASE_URL}/api/properties/vehicles/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyId: 'prop-a-17',
+        houseCode: 'A-17',
+        ownerName: 'Budi Santoso',
+        plateNumber: 'B 9999 TST',
+        type: 'Mobil',
+        brand: 'Toyota',
+        model: 'Innova Zenix',
+        year: 2024,
+        color: 'Hitam',
+        rfidTag: 'RFID-9999999',
+        gateAccess: 'SEMUA_GERBANG',
+        rfidStatus: 'AKTIF',
+        notes: 'Uji Otomatis Registrasi Kendaraan & RFID'
+      })
+    });
+    const vehCreateData = await vehCreateRes.json();
+    assert(vehCreateRes.status === 201 && Boolean(vehCreateData.data?.id), `API /api/properties/vehicles/create: Vehicle & RFID registered`);
+
+    const vehDelRes = await fetch(`${BASE_URL}/api/properties/vehicles/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vehicleId: vehCreateData.data?.id || 'veh-test',
+        plateNumber: 'B 9999 TST',
+        houseCode: 'A-17',
+        reason: 'Uji Otomatis Penghapusan Kendaraan & Pencabutan RFID',
+      })
+    });
+    const vehDelData = await vehDelRes.json();
+    assert(vehDelRes.status === 200 && vehDelData.data?.success === true, `API /api/properties/vehicles/delete: Vehicle & RFID revoked/archived`);
+
     const permitRes = await fetch(`${BASE_URL}/api/properties/permits/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

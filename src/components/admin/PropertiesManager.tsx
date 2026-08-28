@@ -46,7 +46,10 @@ import {
   Briefcase,
   CreditCard,
   Mail,
-  Activity
+  Activity,
+  KeyRound,
+  ShieldAlert,
+  Printer
 } from 'lucide-react';
 import type { PropertyListItem } from '../../services/property.service';
 
@@ -153,18 +156,55 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [resNotes, setResNotes] = useState('');
   const [resSaving, setResSaving] = useState(false);
 
-  // Master Vehicles State
+  // ================= VEHICLES & RFID COMPREHENSIVE STATE =================
+  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState('ALL');
+  const [vehicleRfidFilter, setVehicleRfidFilter] = useState('ALL');
+  const [vehicleSortBy, setVehicleSortBy] = useState<'plateNumber' | 'houseCode' | 'type' | 'brand' | 'rfidStatus'>('plateNumber');
+  const [vehicleSortOrder, setVehicleSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [vehicleCurrentPage, setVehicleCurrentPage] = useState(1);
+  const [vehiclePageSize, setVehiclePageSize] = useState(10);
+
   const [vehicles, setVehicles] = useState([
-    { id: 'veh-1', houseCode: 'A-17', areaLabel: 'Blok A', plateNumber: 'B 1234 ABC', type: 'Mobil', brand: 'Toyota', model: 'Avanza Veloz', color: 'Hitam Metalik', rfidStatus: 'AKTIF' },
-    { id: 'veh-2', houseCode: 'A-17', areaLabel: 'Blok A', plateNumber: 'B 5678 DEF', type: 'Motor', brand: 'Honda', model: 'Vario 160', color: 'Putih Mutiara', rfidStatus: 'AKTIF' },
-    { id: 'veh-3', houseCode: 'A-01', areaLabel: 'Blok A', plateNumber: 'B 9999 HG', type: 'Mobil', brand: 'Honda', model: 'CR-V Turbo', color: 'Abu-Abu', rfidStatus: 'AKTIF' },
-    { id: 'veh-4', houseCode: 'B-07', areaLabel: 'Blok B', plateNumber: 'B 8888 AW', type: 'Mobil', brand: 'Mitsubishi', model: 'Pajero Sport', color: 'Putih', rfidStatus: 'AKTIF' },
-    { id: 'veh-5', houseCode: 'B-07', areaLabel: 'Blok B', plateNumber: 'B 7777 WZ', type: 'Motor', brand: 'Yamaha', model: 'NMAX 155', color: 'Hitam Doff', rfidStatus: 'AKTIF' },
-    { id: 'veh-6', houseCode: 'KAV-12', areaLabel: 'Kav. 12', plateNumber: 'B 1111 BS', type: 'Mobil', brand: 'Toyota', model: 'Innova Zenix', color: 'Silver Metalik', rfidStatus: 'AKTIF' },
-    { id: 'veh-7', houseCode: 'SW1-05', areaLabel: 'Jl. Sariwangi Indah 1', plateNumber: 'B 2222 RK', type: 'Mobil', brand: 'Hyundai', model: 'IONIQ 5', color: 'Gravity Gold', rfidStatus: 'AKTIF' },
-    { id: 'veh-8', houseCode: 'SW2-14', areaLabel: 'Jl. Sariwangi Indah 2', plateNumber: 'B 3333 SP', type: 'Mobil', brand: 'Wuling', model: 'Air EV', color: 'Peach Pink', rfidStatus: 'AKTIF' },
-    { id: 'veh-9', houseCode: 'C-22', areaLabel: 'Blok C', plateNumber: 'B 4444 JW', type: 'Mobil', brand: 'Toyota', model: 'Fortuner GR', color: 'Hitam', rfidStatus: 'AKTIF' },
+    { id: 'veh-1', houseCode: 'A-17', areaLabel: 'Blok A', ownerName: 'Budi Santoso', plateNumber: 'B 1234 ABC', type: 'Mobil', brand: 'Toyota', model: 'Avanza Veloz', year: 2023, color: 'Hitam Metalik', rfidTag: 'RFID-8830192', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: 'Parkir dalam garasi unit' },
+    { id: 'veh-2', houseCode: 'A-17', areaLabel: 'Blok A', ownerName: 'Siti Lestari', plateNumber: 'B 5678 DEF', type: 'Motor', brand: 'Honda', model: 'Vario 160', year: 2024, color: 'Putih Mutiara', rfidTag: 'RFID-8830193', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: 'Motor operasional dokter' },
+    { id: 'veh-3', houseCode: 'A-01', areaLabel: 'Blok A', ownerName: 'Hendra Gunawan', plateNumber: 'B 9999 HG', type: 'Mobil', brand: 'Honda', model: 'CR-V Turbo', year: 2024, color: 'Abu-Abu', rfidTag: 'RFID-7720194', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: 'Mobil dinas perbankan' },
+    { id: 'veh-4', houseCode: 'B-07', areaLabel: 'Blok B', ownerName: 'Agus Wijaya', plateNumber: 'B 8888 AW', type: 'Mobil', brand: 'Mitsubishi', model: 'Pajero Sport', year: 2022, color: 'Putih', rfidTag: 'RFID-6610195', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: '-' },
+    { id: 'veh-5', houseCode: 'B-07', areaLabel: 'Blok B', ownerName: 'Rina Wijaya', plateNumber: 'B 7777 WZ', type: 'Motor', brand: 'Yamaha', model: 'NMAX 155', year: 2023, color: 'Hitam Doff', rfidTag: 'RFID-6610196', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: '-' },
+    { id: 'veh-6', houseCode: 'KAV-12', areaLabel: 'Kav. 12', ownerName: 'Bambang Sutrisno', plateNumber: 'B 1111 BS', type: 'Mobil', brand: 'Toyota', model: 'Innova Zenix Hybrid', year: 2024, color: 'Silver Metalik', rfidTag: 'RFID-5540197', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: 'Prioritas akses gate' },
+    { id: 'veh-7', houseCode: 'SW1-05', areaLabel: 'Jl. Sariwangi Indah 1', ownerName: 'Dr. Ratna Kusuma', plateNumber: 'B 2222 RK', type: 'Mobil', brand: 'Hyundai', model: 'IONIQ 5 EV', year: 2024, color: 'Gravity Gold', rfidTag: 'RFID-4430198', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: 'Kendaraan listrik ramah lingkungan' },
+    { id: 'veh-8', houseCode: 'SW2-14', areaLabel: 'Jl. Sariwangi Indah 2', ownerName: 'Suryo Pranoto', plateNumber: 'B 3333 SP', type: 'Mobil', brand: 'Wuling', model: 'Air EV Long Range', year: 2023, color: 'Peach Pink', rfidTag: 'RFID-3320199', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: '-' },
+    { id: 'veh-9', houseCode: 'C-22', areaLabel: 'Blok C', ownerName: 'Joko Widodo', plateNumber: 'B 4444 JW', type: 'Mobil', brand: 'Toyota', model: 'Fortuner GR Sport', year: 2023, color: 'Hitam', rfidTag: 'RFID-2210200', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: '-' },
+    { id: 'veh-10', houseCode: 'D-03', areaLabel: 'Blok D', ownerName: 'Rahmat Hidayat', plateNumber: 'B 6677 RH', type: 'Motor', brand: 'Honda', model: 'PCX 160', year: 2024, color: 'Merah Doff', rfidTag: 'RFID-1100201', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: '-' },
+    { id: 'veh-11', houseCode: 'D-19', areaLabel: 'Blok D', ownerName: 'Fajar Nugraha', plateNumber: 'B 9876 FJ', type: 'Mobil', brand: 'Daihatsu', model: 'Rocky 1.0T', year: 2023, color: 'Kuning Metalik', rfidTag: 'RFID-9980202', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: '-' },
+    { id: 'veh-12', houseCode: 'A-05', areaLabel: 'Blok A', ownerName: 'Eko Prasetyo', plateNumber: 'B 7890 EK', type: 'Sepeda Listrik', brand: 'Uwinfly', model: 'T3 Pro E-Bike', year: 2024, color: 'Biru Pastel', rfidTag: 'RFID-8870203', gateAccess: 'SEMUA_GERBANG', rfidStatus: 'AKTIF', notes: 'Lane khusus jalur sepeda' },
   ]);
+
+  // Vehicle Form Modal State
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+  const [activeVehicleView, setActiveVehicleView] = useState<any>(null);
+  const [vehicleToDelete, setVehicleToDelete] = useState<any>(null);
+  const [vehicleDeleteReason, setVehicleDeleteReason] = useState('Kendaraan Dijual / Diganti');
+
+  // Vehicle Form Fields (Complete Columns)
+  const [vehHouseCode, setVehHouseCode] = useState('A-17');
+  const [vehAreaLabel, setVehAreaLabel] = useState('Blok A');
+  const [vehOwnerName, setVehOwnerName] = useState('Budi Santoso');
+  const [vehPlateNumber, setVehPlateNumber] = useState('');
+  const [vehType, setVehType] = useState('Mobil');
+  const [vehBrand, setVehBrand] = useState('Toyota');
+  const [vehModel, setVehModel] = useState('');
+  const [vehYear, setVehYear] = useState(2024);
+  const [vehColor, setVehColor] = useState('Hitam Metalik');
+  const [vehRfidTag, setVehRfidTag] = useState('');
+  const [vehGateAccess, setVehGateAccess] = useState('SEMUA_GERBANG');
+  const [vehRfidStatus, setVehRfidStatus] = useState<'AKTIF' | 'DIBLOKIR' | 'PENDING_VERIFIKASI'>('AKTIF');
+  const [vehNotes, setVehNotes] = useState('');
+  const [vehSaving, setVehSaving] = useState(false);
+
+  // Selected Pass Preview Modal
+  const [selectedPassVehicle, setSelectedPassVehicle] = useState<any>(null);
 
   // Permits State
   const [permits, setPermits] = useState([
@@ -181,9 +221,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [pStart, setPStart] = useState('2026-09-01');
   const [pEnd, setPEnd] = useState('2026-09-10');
   const [pDesc, setPDesc] = useState('');
-
-  // Selected Pass Preview Modal
-  const [selectedPassVehicle, setSelectedPassVehicle] = useState<any>(null);
 
   // Trigger Notification Toast
   const showToast = (msg: string) => {
@@ -305,7 +342,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const blk = formCode.split('-')[0]?.toUpperCase() || 'A';
         if (editingPropertyId) {
-          // Update existing
           setProperties(properties.map(p => p.id === editingPropertyId ? {
             ...p,
             code: formCode.toUpperCase(),
@@ -317,7 +353,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
           } : p));
           showToast(`Data unit ${formCode.toUpperCase()} (${formAreaName}) berhasil diperbarui.`);
         } else {
-          // Create new
           const newProp: PropertyListItem = {
             id: `prop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
             code: formCode.toUpperCase(),
@@ -374,7 +409,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     }
   };
 
-  // ================= RESIDENT ACTIONS (TAMBAH / EDIT / HAPUS PENGHUNI) =================
+  // ================= RESIDENT ACTIONS =================
   const handleOpenAddResident = () => {
     setEditingResidentId(null);
     setResHouseCode(properties[0]?.code || 'A-17');
@@ -518,6 +553,144 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     }
   };
 
+  // ================= VEHICLE & RFID ACTIONS (TAMBAH / EDIT / HAPUS KENDARAAN) =================
+  const handleOpenAddVehicle = () => {
+    setEditingVehicleId(null);
+    setVehHouseCode(properties[0]?.code || 'A-17');
+    setVehAreaLabel('Blok A');
+    setVehOwnerName(properties[0]?.ownerName || 'Budi Santoso');
+    setVehPlateNumber('');
+    setVehType('Mobil');
+    setVehBrand('Toyota');
+    setVehModel('Avanza Veloz');
+    setVehYear(2024);
+    setVehColor('Hitam Metalik');
+    setVehRfidTag(`RFID-${Math.floor(1000000 + Math.random() * 9000000)}`);
+    setVehGateAccess('SEMUA_GERBANG');
+    setVehRfidStatus('AKTIF');
+    setVehNotes('');
+    setShowVehicleModal(true);
+  };
+
+  const handleOpenEditVehicle = (v: any) => {
+    setEditingVehicleId(v.id);
+    setVehHouseCode(v.houseCode);
+    setVehAreaLabel(v.areaLabel);
+    setVehOwnerName(v.ownerName || 'Warga Terdaftar');
+    setVehPlateNumber(v.plateNumber);
+    setVehType(v.type);
+    setVehBrand(v.brand);
+    setVehModel(v.model);
+    setVehYear(v.year || 2024);
+    setVehColor(v.color);
+    setVehRfidTag(v.rfidTag || `RFID-${Math.floor(1000000 + Math.random() * 9000000)}`);
+    setVehGateAccess(v.gateAccess || 'SEMUA_GERBANG');
+    setVehRfidStatus(v.rfidStatus);
+    setVehNotes(v.notes || '');
+    setShowVehicleModal(true);
+  };
+
+  const handleSaveVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVehSaving(true);
+    try {
+      const payload = {
+        propertyId: `prop-${vehHouseCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        houseCode: vehHouseCode.toUpperCase(),
+        ownerName: vehOwnerName,
+        plateNumber: vehPlateNumber.toUpperCase(),
+        type: vehType,
+        brand: vehBrand,
+        model: vehModel,
+        year: Number(vehYear),
+        color: vehColor,
+        rfidTag: vehRfidTag,
+        gateAccess: vehGateAccess,
+        rfidStatus: vehRfidStatus,
+        notes: vehNotes || undefined,
+      };
+
+      const res = await fetch('/api/properties/vehicles/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        if (editingVehicleId) {
+          setVehicles(vehicles.map(v => v.id === editingVehicleId ? {
+            ...v,
+            ...payload,
+            houseCode: vehHouseCode.toUpperCase(),
+            areaLabel: vehAreaLabel,
+          } : v));
+          showToast(`Data kendaraan ${vehPlateNumber.toUpperCase()} berhasil diperbarui.`);
+        } else {
+          const newVeh = {
+            id: `veh-${Date.now()}`,
+            houseCode: vehHouseCode.toUpperCase(),
+            areaLabel: vehAreaLabel,
+            ownerName: vehOwnerName,
+            plateNumber: vehPlateNumber.toUpperCase(),
+            type: vehType,
+            brand: vehBrand,
+            model: vehModel,
+            year: Number(vehYear),
+            color: vehColor,
+            rfidTag: vehRfidTag,
+            gateAccess: vehGateAccess,
+            rfidStatus: vehRfidStatus,
+            notes: vehNotes || '-',
+          };
+          setVehicles([newVeh, ...vehicles]);
+          showToast(`Kendaraan baru ${vehPlateNumber.toUpperCase()} berhasil didaftarkan.`);
+        }
+        setShowVehicleModal(false);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menyimpan kendaraan & RFID.');
+    } finally {
+      setVehSaving(false);
+    }
+  };
+
+  const handleConfirmDeleteVehicle = async () => {
+    if (!vehicleToDelete) return;
+    try {
+      const res = await fetch('/api/properties/vehicles/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehicleId: vehicleToDelete.id,
+          plateNumber: vehicleToDelete.plateNumber,
+          houseCode: vehicleToDelete.houseCode,
+          reason: vehicleDeleteReason,
+        })
+      });
+
+      if (res.ok) {
+        setVehicles(vehicles.filter(v => v.id !== vehicleToDelete.id));
+        showToast(`Kendaraan ${vehicleToDelete.plateNumber} (${vehicleToDelete.houseCode}) berhasil dihapus.`);
+        setVehicleToDelete(null);
+        if (activeVehicleView?.id === vehicleToDelete.id) setActiveVehicleView(null);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus kendaraan.');
+    }
+  };
+
+  const handleToggleRfid = (id: string) => {
+    setVehicles(vehicles.map(v => v.id === id ? {
+      ...v,
+      rfidStatus: v.rfidStatus === 'AKTIF' ? 'DIBLOKIR' : 'AKTIF'
+    } : v));
+    const target = vehicles.find(v => v.id === id);
+    const newStatus = target?.rfidStatus === 'AKTIF' ? 'DIBLOKIR' : 'AKTIF';
+    showToast(`Status RFID plat ${target?.plateNumber} diubah menjadi: ${newStatus}`);
+  };
+
   // Create Permit
   const handleCreatePermit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -548,12 +721,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     showToast(`Status izin ${id} diubah menjadi ${newStatus}.`);
   };
 
-  const handleToggleRfid = (id: string) => {
-    setVehicles(vehicles.map(v => v.id === id ? { ...v, rfidStatus: v.rfidStatus === 'AKTIF' ? 'DIBLOKIR' : 'AKTIF' } : v));
-    showToast(`Status akses gerbang RFID diperbarui.`);
-  };
-
-  // Filtered & Sorted Properties (Supporting Blok, Kavling, and Streets)
+  // Filtered & Sorted Properties
   const filteredAndSortedProperties = useMemo(() => {
     const list = properties.filter((p) => {
       const matchSearch = p.code.toLowerCase().includes(search.toLowerCase()) || 
@@ -594,7 +762,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     return list;
   }, [properties, search, selectedBlock, selectedStatus, sortBy, sortOrder]);
 
-  // Property Pagination Calculations
+  // Property Pagination
   const totalItems = filteredAndSortedProperties.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -633,6 +801,40 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const resStartIndex = (safeResidentPage - 1) * residentPageSize;
   const resEndIndex = Math.min(resStartIndex + residentPageSize, totalResidents);
   const paginatedResidents = filteredAndSortedResidents.slice(resStartIndex, resEndIndex);
+
+  // Vehicle Filtered & Sorted & Paginated
+  const filteredAndSortedVehicles = useMemo(() => {
+    const list = vehicles.filter((v) => {
+      const matchSearch = v.plateNumber.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          v.houseCode.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          v.ownerName.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          v.brand.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          v.model.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          (v.rfidTag && v.rfidTag.toLowerCase().includes(vehicleSearch.toLowerCase()));
+      const matchType = vehicleTypeFilter === 'ALL' || v.type === vehicleTypeFilter;
+      const matchRfid = vehicleRfidFilter === 'ALL' || v.rfidStatus === vehicleRfidFilter;
+      return matchSearch && matchType && matchRfid;
+    });
+
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (vehicleSortBy === 'plateNumber') comparison = a.plateNumber.localeCompare(b.plateNumber);
+      else if (vehicleSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
+      else if (vehicleSortBy === 'type') comparison = a.type.localeCompare(b.type);
+      else if (vehicleSortBy === 'brand') comparison = a.brand.localeCompare(b.brand);
+      else if (vehicleSortBy === 'rfidStatus') comparison = a.rfidStatus.localeCompare(b.rfidStatus);
+      return vehicleSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [vehicles, vehicleSearch, vehicleTypeFilter, vehicleRfidFilter, vehicleSortBy, vehicleSortOrder]);
+
+  const totalVehicles = filteredAndSortedVehicles.length;
+  const totalVehiclePages = Math.max(1, Math.ceil(totalVehicles / vehiclePageSize));
+  const safeVehiclePage = Math.min(vehicleCurrentPage, totalVehiclePages);
+  const vehStartIndex = (safeVehiclePage - 1) * vehiclePageSize;
+  const vehEndIndex = Math.min(vehStartIndex + vehiclePageSize, totalVehicles);
+  const paginatedVehicles = filteredAndSortedVehicles.slice(vehStartIndex, vehEndIndex);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -721,6 +923,34 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     showToast('Database sensus kependudukan lengkap berhasil diekspor ke CSV.');
   };
 
+  const handleExportVehiclesCSV = () => {
+    const headers = ['No Plat', 'No Unit', 'Wilayah', 'Pemilik / Pengemudi', 'Jenis', 'Merk', 'Model / Tipe', 'Tahun', 'Warna', 'Serial RFID', 'Hak Akses Gerbang', 'Status Akses RFID', 'Catatan Parkir'];
+    const rows = vehicles.map((v) => [
+      v.plateNumber,
+      v.houseCode,
+      `"${v.areaLabel}"`,
+      `"${v.ownerName}"`,
+      v.type,
+      v.brand,
+      `"${v.model}"`,
+      v.year,
+      `"${v.color}"`,
+      v.rfidTag,
+      v.gateAccess,
+      v.rfidStatus,
+      `"${v.notes || '-'}"`,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `MASTER_KENDARAAN_DAN_RFID_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Master kendaraan & tag RFID berhasil diekspor ke CSV.');
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notification Alert */}
@@ -737,7 +967,11 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black tracking-tight text-ink">Tata Kelola Rumah & Warga</h1>
             <span className="px-2.5 py-0.5 rounded-full bg-primary-100 text-primary-800 text-xs font-black border border-primary-200">
-              {activeSubTab === 'residents' ? `${residents.length} Jiwa Sensus` : `${properties.length} Unit Terdaftar`}
+              {activeSubTab === 'vehicles'
+                ? `${vehicles.length} Kendaraan Terdaftar`
+                : activeSubTab === 'residents'
+                ? `${residents.length} Jiwa Sensus`
+                : `${properties.length} Unit Terdaftar`}
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
@@ -748,14 +982,29 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={activeSubTab === 'residents' ? handleExportResidentsCSV : handleExportPropertiesCSV}
+            onClick={
+              activeSubTab === 'vehicles'
+                ? handleExportVehiclesCSV
+                : activeSubTab === 'residents'
+                ? handleExportResidentsCSV
+                : handleExportPropertiesCSV
+            }
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
           >
             <Download className="w-4 h-4 text-ink-muted" />
-            {activeSubTab === 'residents' ? 'Ekspor Sensus (CSV)' : 'Ekspor CSV'}
+            {activeSubTab === 'vehicles' ? 'Ekspor Kendaraan (CSV)' : activeSubTab === 'residents' ? 'Ekspor Sensus (CSV)' : 'Ekspor CSV'}
           </button>
           
-          {activeSubTab === 'residents' ? (
+          {activeSubTab === 'vehicles' ? (
+            <button
+              type="button"
+              onClick={handleOpenAddVehicle}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Daftarkan Kendaraan & RFID
+            </button>
+          ) : activeSubTab === 'residents' ? (
             <button
               type="button"
               onClick={handleOpenAddResident}
@@ -1182,7 +1431,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 2: DATABASE KEPENDUDUKAN & PENGHUNI (DENGAN PAGINATION & CRUD LENGKAP) ================= */}
+      {/* ================= SUBTAB 2: DATABASE KEPENDUDUKAN & PENGHUNI ================= */}
       {activeSubTab === 'residents' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           {/* Summary Metric Cards */}
@@ -1465,89 +1714,300 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 3: MASTER KENDARAAN & RFID ================= */}
+      {/* ================= SUBTAB 3: MASTER KENDARAAN & RFID (FULL CRUD & PAGINATION) ================= */}
       {activeSubTab === 'vehicles' && (
         <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Total Kendaraan</span>
-              <p className="text-xl font-black text-ink mt-0.5">248 Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold">120 Rumah & Kavling</span>
+              <p className="text-xl font-black text-ink mt-0.5">{vehicles.length} Unit</p>
+              <span className="text-[10px] text-emerald-600 font-bold">Terdata di Gate Barrier</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Mobil Terdaftar</span>
-              <p className="text-xl font-black text-primary-700 mt-0.5">142 Unit</p>
-              <span className="text-[10px] text-ink-muted">Barrier Gate 1</span>
+              <span className="text-[11px] text-ink-muted font-medium">Mobil / Roda 4</span>
+              <p className="text-xl font-black text-primary-700 mt-0.5">
+                {vehicles.filter(v => v.type === 'Mobil').length} Unit
+              </p>
+              <span className="text-[10px] text-ink-muted">Barrier Gate Mobil</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Sepeda Motor</span>
-              <p className="text-xl font-black text-sky-700 mt-0.5">106 Unit</p>
-              <span className="text-[10px] text-ink-muted">Lane Motor</span>
+              <span className="text-[11px] text-ink-muted font-medium">Motor & Sepeda Listrik</span>
+              <p className="text-xl font-black text-sky-700 mt-0.5">
+                {vehicles.filter(v => v.type === 'Motor' || v.type === 'Sepeda Listrik').length} Unit
+              </p>
+              <span className="text-[10px] text-ink-muted">Lane Motor & E-Bike</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Stiker RFID Aktif</span>
-              <p className="text-xl font-black text-emerald-700 mt-0.5">248 RFID</p>
-              <span className="text-[10px] text-emerald-600 font-bold">100% Aktif</span>
+              <p className="text-xl font-black text-emerald-700 mt-0.5">
+                {vehicles.filter(v => v.rfidStatus === 'AKTIF').length} RFID
+              </p>
+              <span className="text-[10px] text-emerald-600 font-bold">
+                {vehicles.filter(v => v.rfidStatus === 'DIBLOKIR').length > 0
+                  ? `${vehicles.filter(v => v.rfidStatus === 'DIBLOKIR').length} Diblokir`
+                  : '100% Bebas Blokir'}
+              </span>
             </div>
           </div>
 
+          {/* Filter & Vehicle Search Bar */}
+          <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="w-full sm:w-72 relative">
+              <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Cari plat nomor, unit, merk, tag RFID..."
+                value={vehicleSearch}
+                onChange={(e) => {
+                  setVehicleSearch(e.target.value);
+                  setVehicleCurrentPage(1);
+                }}
+                className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <select
+                value={vehicleTypeFilter}
+                onChange={(e) => {
+                  setVehicleTypeFilter(e.target.value);
+                  setVehicleCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="ALL">Semua Jenis Kendaraan</option>
+                <option value="Mobil">Mobil (Roda 4)</option>
+                <option value="Motor">Sepeda Motor</option>
+                <option value="Sepeda Listrik">Sepeda Listrik / E-Bike</option>
+                <option value="Truk / Pickup">Truk / Pickup Niaga</option>
+              </select>
+
+              <select
+                value={vehicleRfidFilter}
+                onChange={(e) => {
+                  setVehicleRfidFilter(e.target.value);
+                  setVehicleCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="ALL">Semua Status RFID</option>
+                <option value="AKTIF">Akses Aktif (Buka Otomatis)</option>
+                <option value="DIBLOKIR">Diblokir (Tunggakan/Hilang)</option>
+                <option value="PENDING_VERIFIKASI">Pending Verifikasi</option>
+              </select>
+
+              <select
+                value={vehicleSortBy}
+                onChange={(e) => setVehicleSortBy(e.target.value as any)}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="plateNumber">Urut Plat Nomor</option>
+                <option value="houseCode">Urut Nomor Unit</option>
+                <option value="type">Urut Jenis</option>
+                <option value="brand">Urut Merk</option>
+                <option value="rfidStatus">Urut Status RFID</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setVehicleSortOrder(vehicleSortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
+                title={`Urutan: ${vehicleSortOrder === 'asc' ? 'Menaik (A-Z)' : 'Menurun (Z-A)'}`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* MASTER VEHICLES TABLE WITH PAGINATION & CRUD ACTIONS */}
           <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
-                    <th className="py-3 px-4">Plat Nomor</th>
-                    <th className="py-3 px-4">Unit / Wilayah</th>
-                    <th className="py-3 px-4">Jenis</th>
-                    <th className="py-3 px-4">Merk & Model</th>
-                    <th className="py-3 px-4">Warna</th>
-                    <th className="py-3 px-4 text-center">Status RFID Akses</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
+                    <th className="py-3.5 px-4">Plat Nomor</th>
+                    <th className="py-3.5 px-4">Unit / Wilayah</th>
+                    <th className="py-3.5 px-4">Pemilik / Pengemudi</th>
+                    <th className="py-3.5 px-4">Jenis</th>
+                    <th className="py-3.5 px-4">Merk & Tipe</th>
+                    <th className="py-3.5 px-4">Serial Tag RFID</th>
+                    <th className="py-3.5 px-4 text-center">Status Gerbang</th>
+                    <th className="py-3.5 px-4 text-right">Aksi Manajemen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {vehicles.map((v) => (
-                    <tr key={v.id} className="hover:bg-canvas/60 text-ink transition-colors">
-                      <td className="py-3 px-4 font-mono font-black text-sm text-ink">{v.plateNumber}</td>
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-primary-700 block">{v.houseCode}</span>
-                        <span className="text-[10px] text-ink-muted">{v.areaLabel}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded-md bg-canvas text-ink-muted font-bold border border-border">
-                          {v.type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-ink">{v.brand} {v.model}</td>
-                      <td className="py-3 px-4 text-ink-muted font-medium">{v.color}</td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleRfid(v.id)}
-                          className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
-                            v.rfidStatus === 'AKTIF'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-red-50 hover:text-red-700'
-                              : 'bg-red-50 text-red-800 border-red-200 hover:bg-emerald-50 hover:text-emerald-700'
-                          }`}
-                          title="Klik untuk ubah status akses gerbang"
-                        >
-                          {v.rfidStatus}
-                        </button>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPassVehicle(v)}
-                          className="p-1.5 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg inline-flex items-center gap-1 font-bold text-xs"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          Cetak Stiker Pass
-                        </button>
+                  {paginatedVehicles.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-ink-muted font-medium">
+                        Tidak ada data kendaraan yang cocok dengan filter pencarian.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    paginatedVehicles.map((v) => (
+                      <tr key={v.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-black text-sm text-ink">
+                          <div className="flex items-center gap-1.5">
+                            <span>{v.plateNumber}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-bold text-primary-700 block">{v.houseCode}</span>
+                          <span className="text-[10px] text-ink-muted">{v.areaLabel}</span>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-ink">{v.ownerName}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="px-2 py-0.5 rounded-md bg-canvas text-ink font-bold border border-border">
+                            {v.type}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <p className="font-bold text-ink">{v.brand} {v.model}</p>
+                          <p className="text-[10px] text-ink-muted">{v.color} • Thn {v.year}</p>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-ink-muted">
+                          <span className="px-1.5 py-0.5 bg-canvas rounded-md border border-border text-[11px]">
+                            {v.rfidTag}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRfid(v.id)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all cursor-pointer shadow-xs ${
+                              v.rfidStatus === 'AKTIF'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-300'
+                                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300'
+                            }`}
+                            title="Klik untuk ubah status akses palang gerbang"
+                          >
+                            {v.rfidStatus === 'AKTIF' ? '✓ AKTIF' : '✕ DIBLOKIR'}
+                          </button>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPassVehicle(v)}
+                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Cetak Stiker Pass & QR Code"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                              Stiker
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditVehicle(v)}
+                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Edit Data Kendaraan"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setVehicleToDelete(v)}
+                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Hapus Kendaraan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Hapus
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* VEHICLE PAGINATION BAR */}
+            <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-ink-muted">
+                  Menampilkan <strong className="text-ink">{totalVehicles === 0 ? 0 : vehStartIndex + 1}</strong> - <strong className="text-ink">{vehEndIndex}</strong> dari <strong className="text-ink">{totalVehicles}</strong> kendaraan terdaftar
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-ink-muted">Tampilkan:</span>
+                  <select
+                    value={vehiclePageSize}
+                    onChange={(e) => {
+                      setVehiclePageSize(Number(e.target.value));
+                      setVehicleCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-surface border border-border rounded-lg font-bold text-ink"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setVehicleCurrentPage(1)}
+                  disabled={safeVehiclePage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Pertama"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVehicleCurrentPage(safeVehiclePage - 1)}
+                  disabled={safeVehiclePage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1 px-2">
+                  {Array.from({ length: Math.min(5, totalVehiclePages) }, (_, i) => {
+                    let pageNum = safeVehiclePage - 2 + i;
+                    if (pageNum < 1) pageNum = i + 1;
+                    if (pageNum > totalVehiclePages) return null;
+
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setVehicleCurrentPage(pageNum)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                          safeVehiclePage === pageNum
+                            ? 'bg-primary-600 text-white shadow-xs'
+                            : 'bg-surface border border-border text-ink hover:bg-canvas'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setVehicleCurrentPage(safeVehiclePage + 1)}
+                  disabled={safeVehiclePage === totalVehiclePages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Berikutnya"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVehicleCurrentPage(totalVehiclePages)}
+                  disabled={safeVehiclePage === totalVehiclePages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Terakhir"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1906,6 +2366,285 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
+      {/* ================= MODAL: TAMBAH / EDIT KENDARAAN (KOLOM LENGKAP) ================= */}
+      {showVehicleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-xl w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center">
+                  <Car className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-ink">
+                    {editingVehicleId ? `Edit Kendaraan ${vehPlateNumber}` : 'Daftarkan Kendaraan & RFID Baru'}
+                  </h3>
+                  <p className="text-[11px] text-ink-muted">Pendaftaran akses barrier gate otomatis dan stiker pos satpam.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowVehicleModal(false)} className="text-ink-muted hover:text-ink">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveVehicle} className="space-y-3.5 text-xs">
+              {/* Seksi 1: Kepemilikan & Unit Rumah */}
+              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
+                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
+                  <Home className="w-3.5 h-3.5 text-primary-600" />
+                  1. Unit Rumah & Pemilik Kendaraan
+                </h4>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Pilih Unit Rumah / Kavling *</label>
+                    <select
+                      value={vehHouseCode}
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        setVehHouseCode(code);
+                        const matchedProp = properties.find(p => p.code === code);
+                        if (matchedProp) {
+                          setVehAreaLabel(code.startsWith('KAV') ? 'Kavling' : code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${matchedProp.blockCode}`);
+                          if (matchedProp.ownerName) setVehOwnerName(matchedProp.ownerName);
+                        }
+                      }}
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                    >
+                      {properties.map(p => (
+                        <option key={p.id} value={p.code}>
+                          {p.code} — {p.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Nama Pemilik / Pengemudi Utama *</label>
+                    <input
+                      type="text"
+                      placeholder="Nama Pemilik Kendaraan"
+                      value={vehOwnerName}
+                      onChange={(e) => setVehOwnerName(e.target.value)}
+                      required
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seksi 2: Spesifikasi Fisik Kendaraan */}
+              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
+                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
+                  <Car className="w-3.5 h-3.5 text-primary-600" />
+                  2. Spesifikasi Fisik Kendaraan
+                </h4>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Nomor Plat Polisi *</label>
+                    <input
+                      type="text"
+                      placeholder="B 1234 ABC"
+                      value={vehPlateNumber}
+                      onChange={(e) => setVehPlateNumber(e.target.value)}
+                      required
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-black uppercase text-ink"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Jenis Kendaraan</label>
+                    <select
+                      value={vehType}
+                      onChange={(e) => setVehType(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                    >
+                      <option value="Mobil">Mobil (Roda 4)</option>
+                      <option value="Motor">Sepeda Motor</option>
+                      <option value="Sepeda Listrik">Sepeda Listrik / E-Bike</option>
+                      <option value="Truk / Pickup">Truk / Pickup Niaga</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Merk Kendaraan *</label>
+                    <input
+                      type="text"
+                      placeholder="Toyota / Honda / Wuling"
+                      value={vehBrand}
+                      onChange={(e) => setVehBrand(e.target.value)}
+                      required
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Model / Tipe *</label>
+                    <input
+                      type="text"
+                      placeholder="Avanza / NMAX / Air EV"
+                      value={vehModel}
+                      onChange={(e) => setVehModel(e.target.value)}
+                      required
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Tahun Perakitan</label>
+                    <input
+                      type="number"
+                      value={vehYear}
+                      onChange={(e) => setVehYear(Number(e.target.value))}
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Warna Kendaraan</label>
+                    <input
+                      type="text"
+                      placeholder="Hitam Metalik / Putih"
+                      value={vehColor}
+                      onChange={(e) => setVehColor(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seksi 3: Hak Akses Gate & Keamanan RFID */}
+              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
+                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-primary-600" />
+                  3. Tag Keamanan RFID & Otorisasi Gerbang
+                </h4>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Nomor Seri RFID Tag</label>
+                    <input
+                      type="text"
+                      placeholder="RFID-8830192"
+                      value={vehRfidTag}
+                      onChange={(e) => setVehRfidTag(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Otorisasi Gerbang</label>
+                    <select
+                      value={vehGateAccess}
+                      onChange={(e) => setVehGateAccess(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                    >
+                      <option value="SEMUA_GERBANG">Semua Gerbang (Gate 1 & 2)</option>
+                      <option value="GERBANG_UTAMA">Gerbang Utama Saja</option>
+                      <option value="GERBANG_TIMUR">Gerbang Timur Saja</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Status Hak Akses *</label>
+                    <select
+                      value={vehRfidStatus}
+                      onChange={(e) => setVehRfidStatus(e.target.value as any)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                    >
+                      <option value="AKTIF">AKTIF (Buka Palang)</option>
+                      <option value="DIBLOKIR">DIBLOKIR (Tunggakan/Hilang)</option>
+                      <option value="PENDING_VERIFIKASI">Pending Verifikasi Fisik</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-ink block mb-1">Catatan Tambahan (Parkir / Izin Stiker)</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Parkir di garasi dalam rumah / Mobil operasional dinas"
+                    value={vehNotes}
+                    onChange={(e) => setVehNotes(e.target.value)}
+                    className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowVehicleModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={vehSaving}
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50"
+                >
+                  {vehSaving ? 'Menyimpan Kendaraan...' : editingVehicleId ? 'Perbarui Data Kendaraan' : 'Daftarkan Kendaraan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS KENDARAAN ================= */}
+      {vehicleToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-lg text-ink">Hapus Kendaraan {vehicleToDelete.plateNumber}?</h3>
+              <p className="text-xs text-ink-muted">
+                Kendaraan <strong>{vehicleToDelete.plateNumber}</strong> ({vehicleToDelete.brand} {vehicleToDelete.model}) milik Unit <strong>{vehicleToDelete.houseCode}</strong> akan dicabut hak akses barrier gate RFID-nya. Tindakan ini tercatat di Jejak Audit.
+              </p>
+            </div>
+
+            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
+              <span className="font-bold block">Alasan Pencabutan / Penghapusan:</span>
+              <select
+                value={vehicleDeleteReason}
+                onChange={(e) => setVehicleDeleteReason(e.target.value)}
+                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
+              >
+                <option value="Kendaraan Dijual / Diganti">Kendaraan Dijual / Diganti Baru</option>
+                <option value="Penghuni Pindah Keluar Komplek">Penghuni Pindah Keluar Komplek</option>
+                <option value="Stiker RFID Rusak / Hilang">Stiker RFID Rusak / Hilang</option>
+                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setVehicleToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteVehicle}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+              >
+                Ya, Hapus Akses
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL: TAMBAH / EDIT PENGHUNI (KOLOM LENGKAP) ================= */}
       {showResidentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
@@ -2174,56 +2913,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: KONFIRMASI HAPUS PENGHUNI ================= */}
-      {residentToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1">
-              <h3 className="font-black text-lg text-ink">Hapus Data {residentToDelete.fullName}?</h3>
-              <p className="text-xs text-ink-muted">
-                Penghuni <strong>{residentToDelete.fullName}</strong> ({residentToDelete.houseCode}) akan dihapus dari data kependudukan komplek. Tindakan ini tercatat di Jejak Audit.
-              </p>
-            </div>
-
-            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
-              <span className="font-bold block">Alasan Penghapusan Sensus:</span>
-              <select
-                value={residentDeleteReason}
-                onChange={(e) => setResidentDeleteReason(e.target.value)}
-                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
-              >
-                <option value="Pindah Domisili Keluar Komplek">Pindah Domisili Keluar Komplek</option>
-                <option value="Masa Kontrak / Sewa Berakhir">Masa Sewa Berakhir</option>
-                <option value="Meninggal Dunia">Meninggal Dunia</option>
-                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setResidentToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteResident}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
-              >
-                Ya, Hapus Data
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ================= MODAL: KONFIRMASI HAPUS RUMAH ================= */}
       {propertyToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
@@ -2395,7 +3084,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal text-center space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-2">
-              <h3 className="font-black text-sm text-ink">Stiker Akses RFID / QR Gate</h3>
+              <h3 className="font-black text-sm text-ink flex items-center gap-1.5">
+                <Printer className="w-4 h-4 text-primary-600" />
+                Stiker Fisik Akses RFID & QR Gate
+              </h3>
               <button onClick={() => setSelectedPassVehicle(null)} className="text-ink-muted hover:text-ink">✕</button>
             </div>
 
@@ -2403,11 +3095,20 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <QrCode className="w-36 h-36 mx-auto text-primary-700" />
             </div>
 
-            <div>
+            <div className="space-y-1">
               <p className="font-mono text-xl font-black text-ink">{selectedPassVehicle.plateNumber}</p>
-              <p className="text-xs font-bold text-primary-700">{selectedPassVehicle.houseCode} • {selectedPassVehicle.brand} {selectedPassVehicle.model}</p>
-              <span className="inline-block mt-2 px-3 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-200">
-                GATE 1 AUTO BARRIER AUTHORIZED
+              <p className="text-xs font-bold text-primary-700">
+                Unit {selectedPassVehicle.houseCode} • {selectedPassVehicle.brand} {selectedPassVehicle.model}
+              </p>
+              <p className="text-[10px] font-mono text-ink-muted">Tag Serial: {selectedPassVehicle.rfidTag || 'RFID-8830192'}</p>
+              <span className={`inline-block mt-2 px-3 py-0.5 text-[10px] font-bold rounded-full border ${
+                selectedPassVehicle.rfidStatus === 'AKTIF'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-red-50 text-red-800 border-red-200'
+              }`}>
+                {selectedPassVehicle.rfidStatus === 'AKTIF'
+                  ? 'GATE 1 & 2 AUTO BARRIER AUTHORIZED'
+                  : 'BLOCKED / ACCESS REVOKED'}
               </span>
             </div>
 
@@ -2415,12 +3116,13 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  alert(`Mencetak stiker akses untuk plat: ${selectedPassVehicle.plateNumber}`);
+                  alert(`Mencetak stiker fisik & hologram barcode untuk plat: ${selectedPassVehicle.plateNumber}`);
                   setSelectedPassVehicle(null);
                 }}
-                className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs"
+                className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2"
               >
-                Cetak Stiker Fisik
+                <Printer className="w-4 h-4" />
+                Cetak Stiker Fisik Kendaraan
               </button>
             </div>
           </div>
