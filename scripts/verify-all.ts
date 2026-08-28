@@ -268,6 +268,19 @@ async function runVerification() {
     const permitData = await permitRes.json();
     assert(permitRes.status === 201 && permitData.data?.status === 'APPROVED', `API /api/properties/permits/create: Renovation permit issued`);
 
+    const permitDelRes = await fetch(`${BASE_URL}/api/properties/permits/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        permitId: permitData.data?.id || 'PERMIT-TEST',
+        houseCode: 'A-17',
+        contractorName: 'Mandor Berkah Test',
+        reason: 'Uji Otomatis Penghapusan Izin Renovasi',
+      })
+    });
+    const permitDelData = await permitDelRes.json();
+    assert(permitDelRes.status === 200 && permitDelData.data?.success === true, `API /api/properties/permits/delete: Renovation permit revoked/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

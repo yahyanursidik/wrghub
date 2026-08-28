@@ -49,7 +49,11 @@ import {
   Activity,
   KeyRound,
   ShieldAlert,
-  Printer
+  Printer,
+  HardHat,
+  CheckSquare,
+  Ban,
+  Receipt
 } from 'lucide-react';
 import type { PropertyListItem } from '../../services/property.service';
 
@@ -106,7 +110,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // ================= RESIDENTS (PENGHUNI) COMPREHENSIVE STATE =================
+  // ================= RESIDENTS (PENGHUNI) STATE =================
   const [residentCategory, setResidentCategory] = useState('ALL');
   const [residentSearch, setResidentSearch] = useState('');
   const [residentSortBy, setResidentSortBy] = useState<'fullName' | 'houseCode' | 'relation' | 'occupation' | 'idCard'>('houseCode');
@@ -137,7 +141,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [residentToDelete, setResidentToDelete] = useState<any>(null);
   const [residentDeleteReason, setResidentDeleteReason] = useState('Pindah Domisili Keluar Komplek');
 
-  // Resident Form Fields (Complete Columns)
+  // Resident Form Fields
   const [resHouseCode, setResHouseCode] = useState('A-17');
   const [resAreaLabel, setResAreaLabel] = useState('Blok A');
   const [resFullName, setResFullName] = useState('');
@@ -156,7 +160,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [resNotes, setResNotes] = useState('');
   const [resSaving, setResSaving] = useState(false);
 
-  // ================= VEHICLES & RFID COMPREHENSIVE STATE =================
+  // ================= VEHICLES & RFID STATE =================
   const [vehicleSearch, setVehicleSearch] = useState('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState('ALL');
   const [vehicleRfidFilter, setVehicleRfidFilter] = useState('ALL');
@@ -187,7 +191,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [vehicleToDelete, setVehicleToDelete] = useState<any>(null);
   const [vehicleDeleteReason, setVehicleDeleteReason] = useState('Kendaraan Dijual / Diganti');
 
-  // Vehicle Form Fields (Complete Columns)
+  // Vehicle Form Fields
   const [vehHouseCode, setVehHouseCode] = useState('A-17');
   const [vehAreaLabel, setVehAreaLabel] = useState('Blok A');
   const [vehOwnerName, setVehOwnerName] = useState('Budi Santoso');
@@ -202,25 +206,135 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [vehRfidStatus, setVehRfidStatus] = useState<'AKTIF' | 'DIBLOKIR' | 'PENDING_VERIFIKASI'>('AKTIF');
   const [vehNotes, setVehNotes] = useState('');
   const [vehSaving, setVehSaving] = useState(false);
-
-  // Selected Pass Preview Modal
   const [selectedPassVehicle, setSelectedPassVehicle] = useState<any>(null);
 
-  // Permits State
+  // ================= PERMITS & CONTRACTOR COMPREHENSIVE STATE =================
+  const [permitSearch, setPermitSearch] = useState('');
+  const [permitStatusFilter, setPermitStatusFilter] = useState('ALL');
+  const [permitTypeFilter, setPermitTypeFilter] = useState('ALL');
+  const [permitSortBy, setPermitSortBy] = useState<'id' | 'houseCode' | 'workType' | 'contractorName' | 'status' | 'startDate'>('startDate');
+  const [permitSortOrder, setPermitSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [permitCurrentPage, setPermitCurrentPage] = useState(1);
+  const [permitPageSize, setPermitPageSize] = useState(10);
+
   const [permits, setPermits] = useState([
-    { id: 'PERMIT-2026-001', houseCode: 'A-17', areaLabel: 'Blok A', workType: 'Pengecatan & Kanopi', contractorName: 'Bpk. Sugeng (Mandor CV Berkah)', workersCount: 3, startDate: '2026-08-25', endDate: '2026-09-05', status: 'APPROVED', description: 'Pengecatan fasad luar dan perbaikan talang air kanopi garasi.' },
-    { id: 'PERMIT-2026-002', houseCode: 'SW1-12', areaLabel: 'Jl. Sariwangi Indah 1', workType: 'Renovasi Dapur Belakang', contractorName: 'Bpk. Yanto (Mandor Sejahtera)', workersCount: 4, startDate: '2026-08-20', endDate: '2026-09-15', status: 'APPROVED', description: 'Pemasangan keramik dinding dapur dan penutupan dak jemuran.' },
-    { id: 'PERMIT-2026-003', houseCode: 'KAV-05', areaLabel: 'Kav. 05', workType: 'Perbaikan Atap Bocor', contractorName: 'Bpk. Maman', workersCount: 2, startDate: '2026-08-28', endDate: '2026-09-02', status: 'PENDING_REVIEW', description: 'Pergantian 15 genteng pecah di atap lantai 2.' },
-    { id: 'PERMIT-2026-004', houseCode: 'D-19', areaLabel: 'Blok D', workType: 'Pemasangan Solar Panel', contractorName: 'PT Surya Nusantara Mandiri', workersCount: 5, startDate: '2026-08-15', endDate: '2026-08-27', status: 'COMPLETED', description: 'Pemasangan 8 panel surya di atas dak genteng.' },
+    {
+      id: 'PERMIT-2026-001',
+      houseCode: 'A-17',
+      areaLabel: 'Blok A',
+      ownerName: 'Budi Santoso',
+      workType: 'Pengecatan & Kanopi',
+      contractorName: 'Bpk. Sugeng (CV Berkah)',
+      contractorPhone: '0812-3344-5566',
+      workersCount: 3,
+      workersList: '1. Sugeng (Mandor), 2. Slamet (Tukang Cat), 3. Joko (Las Kanopi)',
+      startDate: '2026-08-25',
+      endDate: '2026-09-05',
+      allowedHours: '08:00 - 17:00 WIB (Senin - Sabtu)',
+      depositStatus: 'SUDAH_SETOR',
+      depositAmount: 2000000,
+      status: 'APPROVED',
+      description: 'Pengecatan fasad luar dan perbaikan talang air kanopi garasi.',
+    },
+    {
+      id: 'PERMIT-2026-002',
+      houseCode: 'SW1-12',
+      areaLabel: 'Jl. Sariwangi Indah 1',
+      ownerName: 'Ibu Ratna',
+      workType: 'Renovasi Interior & Dapur',
+      contractorName: 'Bpk. Yanto (Mandor Sejahtera)',
+      contractorPhone: '0813-8877-6655',
+      workersCount: 4,
+      workersList: '1. Yanto, 2. Agus, 3. Maman, 4. Dedi',
+      startDate: '2026-08-20',
+      endDate: '2026-09-15',
+      allowedHours: '08:00 - 17:00 WIB (Senin - Sabtu)',
+      depositStatus: 'SUDAH_SETOR',
+      depositAmount: 3000000,
+      status: 'APPROVED',
+      description: 'Pemasangan keramik dinding dapur dan penutupan dak jemuran belakang.',
+    },
+    {
+      id: 'PERMIT-2026-003',
+      houseCode: 'KAV-05',
+      areaLabel: 'Kav. 05',
+      ownerName: 'Bpk. Hendra Gunawan',
+      workType: 'Perbaikan Atap & Dak Bocor',
+      contractorName: 'Bpk. Maman Jaya',
+      contractorPhone: '0815-1122-3344',
+      workersCount: 2,
+      workersList: '1. Maman, 2. Ujang',
+      startDate: '2026-08-28',
+      endDate: '2026-09-02',
+      allowedHours: '08:00 - 17:00 WIB (Senin - Sabtu)',
+      depositStatus: 'BELUM_SETOR',
+      depositAmount: 1000000,
+      status: 'PENDING_REVIEW',
+      description: 'Pergantian 15 genteng pecah di atap lantai 2 dan waterproofing talang.',
+    },
+    {
+      id: 'PERMIT-2026-004',
+      houseCode: 'D-19',
+      areaLabel: 'Blok D',
+      ownerName: 'Bpk. Suryo Pranoto',
+      workType: 'Pemasangan Solar Panel',
+      contractorName: 'PT Surya Nusantara Mandiri',
+      contractorPhone: '0811-9988-7766',
+      workersCount: 5,
+      workersList: '1. Ir. Doni (Engineer), 2. Rudi, 3. Budi, 4. Tono, 5. Hendro',
+      startDate: '2026-08-15',
+      endDate: '2026-08-27',
+      allowedHours: '08:00 - 17:00 WIB (Senin - Sabtu)',
+      depositStatus: 'DIKEMBALIKAN',
+      depositAmount: 2500000,
+      status: 'COMPLETED',
+      description: 'Pemasangan 8 unit panel surya on-grid di atas dak genteng rumah.',
+    },
+    {
+      id: 'PERMIT-2026-005',
+      houseCode: 'B-04',
+      areaLabel: 'Blok B',
+      ownerName: 'Bpk. Agus Wijaya',
+      workType: 'Pembangunan Tingkat / Ekstensi',
+      contractorName: 'CV Bangun Prima Mandiri',
+      contractorPhone: '0818-4455-6677',
+      workersCount: 6,
+      workersList: '1. Mandor Joko, 2. Aris, 3. Bayu, 4. Wahyu, 5. Koko, 6. Dani',
+      startDate: '2026-08-10',
+      endDate: '2026-10-10',
+      allowedHours: '08:00 - 17:00 WIB (Senin - Sabtu)',
+      depositStatus: 'SUDAH_SETOR',
+      depositAmount: 5000000,
+      status: 'SUSPENDED',
+      description: 'Penambahan kamar tidur lantai 2. Dihentikan sementara karena material menutupi jalan warga.',
+    },
   ]);
+
+  // Permit Form Modal State
   const [showAddPermitModal, setShowAddPermitModal] = useState(false);
+  const [editingPermitId, setEditingPermitId] = useState<string | null>(null);
+  const [activePermitView, setActivePermitView] = useState<any>(null);
+  const [selectedPrintPermit, setSelectedPrintPermit] = useState<any>(null);
+  const [permitToDelete, setPermitToDelete] = useState<any>(null);
+  const [permitDeleteReason, setPermitDeleteReason] = useState('Renovasi Batal Dilaksanakan');
+
+  // Permit Form Fields (Complete Columns)
   const [pCode, setPCode] = useState('A-17');
+  const [pAreaLabel, setPAreaLabel] = useState('Blok A');
+  const [pOwnerName, setPOwnerName] = useState('Budi Santoso');
   const [pType, setPType] = useState('Pengecatan & Kanopi');
   const [pContractor, setPContractor] = useState('');
-  const [pWorkers, setPWorkers] = useState(2);
+  const [pContractorPhone, setPContractorPhone] = useState('0812-xxxx-xxxx');
+  const [pWorkers, setPWorkers] = useState(3);
+  const [pWorkersList, setPWorkersList] = useState('');
   const [pStart, setPStart] = useState('2026-09-01');
   const [pEnd, setPEnd] = useState('2026-09-10');
+  const [pAllowedHours, setPAllowedHours] = useState('08:00 - 17:00 WIB (Senin - Sabtu)');
+  const [pDepositStatus, setPDepositStatus] = useState('SUDAH_SETOR');
+  const [pDepositAmount, setPDepositAmount] = useState(2000000);
+  const [pStatus, setPStatus] = useState<'APPROVED' | 'PENDING_REVIEW' | 'COMPLETED' | 'SUSPENDED'>('APPROVED');
   const [pDesc, setPDesc] = useState('');
+  const [permitSaving, setPermitSaving] = useState(false);
 
   // Trigger Notification Toast
   const showToast = (msg: string) => {
@@ -553,7 +667,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     }
   };
 
-  // ================= VEHICLE & RFID ACTIONS (TAMBAH / EDIT / HAPUS KENDARAAN) =================
+  // ================= VEHICLE ACTIONS =================
   const handleOpenAddVehicle = () => {
     setEditingVehicleId(null);
     setVehHouseCode(properties[0]?.code || 'A-17');
@@ -691,34 +805,132 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     showToast(`Status RFID plat ${target?.plateNumber} diubah menjadi: ${newStatus}`);
   };
 
-  // Create Permit
-  const handleCreatePermit = (e: React.FormEvent) => {
+  // ================= PERMIT & CONTRACTOR ACTIONS (CRUD & APPROVALS) =================
+  const handleOpenAddPermit = () => {
+    setEditingPermitId(null);
+    setPCode(properties[0]?.code || 'A-17');
+    setPAreaLabel('Blok A');
+    setPOwnerName(properties[0]?.ownerName || 'Budi Santoso');
+    setPType('Pengecatan & Kanopi');
+    setPContractor('');
+    setPContractorPhone('0812-3344-5566');
+    setPWorkers(3);
+    setPWorkersList('1. Mandor Sugeng (KTP: 3301091203850001), 2. Slamet (KTP: 3301092507870002), 3. Joko');
+    setPStart(new Date().toISOString().slice(0, 10));
+    const nextDate = new Date();
+    nextDate.setDate(nextDate.getDate() + 14);
+    setPEnd(nextDate.toISOString().slice(0, 10));
+    setPAllowedHours('08:00 - 17:00 WIB (Senin - Sabtu)');
+    setPDepositStatus('SUDAH_SETOR');
+    setPDepositAmount(2000000);
+    setPStatus('APPROVED');
+    setPDesc('');
+    setShowAddPermitModal(true);
+  };
+
+  const handleOpenEditPermit = (p: any) => {
+    setEditingPermitId(p.id);
+    setPCode(p.houseCode);
+    setPAreaLabel(p.areaLabel);
+    setPOwnerName(p.ownerName || 'Warga Terdaftar');
+    setPType(p.workType);
+    setPContractor(p.contractorName);
+    setPContractorPhone(p.contractorPhone || '0812-3344-5566');
+    setPWorkers(p.workersCount);
+    setPWorkersList(p.workersList || `${p.contractorName} & ${p.workersCount} Tukang`);
+    setPStart(p.startDate);
+    setPEnd(p.endDate);
+    setPAllowedHours(p.allowedHours || '08:00 - 17:00 WIB (Senin - Sabtu)');
+    setPDepositStatus(p.depositStatus || 'SUDAH_SETOR');
+    setPDepositAmount(p.depositAmount || 2000000);
+    setPStatus(p.status);
+    setPDesc(p.description);
+    setShowAddPermitModal(true);
+  };
+
+  const handleSavePermit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pContractor || !pDesc) return;
-    setPermits([
-      {
-        id: `PERMIT-2026-00${permits.length + 1}`,
+    setPermitSaving(true);
+    try {
+      const payload = {
+        propertyCode: pCode.toUpperCase(),
         houseCode: pCode.toUpperCase(),
-        areaLabel: pCode.startsWith('KAV') ? 'Kavling' : pCode.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${pCode.split('-')[0]}`,
+        areaLabel: pAreaLabel,
+        ownerName: pOwnerName,
         workType: pType,
         contractorName: pContractor,
+        contractorPhone: pContractorPhone,
         workersCount: Number(pWorkers),
+        workersList: pWorkersList,
         startDate: pStart,
         endDate: pEnd,
-        status: 'APPROVED',
+        allowedHours: pAllowedHours,
+        depositStatus: pDepositStatus,
+        depositAmount: Number(pDepositAmount),
         description: pDesc,
-      },
-      ...permits,
-    ]);
-    setShowAddPermitModal(false);
-    setPContractor('');
-    setPDesc('');
-    showToast(`Izin renovasi untuk Unit ${pCode.toUpperCase()} berhasil diterbitkan.`);
+        status: pStatus,
+      };
+
+      const res = await fetch('/api/properties/permits/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        if (editingPermitId) {
+          setPermits(permits.map(p => p.id === editingPermitId ? {
+            ...p,
+            ...payload,
+          } : p));
+          showToast(`Surat izin renovasi ${editingPermitId} berhasil diperbarui.`);
+        } else {
+          const newPermit = {
+            id: `PERMIT-2026-00${permits.length + 1}`,
+            ...payload,
+          };
+          setPermits([newPermit, ...permits]);
+          showToast(`Izin renovasi ${newPermit.id} untuk Unit ${pCode} berhasil diterbitkan.`);
+        }
+        setShowAddPermitModal(false);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menerbitkan izin renovasi.');
+    } finally {
+      setPermitSaving(false);
+    }
+  };
+
+  const handleConfirmDeletePermit = async () => {
+    if (!permitToDelete) return;
+    try {
+      const res = await fetch('/api/properties/permits/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          permitId: permitToDelete.id,
+          houseCode: permitToDelete.houseCode,
+          contractorName: permitToDelete.contractorName,
+          reason: permitDeleteReason,
+        })
+      });
+
+      if (res.ok) {
+        setPermits(permits.filter(p => p.id !== permitToDelete.id));
+        showToast(`Izin renovasi ${permitToDelete.id} berhasil dihapus/dibatalkan.`);
+        setPermitToDelete(null);
+        if (activePermitView?.id === permitToDelete.id) setActivePermitView(null);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus izin renovasi.');
+    }
   };
 
   const handleTogglePermitStatus = (id: string, newStatus: string) => {
-    setPermits(permits.map(p => p.id === id ? { ...p, status: newStatus } : p));
-    showToast(`Status izin ${id} diubah menjadi ${newStatus}.`);
+    setPermits(permits.map(p => p.id === id ? { ...p, status: newStatus as any } : p));
+    showToast(`Status izin ${id} diubah menjadi: ${newStatus}`);
   };
 
   // Filtered & Sorted Properties
@@ -836,6 +1048,40 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const vehEndIndex = Math.min(vehStartIndex + vehiclePageSize, totalVehicles);
   const paginatedVehicles = filteredAndSortedVehicles.slice(vehStartIndex, vehEndIndex);
 
+  // Permit Filtered & Sorted & Paginated
+  const filteredAndSortedPermits = useMemo(() => {
+    const list = permits.filter((p) => {
+      const matchSearch = p.id.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.houseCode.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.contractorName.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.workType.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.description.toLowerCase().includes(permitSearch.toLowerCase());
+      const matchStatus = permitStatusFilter === 'ALL' || p.status === permitStatusFilter;
+      const matchType = permitTypeFilter === 'ALL' || p.workType === permitTypeFilter;
+      return matchSearch && matchStatus && matchType;
+    });
+
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (permitSortBy === 'id') comparison = a.id.localeCompare(b.id);
+      else if (permitSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
+      else if (permitSortBy === 'workType') comparison = a.workType.localeCompare(b.workType);
+      else if (permitSortBy === 'contractorName') comparison = a.contractorName.localeCompare(b.contractorName);
+      else if (permitSortBy === 'status') comparison = a.status.localeCompare(b.status);
+      else if (permitSortBy === 'startDate') comparison = a.startDate.localeCompare(b.startDate);
+      return permitSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [permits, permitSearch, permitStatusFilter, permitTypeFilter, permitSortBy, permitSortOrder]);
+
+  const totalPermits = filteredAndSortedPermits.length;
+  const totalPermitPages = Math.max(1, Math.ceil(totalPermits / permitPageSize));
+  const safePermitPage = Math.min(permitCurrentPage, totalPermitPages);
+  const permitStartIndex = (safePermitPage - 1) * permitPageSize;
+  const permitEndIndex = Math.min(permitStartIndex + permitPageSize, totalPermits);
+  const paginatedPermits = filteredAndSortedPermits.slice(permitStartIndex, permitEndIndex);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'OWNER_OCCUPIED':
@@ -867,6 +1113,21 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         return <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 font-bold text-[10px] border border-indigo-200">Penyewa</span>;
       default:
         return <span className="px-2 py-0.5 rounded-md bg-canvas text-ink-muted text-[10px]">{rel}</span>;
+    }
+  };
+
+  const getPermitStatusBadge = (status: string) => {
+    switch (status) {
+      case 'APPROVED':
+        return <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black border border-emerald-300 inline-flex items-center gap-1">✓ SEDANG BERJALAN</span>;
+      case 'PENDING_REVIEW':
+        return <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 text-[10px] font-black border border-amber-300 inline-flex items-center gap-1">⏱ MENUNGGU ACC</span>;
+      case 'COMPLETED':
+        return <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-[10px] font-black border border-slate-300 inline-flex items-center gap-1">✓ SELESAI</span>;
+      case 'SUSPENDED':
+        return <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 text-[10px] font-black border border-rose-300 inline-flex items-center gap-1">✕ DIHENTIKAN</span>;
+      default:
+        return <span className="px-2.5 py-1 rounded-lg bg-canvas text-ink-muted text-[10px]">{status}</span>;
     }
   };
 
@@ -951,6 +1212,35 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     showToast('Master kendaraan & tag RFID berhasil diekspor ke CSV.');
   };
 
+  const handleExportPermitsCSV = () => {
+    const headers = ['ID Izin', 'No Unit', 'Wilayah', 'Jenis Renovasi', 'Mandor / Kontraktor', 'No WA Mandor', 'Jumlah Tukang', 'Masa Mulai', 'Masa Selesai', 'Jam Kerja', 'Status Jaminan Deposit', 'Nominal Deposit (Rp)', 'Status Izin', 'Rincian Pekerjaan'];
+    const rows = permits.map((p) => [
+      p.id,
+      p.houseCode,
+      `"${p.areaLabel}"`,
+      `"${p.workType}"`,
+      `"${p.contractorName}"`,
+      p.contractorPhone,
+      p.workersCount,
+      p.startDate,
+      p.endDate,
+      `"${p.allowedHours}"`,
+      p.depositStatus,
+      p.depositAmount,
+      p.status,
+      `"${p.description}"`,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `LAPORAN_IZIN_RENOVASI_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Laporan izin renovasi & pekerja bangunan berhasil diekspor ke CSV.');
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notification Alert */}
@@ -967,7 +1257,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black tracking-tight text-ink">Tata Kelola Rumah & Warga</h1>
             <span className="px-2.5 py-0.5 rounded-full bg-primary-100 text-primary-800 text-xs font-black border border-primary-200">
-              {activeSubTab === 'vehicles'
+              {activeSubTab === 'permits'
+                ? `${permits.length} Izin Renovasi`
+                : activeSubTab === 'vehicles'
                 ? `${vehicles.length} Kendaraan Terdaftar`
                 : activeSubTab === 'residents'
                 ? `${residents.length} Jiwa Sensus`
@@ -983,7 +1275,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
           <button
             type="button"
             onClick={
-              activeSubTab === 'vehicles'
+              activeSubTab === 'permits'
+                ? handleExportPermitsCSV
+                : activeSubTab === 'vehicles'
                 ? handleExportVehiclesCSV
                 : activeSubTab === 'residents'
                 ? handleExportResidentsCSV
@@ -992,10 +1286,25 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
           >
             <Download className="w-4 h-4 text-ink-muted" />
-            {activeSubTab === 'vehicles' ? 'Ekspor Kendaraan (CSV)' : activeSubTab === 'residents' ? 'Ekspor Sensus (CSV)' : 'Ekspor CSV'}
+            {activeSubTab === 'permits'
+              ? 'Ekspor Izin (CSV)'
+              : activeSubTab === 'vehicles'
+              ? 'Ekspor Kendaraan (CSV)'
+              : activeSubTab === 'residents'
+              ? 'Ekspor Sensus (CSV)'
+              : 'Ekspor CSV'}
           </button>
           
-          {activeSubTab === 'vehicles' ? (
+          {activeSubTab === 'permits' ? (
+            <button
+              type="button"
+              onClick={handleOpenAddPermit}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Terbitkan Izin Baru
+            </button>
+          ) : activeSubTab === 'vehicles' ? (
             <button
               type="button"
               onClick={handleOpenAddVehicle}
@@ -1538,87 +1847,79 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {paginatedResidents.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-ink-muted font-medium">
-                        Tidak ada data penghuni yang cocok dengan filter pencarian.
+                  {paginatedResidents.map((r) => (
+                    <tr key={r.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                      <td className="py-3.5 px-4">
+                        <span className="font-mono font-bold text-primary-700 block">{r.houseCode}</span>
+                        <span className="text-[10px] text-ink-muted">{r.areaLabel}</span>
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-ink">
+                        <div className="flex items-center gap-1.5">
+                          <span>{r.fullName}</span>
+                          {r.isEmergency && (
+                            <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 text-[9px] font-black rounded-md border border-rose-200">
+                              Darurat
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">{getRelationBadge(r.relation)}</td>
+                      <td className="py-3.5 px-4 font-mono text-ink-muted">{r.idCard}</td>
+                      <td className="py-3.5 px-4 text-ink font-medium">{r.occupation}</td>
+                      <td className="py-3.5 px-4 font-mono text-ink">
+                        {r.phone !== '-' ? (
+                          <a
+                            href={`https://wa.me/${r.phone.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-700 hover:underline font-bold inline-flex items-center gap-1"
+                            title="Kirim pesan WhatsApp"
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            {r.phone}
+                          </a>
+                        ) : (
+                          <span className="text-ink-muted">-</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                          TERVERIFIKASI
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setActiveResidentView(r)}
+                            className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                            title="Lihat Biodata Lengkap"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Detail
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditResident(r)}
+                            className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                            title="Edit Data Penghuni"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResidentToDelete(r)}
+                            className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                            title="Hapus Data Penghuni"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Hapus
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ) : (
-                    paginatedResidents.map((r) => (
-                      <tr key={r.id} className="hover:bg-canvas/60 text-ink transition-colors">
-                        <td className="py-3.5 px-4">
-                          <span className="font-mono font-bold text-primary-700 block">{r.houseCode}</span>
-                          <span className="text-[10px] text-ink-muted">{r.areaLabel}</span>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-ink">
-                          <div className="flex items-center gap-1.5">
-                            <span>{r.fullName}</span>
-                            {r.isEmergency && (
-                              <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 text-[9px] font-black rounded-md border border-rose-200">
-                                Darurat
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">{getRelationBadge(r.relation)}</td>
-                        <td className="py-3.5 px-4 font-mono text-ink-muted">{r.idCard}</td>
-                        <td className="py-3.5 px-4 text-ink font-medium">{r.occupation}</td>
-                        <td className="py-3.5 px-4 font-mono text-ink">
-                          {r.phone !== '-' ? (
-                            <a
-                              href={`https://wa.me/${r.phone.replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-emerald-700 hover:underline font-bold inline-flex items-center gap-1"
-                              title="Kirim pesan WhatsApp"
-                            >
-                              <MessageCircle className="w-3 h-3" />
-                              {r.phone}
-                            </a>
-                          ) : (
-                            <span className="text-ink-muted">-</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
-                            TERVERIFIKASI
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setActiveResidentView(r)}
-                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                              title="Lihat Biodata Lengkap"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              Detail
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditResident(r)}
-                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                              title="Edit Data Penghuni"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setResidentToDelete(r)}
-                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                              title="Hapus Data Penghuni"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Hapus
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1653,7 +1954,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setResidentCurrentPage(1)}
                   disabled={safeResidentPage === 1}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Pertama"
                 >
                   <ChevronsLeft className="w-4 h-4" />
                 </button>
@@ -1662,7 +1962,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setResidentCurrentPage(safeResidentPage - 1)}
                   disabled={safeResidentPage === 1}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Sebelumnya"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -1695,7 +1994,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setResidentCurrentPage(safeResidentPage + 1)}
                   disabled={safeResidentPage === totalResidentPages}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Berikutnya"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1704,7 +2002,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setResidentCurrentPage(totalResidentPages)}
                   disabled={safeResidentPage === totalResidentPages}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Terakhir"
                 >
                   <ChevronsRight className="w-4 h-4" />
                 </button>
@@ -1714,7 +2011,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 3: MASTER KENDARAAN & RFID (FULL CRUD & PAGINATION) ================= */}
+      {/* ================= SUBTAB 3: MASTER KENDARAAN & RFID ================= */}
       {activeSubTab === 'vehicles' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           {/* Summary Metric Cards */}
@@ -1743,11 +2040,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <p className="text-xl font-black text-emerald-700 mt-0.5">
                 {vehicles.filter(v => v.rfidStatus === 'AKTIF').length} RFID
               </p>
-              <span className="text-[10px] text-emerald-600 font-bold">
-                {vehicles.filter(v => v.rfidStatus === 'DIBLOKIR').length > 0
-                  ? `${vehicles.filter(v => v.rfidStatus === 'DIBLOKIR').length} Diblokir`
-                  : '100% Bebas Blokir'}
-              </span>
+              <span className="text-[10px] text-emerald-600 font-bold">100% Akses Aktif</span>
             </div>
           </div>
 
@@ -1813,14 +2106,13 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 type="button"
                 onClick={() => setVehicleSortOrder(vehicleSortOrder === 'asc' ? 'desc' : 'asc')}
                 className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
-                title={`Urutan: ${vehicleSortOrder === 'asc' ? 'Menaik (A-Z)' : 'Menurun (Z-A)'}`}
               >
                 <ArrowUpDown className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          {/* MASTER VEHICLES TABLE WITH PAGINATION & CRUD ACTIONS */}
+          {/* MASTER VEHICLES TABLE */}
           <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
@@ -1837,87 +2129,71 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {paginatedVehicles.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-ink-muted font-medium">
-                        Tidak ada data kendaraan yang cocok dengan filter pencarian.
+                  {paginatedVehicles.map((v) => (
+                    <tr key={v.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-black text-sm text-ink">{v.plateNumber}</td>
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-primary-700 block">{v.houseCode}</span>
+                        <span className="text-[10px] text-ink-muted">{v.areaLabel}</span>
                       </td>
-                    </tr>
-                  ) : (
-                    paginatedVehicles.map((v) => (
-                      <tr key={v.id} className="hover:bg-canvas/60 text-ink transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-black text-sm text-ink">
-                          <div className="flex items-center gap-1.5">
-                            <span>{v.plateNumber}</span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="font-bold text-primary-700 block">{v.houseCode}</span>
-                          <span className="text-[10px] text-ink-muted">{v.areaLabel}</span>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-ink">{v.ownerName}</td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2 py-0.5 rounded-md bg-canvas text-ink font-bold border border-border">
-                            {v.type}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <p className="font-bold text-ink">{v.brand} {v.model}</p>
-                          <p className="text-[10px] text-ink-muted">{v.color} • Thn {v.year}</p>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-ink-muted">
-                          <span className="px-1.5 py-0.5 bg-canvas rounded-md border border-border text-[11px]">
-                            {v.rfidTag}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-4 font-bold text-ink">{v.ownerName}</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 rounded-md bg-canvas text-ink font-bold border border-border">
+                          {v.type}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <p className="font-bold text-ink">{v.brand} {v.model}</p>
+                        <p className="text-[10px] text-ink-muted">{v.color} • Thn {v.year}</p>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-ink-muted">
+                        <span className="px-1.5 py-0.5 bg-canvas rounded-md border border-border text-[11px]">
+                          {v.rfidTag}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleRfid(v.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all cursor-pointer shadow-xs ${
+                            v.rfidStatus === 'AKTIF'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-red-50 hover:text-red-700'
+                              : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-emerald-50 hover:text-emerald-700'
+                          }`}
+                        >
+                          {v.rfidStatus === 'AKTIF' ? '✓ AKTIF' : '✕ DIBLOKIR'}
+                        </button>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="inline-flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => handleToggleRfid(v.id)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all cursor-pointer shadow-xs ${
-                              v.rfidStatus === 'AKTIF'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-300'
-                                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300'
-                            }`}
-                            title="Klik untuk ubah status akses palang gerbang"
+                            onClick={() => setSelectedPassVehicle(v)}
+                            className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
                           >
-                            {v.rfidStatus === 'AKTIF' ? '✓ AKTIF' : '✕ DIBLOKIR'}
+                            <QrCode className="w-3.5 h-3.5" />
+                            Stiker
                           </button>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPassVehicle(v)}
-                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                              title="Cetak Stiker Pass & QR Code"
-                            >
-                              <QrCode className="w-3.5 h-3.5" />
-                              Stiker
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditVehicle(v)}
-                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                              title="Edit Data Kendaraan"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setVehicleToDelete(v)}
-                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                              title="Hapus Kendaraan"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Hapus
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditVehicle(v)}
+                            className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setVehicleToDelete(v)}
+                            className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1952,7 +2228,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setVehicleCurrentPage(1)}
                   disabled={safeVehiclePage === 1}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Pertama"
                 >
                   <ChevronsLeft className="w-4 h-4" />
                 </button>
@@ -1961,7 +2236,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setVehicleCurrentPage(safeVehiclePage - 1)}
                   disabled={safeVehiclePage === 1}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Sebelumnya"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -1994,7 +2268,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setVehicleCurrentPage(safeVehiclePage + 1)}
                   disabled={safeVehiclePage === totalVehiclePages}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Berikutnya"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -2003,7 +2276,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   onClick={() => setVehicleCurrentPage(totalVehiclePages)}
                   disabled={safeVehiclePage === totalVehiclePages}
                   className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Halaman Terakhir"
                 >
                   <ChevronsRight className="w-4 h-4" />
                 </button>
@@ -2013,88 +2285,288 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 4: IZIN RENOVASI ================= */}
+      {/* ================= SUBTAB 4: IZIN RENOVASI & TUKANG (FULL CRUD & PAGINATION) ================= */}
       {activeSubTab === 'permits' && (
         <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-extrabold text-ink">Pengawasan Renovasi Lingkungan</h3>
-              <p className="text-xs text-ink-muted">Pantau aktivitas tukang, masa berlaku permit, dan kepatuhan jam kerja.</p>
+          {/* Summary Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[11px] text-ink-muted font-medium">Total Izin Diajukan</span>
+              <p className="text-xl font-black text-ink mt-0.5">{permits.length} Permit</p>
+              <span className="text-[10px] text-emerald-600 font-bold">Tercatat di Sistem</span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowAddPermitModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Terbitkan Izin Baru
-            </button>
+            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[11px] text-ink-muted font-medium">Sedang Berjalan</span>
+              <p className="text-xl font-black text-emerald-700 mt-0.5">
+                {permits.filter(p => p.status === 'APPROVED').length} Unit
+              </p>
+              <span className="text-[10px] text-emerald-600 font-bold">Dalam Pengawasan Satpam</span>
+            </div>
+            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[11px] text-ink-muted font-medium">Menunggu ACC RT/RW</span>
+              <p className="text-xl font-black text-amber-700 mt-0.5">
+                {permits.filter(p => p.status === 'PENDING_REVIEW').length} Pengajuan
+              </p>
+              <span className="text-[10px] text-amber-600 font-bold">Perlu Ditinjau</span>
+            </div>
+            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[11px] text-ink-muted font-medium">Total Jaminan Deposit</span>
+              <p className="text-xl font-black text-primary-700 mt-0.5">
+                Rp {(permits.reduce((acc, p) => p.depositStatus === 'SUDAH_SETOR' ? acc + (p.depositAmount || 0) : acc, 0) / 1000000).toFixed(1)} Jt
+              </p>
+              <span className="text-[10px] text-ink-muted">Uang Jaminan Tertahan</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {permits.map((p) => (
-              <div key={p.id} className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-md border border-primary-200">
-                      Unit {p.houseCode}
-                    </span>
-                    <span className="text-[10px] font-mono text-ink-muted">{p.areaLabel}</span>
-                  </div>
-                  <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${
-                    p.status === 'APPROVED'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : p.status === 'COMPLETED'
-                      ? 'bg-slate-100 text-slate-700 border-slate-200'
-                      : 'bg-amber-50 text-amber-800 border-amber-200'
-                  }`}>
-                    {p.status === 'APPROVED' ? 'SEDANG BERJALAN' : p.status === 'COMPLETED' ? 'SELESAI' : 'MENUNGGU ACC'}
-                  </span>
-                </div>
+          {/* Filter & Search Bar */}
+          <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="w-full sm:w-72 relative">
+              <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Cari ID izin, unit, mandor, rincian pekerjaan..."
+                value={permitSearch}
+                onChange={(e) => {
+                  setPermitSearch(e.target.value);
+                  setPermitCurrentPage(1);
+                }}
+                className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
+              />
+            </div>
 
-                <div>
-                  <h4 className="text-sm font-extrabold text-ink">{p.workType}</h4>
-                  <p className="text-xs text-ink-muted mt-0.5">{p.description}</p>
-                </div>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <select
+                value={permitStatusFilter}
+                onChange={(e) => {
+                  setPermitStatusFilter(e.target.value);
+                  setPermitCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="ALL">Semua Status Izin</option>
+                <option value="APPROVED">Sedang Berjalan (Disetujui)</option>
+                <option value="PENDING_REVIEW">Menunggu Persetujuan</option>
+                <option value="COMPLETED">Selesai Dikerjakan</option>
+                <option value="SUSPENDED">Dihentikan Sementara</option>
+              </select>
 
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-canvas text-xs">
-                  <div>
-                    <span className="text-[10px] text-ink-muted">Mandor / Kontraktor:</span>
-                    <p className="font-bold text-ink">{p.contractorName}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-ink-muted">Tenaga Kerja:</span>
-                    <p className="font-bold text-ink">{p.workersCount} Orang Tukang</p>
-                  </div>
-                  <div className="col-span-2 pt-1 border-t border-border/60">
-                    <span className="text-[10px] text-ink-muted">Masa Izin:</span>
-                    <p className="font-semibold text-ink">{p.startDate} s/d {p.endDate}</p>
-                  </div>
-                </div>
+              <select
+                value={permitTypeFilter}
+                onChange={(e) => {
+                  setPermitTypeFilter(e.target.value);
+                  setPermitCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="ALL">Semua Jenis Pekerjaan</option>
+                <option value="Pengecatan & Kanopi">Pengecatan & Kanopi</option>
+                <option value="Renovasi Interior & Dapur">Renovasi Interior & Dapur</option>
+                <option value="Perbaikan Atap & Dak Bocor">Perbaikan Atap & Dak</option>
+                <option value="Pembangunan Tingkat / Ekstensi">Pembangunan Tingkat</option>
+                <option value="Pemasangan Solar Panel">Pemasangan Solar Panel</option>
+              </select>
 
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  {p.status === 'PENDING_REVIEW' && (
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePermitStatus(p.id, 'APPROVED')}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs"
-                    >
-                      Setujui Izin
-                    </button>
+              <select
+                value={permitSortBy}
+                onChange={(e) => setPermitSortBy(e.target.value as any)}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="startDate">Urut Tanggal Mulai</option>
+                <option value="houseCode">Urut Nomor Unit</option>
+                <option value="contractorName">Urut Nama Mandor</option>
+                <option value="status">Urut Status Izin</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setPermitSortOrder(permitSortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* PERMITS TABLE WITH PAGINATION & CRUD ACTIONS */}
+          <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
+                    <th className="py-3.5 px-4">ID Permit / Unit</th>
+                    <th className="py-3.5 px-4">Jenis Pekerjaan</th>
+                    <th className="py-3.5 px-4">Mandor & Tukang</th>
+                    <th className="py-3.5 px-4">Masa Berlaku</th>
+                    <th className="py-3.5 px-4">Uang Jaminan</th>
+                    <th className="py-3.5 px-4 text-center">Status Izin</th>
+                    <th className="py-3.5 px-4 text-right">Aksi Manajemen</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {paginatedPermits.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-ink-muted font-medium">
+                        Tidak ada data izin renovasi yang cocok dengan filter pencarian.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedPermits.map((p) => (
+                      <tr key={p.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono font-black text-primary-700 block text-xs">{p.id}</span>
+                          <span className="text-[11px] font-bold text-ink">Unit {p.houseCode} ({p.areaLabel})</span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <p className="font-extrabold text-ink text-xs">{p.workType}</p>
+                          <p className="text-[10px] text-ink-muted truncate max-w-xs">{p.description}</p>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <p className="font-bold text-ink">{p.contractorName}</p>
+                          <p className="text-[10px] text-ink-muted">{p.workersCount} Orang Tukang • {p.contractorPhone || '-'}</p>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <p className="font-semibold text-ink">{p.startDate} s/d {p.endDate}</p>
+                          <span className="text-[10px] text-ink-muted block">{p.allowedHours || '08:00 - 17:00 WIB'}</span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono">
+                          <p className="font-bold text-ink">Rp {(p.depositAmount || 2000000).toLocaleString('id-ID')}</p>
+                          <span className={`text-[10px] font-bold ${p.depositStatus === 'SUDAH_SETOR' ? 'text-emerald-700' : p.depositStatus === 'DIKEMBALIKAN' ? 'text-slate-600' : 'text-amber-700'}`}>
+                            {p.depositStatus === 'SUDAH_SETOR' ? '✓ Disetor' : p.depositStatus === 'DIKEMBALIKAN' ? 'Dikembalikan' : 'Belum Setor'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {getPermitStatusBadge(p.status)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPrintPermit(p)}
+                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Cetak Surat Izin & QR Pas Tukang"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              Surat Izin
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActivePermitView(p)}
+                              className="p-1.5 hover:bg-slate-100 text-ink rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Lihat Detail Izin"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Detail
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPermit(p)}
+                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Edit Data Izin"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPermitToDelete(p)}
+                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                              title="Hapus / Batalkan Izin"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Hapus
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
-                  {p.status === 'APPROVED' && (
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePermitStatus(p.id, 'COMPLETED')}
-                      className="px-3 py-1 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs"
-                    >
-                      Tandai Selesai
-                    </button>
-                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* PERMIT PAGINATION BAR */}
+            <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-ink-muted">
+                  Menampilkan <strong className="text-ink">{totalPermits === 0 ? 0 : permitStartIndex + 1}</strong> - <strong className="text-ink">{permitEndIndex}</strong> dari <strong className="text-ink">{totalPermits}</strong> izin renovasi
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-ink-muted">Tampilkan:</span>
+                  <select
+                    value={permitPageSize}
+                    onChange={(e) => {
+                      setPermitPageSize(Number(e.target.value));
+                      setPermitCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-surface border border-border rounded-lg font-bold text-ink"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
                 </div>
               </div>
-            ))}
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPermitCurrentPage(1)}
+                  disabled={safePermitPage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPermitCurrentPage(safePermitPage - 1)}
+                  disabled={safePermitPage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1 px-2">
+                  {Array.from({ length: Math.min(5, totalPermitPages) }, (_, i) => {
+                    let pageNum = safePermitPage - 2 + i;
+                    if (pageNum < 1) pageNum = i + 1;
+                    if (pageNum > totalPermitPages) return null;
+
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setPermitCurrentPage(pageNum)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                          safePermitPage === pageNum
+                            ? 'bg-primary-600 text-white shadow-xs'
+                            : 'bg-surface border border-border text-ink hover:bg-canvas'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setPermitCurrentPage(safePermitPage + 1)}
+                  disabled={safePermitPage === totalPermitPages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPermitCurrentPage(totalPermitPages)}
+                  disabled={safePermitPage === totalPermitPages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -2197,37 +2669,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   <p className="font-bold text-primary-700 mt-0.5">TERHUBUNG POS GERBANG 1</p>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <h4 className="font-black text-ink text-xs">Penghuni Terdaftar ({activeProperty.residentCount || 3} Jiwa):</h4>
-                <div className="space-y-1.5">
-                  <div className="p-2.5 rounded-xl bg-surface border border-border flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-ink">{activeProperty.ownerName || 'Budi Santoso'}</p>
-                      <p className="text-[10px] text-ink-muted">Kepala Keluarga • 0812-3456-7890</p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-md">
-                      VERIFIED
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-black text-ink text-xs">Kendaraan Terdaftar ({activeProperty.vehicleCount || 1} Unit):</h4>
-                <div className="p-2.5 rounded-xl bg-surface border border-border flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-primary-600" />
-                    <div>
-                      <p className="font-mono font-bold text-ink">B 1234 ABC</p>
-                      <p className="text-[10px] text-ink-muted">Toyota Avanza • Hitam</p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-md">
-                    RFID PASS AKTIF
-                  </span>
-                </div>
-              </div>
             </div>
 
             <div className="pt-2 flex justify-between items-center">
@@ -2254,23 +2695,21 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: BIODATA LENGKAP PENGHUNI (VIEW RESIDENT) ================= */}
-      {activeResidentView && (
+      {/* ================= MODAL: DETAIL LENGKAP IZIN RENOVASI ================= */}
+      {activePermitView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-black">
-                  <UserCheck className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-black">
+                  <HardHat className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-ink">{activeResidentView.fullName}</h3>
-                  <p className="text-xs text-ink-muted">
-                    Unit {activeResidentView.houseCode} ({activeResidentView.areaLabel}) • {activeResidentView.relation.replace('_', ' ')}
-                  </p>
+                  <h3 className="font-black text-base text-ink">{activePermitView.id}</h3>
+                  <p className="text-xs text-ink-muted">Unit {activePermitView.houseCode} ({activePermitView.areaLabel}) • {activePermitView.workType}</p>
                 </div>
               </div>
-              <button onClick={() => setActiveResidentView(null)} className="p-1 rounded-full text-ink-muted hover:text-ink">
+              <button onClick={() => setActivePermitView(null)} className="p-1 rounded-full text-ink-muted hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -2278,84 +2717,97 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             <div className="space-y-3 text-xs">
               <div className="p-3.5 bg-canvas rounded-2xl border border-border grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Nomor Induk Kependudukan (NIK):</span>
-                  <p className="font-mono font-bold text-ink text-sm mt-0.5">{activeResidentView.idCard}</p>
+                  <span className="text-[10px] text-ink-muted font-bold block">Status Izin:</span>
+                  <div className="mt-0.5">{getPermitStatusBadge(activePermitView.status)}</div>
                 </div>
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Nomor Kartu Keluarga (No. KK):</span>
-                  <p className="font-mono font-bold text-ink text-sm mt-0.5">{activeResidentView.familyCard || '3171xxxxxxxx0000'}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Tempat & Tanggal Lahir:</span>
-                  <p className="font-bold text-ink mt-0.5">{activeResidentView.birthPlaceDate || 'Jakarta, 12-03-1985'}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Jenis Kelamin / Gol. Darah:</span>
+                  <span className="text-[10px] text-ink-muted font-bold block">Uang Jaminan Deposit:</span>
                   <p className="font-bold text-ink mt-0.5">
-                    {activeResidentView.gender === 'LAKI_LAKI' ? 'Laki-Laki' : 'Perempuan'} • Gol. {activeResidentView.bloodType || 'O'}
+                    Rp {(activePermitView.depositAmount || 2000000).toLocaleString('id-ID')} ({activePermitView.depositStatus})
                   </p>
                 </div>
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Agama:</span>
-                  <p className="font-bold text-ink mt-0.5">{activeResidentView.religion || 'ISLAM'}</p>
+                  <span className="text-[10px] text-ink-muted font-bold block">Mandor Penanggung Jawab:</span>
+                  <p className="font-bold text-ink mt-0.5">{activePermitView.contractorName}</p>
+                  <p className="text-[10px] font-mono text-ink-muted">{activePermitView.contractorPhone}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Profesi / Pekerjaan:</span>
-                  <p className="font-bold text-ink mt-0.5">{activeResidentView.occupation || 'Karyawan'}</p>
+                  <span className="text-[10px] text-ink-muted font-bold block">Tenaga Kerja Terdaftar:</span>
+                  <p className="font-bold text-ink mt-0.5">{activePermitView.workersCount} Orang Tukang</p>
                 </div>
-                <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Status Domisili KTP:</span>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-bold text-[10px] border border-emerald-200 mt-0.5 inline-block">
-                    {activeResidentView.domicileStatus === 'KTP_SETEMPAT' ? 'KTP Sesuai Komplek' : 'Domisili Luar'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Status Kontak Darurat:</span>
-                  <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border mt-0.5 inline-block ${
-                    activeResidentView.isEmergency
-                      ? 'bg-rose-50 text-rose-800 border-rose-200'
-                      : 'bg-canvas text-ink-muted border-border'
-                  }`}>
-                    {activeResidentView.isEmergency ? 'YA (PRIORITAS DARURAT)' : 'Bukan Kontak Darurat'}
-                  </span>
+                <div className="col-span-2 border-t border-border/60 pt-2">
+                  <span className="text-[10px] text-ink-muted font-bold block">Masa Berlaku Izin & Jam Kerja:</span>
+                  <p className="font-bold text-ink mt-0.5">{activePermitView.startDate} s/d {activePermitView.endDate} ({activePermitView.allowedHours || '08:00 - 17:00 WIB'})</p>
                 </div>
               </div>
 
-              {activeResidentView.notes && activeResidentView.notes !== '-' && (
-                <div className="p-3 bg-canvas/60 rounded-xl border border-border">
-                  <span className="text-[10px] text-ink-muted font-bold block">Catatan Khusus:</span>
-                  <p className="font-medium text-ink mt-0.5">{activeResidentView.notes}</p>
-                </div>
-              )}
+              <div className="p-3 bg-canvas/60 rounded-xl border border-border space-y-1">
+                <span className="text-[10px] text-ink-muted font-bold block">Daftar Nama Tenaga Kerja (Tukang):</span>
+                <p className="font-medium text-ink leading-relaxed">{activePermitView.workersList || 'Daftar nama tukang terlampir di pos satpam'}</p>
+              </div>
+
+              <div className="p-3 bg-canvas/60 rounded-xl border border-border space-y-1">
+                <span className="text-[10px] text-ink-muted font-bold block">Deskripsi & Peraturan Kebersihan:</span>
+                <p className="font-medium text-ink leading-relaxed">{activePermitView.description}</p>
+              </div>
             </div>
 
             <div className="pt-2 flex justify-between items-center">
-              {activeResidentView.phone !== '-' && (
-                <a
-                  href={`https://wa.me/${activeResidentView.phone.replace(/[^0-9]/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-xs"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Hubungi WhatsApp
-                </a>
-              )}
+              <div className="flex gap-2">
+                {activePermitView.status === 'PENDING_REVIEW' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleTogglePermitStatus(activePermitView.id, 'APPROVED');
+                      setActivePermitView(null);
+                    }}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs"
+                  >
+                    Setujui Izin
+                  </button>
+                )}
+                {activePermitView.status === 'APPROVED' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleTogglePermitStatus(activePermitView.id, 'COMPLETED');
+                      setActivePermitView(null);
+                    }}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs"
+                  >
+                    Tandai Selesai
+                  </button>
+                )}
+                {activePermitView.status === 'APPROVED' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleTogglePermitStatus(activePermitView.id, 'SUSPENDED');
+                      setActivePermitView(null);
+                    }}
+                    className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs"
+                  >
+                    Hentikan Sementara
+                  </button>
+                )}
+              </div>
+
               <div className="flex gap-2 ml-auto">
                 <button
                   type="button"
                   onClick={() => {
-                    const toEdit = activeResidentView;
-                    setActiveResidentView(null);
-                    handleOpenEditResident(toEdit);
+                    const toPrint = activePermitView;
+                    setActivePermitView(null);
+                    setSelectedPrintPermit(toPrint);
                   }}
-                  className="px-4 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl"
+                  className="px-4 py-2 bg-primary-50 text-primary-700 font-bold text-xs rounded-xl inline-flex items-center gap-1.5"
                 >
-                  Edit Data
+                  <Printer className="w-3.5 h-3.5" />
+                  Cetak Surat
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveResidentView(null)}
+                  onClick={() => setActivePermitView(null)}
                   className="px-5 py-2 bg-primary-600 text-white font-bold rounded-xl shadow-xs text-xs"
                 >
                   Tutup
@@ -2366,47 +2818,114 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: TAMBAH / EDIT KENDARAAN (KOLOM LENGKAP) ================= */}
-      {showVehicleModal && (
+      {/* ================= MODAL: CETAK SURAT IZIN RESMI & PAS TUKANG ================= */}
+      {selectedPrintPermit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-primary-600" />
+                <h3 className="font-black text-sm text-ink">Surat Izin Kerja Renovasi & Pas Masuk Tukang</h3>
+              </div>
+              <button onClick={() => setSelectedPrintPermit(null)} className="text-ink-muted hover:text-ink">✕</button>
+            </div>
+
+            {/* Simulated Official Paper Document */}
+            <div className="p-5 bg-canvas rounded-2xl border-2 border-dashed border-border space-y-4 text-ink">
+              <div className="text-center border-b border-border pb-3 space-y-0.5">
+                <h2 className="font-black text-sm uppercase tracking-wider text-ink">PENGURUS PAGUYUBAN WARGA TAMAN SEJAHTERA</h2>
+                <p className="text-[10px] text-ink-muted">SURAT KETERANGAN IZIN PEKERJAAN RENOVASI BANGUNAN</p>
+                <p className="font-mono text-xs font-bold text-primary-700">{selectedPrintPermit.id}</p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1 text-xs">
+                  <p><span className="text-ink-muted">Unit Hunian:</span> <strong>Rumah {selectedPrintPermit.houseCode} ({selectedPrintPermit.areaLabel})</strong></p>
+                  <p><span className="text-ink-muted">Jenis Pekerjaan:</span> <strong>{selectedPrintPermit.workType}</strong></p>
+                  <p><span className="text-ink-muted">Penanggung Jawab:</span> <strong>{selectedPrintPermit.contractorName}</strong></p>
+                  <p><span className="text-ink-muted">Jumlah Pekerja:</span> <strong>{selectedPrintPermit.workersCount} Orang Tukang</strong></p>
+                  <p><span className="text-ink-muted">Masa Berlaku:</span> <strong>{selectedPrintPermit.startDate} s/d {selectedPrintPermit.endDate}</strong></p>
+                  <p><span className="text-ink-muted">Jam Kerja:</span> <strong>{selectedPrintPermit.allowedHours || '08:00 - 17:00 WIB'}</strong></p>
+                </div>
+                <div className="p-2 bg-white rounded-xl border border-border text-center shrink-0">
+                  <QrCode className="w-24 h-24 text-primary-900 mx-auto" />
+                  <span className="text-[8px] font-mono font-bold text-ink-muted block mt-1">SCAN POS SATPAM</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-surface rounded-xl border border-border text-[10px] space-y-1 text-ink-muted">
+                <p className="font-bold text-ink">Tata Tertib Pekerja Bangunan:</p>
+                <p>1. Wajib mengenakan rompi/ID Pass tukang saat berada di area komplek.</p>
+                <p>2. Tidak diperkenankan menaruh material pasir/semen di atas aspal jalan warga.</p>
+                <p>3. Pekerjaan bising wajib dihentikan pada hari Minggu dan hari libur nasional.</p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedPrintPermit(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  alert(`Mencetak Surat Izin & ID Pass Tukang: ${selectedPrintPermit.id}`);
+                  setSelectedPrintPermit(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                Cetak Dokumen Resmi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: TAMBAH / EDIT IZIN RENOVASI (KOLOM LENGKAP) ================= */}
+      {showAddPermitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-xl w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center">
-                  <Car className="w-4 h-4" />
+                  <HardHat className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-black text-base text-ink">
-                    {editingVehicleId ? `Edit Kendaraan ${vehPlateNumber}` : 'Daftarkan Kendaraan & RFID Baru'}
+                    {editingPermitId ? `Edit Izin ${editingPermitId}` : 'Terbitkan Izin Renovasi & Tukang Baru'}
                   </h3>
-                  <p className="text-[11px] text-ink-muted">Pendaftaran akses barrier gate otomatis dan stiker pos satpam.</p>
+                  <p className="text-[11px] text-ink-muted">Pencatatan legalitas izin renovasi, tenaga kerja, dan uang jaminan.</p>
                 </div>
               </div>
-              <button onClick={() => setShowVehicleModal(false)} className="text-ink-muted hover:text-ink">
+              <button onClick={() => setShowAddPermitModal(false)} className="text-ink-muted hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveVehicle} className="space-y-3.5 text-xs">
-              {/* Seksi 1: Kepemilikan & Unit Rumah */}
+            <form onSubmit={handleSavePermit} className="space-y-3.5 text-xs">
+              {/* Seksi 1: Lokasi Hunian & Kategori Pekerjaan */}
               <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
                 <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
                   <Home className="w-3.5 h-3.5 text-primary-600" />
-                  1. Unit Rumah & Pemilik Kendaraan
+                  1. Lokasi Hunian & Kategori Renovasi
                 </h4>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="font-bold text-ink block mb-1">Pilih Unit Rumah / Kavling *</label>
                     <select
-                      value={vehHouseCode}
+                      value={pCode}
                       onChange={(e) => {
                         const code = e.target.value;
-                        setVehHouseCode(code);
+                        setPCode(code);
                         const matchedProp = properties.find(p => p.code === code);
                         if (matchedProp) {
-                          setVehAreaLabel(code.startsWith('KAV') ? 'Kavling' : code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${matchedProp.blockCode}`);
-                          if (matchedProp.ownerName) setVehOwnerName(matchedProp.ownerName);
+                          setPAreaLabel(code.startsWith('KAV') ? 'Kavling' : code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${matchedProp.blockCode}`);
+                          if (matchedProp.ownerName) setPOwnerName(matchedProp.ownerName);
                         }
                       }}
                       className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
@@ -2420,155 +2939,153 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-bold text-ink block mb-1">Nama Pemilik / Pengemudi Utama *</label>
-                    <input
-                      type="text"
-                      placeholder="Nama Pemilik Kendaraan"
-                      value={vehOwnerName}
-                      onChange={(e) => setVehOwnerName(e.target.value)}
-                      required
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
-                    />
+                    <label className="font-bold text-ink block mb-1">Kategori Pekerjaan *</label>
+                    <select
+                      value={pType}
+                      onChange={(e) => setPType(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                    >
+                      <option value="Pengecatan & Kanopi">Pengecatan & Kanopi</option>
+                      <option value="Renovasi Interior & Dapur">Renovasi Interior & Dapur</option>
+                      <option value="Perbaikan Atap & Dak Bocor">Perbaikan Atap & Dak Bocor</option>
+                      <option value="Pembangunan Tingkat / Ekstensi">Pembangunan Tingkat / Ekstensi</option>
+                      <option value="Pemasangan Solar Panel">Pemasangan Solar Panel</option>
+                      <option value="Pembangunan Rumah Baru / Kavling">Pembangunan Rumah Baru / Kavling</option>
+                      <option value="Lainnya">Lainnya</option>
+                    </select>
                   </div>
                 </div>
               </div>
 
-              {/* Seksi 2: Spesifikasi Fisik Kendaraan */}
+              {/* Seksi 2: Mandor & Tenaga Kerja (Tukang) */}
               <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
                 <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Car className="w-3.5 h-3.5 text-primary-600" />
-                  2. Spesifikasi Fisik Kendaraan
+                  <HardHat className="w-3.5 h-3.5 text-primary-600" />
+                  2. Kontraktor, Mandor & Jumlah Tukang
                 </h4>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Nomor Plat Polisi *</label>
+                  <div className="col-span-2">
+                    <label className="font-bold text-ink block mb-1">Nama Mandor / Kontraktor *</label>
                     <input
                       type="text"
-                      placeholder="B 1234 ABC"
-                      value={vehPlateNumber}
-                      onChange={(e) => setVehPlateNumber(e.target.value)}
-                      required
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-black uppercase text-ink"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Jenis Kendaraan</label>
-                    <select
-                      value={vehType}
-                      onChange={(e) => setVehType(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="Mobil">Mobil (Roda 4)</option>
-                      <option value="Motor">Sepeda Motor</option>
-                      <option value="Sepeda Listrik">Sepeda Listrik / E-Bike</option>
-                      <option value="Truk / Pickup">Truk / Pickup Niaga</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Merk Kendaraan *</label>
-                    <input
-                      type="text"
-                      placeholder="Toyota / Honda / Wuling"
-                      value={vehBrand}
-                      onChange={(e) => setVehBrand(e.target.value)}
+                      placeholder="Contoh: Bpk. Sugeng (CV Berkah)"
+                      value={pContractor}
+                      onChange={(e) => setPContractor(e.target.value)}
                       required
                       className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">Model / Tipe *</label>
+                    <label className="font-bold text-ink block mb-1">No. WhatsApp</label>
                     <input
                       type="text"
-                      placeholder="Avanza / NMAX / Air EV"
-                      value={vehModel}
-                      onChange={(e) => setVehModel(e.target.value)}
-                      required
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Tahun Perakitan</label>
-                    <input
-                      type="number"
-                      value={vehYear}
-                      onChange={(e) => setVehYear(Number(e.target.value))}
+                      placeholder="0812-xxxx-xxxx"
+                      value={pContractorPhone}
+                      onChange={(e) => setPContractorPhone(e.target.value)}
                       className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">Warna Kendaraan</label>
+                    <label className="font-bold text-ink block mb-1">Jml Pekerja *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={pWorkers}
+                      onChange={(e) => setPWorkers(Number(e.target.value))}
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="font-bold text-ink block mb-1">Daftar Nama & NIK Tukang</label>
                     <input
                       type="text"
-                      placeholder="Hitam Metalik / Putih"
-                      value={vehColor}
-                      onChange={(e) => setVehColor(e.target.value)}
+                      placeholder="1. Sugeng (KTP: 3301..), 2. Slamet"
+                      value={pWorkersList}
+                      onChange={(e) => setPWorkersList(e.target.value)}
                       className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Seksi 3: Hak Akses Gate & Keamanan RFID */}
+              {/* Seksi 3: Masa Izin, Uang Jaminan & Status */}
               <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
                 <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-primary-600" />
-                  3. Tag Keamanan RFID & Otorisasi Gerbang
+                  <Receipt className="w-3.5 h-3.5 text-primary-600" />
+                  3. Masa Berlaku, Deposit & Status Izin
                 </h4>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Tanggal Mulai *</label>
+                    <input
+                      type="date"
+                      value={pStart}
+                      onChange={(e) => setPStart(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Tanggal Selesai *</label>
+                    <input
+                      type="date"
+                      value={pEnd}
+                      onChange={(e) => setPEnd(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                    />
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">Nomor Seri RFID Tag</label>
-                    <input
-                      type="text"
-                      placeholder="RFID-8830192"
-                      value={vehRfidTag}
-                      onChange={(e) => setVehRfidTag(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Otorisasi Gerbang</label>
+                    <label className="font-bold text-ink block mb-1">Status Jaminan</label>
                     <select
-                      value={vehGateAccess}
-                      onChange={(e) => setVehGateAccess(e.target.value)}
+                      value={pDepositStatus}
+                      onChange={(e) => setPDepositStatus(e.target.value)}
                       className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
                     >
-                      <option value="SEMUA_GERBANG">Semua Gerbang (Gate 1 & 2)</option>
-                      <option value="GERBANG_UTAMA">Gerbang Utama Saja</option>
-                      <option value="GERBANG_TIMUR">Gerbang Timur Saja</option>
+                      <option value="SUDAH_SETOR">Sudah Disetor</option>
+                      <option value="BELUM_SETOR">Belum Setor</option>
+                      <option value="DIKEMBALIKAN">Sudah Dikembalikan</option>
                     </select>
                   </div>
-
                   <div>
-                    <label className="font-bold text-ink block mb-1">Status Hak Akses *</label>
+                    <label className="font-bold text-ink block mb-1">Nominal Jaminan (Rp)</label>
+                    <input
+                      type="number"
+                      value={pDepositAmount}
+                      onChange={(e) => setPDepositAmount(Number(e.target.value))}
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Status Izin *</label>
                     <select
-                      value={vehRfidStatus}
-                      onChange={(e) => setVehRfidStatus(e.target.value as any)}
+                      value={pStatus}
+                      onChange={(e) => setPStatus(e.target.value as any)}
                       className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
                     >
-                      <option value="AKTIF">AKTIF (Buka Palang)</option>
-                      <option value="DIBLOKIR">DIBLOKIR (Tunggakan/Hilang)</option>
-                      <option value="PENDING_VERIFIKASI">Pending Verifikasi Fisik</option>
+                      <option value="APPROVED">Disetujui (Berjalan)</option>
+                      <option value="PENDING_REVIEW">Menunggu ACC</option>
+                      <option value="COMPLETED">Selesai</option>
+                      <option value="SUSPENDED">Dihentikan</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="font-bold text-ink block mb-1">Catatan Tambahan (Parkir / Izin Stiker)</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Parkir di garasi dalam rumah / Mobil operasional dinas"
-                    value={vehNotes}
-                    onChange={(e) => setVehNotes(e.target.value)}
+                  <label className="font-bold text-ink block mb-1">Rincian Deskripsi Pekerjaan *</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Contoh: Pengecatan fasad luar rumah dan perbaikan kanopi garasi..."
+                    value={pDesc}
+                    onChange={(e) => setPDesc(e.target.value)}
+                    required
                     className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
                   />
                 </div>
@@ -2577,20 +3094,70 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <div className="pt-2 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowVehicleModal(false)}
+                  onClick={() => setShowAddPermitModal(false)}
                   className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={vehSaving}
+                  disabled={permitSaving}
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50"
                 >
-                  {vehSaving ? 'Menyimpan Kendaraan...' : editingVehicleId ? 'Perbarui Data Kendaraan' : 'Daftarkan Kendaraan'}
+                  {permitSaving ? 'Menerbitkan...' : editingPermitId ? 'Perbarui Izin' : 'Terbitkan Izin'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS IZIN RENOVASI ================= */}
+      {permitToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-lg text-ink">Hapus Izin {permitToDelete.id}?</h3>
+              <p className="text-xs text-ink-muted">
+                Izin renovasi untuk Unit <strong>{permitToDelete.houseCode}</strong> ({permitToDelete.workType}) oleh <strong>{permitToDelete.contractorName}</strong> akan dihapus dan dicabut dari sistem pos satpam. Tindakan ini tercatat di Jejak Audit.
+              </p>
+            </div>
+
+            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
+              <span className="font-bold block">Alasan Pembatalan / Penghapusan:</span>
+              <select
+                value={permitDeleteReason}
+                onChange={(e) => setPermitDeleteReason(e.target.value)}
+                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
+              >
+                <option value="Renovasi Batal Dilaksanakan">Renovasi Batal Dilaksanakan</option>
+                <option value="Masa Berlaku Habis / Kedaluwarsa">Masa Berlaku Habis</option>
+                <option value="Pelanggaran Jam Kerja Berat">Pelanggaran Jam Kerja Berat</option>
+                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPermitToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeletePermit}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+              >
+                Ya, Hapus Izin
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2645,270 +3212,52 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: TAMBAH / EDIT PENGHUNI (KOLOM LENGKAP) ================= */}
-      {showResidentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-xl w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center">
-                  <UserPlus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-black text-base text-ink">
-                    {editingResidentId ? `Edit Biodata ${resFullName}` : 'Tambah Data Penghuni / Sensus Baru'}
-                  </h3>
-                  <p className="text-[11px] text-ink-muted">Pencatatan sensus kependudukan lengkap sesuai data e-KTP & KK.</p>
-                </div>
-              </div>
-              <button onClick={() => setShowResidentModal(false)} className="text-ink-muted hover:text-ink">
-                <X className="w-5 h-5" />
-              </button>
+      {/* ================= MODAL: KONFIRMASI HAPUS PENGHUNI ================= */}
+      {residentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
             </div>
 
-            <form onSubmit={handleSaveResident} className="space-y-3.5 text-xs">
-              {/* Seksi 1: Unit Rumah & Hubungan Keluarga */}
-              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Home className="w-3.5 h-3.5 text-primary-600" />
-                  1. Lokasi Hunian & Hubungan Keluarga
-                </h4>
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-lg text-ink">Hapus Data {residentToDelete.fullName}?</h3>
+              <p className="text-xs text-ink-muted">
+                Penghuni <strong>{residentToDelete.fullName}</strong> ({residentToDelete.houseCode}) akan dihapus dari data kependudukan komplek. Tindakan ini tercatat di Jejak Audit.
+              </p>
+            </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Pilih Unit Rumah / Kavling *</label>
-                    <select
-                      value={resHouseCode}
-                      onChange={(e) => {
-                        const code = e.target.value;
-                        setResHouseCode(code);
-                        const matchedProp = properties.find(p => p.code === code);
-                        if (matchedProp) {
-                          setResAreaLabel(code.startsWith('KAV') ? 'Kavling' : code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${matchedProp.blockCode}`);
-                        }
-                      }}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
-                    >
-                      {properties.map(p => (
-                        <option key={p.id} value={p.code}>
-                          {p.code} — {p.address}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
+              <span className="font-bold block">Alasan Penghapusan Sensus:</span>
+              <select
+                value={residentDeleteReason}
+                onChange={(e) => setResidentDeleteReason(e.target.value)}
+                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
+              >
+                <option value="Pindah Domisili Keluar Komplek">Pindah Domisili Keluar Komplek</option>
+                <option value="Masa Kontrak / Sewa Berakhir">Masa Sewa Berakhir</option>
+                <option value="Meninggal Dunia">Meninggal Dunia</option>
+                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
 
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Hubungan dalam Keluarga *</label>
-                    <select
-                      value={resRelation}
-                      onChange={(e) => setResRelation(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="KEPALA_KELUARGA">Kepala Keluarga</option>
-                      <option value="ISTRI">Istri</option>
-                      <option value="ANAK">Anak</option>
-                      <option value="ORANG_TUA">Orang Tua / Mertua</option>
-                      <option value="FAMILI_LAIN">Famili Lain</option>
-                      <option value="ART">ART / Supir / Karyawan</option>
-                      <option value="PENYEWA">Penyewa Utama</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seksi 2: Identitas Pribadi Sesuai KTP */}
-              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-primary-600" />
-                  2. Identitas Pribadi & e-KTP
-                </h4>
-
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nama Lengkap (Sesuai KTP) *</label>
-                  <input
-                    type="text"
-                    placeholder="Nama Lengkap Warga"
-                    value={resFullName}
-                    onChange={(e) => setResFullName(e.target.value)}
-                    required
-                    className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">NIK KTP (16 Digit) *</label>
-                    <input
-                      type="text"
-                      placeholder="317109xxxxxxxxxx"
-                      value={resIdCard}
-                      onChange={(e) => setResIdCard(e.target.value)}
-                      required
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Nomor Kartu Keluarga (KK)</label>
-                    <input
-                      type="text"
-                      placeholder="317109xxxxxxxxxx"
-                      value={resFamilyCard}
-                      onChange={(e) => setResFamilyCard(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Jenis Kelamin</label>
-                    <select
-                      value={resGender}
-                      onChange={(e) => setResGender(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="LAKI_LAKI">Laki-Laki</option>
-                      <option value="PEREMPUAN">Perempuan</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Agama</label>
-                    <select
-                      value={resReligion}
-                      onChange={(e) => setResReligion(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="ISLAM">Islam</option>
-                      <option value="KRISTEN">Kristen Protestan</option>
-                      <option value="KATOLIK">Katolik</option>
-                      <option value="HINDU">Hindu</option>
-                      <option value="BUDDHA">Buddha</option>
-                      <option value="KONGHUCU">Konghucu</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Gol. Darah</label>
-                    <select
-                      value={resBloodType}
-                      onChange={(e) => setResBloodType(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold font-mono"
-                    >
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="AB">AB</option>
-                      <option value="O">O</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Tempat & Tanggal Lahir</label>
-                    <input
-                      type="text"
-                      placeholder="Jakarta, 12-03-1985"
-                      value={resBirthPlaceDate}
-                      onChange={(e) => setResBirthPlaceDate(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Profesi / Pekerjaan</label>
-                    <input
-                      type="text"
-                      placeholder="Wiraswasta / Dokter / PNS"
-                      value={resOccupation}
-                      onChange={(e) => setResOccupation(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Seksi 3: Kontak & Keamanan */}
-              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                  3. Kontak WhatsApp, Email & Keamanan
-                </h4>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Nomor WhatsApp / HP</label>
-                    <input
-                      type="text"
-                      placeholder="0812-xxxx-xxxx"
-                      value={resPhone}
-                      onChange={(e) => setResPhone(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Alamat Email</label>
-                    <input
-                      type="email"
-                      placeholder="nama@email.com"
-                      value={resEmail}
-                      onChange={(e) => setResEmail(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Status KTP Domisili</label>
-                    <select
-                      value={resDomicileStatus}
-                      onChange={(e) => setResDomicileStatus(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="KTP_SETEMPAT">KTP Sesuai Komplek</option>
-                      <option value="KTP_LUAR">Domisili Luar / Sementara</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Tandai Kontak Darurat?</label>
-                    <select
-                      value={resIsEmergency ? 'YES' : 'NO'}
-                      onChange={(e) => setResIsEmergency(e.target.value === 'YES')}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="NO">Bukan Kontak Darurat</option>
-                      <option value="YES">YA — Kontak Darurat Utama</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-ink block mb-1">Catatan Tambahan (Kesehatan / Spesial)</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Dokter anak jaga komplek / Lansia butuh bantuan"
-                    value={resNotes}
-                    onChange={(e) => setResNotes(e.target.value)}
-                    className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowResidentModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={resSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50"
-                >
-                  {resSaving ? 'Menyimpan Sensus...' : editingResidentId ? 'Perbarui Data Sensus' : 'Daftarkan Penghuni'}
-                </button>
-              </div>
-            </form>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setResidentToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteResident}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+              >
+                Ya, Hapus Data
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2964,122 +3313,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: ADD PERMIT ================= */}
-      {showAddPermitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-base text-ink">Terbitkan Izin Renovasi Baru</h3>
-              <button onClick={() => setShowAddPermitModal(false)} className="text-ink-muted hover:text-ink">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreatePermit} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Kode Unit / Kav *</label>
-                  <input
-                    type="text"
-                    placeholder="A-17 atau KAV-12"
-                    value={pCode}
-                    onChange={(e) => setPCode(e.target.value)}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl uppercase font-bold text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Jenis Pekerjaan</label>
-                  <select
-                    value={pType}
-                    onChange={(e) => setPType(e.target.value)}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-bold"
-                  >
-                    <option value="Pengecatan & Kanopi">Pengecatan & Kanopi</option>
-                    <option value="Renovasi Interior">Renovasi Interior</option>
-                    <option value="Perbaikan Atap">Perbaikan Atap</option>
-                    <option value="Pembangunan Total">Pembangunan Total</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Nama Mandor / Penanggung Jawab *</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Bpk. Sugeng (CV Berkah)"
-                  value={pContractor}
-                  onChange={(e) => setPContractor(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Jml Tukang</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={pWorkers}
-                    onChange={(e) => setPWorkers(Number(e.target.value))}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Mulai</label>
-                  <input
-                    type="date"
-                    value={pStart}
-                    onChange={(e) => setPStart(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink text-[11px]"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Selesai</label>
-                  <input
-                    type="date"
-                    value={pEnd}
-                    onChange={(e) => setPEnd(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink text-[11px]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Deskripsi Pekerjaan *</label>
-                <textarea
-                  rows={2}
-                  placeholder="Rincian renovasi..."
-                  value={pDesc}
-                  onChange={(e) => setPDesc(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPermitModal(false)}
-                  className="flex-1 py-2 rounded-xl border border-border text-ink font-bold"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs"
-                >
-                  Terbitkan Izin
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: QR PASS PRINT PREVIEW ================= */}
+      {/* ================= MODAL: QR PASS PRINT PREVIEW (VEHICLE) ================= */}
       {selectedPassVehicle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal text-center space-y-4">
