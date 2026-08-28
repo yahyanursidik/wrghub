@@ -1,0 +1,109 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  currentPath?: string;
+}
+
+const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran WargaHub', currentPath = '/rekap-iuran' } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-canvas text-ink antialiased">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#1e40af" />
+  </head>
+  <body class="min-h-full flex flex-col bg-canvas text-ink font-sans">
+    <!-- Public Navbar -->
+    <header class="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-border shadow-xs">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-3 hover:opacity-90 transition-opacity">
+          <div class="w-10 h-10 rounded-2xl bg-primary-600 text-white flex items-center justify-center font-black shadow-xs">
+            WH
+          </div>
+          <div>
+            <span class="font-black text-lg text-ink tracking-tight flex items-center gap-1.5">
+              WargaHub
+              <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
+                PUBLIK
+              </span>
+            </span>
+            <span class="text-[11px] text-ink-muted block -mt-0.5 font-medium">Transparansi Tata Kelola Komplek</span>
+          </div>
+        </a>
+
+        <!-- Public Navigation Links -->
+        <nav class="hidden md:flex items-center gap-1">
+          <a
+            href="/"
+            class={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+              currentPath === '/' ? 'bg-primary-50 text-primary-700' : 'text-ink-muted hover:text-ink hover:bg-canvas'
+            }`}
+          >
+            📱 Beranda Warga
+          </a>
+          <a
+            href="/rekap-iuran"
+            class={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+              currentPath === '/rekap-iuran' || currentPath === '/rekapitulasi' ? 'bg-primary-600 text-white shadow-xs' : 'text-ink-muted hover:text-ink hover:bg-canvas'
+            }`}
+          >
+            📋 Rekapitulasi Iuran
+          </a>
+          <a
+            href="/transparency"
+            class={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+              currentPath === '/transparency' ? 'bg-primary-50 text-primary-700' : 'text-ink-muted hover:text-ink hover:bg-canvas'
+            }`}
+          >
+            📊 Laporan Kas Terbuka
+          </a>
+          <a
+            href="/kuitansi"
+            class={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+              currentPath === '/kuitansi' ? 'bg-primary-50 text-primary-700' : 'text-ink-muted hover:text-ink hover:bg-canvas'
+            }`}
+          >
+            🧾 Cek Kuitansi
+          </a>
+        </nav>
+
+        <div class="flex items-center gap-2">
+          <a
+            href="/login"
+            class="px-4 py-2 bg-surface hover:bg-canvas border border-border rounded-xl text-xs font-bold text-ink shadow-xs transition-colors"
+          >
+            🔐 Login Pengurus
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <slot />
+    </main>
+
+    <!-- Public Footer -->
+    <footer class="bg-surface border-t border-border mt-auto py-6">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-muted">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-ink">WargaHub Smart Residential</span>
+          <span>•</span>
+          <span>Transparansi Kas & Iuran Terbuka</span>
+        </div>
+        <div>
+          <span>© 2026 Paguyuban Warga. Seluruh data disinkronkan secara real-time.</span>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

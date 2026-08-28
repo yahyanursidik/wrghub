@@ -1,0 +1,8 @@
+---
+import PublicLayout from '../layouts/PublicLayout.astro';
+import { PublicDuesLedger } from '../components/public/PublicDuesLedger';
+---
+
+<PublicLayout title="Rekapitulasi Iuran Warga - WargaHub" currentPath="/rekap-iuran">
+  <PublicDuesLedger client:load />
+</PublicLayout>
