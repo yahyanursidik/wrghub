@@ -281,6 +281,40 @@ async function runVerification() {
     const permitDelData = await permitDelRes.json();
     assert(permitDelRes.status === 200 && permitDelData.data?.success === true, `API /api/properties/permits/delete: Renovation permit revoked/archived`);
 
+    const utilCreateRes = await fetch(`${BASE_URL}/api/properties/utilities/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyId: 'prop-a-17',
+        houseCode: 'A-17',
+        plnCapacity: '3.500 VA',
+        plnCustomerId: 'PLN-5388123490',
+        pamMeterNo: 'PAM-88301',
+        pamReadingLastMonth: 120,
+        pamReadingThisMonth: 138,
+        monthlyIplFee: 750000,
+        wasteSchedule: 'SENIN_RABU_JUMAT',
+        hasBiopori: true,
+        hasSolarPanel: false,
+        paymentStatus: 'LUNAS',
+        notes: 'Uji Otomatis Pencatatan Meteran Utilitas'
+      })
+    });
+    const utilCreateData = await utilCreateRes.json();
+    assert(utilCreateRes.status === 201 && utilCreateData.data?.pamUsage === 18, `API /api/properties/utilities/create: Utility & meter reading recorded`);
+
+    const utilDelRes = await fetch(`${BASE_URL}/api/properties/utilities/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        utilityId: 'UTIL-A-17',
+        houseCode: 'A-17',
+        reason: 'Uji Otomatis Reset Catatan Utilitas',
+      })
+    });
+    const utilDelData = await utilDelRes.json();
+    assert(utilDelRes.status === 200 && utilDelData.data?.success === true, `API /api/properties/utilities/delete: Utility record reset/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
