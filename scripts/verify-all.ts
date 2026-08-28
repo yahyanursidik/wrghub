@@ -579,6 +579,47 @@ async function runVerification() {
     const ledDelData = await ledDelRes.json();
     assert(ledDelRes.status === 200 && ledDelData.data?.success === true, `API /api/ledger/delete: Journal entry removed/archived`);
 
+    const budCreateRes = await fetch(`${BASE_URL}/api/budget/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        category: 'Operasional Keamanan & Ronda Warga Test',
+        period: 'Agustus 2026',
+        budgetAmount: 5000000,
+        actualAmount: 2500000,
+        pic: 'Seksi Keamanan Test',
+        notes: 'Uji otomatis penetapan pos pagu anggaran',
+      })
+    });
+    const budCreateData = await budCreateRes.json();
+    assert(budCreateRes.status === 201 && Boolean(budCreateData.data?.id), `API /api/budget/create: Budget allocation created & authorized`);
+
+    const budUpdRes = await fetch(`${BASE_URL}/api/budget/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        budgetId: budCreateData.data?.id || 'bud-test',
+        category: 'Operasional Keamanan & Ronda Warga Test (Updated)',
+        budgetAmount: 5500000,
+        actualAmount: 2500000,
+      })
+    });
+    const budUpdData = await budUpdRes.json();
+    assert(budUpdRes.status === 200 && budUpdData.data?.success === true, `API /api/budget/update: Budget allocation updated`);
+
+    const budDelRes = await fetch(`${BASE_URL}/api/budget/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        budgetId: budCreateData.data?.id || 'bud-test',
+        category: 'Operasional Keamanan & Ronda Warga Test',
+        budgetAmount: 5500000,
+        reason: 'Uji Otomatis Pembatalan Pos Anggaran',
+      })
+    });
+    const budDelData = await budDelRes.json();
+    assert(budDelRes.status === 200 && budDelData.data?.success === true, `API /api/budget/delete: Budget allocation removed/archived`);
+
     const propUpdRes = await fetch(`${BASE_URL}/api/properties/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
