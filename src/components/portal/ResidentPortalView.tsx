@@ -48,7 +48,6 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
   initialUser = DEMO_USERS.warga,
 }) => {
   const [activeTab, setActiveTab] = useState<'beranda' | 'iuran' | 'info' | 'rumah' | 'akun'>('beranda');
-  const [isPhoneFrame, setIsPhoneFrame] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('Agu');
@@ -222,87 +221,61 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-canvas flex flex-col items-center justify-start py-4 sm:py-8 px-2 sm:px-4">
-      {/* Top Device Switcher Toolbar */}
-      <div className="w-full max-w-md mb-4 flex items-center justify-between bg-surface p-2 rounded-2xl border border-border shadow-xs">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setIsPhoneFrame(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              isPhoneFrame ? 'bg-primary-50 text-primary-700' : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <Smartphone className="w-4 h-4" />
-            Mode HP (Mockup)
-          </button>
-          <button
-            onClick={() => setIsPhoneFrame(false)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              !isPhoneFrame ? 'bg-primary-50 text-primary-700' : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <Monitor className="w-4 h-4" />
-            Layar Penuh
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <a
-            href="/admin"
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
-          >
-            Admin Dashboard
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-      </div>
-
-      {/* Main Container / Phone Mockup Frame */}
-      <div
-        className={`w-full bg-surface transition-all duration-300 ${
-          isPhoneFrame
-            ? 'max-w-[390px] rounded-[44px] shadow-2xl border-[8px] border-ink/90 overflow-hidden ring-1 ring-border'
-            : 'max-w-xl rounded-3xl shadow-card border border-border overflow-hidden'
-        }`}
-      >
-        {/* Dynamic Island / Top Notch (when in phone frame) */}
-        {isPhoneFrame && (
-          <div className="h-7 bg-surface flex items-center justify-between px-7 pt-1 select-none">
-            <span className="text-[11px] font-semibold text-ink">9:41</span>
-            <div className="w-20 h-4 bg-ink rounded-full" />
-            <div className="flex items-center gap-1 text-[11px] font-medium text-ink">
-              <span>5G</span>
-              <span className="w-4 h-2.5 rounded-xs border border-ink/80 flex items-center p-0.5"><span className="w-full h-full bg-ink rounded-2xs" /></span>
+    <div className="min-h-screen bg-canvas flex flex-col items-center justify-start antialiased">
+      {/* Real Production Web Application Top Bar */}
+      <header className="w-full bg-surface border-b border-border sticky top-0 z-30 shadow-xs backdrop-blur-md bg-surface/90">
+        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center text-primary-600 shadow-xs">
+              <Sparkles className="w-4 h-4 text-primary-600" />
+            </div>
+            <div>
+              <span className="font-extrabold text-base tracking-tight text-ink flex items-center gap-1.5">
+                Warga<span className="text-primary-600">Hub</span>
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-md border border-emerald-200 uppercase">
+                  Portal Warga
+                </span>
+              </span>
             </div>
           </div>
-        )}
 
-        {/* Content Area */}
-        <div className="min-h-[640px] flex flex-col justify-between">
+          <div className="flex items-center gap-2">
+            <a
+              href="/transparency"
+              className="text-xs font-semibold text-ink-muted hover:text-ink px-2.5 py-1 rounded-lg hover:bg-canvas transition-colors hidden sm:inline-flex items-center gap-1"
+            >
+              Transparansi Kas
+            </a>
+            <a
+              href="/admin"
+              className="text-xs font-bold text-primary-700 hover:text-primary-800 px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors flex items-center gap-1 border border-primary-200"
+            >
+              Admin Dashboard
+              <ExternalLink className="w-3 h-3" />
+            </a>
+            <button
+              onClick={() => setActiveTab('akun')}
+              className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 hover:ring-2 hover:ring-primary-500 transition-all ml-1"
+            >
+              <img src={currentUser.avatarUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Production Application Body */}
+      <main className="w-full max-w-2xl mx-auto bg-surface sm:border-x border-border shadow-xs pb-24 min-h-[calc(100vh-3.5rem)] flex flex-col justify-between">
+        <div className="flex-1">
           {/* ================= TAB 1: BERANDA ================= */}
           {activeTab === 'beranda' && (
-            <div className="p-5 space-y-5 flex-1 animate-in fade-in duration-150">
-              {/* Header */}
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center text-primary-600">
-                    <Sparkles className="w-4 h-4 text-primary-600" />
-                  </div>
-                  <span className="font-bold text-lg text-ink tracking-tight">Warga<span className="text-primary-600">Hub</span></span>
-                </div>
-                <button className="relative p-2 text-ink hover:bg-canvas rounded-full">
-                  <Bell className="w-5 h-5 text-ink" />
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-600 ring-2 ring-surface" />
-                </button>
-              </div>
-
+            <div className="p-5 sm:p-6 space-y-5 animate-in fade-in duration-150">
               {/* Greeting */}
               <div>
-                <h2 className="text-xl font-bold text-ink">
+                <h2 className="text-2xl font-bold tracking-tight text-ink">
                   Halo, {currentUser.fullName} 👋
                 </h2>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Selamat datang di Komplek Taman Sejahtera
+                <p className="text-xs text-ink-muted mt-1">
+                  Selamat datang di Portal Warga Komplek Taman Sejahtera
                 </p>
               </div>
 
@@ -953,59 +926,61 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
           )}
 
           {/* ================= BOTTOM NAVIGATION BAR ================= */}
-          <div className="h-16 bg-surface border-t border-border flex items-center justify-around px-2 sticky bottom-0 select-none shadow-xs">
-            <button
-              onClick={() => setActiveTab('beranda')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'beranda' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <Home className="w-5 h-5" />
-              <span className="text-[10px]">Beranda</span>
-            </button>
+          <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface/95 backdrop-blur-md border-t border-border shadow-lg">
+            <div className="max-w-2xl mx-auto h-16 flex items-center justify-around px-2 select-none">
+              <button
+                onClick={() => setActiveTab('beranda')}
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  activeTab === 'beranda' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Home className="w-5 h-5" />
+                <span className="text-[10px]">Beranda</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('iuran')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'iuran' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <Receipt className="w-5 h-5" />
-              <span className="text-[10px]">Iuran</span>
-            </button>
+              <button
+                onClick={() => setActiveTab('iuran')}
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  activeTab === 'iuran' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Receipt className="w-5 h-5" />
+                <span className="text-[10px]">Iuran</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('info')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'info' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <Megaphone className="w-5 h-5" />
-              <span className="text-[10px]">Info</span>
-            </button>
+              <button
+                onClick={() => setActiveTab('info')}
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  activeTab === 'info' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Megaphone className="w-5 h-5" />
+                <span className="text-[10px]">Info</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('rumah')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'rumah' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <Home className="w-5 h-5" />
-              <span className="text-[10px]">Rumah</span>
-            </button>
+              <button
+                onClick={() => setActiveTab('rumah')}
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  activeTab === 'rumah' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Home className="w-5 h-5" />
+                <span className="text-[10px]">Rumah</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('akun')}
-              className={`flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'akun' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <User className="w-5 h-5" />
-              <span className="text-[10px]">Akun</span>
-            </button>
+              <button
+                onClick={() => setActiveTab('akun')}
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  activeTab === 'akun' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <User className="w-5 h-5" />
+                <span className="text-[10px]">Akun</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Payment Confirmation Modal */}
       {showPaymentModal && (
