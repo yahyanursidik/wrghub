@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { VotingManager } from '../../components/admin/VotingManager';
+---
+
+<AdminLayout title="E-Voting & Musyawarah Warga - WargaHub" currentPath="/admin/voting">
+  <VotingManager client:load />
+</AdminLayout>

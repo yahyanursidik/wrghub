@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { DocumentsManager } from '../../components/admin/DocumentsManager';
+---
+
+<AdminLayout title="Arsip Dokumen - WargaHub" currentPath="/admin/documents">
+  <DocumentsManager client:load />
+</AdminLayout>

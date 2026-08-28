@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { SecurityGateManager } from '../../components/admin/SecurityGateManager';
+---
+
+<AdminLayout title="Pos Satpam & Kontrol Gerbang - WargaHub" currentPath="/admin/security-gate">
+  <SecurityGateManager client:load />
+</AdminLayout>

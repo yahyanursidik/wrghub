@@ -1,0 +1,11 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { AuditManager } from '../../components/admin/AuditManager';
+import { getAuditLogs } from '../../services/audit.service';
+
+const logs = await getAuditLogs(100);
+---
+
+<AdminLayout title="Jejak Audit & Keamanan - WargaHub" currentPath="/admin/audit">
+  <AuditManager initialLogs={logs as any} client:load />
+</AdminLayout>

@@ -1,0 +1,12 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { LedgerManager } from '../../components/admin/LedgerManager';
+import { getLedgerEntries, getAccounts } from '../../services/finance.service';
+
+const entries = await getLedgerEntries(100);
+const accounts = await getAccounts();
+---
+
+<AdminLayout title="Buku Kas & Ledger - WargaHub" currentPath="/admin/ledger">
+  <LedgerManager accounts={accounts as any} entries={entries as any} client:load />
+</AdminLayout>

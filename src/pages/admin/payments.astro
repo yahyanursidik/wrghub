@@ -1,0 +1,11 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { PaymentsManager } from '../../components/admin/PaymentsManager';
+import { getPayments } from '../../services/payment.service';
+
+const payments = await getPayments();
+---
+
+<AdminLayout title="Pembayaran & Verifikasi - WargaHub" currentPath="/admin/payments">
+  <PaymentsManager initialPayments={payments} client:load />
+</AdminLayout>

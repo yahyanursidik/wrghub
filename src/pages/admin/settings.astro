@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { SettingsManager } from '../../components/admin/SettingsManager';
+---
+
+<AdminLayout title="Pengaturan Komplek - WargaHub" currentPath="/admin/settings">
+  <SettingsManager client:load />
+</AdminLayout>

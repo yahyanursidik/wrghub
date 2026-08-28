@@ -1,0 +1,11 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { TransparencyView } from '../../components/transparency/TransparencyView';
+import { getPublicMonthlyReport } from '../../services/transparency.service';
+
+const reportData = await getPublicMonthlyReport(2026, 8);
+---
+
+<AdminLayout title="Laporan Transparansi Warga - WargaHub" currentPath="/transparency">
+  <TransparencyView initialData={reportData} client:load />
+</AdminLayout>

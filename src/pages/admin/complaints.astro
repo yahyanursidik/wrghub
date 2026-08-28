@@ -1,0 +1,11 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { ComplaintsManager } from '../../components/admin/ComplaintsManager';
+import { getComplaints } from '../../services/complaint.service';
+
+const complaints = await getComplaints();
+---
+
+<AdminLayout title="Aduan Warga - WargaHub" currentPath="/admin/complaints">
+  <ComplaintsManager initialComplaints={complaints} client:load />
+</AdminLayout>

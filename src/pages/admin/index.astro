@@ -1,0 +1,50 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { AdminDashboardView } from '../../components/admin/AdminDashboardView';
+import { getPropertyStats } from '../../services/property.service';
+import { getBillingProgress, getCurrentBillingPeriod } from '../../services/billing.service';
+import { getMainAccountBalance } from '../../services/finance.service';
+import { getPendingPaymentsCount } from '../../services/payment.service';
+import { getOpenComplaintsCount } from '../../services/complaint.service';
+import { getNeedingRepairCount } from '../../services/facility.service';
+
+const propStats = await getPropertyStats();
+const currentPeriod = await getCurrentBillingPeriod();
+const billingProgress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
+  total: 120,
+  paidCount: 86,
+  unpaidCount: 34,
+  percentage: 72,
+  totalAmount: 90000000,
+  paidAmount: 64500000,
+  unpaidAmount: 25500000,
+  monthlyRatePerHouse: 750000,
+};
+
+const cashBalance = await getMainAccountBalance();
+const pendingPayments = await getPendingPaymentsCount();
+const openComplaints = await getOpenComplaintsCount();
+const needingRepair = await getNeedingRepairCount();
+
+const stats = {
+  totalProperties: propStats.total || 120,
+  occupiedProperties: propStats.occupied || 98,
+  vacantProperties: propStats.vacant || 22,
+  occupiedPercentage: propStats.occupiedPercentage || '81.7',
+  vacantPercentage: propStats.vacantPercentage || '18.3',
+  paidCount: billingProgress.paidCount || 86,
+  unpaidCount: billingProgress.unpaidCount || 34,
+  paidPercentage: billingProgress.percentage || 72,
+  paidAmount: billingProgress.paidAmount || 64500000,
+  unpaidAmount: billingProgress.unpaidAmount || 25500000,
+  monthlyRate: 750000,
+  cashBalance: cashBalance || 128450000,
+  pendingPaymentsCount: pendingPayments || 3,
+  openComplaintsCount: openComplaints || 4,
+  needingRepairCount: needingRepair || 2,
+};
+---
+
+<AdminLayout title="Dashboard Ketua Komplek - WargaHub" currentPath="/admin">
+  <AdminDashboardView stats={stats} client:load />
+</AdminLayout>

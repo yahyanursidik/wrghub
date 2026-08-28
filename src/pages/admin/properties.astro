@@ -1,0 +1,12 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { PropertiesManager } from '../../components/admin/PropertiesManager';
+import { getProperties } from '../../services/property.service';
+
+const properties = await getProperties();
+const tab = Astro.url.searchParams.get('tab') || 'properties';
+---
+
+<AdminLayout title="Data Rumah & Warga - WargaHub" currentPath="/admin/properties">
+  <PropertiesManager initialProperties={properties} initialTab={tab} client:load />
+</AdminLayout>

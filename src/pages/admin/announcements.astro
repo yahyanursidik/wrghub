@@ -1,0 +1,11 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { AnnouncementsManager } from '../../components/admin/AnnouncementsManager';
+import { getAnnouncements } from '../../services/announcement.service';
+
+const announcements = await getAnnouncements();
+---
+
+<AdminLayout title="Pengumuman & Agenda - WargaHub" currentPath="/admin/announcements">
+  <AnnouncementsManager initialAnnouncements={announcements} client:load />
+</AdminLayout>

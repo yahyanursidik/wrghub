@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { BackupManager } from '../../components/admin/BackupManager';
+---
+
+<AdminLayout title="Pencadangan & Serah Terima - WargaHub" currentPath="/admin/backup">
+  <BackupManager client:load />
+</AdminLayout>

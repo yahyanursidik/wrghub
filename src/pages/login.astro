@@ -1,0 +1,22 @@
+---
+import { UnifiedLoginView } from '../components/auth/UnifiedLoginView';
+import '../styles/global.css';
+
+const portal = Astro.url.searchParams.get('portal') === 'admin' ? 'admin' : 'resident';
+---
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Masuk - WargaHub Taman Sejahtera</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-canvas text-ink font-sans min-h-screen antialiased selection:bg-primary-100 selection:text-primary-900">
+    <UnifiedLoginView initialPortal={portal} client:load />
+  </body>
+</html>

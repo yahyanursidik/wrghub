@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-canvas: #F7F8F4;
+    --color-surface: #FFFFFF;
+    --color-primary: #245C4A;
+    --color-ink: #18201D;
+    --color-muted: #6E7772;
+    --color-border: #E3E7E2;
+  }
+
+  body {
+    background-color: #F7F8F4;
+    color: #18201D;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Financial numbers always use tabular numbers for clear alignment */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F7F8F4;
+}
+::-webkit-scrollbar-thumb {
+  background: #DCEEE6;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B8DDD0;
+}

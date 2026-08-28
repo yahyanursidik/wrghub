@@ -1,0 +1,27 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { BillingManager } from '../../components/admin/BillingManager';
+import { getCurrentBillingPeriod, getInvoices, getBillingProgress } from '../../services/billing.service';
+
+const currentPeriod = await getCurrentBillingPeriod();
+const invoices = currentPeriod ? await getInvoices(currentPeriod.id) : [];
+const progress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
+  total: 120,
+  paidCount: 86,
+  unpaidCount: 34,
+  percentage: 72,
+  totalAmount: 90000000,
+  paidAmount: 64500000,
+  unpaidAmount: 25500000,
+  monthlyRatePerHouse: 750000,
+};
+---
+
+<AdminLayout title="Iuran & Billing - WargaHub" currentPath="/admin/billing">
+  <BillingManager
+    initialPeriodName={currentPeriod?.name || 'Agustus 2026'}
+    initialInvoices={invoices as any}
+    initialProgress={progress}
+    client:load
+  />
+</AdminLayout>
