@@ -38,7 +38,9 @@ import {
   DollarSign,
   FileText,
   AlertTriangle,
-  ArrowUpDown
+  ArrowUpDown,
+  MapPin,
+  Compass
 } from 'lucide-react';
 import type { PropertyListItem } from '../../services/property.service';
 
@@ -64,15 +66,16 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Property Modal State (Complete Columns)
+  // Property Modal State (Complete Columns + Blok/Kav/Jalan)
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [activeProperty, setActiveProperty] = useState<PropertyListItem | null>(null);
 
-  // Form Fields (Full Columns)
+  // Area Naming Type: BLOK (Blok A), KAV (Kavling/Kav 12), STREET (Jl. Sariwangi Indah 1), CLUSTER (Cluster)
+  const [namingType, setNamingType] = useState<'BLOK' | 'KAV' | 'STREET' | 'CLUSTER'>('BLOK');
+  const [formAreaName, setFormAreaName] = useState('Blok A');
   const [formCode, setFormCode] = useState('');
   const [formNumber, setFormNumber] = useState('');
-  const [formBlock, setFormBlock] = useState('block-a');
   const [formAddress, setFormAddress] = useState('');
   const [formOccupancy, setFormOccupancy] = useState<'OWNER_OCCUPIED' | 'RENTED' | 'VACANT' | 'RENOVATION'>('OWNER_OCCUPIED');
   const [formOwner, setFormOwner] = useState('');
@@ -98,39 +101,39 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [residentCategory, setResidentCategory] = useState('ALL');
   const [residentSearch, setResidentSearch] = useState('');
   const [residents, setResidents] = useState([
-    { id: 'res-1', houseCode: 'A-17', fullName: 'Budi Santoso', relation: 'KEPALA_KELUARGA', phone: '0812-3456-7890', idCard: '3171091203850001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-2', houseCode: 'A-17', fullName: 'Siti Lestari', relation: 'ISTRI', phone: '0813-9876-5432', idCard: '3171092507870002', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-3', houseCode: 'A-17', fullName: 'Alya Santoso', relation: 'ANAK', phone: '-', idCard: '3171091405130003', isEmergency: false, status: 'VERIFIED' },
-    { id: 'res-4', houseCode: 'A-17', fullName: 'Daffa Santoso', relation: 'ANAK', phone: '-', idCard: '3171090309170004', isEmergency: false, status: 'VERIFIED' },
-    { id: 'res-5', houseCode: 'A-01', fullName: 'Hendra Gunawan', relation: 'KEPALA_KELUARGA', phone: '0811-2233-4455', idCard: '3171090101800001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-6', houseCode: 'A-01', fullName: 'Maria Gunawan', relation: 'ISTRI', phone: '0811-2233-4456', idCard: '3171090101820002', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-7', houseCode: 'B-07', fullName: 'Agus Wijaya', relation: 'KEPALA_KELUARGA', phone: '0818-7788-9900', idCard: '3171090707750001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-8', houseCode: 'B-07', fullName: 'Rina Wijaya', relation: 'ISTRI', phone: '0818-7788-9901', idCard: '3171090707780002', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-9', houseCode: 'C-12', fullName: 'Bambang Sutrisno', relation: 'KEPALA_KELUARGA', phone: '0812-9988-1122', idCard: '3171091212680001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-10', houseCode: 'D-05', fullName: 'Dr. Ratna Kusuma', relation: 'KEPALA_KELUARGA', phone: '0813-4455-6677', idCard: '3171090505790001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-11', houseCode: 'B-14', fullName: 'Suryo Pranoto', relation: 'KEPALA_KELUARGA', phone: '0815-6677-8899', idCard: '3171091414810001', isEmergency: true, status: 'VERIFIED' },
-    { id: 'res-12', houseCode: 'C-22', fullName: 'Joko Widodo', relation: 'KEPALA_KELUARGA', phone: '0819-0011-2233', idCard: '3171092222830001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-1', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Budi Santoso', relation: 'KEPALA_KELUARGA', phone: '0812-3456-7890', idCard: '3171091203850001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-2', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Siti Lestari', relation: 'ISTRI', phone: '0813-9876-5432', idCard: '3171092507870002', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-3', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Alya Santoso', relation: 'ANAK', phone: '-', idCard: '3171091405130003', isEmergency: false, status: 'VERIFIED' },
+    { id: 'res-4', houseCode: 'A-17', areaLabel: 'Blok A', fullName: 'Daffa Santoso', relation: 'ANAK', phone: '-', idCard: '3171090309170004', isEmergency: false, status: 'VERIFIED' },
+    { id: 'res-5', houseCode: 'A-01', areaLabel: 'Blok A', fullName: 'Hendra Gunawan', relation: 'KEPALA_KELUARGA', phone: '0811-2233-4455', idCard: '3171090101800001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-6', houseCode: 'A-01', areaLabel: 'Blok A', fullName: 'Maria Gunawan', relation: 'ISTRI', phone: '0811-2233-4456', idCard: '3171090101820002', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-7', houseCode: 'B-07', areaLabel: 'Blok B', fullName: 'Agus Wijaya', relation: 'KEPALA_KELUARGA', phone: '0818-7788-9900', idCard: '3171090707750001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-8', houseCode: 'B-07', areaLabel: 'Blok B', fullName: 'Rina Wijaya', relation: 'ISTRI', phone: '0818-7788-9901', idCard: '3171090707780002', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-9', houseCode: 'KAV-12', areaLabel: 'Kav. 12', fullName: 'Bambang Sutrisno', relation: 'KEPALA_KELUARGA', phone: '0812-9988-1122', idCard: '3171091212680001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-10', houseCode: 'SW1-05', areaLabel: 'Jl. Sariwangi Indah 1', fullName: 'Dr. Ratna Kusuma', relation: 'KEPALA_KELUARGA', phone: '0813-4455-6677', idCard: '3171090505790001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-11', houseCode: 'SW2-14', areaLabel: 'Jl. Sariwangi Indah 2', fullName: 'Suryo Pranoto', relation: 'KEPALA_KELUARGA', phone: '0815-6677-8899', idCard: '3171091414810001', isEmergency: true, status: 'VERIFIED' },
+    { id: 'res-12', houseCode: 'C-22', areaLabel: 'Blok C', fullName: 'Joko Widodo', relation: 'KEPALA_KELUARGA', phone: '0819-0011-2233', idCard: '3171092222830001', isEmergency: true, status: 'VERIFIED' },
   ]);
 
   // Master Vehicles State
   const [vehicles, setVehicles] = useState([
-    { id: 'veh-1', houseCode: 'A-17', plateNumber: 'B 1234 ABC', type: 'Mobil', brand: 'Toyota', model: 'Avanza Veloz', color: 'Hitam Metalik', rfidStatus: 'AKTIF' },
-    { id: 'veh-2', houseCode: 'A-17', plateNumber: 'B 5678 DEF', type: 'Motor', brand: 'Honda', model: 'Vario 160', color: 'Putih Mutiara', rfidStatus: 'AKTIF' },
-    { id: 'veh-3', houseCode: 'A-01', plateNumber: 'B 9999 HG', type: 'Mobil', brand: 'Honda', model: 'CR-V Turbo', color: 'Abu-Abu', rfidStatus: 'AKTIF' },
-    { id: 'veh-4', houseCode: 'B-07', plateNumber: 'B 8888 AW', type: 'Mobil', brand: 'Mitsubishi', model: 'Pajero Sport', color: 'Putih', rfidStatus: 'AKTIF' },
-    { id: 'veh-5', houseCode: 'B-07', plateNumber: 'B 7777 WZ', type: 'Motor', brand: 'Yamaha', model: 'NMAX 155', color: 'Hitam Doff', rfidStatus: 'AKTIF' },
-    { id: 'veh-6', houseCode: 'C-12', plateNumber: 'B 1111 BS', type: 'Mobil', brand: 'Toyota', model: 'Innova Zenix', color: 'Silver Metalik', rfidStatus: 'AKTIF' },
-    { id: 'veh-7', houseCode: 'D-05', plateNumber: 'B 2222 RK', type: 'Mobil', brand: 'Hyundai', model: 'IONIQ 5', color: 'Gravity Gold', rfidStatus: 'AKTIF' },
-    { id: 'veh-8', houseCode: 'B-14', plateNumber: 'B 3333 SP', type: 'Mobil', brand: 'Wuling', model: 'Air EV', color: 'Peach Pink', rfidStatus: 'AKTIF' },
-    { id: 'veh-9', houseCode: 'C-22', plateNumber: 'B 4444 JW', type: 'Mobil', brand: 'Toyota', model: 'Fortuner GR', color: 'Hitam', rfidStatus: 'AKTIF' },
+    { id: 'veh-1', houseCode: 'A-17', areaLabel: 'Blok A', plateNumber: 'B 1234 ABC', type: 'Mobil', brand: 'Toyota', model: 'Avanza Veloz', color: 'Hitam Metalik', rfidStatus: 'AKTIF' },
+    { id: 'veh-2', houseCode: 'A-17', areaLabel: 'Blok A', plateNumber: 'B 5678 DEF', type: 'Motor', brand: 'Honda', model: 'Vario 160', color: 'Putih Mutiara', rfidStatus: 'AKTIF' },
+    { id: 'veh-3', houseCode: 'A-01', areaLabel: 'Blok A', plateNumber: 'B 9999 HG', type: 'Mobil', brand: 'Honda', model: 'CR-V Turbo', color: 'Abu-Abu', rfidStatus: 'AKTIF' },
+    { id: 'veh-4', houseCode: 'B-07', areaLabel: 'Blok B', plateNumber: 'B 8888 AW', type: 'Mobil', brand: 'Mitsubishi', model: 'Pajero Sport', color: 'Putih', rfidStatus: 'AKTIF' },
+    { id: 'veh-5', houseCode: 'B-07', areaLabel: 'Blok B', plateNumber: 'B 7777 WZ', type: 'Motor', brand: 'Yamaha', model: 'NMAX 155', color: 'Hitam Doff', rfidStatus: 'AKTIF' },
+    { id: 'veh-6', houseCode: 'KAV-12', areaLabel: 'Kav. 12', plateNumber: 'B 1111 BS', type: 'Mobil', brand: 'Toyota', model: 'Innova Zenix', color: 'Silver Metalik', rfidStatus: 'AKTIF' },
+    { id: 'veh-7', houseCode: 'SW1-05', areaLabel: 'Jl. Sariwangi Indah 1', plateNumber: 'B 2222 RK', type: 'Mobil', brand: 'Hyundai', model: 'IONIQ 5', color: 'Gravity Gold', rfidStatus: 'AKTIF' },
+    { id: 'veh-8', houseCode: 'SW2-14', areaLabel: 'Jl. Sariwangi Indah 2', plateNumber: 'B 3333 SP', type: 'Mobil', brand: 'Wuling', model: 'Air EV', color: 'Peach Pink', rfidStatus: 'AKTIF' },
+    { id: 'veh-9', houseCode: 'C-22', areaLabel: 'Blok C', plateNumber: 'B 4444 JW', type: 'Mobil', brand: 'Toyota', model: 'Fortuner GR', color: 'Hitam', rfidStatus: 'AKTIF' },
   ]);
 
   // Permits State
   const [permits, setPermits] = useState([
-    { id: 'PERMIT-2026-001', houseCode: 'A-17', workType: 'Pengecatan & Kanopi', contractorName: 'Bpk. Sugeng (Mandor CV Berkah)', workersCount: 3, startDate: '2026-08-25', endDate: '2026-09-05', status: 'APPROVED', description: 'Pengecatan fasad luar dan perbaikan talang air kanopi garasi.' },
-    { id: 'PERMIT-2026-002', houseCode: 'B-12', workType: 'Renovasi Dapur Belakang', contractorName: 'Bpk. Yanto (Mandor Sejahtera)', workersCount: 4, startDate: '2026-08-20', endDate: '2026-09-15', status: 'APPROVED', description: 'Pemasangan keramik dinding dapur dan penutupan dak jemuran.' },
-    { id: 'PERMIT-2026-003', houseCode: 'C-05', workType: 'Perbaikan Atap Bocor', contractorName: 'Bpk. Maman', workersCount: 2, startDate: '2026-08-28', endDate: '2026-09-02', status: 'PENDING_REVIEW', description: 'Pergantian 15 genteng pecah di atap lantai 2.' },
-    { id: 'PERMIT-2026-004', houseCode: 'D-19', workType: 'Pemasangan Solar Panel', contractorName: 'PT Surya Nusantara Mandiri', workersCount: 5, startDate: '2026-08-15', endDate: '2026-08-27', status: 'COMPLETED', description: 'Pemasangan 8 panel surya di atas dak genteng.' },
+    { id: 'PERMIT-2026-001', houseCode: 'A-17', areaLabel: 'Blok A', workType: 'Pengecatan & Kanopi', contractorName: 'Bpk. Sugeng (Mandor CV Berkah)', workersCount: 3, startDate: '2026-08-25', endDate: '2026-09-05', status: 'APPROVED', description: 'Pengecatan fasad luar dan perbaikan talang air kanopi garasi.' },
+    { id: 'PERMIT-2026-002', houseCode: 'SW1-12', areaLabel: 'Jl. Sariwangi Indah 1', workType: 'Renovasi Dapur Belakang', contractorName: 'Bpk. Yanto (Mandor Sejahtera)', workersCount: 4, startDate: '2026-08-20', endDate: '2026-09-15', status: 'APPROVED', description: 'Pemasangan keramik dinding dapur dan penutupan dak jemuran.' },
+    { id: 'PERMIT-2026-003', houseCode: 'KAV-05', areaLabel: 'Kav. 05', workType: 'Perbaikan Atap Bocor', contractorName: 'Bpk. Maman', workersCount: 2, startDate: '2026-08-28', endDate: '2026-09-02', status: 'PENDING_REVIEW', description: 'Pergantian 15 genteng pecah di atap lantai 2.' },
+    { id: 'PERMIT-2026-004', houseCode: 'D-19', areaLabel: 'Blok D', workType: 'Pemasangan Solar Panel', contractorName: 'PT Surya Nusantara Mandiri', workersCount: 5, startDate: '2026-08-15', endDate: '2026-08-27', status: 'COMPLETED', description: 'Pemasangan 8 panel surya di atas dak genteng.' },
   ]);
   const [showAddPermitModal, setShowAddPermitModal] = useState(false);
   const [pCode, setPCode] = useState('A-17');
@@ -153,9 +156,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   // Open Form for Add
   const handleOpenAdd = () => {
     setEditingPropertyId(null);
+    setNamingType('BLOK');
+    setFormAreaName('Blok A');
     setFormCode('');
     setFormNumber('');
-    setFormBlock('block-a');
     setFormAddress('');
     setFormOccupancy('OWNER_OCCUPIED');
     setFormOwner('');
@@ -175,9 +179,19 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   // Open Form for Edit
   const handleOpenEdit = (prop: PropertyListItem) => {
     setEditingPropertyId(prop.id);
+    const code = prop.code;
+    if (code.toLowerCase().startsWith('kav')) {
+      setNamingType('KAV');
+      setFormAreaName(`Kav. ${prop.number || code.replace(/[^0-9]/g, '')}`);
+    } else if (code.toLowerCase().startsWith('sw') || prop.address.toLowerCase().includes('sariwangi')) {
+      setNamingType('STREET');
+      setFormAreaName(prop.address.includes('Indah 2') ? 'Jl. Sariwangi Indah 2' : 'Jl. Sariwangi Indah 1');
+    } else {
+      setNamingType('BLOK');
+      setFormAreaName(`Blok ${prop.blockCode || 'A'}`);
+    }
     setFormCode(prop.code);
     setFormNumber(prop.number || prop.code.split('-')[1] || '1');
-    setFormBlock(`block-${prop.blockCode?.toLowerCase() || 'a'}`);
     setFormAddress(prop.address);
     setFormOccupancy(prop.occupancyStatus as any);
     setFormOwner(prop.ownerName || '');
@@ -194,16 +208,42 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     setShowAddModal(true);
   };
 
+  // Dynamic helper for area/naming change
+  const handleNamingTypeChange = (type: 'BLOK' | 'KAV' | 'STREET' | 'CLUSTER') => {
+    setNamingType(type);
+    if (type === 'BLOK') {
+      setFormAreaName('Blok A');
+      if (!formCode || formCode.startsWith('KAV') || formCode.startsWith('SW')) setFormCode('A-');
+    } else if (type === 'KAV') {
+      setFormAreaName('Kavling (Kav.)');
+      if (!formCode || formCode.startsWith('A-')) setFormCode('KAV-');
+    } else if (type === 'STREET') {
+      setFormAreaName('Jl. Sariwangi Indah 1');
+      if (!formCode || formCode.startsWith('A-')) setFormCode('SW1-');
+    } else if (type === 'CLUSTER') {
+      setFormAreaName('Cluster Bougenville');
+    }
+  };
+
   // Handle Save Property (Create / Update)
   const handleSaveProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
+      let defaultAddr = '';
+      if (namingType === 'KAV') {
+        defaultAddr = `Kavling No. ${formNumber || formCode.replace(/[^0-9]/g, '')}, Komplek Taman Sejahtera`;
+      } else if (namingType === 'STREET') {
+        defaultAddr = `${formAreaName} No. ${formNumber || formCode.replace(/[^0-9]/g, '')}`;
+      } else {
+        defaultAddr = `Jl. Taman Sejahtera ${formAreaName} No. ${formNumber || formCode.replace(/[^0-9]/g, '')}`;
+      }
+
       const payload = {
         code: formCode.toUpperCase(),
         number: formNumber || formCode.replace(/[^0-9]/g, ''),
-        blockId: formBlock,
-        address: formAddress || `Jl. Taman Sejahtera Blok ${formCode.split('-')[0]?.toUpperCase()} No. ${formNumber}`,
+        blockId: formAreaName,
+        address: formAddress || defaultAddr,
         occupancyStatus: formOccupancy,
         ownerName: formOwner || undefined,
         ownerPhone: formOwnerPhone || undefined,
@@ -237,11 +277,11 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             occupancyStatus: formOccupancy,
             ownerName: formOwner || '-',
           } : p));
-          showToast(`Data rumah ${formCode.toUpperCase()} berhasil diperbarui.`);
+          showToast(`Data unit ${formCode.toUpperCase()} (${formAreaName}) berhasil diperbarui.`);
         } else {
           // Create new
           const newProp: PropertyListItem = {
-            id: `prop-${formCode.toLowerCase()}`,
+            id: `prop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
             code: formCode.toUpperCase(),
             number: formNumber,
             blockCode: blk,
@@ -253,7 +293,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             isActive: true,
           };
           setProperties([newProp, ...properties]);
-          showToast(`Unit rumah baru ${formCode.toUpperCase()} berhasil didaftarkan.`);
+          showToast(`Unit baru ${formCode.toUpperCase()} (${formAreaName}) berhasil didaftarkan.`);
         }
         setShowAddModal(false);
       }
@@ -282,7 +322,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
 
       if (res.ok) {
         setProperties(properties.filter(p => p.id !== propertyToDelete.id));
-        showToast(`Rumah ${propertyToDelete.code} berhasil dihapus dari direktori aktif.`);
+        showToast(`Unit ${propertyToDelete.code} berhasil dihapus dari direktori aktif.`);
         setPropertyToDelete(null);
         if (activeProperty?.id === propertyToDelete.id) {
           setActiveProperty(null);
@@ -304,6 +344,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       {
         id: `PERMIT-2026-00${permits.length + 1}`,
         houseCode: pCode.toUpperCase(),
+        areaLabel: pCode.startsWith('KAV') ? 'Kavling' : pCode.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${pCode.split('-')[0]}`,
         workType: pType,
         contractorName: pContractor,
         workersCount: Number(pWorkers),
@@ -317,7 +358,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     setShowAddPermitModal(false);
     setPContractor('');
     setPDesc('');
-    showToast(`Izin renovasi untuk Rumah ${pCode.toUpperCase()} berhasil diterbitkan.`);
+    showToast(`Izin renovasi untuk Unit ${pCode.toUpperCase()} berhasil diterbitkan.`);
   };
 
   const handleTogglePermitStatus = (id: string, newStatus: string) => {
@@ -330,11 +371,26 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     showToast(`Status akses gerbang RFID diperbarui.`);
   };
 
-  // Filtered & Sorted Properties
+  // Filtered & Sorted Properties (Supporting Blok, Kavling, and Streets)
   const filteredAndSortedProperties = useMemo(() => {
     const list = properties.filter((p) => {
-      const matchSearch = p.code.toLowerCase().includes(search.toLowerCase()) || (p.ownerName && p.ownerName.toLowerCase().includes(search.toLowerCase())) || p.address.toLowerCase().includes(search.toLowerCase());
-      const matchBlock = selectedBlock === 'ALL' || p.blockCode === selectedBlock;
+      const matchSearch = p.code.toLowerCase().includes(search.toLowerCase()) || 
+                          (p.ownerName && p.ownerName.toLowerCase().includes(search.toLowerCase())) || 
+                          p.address.toLowerCase().includes(search.toLowerCase());
+      
+      let matchBlock = true;
+      if (selectedBlock !== 'ALL') {
+        if (selectedBlock === 'KAV') {
+          matchBlock = p.code.toLowerCase().startsWith('kav') || p.address.toLowerCase().includes('kav');
+        } else if (selectedBlock === 'SARIWANGI_1') {
+          matchBlock = p.address.toLowerCase().includes('sariwangi indah 1') || p.code.toLowerCase().startsWith('sw1');
+        } else if (selectedBlock === 'SARIWANGI_2') {
+          matchBlock = p.address.toLowerCase().includes('sariwangi indah 2') || p.code.toLowerCase().startsWith('sw2');
+        } else {
+          matchBlock = p.blockCode === selectedBlock || p.address.toLowerCase().includes(`blok ${selectedBlock.toLowerCase()}`);
+        }
+      }
+
       const matchStatus = selectedStatus === 'ALL' || p.occupancyStatus === selectedStatus;
       return matchSearch && matchBlock && matchStatus;
     });
@@ -371,7 +427,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   };
 
   const filteredResidents = residents.filter((r) => {
-    const matchSearch = r.fullName.toLowerCase().includes(residentSearch.toLowerCase()) || r.houseCode.toLowerCase().includes(residentSearch.toLowerCase()) || r.phone.includes(residentSearch);
+    const matchSearch = r.fullName.toLowerCase().includes(residentSearch.toLowerCase()) || 
+                        r.houseCode.toLowerCase().includes(residentSearch.toLowerCase()) || 
+                        r.areaLabel.toLowerCase().includes(residentSearch.toLowerCase()) ||
+                        r.phone.includes(residentSearch);
     const matchCat = residentCategory === 'ALL' || r.relation === residentCategory;
     return matchSearch && matchCat;
   });
@@ -392,11 +451,11 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   };
 
   const handleExportPropertiesCSV = () => {
-    const headers = ['Kode Rumah', 'Nomor', 'Blok', 'Alamat', 'Status Hunian', 'Nama Pemilik / Penghuni', 'Jumlah Penghuni', 'Jumlah Kendaraan'];
+    const headers = ['Kode Unit', 'Nomor', 'Blok / Kav / Jalan', 'Alamat Lengkap', 'Status Hunian', 'Nama Pemilik / Penghuni', 'Jumlah Penghuni', 'Jumlah Kendaraan'];
     const rows = properties.map((p) => [
       p.code,
       p.number,
-      p.blockCode,
+      p.code.startsWith('KAV') ? 'Kavling' : p.code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${p.blockCode}`,
       `"${p.address}"`,
       p.occupancyStatus,
       `"${p.ownerName || '-'}"`,
@@ -407,17 +466,18 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DATA_120_RUMAH_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `DATA_RUMAH_KAV_JALAN_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Data 120 rumah berhasil diekspor ke CSV.');
+    showToast('Data master rumah/kavling berhasil diekspor ke CSV.');
   };
 
   const handleExportResidentsCSV = () => {
-    const headers = ['No Rumah', 'Nama Lengkap', 'Hubungan Keluarga', 'No KTP/NIK', 'No WhatsApp', 'Kontak Darurat'];
+    const headers = ['No Unit', 'Blok / Kav / Jalan', 'Nama Lengkap', 'Hubungan Keluarga', 'No KTP/NIK', 'No WhatsApp', 'Kontak Darurat'];
     const rows = residents.map((r) => [
       r.houseCode,
+      `"${r.areaLabel}"`,
       `"${r.fullName}"`,
       r.relation,
       `'${r.idCard}`,
@@ -455,7 +515,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
-            Master database unit hunian 120 rumah, data sensus kependudukan, pengawasan kendaraan, dan perizinan renovasi komplek.
+            Master unit hunian komplek (Mendukung sistem <strong>Blok</strong>, <strong>Kavling (Kav.)</strong>, maupun <strong>Per Jalan / Cluster</strong> seperti Sariwangi Indah 1, 2, dst).
           </p>
         </div>
 
@@ -474,7 +534,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Tambah Unit Rumah
+            Tambah Unit Rumah / Kavling
           </button>
         </div>
       </div>
@@ -482,7 +542,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       {/* 5-SubTab Navigation Bar */}
       <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'units', label: 'Direktori 120 Rumah', icon: Home, count: properties.length },
+          { id: 'units', label: 'Direktori Rumah & Kavling', icon: Home, count: properties.length },
           { id: 'residents', label: 'Database Kependudukan', icon: Users, count: 384 },
           { id: 'vehicles', label: 'Master Kendaraan & RFID', icon: Car, count: vehicles.length },
           { id: 'permits', label: 'Izin Renovasi & Tukang', icon: Hammer, count: permits.filter(p => p.status === 'APPROVED').length },
@@ -514,15 +574,15 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         })}
       </div>
 
-      {/* ================= SUBTAB 1: DIREKTORI 120 RUMAH (DENGAN PAGINATION & HAPUS) ================= */}
+      {/* ================= SUBTAB 1: DIREKTORI RUMAH & KAVLING ================= */}
       {activeSubTab === 'units' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Total Hunian</span>
+              <span className="text-[11px] text-ink-muted font-medium">Total Hunian & Kav</span>
               <p className="text-xl font-black text-ink mt-0.5">{properties.length} Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold">100% Terpetakan</span>
+              <span className="text-[10px] text-emerald-600 font-bold">Blok / Kavling / Jalan</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Dihuni Pemilik</span>
@@ -553,7 +613,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Cari kode rumah (cth: A-17) atau nama..."
+                placeholder="Cari kode/kav/jalan (cth: A-17, Kav 5, Sariwangi)..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -572,11 +632,14 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 }}
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
-                <option value="ALL">Semua Blok (A, B, C, D)</option>
+                <option value="ALL">Semua Wilayah (Blok / Kav / Jalan)</option>
                 <option value="A">Blok A</option>
                 <option value="B">Blok B</option>
                 <option value="C">Blok C</option>
                 <option value="D">Blok D</option>
+                <option value="KAV">Kavling (Kav.)</option>
+                <option value="SARIWANGI_1">Jl. Sariwangi Indah 1</option>
+                <option value="SARIWANGI_2">Jl. Sariwangi Indah 2</option>
               </select>
 
               <select
@@ -599,7 +662,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
-                <option value="code">Urut Kode Rumah</option>
+                <option value="code">Urut Kode / Kav</option>
                 <option value="owner">Urut Nama Pemilik</option>
                 <option value="status">Urut Status Okupansi</option>
                 <option value="residents">Urut Jumlah Penghuni</option>
@@ -628,7 +691,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   type="button"
                   onClick={() => setViewMode('grid')}
                   className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-surface text-primary-700 shadow-xs' : 'text-ink-muted'}`}
-                  title="Tampilan Grid Matriks Blok"
+                  title="Tampilan Grid Matriks Wilayah"
                 >
                   <LayoutGrid className="w-4 h-4" />
                 </button>
@@ -643,8 +706,8 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
-                      <th className="py-3.5 px-4">Kode Rumah</th>
-                      <th className="py-3.5 px-4">Alamat Jalan</th>
+                      <th className="py-3.5 px-4">Kode / Kavling</th>
+                      <th className="py-3.5 px-4">Wilayah / Alamat Jalan</th>
                       <th className="py-3.5 px-4">Status Hunian</th>
                       <th className="py-3.5 px-4">Kepala Rumah / Pemilik</th>
                       <th className="py-3.5 px-4 text-center">Penghuni</th>
@@ -656,58 +719,74 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                     {paginatedProperties.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-8 text-center text-ink-muted font-medium">
-                          Tidak ada data unit rumah yang cocok dengan filter.
+                          Tidak ada data unit rumah/kavling yang cocok dengan filter.
                         </td>
                       </tr>
                     ) : (
-                      paginatedProperties.map((prop) => (
-                        <tr key={prop.id} className="hover:bg-canvas/60 text-ink transition-colors">
-                          <td className="py-3.5 px-4 font-bold text-sm text-primary-700 flex items-center gap-2">
-                            <Home className="w-4 h-4 text-primary-600" />
-                            Rumah {prop.code}
-                          </td>
-                          <td className="py-3.5 px-4 text-ink-muted font-medium">{prop.address}</td>
-                          <td className="py-3.5 px-4">{getStatusBadge(prop.occupancyStatus)}</td>
-                          <td className="py-3.5 px-4 font-black text-ink">{prop.ownerName || '-'}</td>
-                          <td className="py-3.5 px-4 text-center font-bold text-ink">
-                            {prop.residentCount || 3} Jiwa
-                          </td>
-                          <td className="py-3.5 px-4 text-center font-bold text-ink">
-                            {prop.vehicleCount || 1} Unit
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="inline-flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setActiveProperty(prop)}
-                                className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                                title="Lihat Detail Hunian"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                Detail
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEdit(prop)}
-                                className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                                title="Edit Data Rumah"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setPropertyToDelete(prop)}
-                                className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
-                                title="Hapus Unit Rumah"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Hapus
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                      paginatedProperties.map((prop) => {
+                        const isKav = prop.code.toLowerCase().startsWith('kav');
+                        const isStreet = prop.address.toLowerCase().includes('sariwangi') || prop.code.toLowerCase().startsWith('sw');
+
+                        return (
+                          <tr key={prop.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-sm text-primary-700 flex items-center gap-2">
+                              {isKav ? (
+                                <Compass className="w-4 h-4 text-indigo-600" />
+                              ) : isStreet ? (
+                                <MapPin className="w-4 h-4 text-emerald-600" />
+                              ) : (
+                                <Home className="w-4 h-4 text-primary-600" />
+                              )}
+                              <span>{isKav ? prop.code : `Unit ${prop.code}`}</span>
+                            </td>
+                            <td className="py-3.5 px-4 text-ink-muted font-medium">
+                              <span className="font-semibold text-ink block">{prop.address}</span>
+                              <span className="text-[10px] text-ink-muted">
+                                {isKav ? 'Area Kavling' : isStreet ? 'Per Jalan' : `Blok ${prop.blockCode}`}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">{getStatusBadge(prop.occupancyStatus)}</td>
+                            <td className="py-3.5 px-4 font-black text-ink">{prop.ownerName || '-'}</td>
+                            <td className="py-3.5 px-4 text-center font-bold text-ink">
+                              {prop.residentCount || 3} Jiwa
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold text-ink">
+                              {prop.vehicleCount || 1} Unit
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveProperty(prop)}
+                                  className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                                  title="Lihat Detail Hunian"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Detail
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEdit(prop)}
+                                  className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                                  title="Edit Data Rumah"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPropertyToDelete(prop)}
+                                  className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
+                                  title="Hapus Unit Rumah"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Hapus
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -717,7 +796,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-3">
                   <span className="text-ink-muted">
-                    Menampilkan <strong className="text-ink">{totalItems === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalItems}</strong> unit rumah
+                    Menampilkan <strong className="text-ink">{totalItems === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalItems}</strong> unit
                   </span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-ink-muted">Tampilkan:</span>
@@ -803,22 +882,30 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             </div>
           )}
 
-          {/* VIEW 2: VISUAL BLOCK GRID MATRIX */}
+          {/* VIEW 2: VISUAL BLOCK & KAVLING GRID MATRIX */}
           {viewMode === 'grid' && (
             <div className="space-y-6">
-              {['A', 'B', 'C', 'D'].map((blockLetter) => {
-                const blockProps = filteredAndSortedProperties.filter(p => p.blockCode === blockLetter);
-                if (selectedBlock !== 'ALL' && selectedBlock !== blockLetter) return null;
+              {[
+                { key: 'A', label: 'Blok A', street: 'Jl. Taman Sejahtera A' },
+                { key: 'B', label: 'Blok B / Sariwangi Indah 1', street: 'Jl. Taman Sejahtera B & Sariwangi 1' },
+                { key: 'C', label: 'Blok C / Kavling Cluster', street: 'Jl. Taman Sejahtera C & Area Kavling' },
+                { key: 'D', label: 'Blok D / Sariwangi Indah 2', street: 'Jl. Taman Sejahtera D & Sariwangi 2' },
+              ].map((area) => {
+                const blockProps = filteredAndSortedProperties.filter(p => p.blockCode === area.key);
+                if (selectedBlock !== 'ALL' && selectedBlock !== area.key) return null;
                 return (
-                  <div key={blockLetter} className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-3">
+                  <div key={area.key} className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-3">
                     <div className="flex items-center justify-between border-b border-border pb-2">
                       <div className="flex items-center gap-2">
                         <span className="w-7 h-7 rounded-lg bg-primary-100 text-primary-800 font-black flex items-center justify-center text-xs">
-                          {blockLetter}
+                          {area.key}
                         </span>
-                        <h3 className="font-extrabold text-sm text-ink">Blok {blockLetter} (Jl. Taman Sejahtera {blockLetter})</h3>
+                        <div>
+                          <h3 className="font-extrabold text-sm text-ink">{area.label}</h3>
+                          <p className="text-[10px] text-ink-muted">{area.street}</p>
+                        </div>
                       </div>
-                      <span className="text-xs text-ink-muted font-medium">{blockProps.length} Unit Rumah</span>
+                      <span className="text-xs text-ink-muted font-medium">{blockProps.length} Unit Terdaftar</span>
                     </div>
 
                     <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-10 gap-2">
@@ -888,7 +975,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Cari nama warga, nomor rumah, NIK..."
+                placeholder="Cari nama warga, nomor unit, NIK..."
                 value={residentSearch}
                 onChange={(e) => setResidentSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
@@ -915,8 +1002,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
-                    <th className="py-3 px-4">No Rumah</th>
+                    <th className="py-3 px-4">No Unit / Kav</th>
                     <th className="py-3 px-4">Nama Lengkap</th>
+                    <th className="py-3 px-4">Wilayah / Jalan</th>
                     <th className="py-3 px-4">Hubungan Keluarga</th>
                     <th className="py-3 px-4">NIK (KTP)</th>
                     <th className="py-3 px-4">Kontak WhatsApp</th>
@@ -927,7 +1015,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 <tbody className="divide-y divide-border/60">
                   {filteredResidents.map((r) => (
                     <tr key={r.id} className="hover:bg-canvas/60 text-ink transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-primary-700">Rumah {r.houseCode}</td>
+                      <td className="py-3 px-4 font-mono font-bold text-primary-700">{r.houseCode}</td>
                       <td className="py-3 px-4 font-bold text-ink flex items-center gap-2">
                         {r.fullName}
                         {r.isEmergency && (
@@ -936,6 +1024,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                           </span>
                         )}
                       </td>
+                      <td className="py-3 px-4 text-ink-muted font-medium">{r.areaLabel}</td>
                       <td className="py-3 px-4 text-ink-muted font-medium">{r.relation.replace('_', ' ')}</td>
                       <td className="py-3 px-4 font-mono text-ink-muted">{r.idCard}</td>
                       <td className="py-3 px-4 font-mono text-ink">{r.phone}</td>
@@ -973,7 +1062,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Total Kendaraan</span>
               <p className="text-xl font-black text-ink mt-0.5">248 Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold">120 Rumah</span>
+              <span className="text-[10px] text-emerald-600 font-bold">120 Rumah & Kavling</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Mobil Terdaftar</span>
@@ -998,7 +1087,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 <thead>
                   <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
                     <th className="py-3 px-4">Plat Nomor</th>
-                    <th className="py-3 px-4">Rumah</th>
+                    <th className="py-3 px-4">Unit / Wilayah</th>
                     <th className="py-3 px-4">Jenis</th>
                     <th className="py-3 px-4">Merk & Model</th>
                     <th className="py-3 px-4">Warna</th>
@@ -1010,7 +1099,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   {vehicles.map((v) => (
                     <tr key={v.id} className="hover:bg-canvas/60 text-ink transition-colors">
                       <td className="py-3 px-4 font-mono font-black text-sm text-ink">{v.plateNumber}</td>
-                      <td className="py-3 px-4 font-bold text-primary-700">Rumah {v.houseCode}</td>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-primary-700 block">{v.houseCode}</span>
+                        <span className="text-[10px] text-ink-muted">{v.areaLabel}</span>
+                      </td>
                       <td className="py-3 px-4">
                         <span className="px-2 py-0.5 rounded-md bg-canvas text-ink-muted font-bold border border-border">
                           {v.type}
@@ -1076,9 +1168,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-black text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-md border border-primary-200">
-                      Rumah {p.houseCode}
+                      Unit {p.houseCode}
                     </span>
-                    <span className="text-[10px] font-mono text-ink-muted">{p.id}</span>
+                    <span className="text-[10px] font-mono text-ink-muted">{p.areaLabel}</span>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${
                     p.status === 'APPROVED'
@@ -1144,18 +1236,18 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-4">
               <h3 className="font-extrabold text-sm text-ink flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-primary-600" />
-                Statistik Okupansi per Blok Hunian
+                Statistik Okupansi per Wilayah (Blok, Kavling, Jalan)
               </h3>
               <div className="space-y-3 text-xs">
                 {[
                   { block: 'Blok A', rate: '96.7%', filled: 29, total: 30, color: 'bg-emerald-500' },
-                  { block: 'Blok B', rate: '90.0%', filled: 27, total: 30, color: 'bg-blue-500' },
-                  { block: 'Blok C', rate: '93.3%', filled: 28, total: 30, color: 'bg-indigo-500' },
-                  { block: 'Blok D', rate: '96.7%', filled: 29, total: 30, color: 'bg-purple-500' },
+                  { block: 'Blok B / Sariwangi 1', rate: '90.0%', filled: 27, total: 30, color: 'bg-blue-500' },
+                  { block: 'Blok C / Area Kavling', rate: '93.3%', filled: 28, total: 30, color: 'bg-indigo-500' },
+                  { block: 'Blok D / Sariwangi 2', rate: '96.7%', filled: 29, total: 30, color: 'bg-purple-500' },
                 ].map((b, idx) => (
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between font-semibold">
-                      <span>{b.block} ({b.filled}/{b.total} Rumah)</span>
+                      <span>{b.block} ({b.filled}/{b.total} Unit)</span>
                       <span className="font-mono text-primary-700">{b.rate}</span>
                     </div>
                     <div className="w-full h-2 bg-canvas rounded-full overflow-hidden border border-border">
@@ -1189,7 +1281,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: DETAIL RUMAH (VIEW) ================= */}
+      {/* ================= MODAL: DETAIL RUMAH / KAVLING ================= */}
       {activeProperty && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1199,7 +1291,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   <Home className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-ink">Rumah {activeProperty.code}</h3>
+                  <h3 className="font-black text-base text-ink">Unit {activeProperty.code}</h3>
                   <p className="text-xs text-ink-muted">{activeProperty.address}</p>
                 </div>
               </div>
@@ -1292,7 +1384,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: TAMBAH / EDIT RUMAH (KOLOM LENGKAP) ================= */}
+      {/* ================= MODAL: TAMBAH / EDIT RUMAH & KAVLING (KOLOM LENGKAP) ================= */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-xl w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto">
@@ -1303,9 +1395,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 </div>
                 <div>
                   <h3 className="font-black text-base text-ink">
-                    {editingPropertyId ? `Edit Data Rumah ${formCode}` : 'Tambah Unit Rumah Baru'}
+                    {editingPropertyId ? `Edit Data Unit ${formCode}` : 'Tambah Unit Rumah / Kavling Baru'}
                   </h3>
-                  <p className="text-[11px] text-ink-muted">Lengkapi seluruh kolom data teknis dan kepemilikan hunian.</p>
+                  <p className="text-[11px] text-ink-muted">Mendukung format Blok, Kavling (Kav.), Nama Jalan, atau Cluster.</p>
                 </div>
               </div>
               <button onClick={() => setShowAddModal(false)} className="text-ink-muted hover:text-ink">
@@ -1314,55 +1406,123 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             </div>
 
             <form onSubmit={handleSaveProperty} className="space-y-3.5 text-xs">
-              {/* Seksi 1: Identitas Unit */}
+              {/* Seksi 1: Tipe Wilayah & Identitas Unit */}
               <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
                 <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-primary-600" />
-                  1. Identitas Unit Hunian
+                  <Compass className="w-3.5 h-3.5 text-primary-600" />
+                  1. Tipe Wilayah & Penamaan Unit
                 </h4>
+
+                {/* Naming Type Switcher */}
+                <div>
+                  <label className="font-bold text-ink block mb-1">Sistem Penamaan Wilayah Komplek</label>
+                  <div className="grid grid-cols-4 gap-1.5 p-1 bg-surface rounded-xl border border-border">
+                    {[
+                      { id: 'BLOK', label: 'Blok (A, B...)' },
+                      { id: 'KAV', label: 'Kavling (Kav)' },
+                      { id: 'STREET', label: 'Per Jalan' },
+                      { id: 'CLUSTER', label: 'Cluster' },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleNamingTypeChange(t.id as any)}
+                        className={`py-1.5 px-2 rounded-lg text-center font-bold text-[11px] transition-colors ${
+                          namingType === t.id
+                            ? 'bg-primary-600 text-white shadow-xs'
+                            : 'text-ink-muted hover:text-ink hover:bg-canvas'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">Kode Rumah *</label>
+                    <label className="font-bold text-ink block mb-1">
+                      {namingType === 'BLOK' ? 'Pilih Blok' : namingType === 'KAV' ? 'Area Kavling' : namingType === 'STREET' ? 'Nama Jalan' : 'Nama Cluster'} *
+                    </label>
+                    {namingType === 'BLOK' ? (
+                      <select
+                        value={formAreaName}
+                        onChange={(e) => setFormAreaName(e.target.value)}
+                        className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                      >
+                        <option value="Blok A">Blok A</option>
+                        <option value="Blok B">Blok B</option>
+                        <option value="Blok C">Blok C</option>
+                        <option value="Blok D">Blok D</option>
+                      </select>
+                    ) : namingType === 'STREET' ? (
+                      <select
+                        value={formAreaName}
+                        onChange={(e) => setFormAreaName(e.target.value)}
+                        className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
+                      >
+                        <option value="Jl. Sariwangi Indah 1">Jl. Sariwangi Indah 1</option>
+                        <option value="Jl. Sariwangi Indah 2">Jl. Sariwangi Indah 2</option>
+                        <option value="Jl. Flamboyan Raya">Jl. Flamboyan Raya</option>
+                        <option value="Jl. Melati Indah">Jl. Melati Indah</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={namingType === 'KAV' ? 'Kavling Utama' : 'Cluster Bougenville'}
+                        value={formAreaName}
+                        onChange={(e) => setFormAreaName(e.target.value)}
+                        className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">
+                      {namingType === 'KAV' ? 'No. Kavling *' : 'Nomor Unit *'}
+                    </label>
                     <input
                       type="text"
-                      placeholder="Contoh: A-31"
+                      placeholder={namingType === 'KAV' ? '12' : '31'}
+                      value={formNumber}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormNumber(val);
+                        if (!editingPropertyId) {
+                          if (namingType === 'KAV') setFormCode(`KAV-${val}`);
+                          else if (namingType === 'STREET') setFormCode(`SW1-${val}`);
+                          else setFormCode(`${formAreaName.replace(/[^a-zA-Z]/g, '').slice(-1)}-${val}`);
+                        }
+                      }}
+                      required
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Kode Unit *</label>
+                    <input
+                      type="text"
+                      placeholder={namingType === 'KAV' ? 'KAV-12' : 'A-31'}
                       value={formCode}
                       onChange={(e) => setFormCode(e.target.value)}
                       required
                       className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold uppercase text-ink"
                     />
                   </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Nomor Unit *</label>
-                    <input
-                      type="text"
-                      placeholder="31"
-                      value={formNumber}
-                      onChange={(e) => setFormNumber(e.target.value)}
-                      required
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Blok Hunian *</label>
-                    <select
-                      value={formBlock}
-                      onChange={(e) => setFormBlock(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="block-a">Blok A</option>
-                      <option value="block-b">Blok B</option>
-                      <option value="block-c">Blok C</option>
-                      <option value="block-d">Blok D</option>
-                    </select>
-                  </div>
                 </div>
 
                 <div>
-                  <label className="font-bold text-ink block mb-1">Alamat Lengkap Jalan</label>
+                  <label className="font-bold text-ink block mb-1">Alamat Lengkap Unit</label>
                   <input
                     type="text"
-                    placeholder="Contoh: Jl. Taman Sejahtera Blok A No. 31"
+                    placeholder={
+                      namingType === 'KAV'
+                        ? 'Kavling No. 12, Komplek Taman Sejahtera'
+                        : namingType === 'STREET'
+                        ? 'Jl. Sariwangi Indah 1 No. 5, Komplek Taman Sejahtera'
+                        : 'Jl. Taman Sejahtera Blok A No. 31'
+                    }
                     value={formAddress}
                     onChange={(e) => setFormAddress(e.target.value)}
                     className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
@@ -1391,7 +1551,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="font-bold text-ink block mb-1">Nama Kepala Rumah</label>
+                    <label className="font-bold text-ink block mb-1">Nama Kepala Rumah / Pemilik</label>
                     <input
                       type="text"
                       placeholder="Nama Pemilik / Penghuni"
@@ -1501,10 +1661,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-bold text-ink block mb-1">Catatan Tambahan Hunian</label>
+                  <label className="font-bold text-ink block mb-1">Catatan Tambahan Unit</label>
                   <input
                     type="text"
-                    placeholder="Contoh: Rumah posisi hoek, ada kanopi 2 mobil, dekat pos satpam"
+                    placeholder="Contoh: Posisi hoek / ada garasi 2 mobil / kavling siap bangun"
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
                     className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
@@ -1525,7 +1685,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   disabled={saving}
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50"
                 >
-                  {saving ? 'Menyimpan Unit...' : editingPropertyId ? 'Perbarui Data Rumah' : 'Daftarkan Unit Rumah'}
+                  {saving ? 'Menyimpan Unit...' : editingPropertyId ? 'Perbarui Data Unit' : 'Daftarkan Unit'}
                 </button>
               </div>
             </form>
@@ -1542,9 +1702,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="font-black text-lg text-ink">Hapus Unit Rumah {propertyToDelete.code}?</h3>
+              <h3 className="font-black text-lg text-ink">Hapus Unit {propertyToDelete.code}?</h3>
               <p className="text-xs text-ink-muted">
-                Unit <strong>{propertyToDelete.address}</strong> akan dinonaktifkan dari direktori master 120 rumah. Tindakan ini akan tercatat dalam Jejak Audit Keamanan.
+                Unit <strong>{propertyToDelete.address}</strong> akan dinonaktifkan dari direktori master. Tindakan ini akan tercatat dalam Jejak Audit Keamanan.
               </p>
             </div>
 
@@ -1598,10 +1758,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             <form onSubmit={handleCreatePermit} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-bold text-ink block mb-1">Unit Rumah *</label>
+                  <label className="font-bold text-ink block mb-1">Kode Unit / Kav *</label>
                   <input
                     type="text"
-                    placeholder="A-17"
+                    placeholder="A-17 atau KAV-12"
                     value={pCode}
                     onChange={(e) => setPCode(e.target.value)}
                     required
@@ -1714,7 +1874,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
 
             <div>
               <p className="font-mono text-xl font-black text-ink">{selectedPassVehicle.plateNumber}</p>
-              <p className="text-xs font-bold text-primary-700">Rumah {selectedPassVehicle.houseCode} • {selectedPassVehicle.brand} {selectedPassVehicle.model}</p>
+              <p className="text-xs font-bold text-primary-700">{selectedPassVehicle.houseCode} • {selectedPassVehicle.brand} {selectedPassVehicle.model}</p>
               <span className="inline-block mt-2 px-3 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-200">
                 GATE 1 AUTO BARRIER AUTHORIZED
               </span>

@@ -28,9 +28,13 @@ export const POST: APIRoute = async ({ request }) => {
     const validated = propertySchema.parse(body);
     const id = `prop-${validated.code.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
     
-    // Normalize block ID (e.g., 'block-a' -> 'blk-a', 'A' -> 'blk-a')
-    const blockLetter = (validated.blockId.replace(/[^a-zA-Z]/g, '') || validated.code.split('-')[0] || 'a').slice(-1).toLowerCase();
-    const validBlockId = `blk-${blockLetter}`;
+    // Normalize block ID to valid database block reference
+    const blkClean = (validated.blockId || validated.code).toLowerCase();
+    let validBlockId = 'blk-a';
+    if (blkClean.includes('b') || blkClean.includes('sariwangi-2')) validBlockId = 'blk-b';
+    else if (blkClean.includes('c') || blkClean.includes('kav')) validBlockId = 'blk-c';
+    else if (blkClean.includes('d')) validBlockId = 'blk-d';
+    else validBlockId = 'blk-a';
 
     if (process.env.DATABASE_URL) {
       await neonSql`

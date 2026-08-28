@@ -874,7 +874,11 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                 <div className="relative z-10 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-md rounded-md text-[10px] font-bold tracking-wide uppercase">
-                      Blok {currentUser.propertyCode?.split('-')[0] || 'A'} • RT 02 / RW 05
+                      {currentUser.propertyCode?.toUpperCase().startsWith('KAV')
+                        ? 'Area Kavling'
+                        : currentUser.propertyCode?.toUpperCase().startsWith('SW')
+                        ? 'Jl. Sariwangi Indah'
+                        : `Blok ${currentUser.propertyCode?.split('-')[0] || 'A'}`} • RT 02 / RW 05
                     </span>
                     <span className="text-[11px] text-primary-200 font-medium">Komplek Taman Sejahtera</span>
                   </div>
