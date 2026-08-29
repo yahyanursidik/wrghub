@@ -64,6 +64,8 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [showVotingModal, setShowVotingModal] = useState(false);
 
+  const isAdminUser = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY'].includes(currentUser?.role || '');
+
   // Property Specs State
   const [buildingType, setBuildingType] = useState('Tipe 72/120');
   const [landArea, setLandArea] = useState(120);
@@ -390,18 +392,26 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
 
           <div className="flex items-center gap-2">
             <a
+              href="/rekap-iuran"
+              className="text-xs font-semibold text-ink-muted hover:text-ink px-2.5 py-1 rounded-lg hover:bg-canvas transition-colors hidden sm:inline-flex items-center gap-1"
+            >
+              Rekap Iuran
+            </a>
+            <a
               href="/transparency"
               className="text-xs font-semibold text-ink-muted hover:text-ink px-2.5 py-1 rounded-lg hover:bg-canvas transition-colors hidden sm:inline-flex items-center gap-1"
             >
               Transparansi Kas
             </a>
-            <a
-              href="/admin"
-              className="text-xs font-bold text-primary-700 hover:text-primary-800 px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors flex items-center gap-1 border border-primary-200"
-            >
-              Admin Dashboard
-              <ExternalLink className="w-3 h-3" />
-            </a>
+            {isAdminUser && (
+              <a
+                href="/admin"
+                className="text-xs font-bold text-primary-700 hover:text-primary-800 px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors flex items-center gap-1 border border-primary-200"
+              >
+                Admin Dashboard
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
             <button
               onClick={() => setActiveTab('akun')}
               className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 hover:ring-2 hover:ring-primary-500 transition-all ml-1"
@@ -1246,11 +1256,20 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
               </div>
 
               <div className="space-y-2">
+                {isAdminUser && (
+                  <a
+                    href="/admin"
+                    className="w-full py-2.5 px-4 bg-primary-50 hover:bg-primary-100 border border-primary-200 text-primary-800 font-bold text-xs rounded-xl flex items-center justify-between transition-colors"
+                  >
+                    <span>Buka Dashboard Pengurus Komplek</span>
+                    <ChevronRight className="w-4 h-4 text-primary-600" />
+                  </a>
+                )}
                 <a
-                  href="/admin"
+                  href="/rekap-iuran"
                   className="w-full py-2.5 px-4 bg-surface hover:bg-canvas border border-border text-ink font-semibold text-xs rounded-xl flex items-center justify-between transition-colors"
                 >
-                  <span>Buka Dashboard Pengurus Komplek</span>
+                  <span>Rekapitulasi Iuran Warga (Bulan Aktif)</span>
                   <ChevronRight className="w-4 h-4 text-ink-muted" />
                 </a>
                 <a
