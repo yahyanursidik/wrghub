@@ -13,12 +13,7 @@ import {
   Sparkles,
   BarChart3,
   Receipt,
-  FileText,
-  HelpCircle,
-  PhoneCall,
-  Vote,
-  Car,
-  QrCode
+  FileText
 } from 'lucide-react';
 import { PORTAL_ACCOUNTS, type DemoAccountInfo } from '../../types/auth';
 
@@ -29,30 +24,12 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [selectedUnit, setSelectedUnit] = useState('A-17');
-
-  const unitOptions = [
-    { code: 'A-17', user: 'warga_a17', name: 'Budi Santoso (Unit A-17 - Jl. Utama)' },
-    { code: 'B-04', user: 'warga_b04', name: 'Keluarga Hendra (Unit B-04 - Taman Barat)' },
-    { code: 'C-12', user: 'warga_c12', name: 'Keluarga Rahmat (Unit C-12 - Area Balai)' },
-    { code: 'D-08', user: 'warga_d08', name: 'Keluarga Dian (Unit D-08 - Taman Timur)' },
-    { code: 'KAV-04', user: 'warga_kav04', name: 'Pemilik Kavling 04 (Kavling Mandiri)' },
-    { code: 'SW1-02', user: 'warga_sw102', name: 'Keluarga Sariwangi (Jl. Sariwangi Indah 1)' },
-  ];
-
-  const handleUnitSelect = (code: string) => {
-    setSelectedUnit(code);
-    const found = unitOptions.find((u) => u.code === code);
-    if (found) {
-      setIdentifier(found.user);
-      setPassword('warga123');
-    }
-  };
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier || !password) {
-      setErrorMsg('Harap isi nomor rumah/username dan password.');
+      setErrorMsg('Harap isi nomor rumah / username dan password / PIN.');
       return;
     }
 
@@ -163,28 +140,10 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
             </div>
           )}
 
-          {/* Quick Unit Selector */}
-          <div>
-            <label className="block text-xs font-bold text-ink mb-1.5">
-              Pilih Unit Rumah Anda:
-            </label>
-            <select
-              value={selectedUnit}
-              onChange={(e) => handleUnitSelect(e.target.value)}
-              className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs sm:text-sm font-bold text-ink focus:ring-2 focus:ring-primary-500"
-            >
-              {unitOptions.map((opt) => (
-                <option key={opt.code} value={opt.code}>
-                  {opt.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-ink mb-1.5">
-                Nomor Rumah / Username
+                Nomor Rumah / Username / No. HP
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-muted">
@@ -192,7 +151,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Contoh: A-17 atau warga_a17"
+                  placeholder="Contoh: A-17, warga_a17, atau 08123456789"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   required
@@ -203,7 +162,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-ink mb-1.5">
-                Password / PIN
+                Password / PIN Warga
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-muted">
@@ -225,6 +184,19 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-border text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-ink-muted font-medium">Ingat Saya</span>
+              </label>
+              <span className="text-[11px] text-ink-muted">PIN Default: <strong className="text-ink">warga123</strong></span>
             </div>
 
             <button
