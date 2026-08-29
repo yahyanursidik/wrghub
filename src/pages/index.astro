@@ -1,7 +1,18 @@
 ---
 import { ResidentPortalView } from '../components/portal/ResidentPortalView';
-import { DEMO_USERS } from '../services/auth.service';
+import { ResidentWelcomeLoginGate } from '../components/auth/ResidentWelcomeLoginGate';
 import '../styles/global.css';
+
+const userCookie = Astro.cookies.get('wargahub_user');
+let loggedInUser = null;
+
+if (userCookie && userCookie.value) {
+  try {
+    loggedInUser = JSON.parse(userCookie.value);
+  } catch (e) {
+    loggedInUser = null;
+  }
+}
 ---
 
 <!doctype html>
@@ -24,6 +35,10 @@ import '../styles/global.css';
     </script>
   </head>
   <body class="bg-canvas text-ink font-sans min-h-screen antialiased selection:bg-primary-100 selection:text-primary-900">
-    <ResidentPortalView initialUser={DEMO_USERS.warga} client:load />
+    {loggedInUser ? (
+      <ResidentPortalView initialUser={loggedInUser} client:load />
+    ) : (
+      <ResidentWelcomeLoginGate client:load />
+    )}
   </body>
 </html>

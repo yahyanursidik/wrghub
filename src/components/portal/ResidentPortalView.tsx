@@ -1264,7 +1264,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   type="button"
                   onClick={async () => {
                     await fetch('/api/auth/logout', { method: 'POST' });
-                    window.location.href = '/login';
+                    window.location.href = '/';
                   }}
                   className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-semibold text-xs rounded-xl flex items-center justify-between transition-colors mt-2"
                 >
