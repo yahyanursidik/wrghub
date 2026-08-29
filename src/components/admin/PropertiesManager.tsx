@@ -67,12 +67,12 @@ interface PropertiesManagerProps {
 }
 
 export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
-  initialProperties,
+  initialProperties = [],
   initialTab = 'units'
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'units' | 'residents' | 'vehicles' | 'permits' | 'analytics'>('units');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-  const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties);
+  const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties || []);
   const [search, setSearch] = useState('');
   const [selectedBlock, setSelectedBlock] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
@@ -83,12 +83,12 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Property Modal State (Complete Columns + Blok/Kav/Jalan)
+  // Property Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [activeProperty, setActiveProperty] = useState<PropertyListItem | null>(null);
 
-  // Area Naming Type: BLOK (Blok A), KAV (Kavling/Kav 12), STREET (Jl. Sariwangi Indah 1), CLUSTER (Cluster)
+  // Area Naming Type
   const [namingType, setNamingType] = useState<'BLOK' | 'KAV' | 'STREET' | 'CLUSTER'>('BLOK');
   const [formAreaName, setFormAreaName] = useState('Blok A');
   const [formCode, setFormCode] = useState('');
@@ -113,6 +113,13 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [deleteReason, setDeleteReason] = useState('Renovasi Penggabungan Unit / Koreksi Data');
   const [deleting, setDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
 
   // ================= RESIDENTS (PENGHUNI) STATE =================
   const [residentCategory, setResidentCategory] = useState('ALL');
@@ -340,7 +347,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [pDesc, setPDesc] = useState('');
   const [permitSaving, setPermitSaving] = useState(false);
 
-  // ================= UTILITIES & OCCUPANCY COMPREHENSIVE STATE =================
+  // ================= UTILITIES & OCCUPANCY STATE =================
   const [utilitySearch, setUtilitySearch] = useState('');
   const [utilityPlnFilter, setUtilityPlnFilter] = useState('ALL');
   const [utilityPaymentFilter, setUtilityPaymentFilter] = useState('ALL');
@@ -386,7 +393,535 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const [uNotes, setUNotes] = useState('');
   const [utilitySaving, setUtilitySaving] = useState(false);
 
-  // Open Add Utility Modal
+  // Status Helpers
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'OWNER_OCCUPIED':
+        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">Dihuni Pemilik</span>;
+      case 'RENTED':
+        return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[10px] font-bold border border-blue-200">Disewa / Kontrak</span>;
+      case 'VACANT':
+        return <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">Kosong</span>;
+      case 'RENOVATION':
+        return <span className="px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-800 text-[10px] font-bold border border-purple-200">Renovasi</span>;
+      default:
+        return <span className="px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-800 text-[10px] font-bold border border-slate-200">{status}</span>;
+    }
+  };
+
+  const getRelationBadge = (relation: string) => {
+    switch (relation) {
+      case 'KEPALA_KELUARGA':
+        return <span className="px-2.5 py-0.5 rounded-full bg-primary-50 text-primary-800 text-[10px] font-bold border border-primary-200">Kepala Keluarga</span>;
+      case 'ISTRI':
+        return <span className="px-2.5 py-0.5 rounded-full bg-pink-50 text-pink-800 text-[10px] font-bold border border-pink-200">Istri</span>;
+      case 'ANAK':
+        return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[10px] font-bold border border-blue-200">Anak</span>;
+      case 'ART':
+        return <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">ART / Supir</span>;
+      default:
+        return <span className="px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-800 text-[10px] font-bold border border-slate-200">{relation}</span>;
+    }
+  };
+
+  const getPermitStatusBadge = (status: string) => {
+    switch (status) {
+      case 'APPROVED':
+        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">Disetujui (Aktif)</span>;
+      case 'PENDING_REVIEW':
+        return <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200">Menunggu Review</span>;
+      case 'COMPLETED':
+        return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[10px] font-bold border border-blue-200">Selesai</span>;
+      case 'SUSPENDED':
+        return <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-800 text-[10px] font-bold border border-red-200">Ditangguhkan</span>;
+      default:
+        return <span className="px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-800 text-[10px] font-bold border border-slate-200">{status}</span>;
+    }
+  };
+
+  // Property Handlers
+  const handleOpenAdd = () => {
+    setEditingPropertyId(null);
+    setFormCode('');
+    setFormNumber('');
+    setFormAddress('');
+    setFormOccupancy('OWNER_OCCUPIED');
+    setFormOwner('');
+    setFormOwnerPhone('');
+    setFormOwnerNik('');
+    setFormBuildingType('Tipe 72/120');
+    setFormLandArea(120);
+    setFormBuildingArea(72);
+    setFormPlnCapacity('3.500 VA');
+    setFormPamMeterNo('PAM-88301');
+    setFormMonthlyRate(750000);
+    setFormHandoverDate('2024-01-15');
+    setFormNotes('');
+    setShowAddModal(true);
+  };
+
+  const handleOpenEdit = (p: PropertyListItem) => {
+    setEditingPropertyId(p.id);
+    setFormCode(p.code);
+    setFormNumber(p.number);
+    setFormAddress(p.address || '');
+    setFormOccupancy((p.occupancyStatus as any) || 'OWNER_OCCUPIED');
+    setFormOwner(p.ownerName || '');
+    setFormOwnerPhone('');
+    setFormOwnerNik('');
+    setFormBuildingType('Tipe 72/120');
+    setFormLandArea(120);
+    setFormBuildingArea(72);
+    setFormPlnCapacity('3.500 VA');
+    setFormPamMeterNo('PAM-88301');
+    setFormMonthlyRate(750000);
+    setFormHandoverDate('2024-01-15');
+    setFormNotes(p.notes || '');
+    setShowAddModal(true);
+  };
+
+  const handleSaveProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const isEdit = Boolean(editingPropertyId);
+      const url = isEdit ? '/api/properties/update' : '/api/properties/create';
+      const payload = {
+        id: editingPropertyId || `prop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        code: formCode.toUpperCase(),
+        number: formNumber || formCode,
+        address: formAddress || `Komplek Taman Sejahtera, ${formAreaName} No. ${formNumber || formCode}`,
+        occupancyStatus: formOccupancy,
+        ownerName: formOwner || 'Warga',
+        buildingType: formBuildingType,
+        landArea: Number(formLandArea),
+        buildingArea: Number(formBuildingArea),
+        plnCapacity: formPlnCapacity,
+        pamMeterNo: formPamMeterNo,
+        monthlyRate: Number(formMonthlyRate),
+        notes: formNotes || undefined,
+      };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        if (isEdit) {
+          setProperties(properties.map(p => p.id === editingPropertyId ? {
+            ...p,
+            code: payload.code,
+            number: payload.number,
+            address: payload.address,
+            occupancyStatus: payload.occupancyStatus,
+            ownerName: payload.ownerName,
+            notes: payload.notes || null,
+          } : p));
+          showToast(`Unit ${payload.code} berhasil diperbarui.`);
+        } else {
+          const newP: PropertyListItem = {
+            id: payload.id,
+            code: payload.code,
+            blockCode: payload.code.split('-')[0] || 'A',
+            blockName: formAreaName || `Blok ${payload.code.split('-')[0]}`,
+            number: payload.number,
+            address: payload.address,
+            occupancyStatus: payload.occupancyStatus,
+            isActive: true,
+            notes: payload.notes || null,
+            ownerName: payload.ownerName,
+          };
+          setProperties([newP, ...properties]);
+          showToast(`Unit ${payload.code} berhasil didaftarkan ke sistem.`);
+        }
+        setShowAddModal(false);
+      } else {
+        showToast('Gagal menyimpan data unit properti.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal terhubung ke server.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!propertyToDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/properties/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: propertyToDelete.id, code: propertyToDelete.code, reason: deleteReason }),
+      });
+
+      if (res.ok) {
+        setProperties(properties.filter(p => p.id !== propertyToDelete.id));
+        showToast(`Unit ${propertyToDelete.code} berhasil dihapus/diarsipkan.`);
+        setPropertyToDelete(null);
+        if (activeProperty?.id === propertyToDelete.id) setActiveProperty(null);
+      } else {
+        showToast('Gagal menghapus data unit properti.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus data properti.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Resident Handlers
+  const handleOpenAddResident = () => {
+    setEditingResidentId(null);
+    setResHouseCode(properties[0]?.code || 'A-17');
+    setResAreaLabel('Blok A');
+    setResFullName('');
+    setResRelation('KEPALA_KELUARGA');
+    setResGender('LAKI_LAKI');
+    setResBirthPlaceDate('Jakarta, 12-03-1985');
+    setResReligion('ISLAM');
+    setResOccupation('Karyawan Swasta');
+    setResPhone('');
+    setResEmail('');
+    setResIdCard('');
+    setResFamilyCard('');
+    setResDomicileStatus('KTP_SETEMPAT');
+    setResBloodType('O');
+    setResIsEmergency(false);
+    setResNotes('');
+    setShowResidentModal(true);
+  };
+
+  const handleOpenEditResident = (r: any) => {
+    setEditingResidentId(r.id);
+    setResHouseCode(r.houseCode);
+    setResAreaLabel(r.areaLabel);
+    setResFullName(r.fullName);
+    setResRelation(r.relation);
+    setResGender(r.gender);
+    setResBirthPlaceDate(r.birthPlaceDate);
+    setResReligion(r.religion);
+    setResOccupation(r.occupation);
+    setResPhone(r.phone || '');
+    setResEmail(r.email || '');
+    setResIdCard(r.idCard || '');
+    setResFamilyCard(r.familyCard || '');
+    setResDomicileStatus(r.domicileStatus);
+    setResBloodType(r.bloodType || 'O');
+    setResIsEmergency(Boolean(r.isEmergency));
+    setResNotes(r.notes || '');
+    setShowResidentModal(true);
+  };
+
+  const handleSaveResident = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResSaving(true);
+    try {
+      const payload = {
+        propertyId: `prop-${resHouseCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        houseCode: resHouseCode.toUpperCase(),
+        areaLabel: resAreaLabel,
+        fullName: resFullName,
+        relation: resRelation,
+        gender: resGender,
+        birthPlaceDate: resBirthPlaceDate,
+        religion: resReligion,
+        occupation: resOccupation,
+        phone: resPhone,
+        email: resEmail,
+        idCard: resIdCard,
+        familyCard: resFamilyCard,
+        domicileStatus: resDomicileStatus,
+        bloodType: resBloodType,
+        isEmergency: resIsEmergency,
+        notes: resNotes || undefined,
+      };
+
+      const res = await fetch('/api/properties/occupants/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        if (editingResidentId) {
+          setResidents(residents.map(r => r.id === editingResidentId ? { ...r, ...payload, id: editingResidentId, status: 'VERIFIED' } : r));
+          showToast(`Data penghuni ${resFullName} berhasil diperbarui.`);
+        } else {
+          const newRes = { ...payload, id: `res-${Date.now()}`, status: 'VERIFIED' };
+          setResidents([newRes, ...residents]);
+          showToast(`Penghuni baru ${resFullName} berhasil didaftarkan.`);
+        }
+        setShowResidentModal(false);
+      } else {
+        showToast('Gagal menyimpan data penghuni.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal terhubung ke server.');
+    } finally {
+      setResSaving(false);
+    }
+  };
+
+  const handleConfirmDeleteResident = async () => {
+    if (!residentToDelete) return;
+    try {
+      const res = await fetch('/api/properties/occupants/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: residentToDelete.id, fullName: residentToDelete.fullName, reason: residentDeleteReason }),
+      });
+      if (res.ok) {
+        setResidents(residents.filter(r => r.id !== residentToDelete.id));
+        showToast(`Data penghuni ${residentToDelete.fullName} berhasil dihapus/diarsipkan.`);
+        setResidentToDelete(null);
+        if (activeResidentView?.id === residentToDelete.id) setActiveResidentView(null);
+      } else {
+        showToast('Gagal menghapus data penghuni.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus data penghuni.');
+    }
+  };
+
+  // Vehicle Handlers
+  const handleOpenAddVehicle = () => {
+    setEditingVehicleId(null);
+    setVehHouseCode(properties[0]?.code || 'A-17');
+    setVehAreaLabel('Blok A');
+    setVehOwnerName(properties[0]?.ownerName || 'Budi Santoso');
+    setVehPlateNumber('');
+    setVehType('Mobil');
+    setVehBrand('Toyota');
+    setVehModel('');
+    setVehYear(2024);
+    setVehColor('Hitam Metalik');
+    setVehRfidTag(`RFID-${Math.floor(1000000 + Math.random() * 9000000)}`);
+    setVehGateAccess('SEMUA_GERBANG');
+    setVehRfidStatus('AKTIF');
+    setVehNotes('');
+    setShowVehicleModal(true);
+  };
+
+  const handleOpenEditVehicle = (v: any) => {
+    setEditingVehicleId(v.id);
+    setVehHouseCode(v.houseCode);
+    setVehAreaLabel(v.areaLabel);
+    setVehOwnerName(v.ownerName);
+    setVehPlateNumber(v.plateNumber);
+    setVehType(v.type);
+    setVehBrand(v.brand);
+    setVehModel(v.model);
+    setVehYear(v.year);
+    setVehColor(v.color);
+    setVehRfidTag(v.rfidTag);
+    setVehGateAccess(v.gateAccess);
+    setVehRfidStatus(v.rfidStatus);
+    setVehNotes(v.notes || '');
+    setShowVehicleModal(true);
+  };
+
+  const handleSaveVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVehSaving(true);
+    try {
+      const payload = {
+        propertyId: `prop-${vehHouseCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        houseCode: vehHouseCode.toUpperCase(),
+        areaLabel: vehAreaLabel,
+        ownerName: vehOwnerName,
+        plateNumber: vehPlateNumber.toUpperCase(),
+        type: vehType,
+        brand: vehBrand,
+        model: vehModel,
+        year: Number(vehYear),
+        color: vehColor,
+        rfidTag: vehRfidTag,
+        gateAccess: vehGateAccess,
+        rfidStatus: vehRfidStatus,
+        notes: vehNotes || undefined,
+      };
+
+      const res = await fetch('/api/properties/vehicles/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        if (editingVehicleId) {
+          setVehicles(vehicles.map(v => v.id === editingVehicleId ? { ...v, ...payload, id: editingVehicleId } : v));
+          showToast(`Data kendaraan ${vehPlateNumber} berhasil diperbarui.`);
+        } else {
+          const newVeh = { ...payload, id: `veh-${Date.now()}` };
+          setVehicles([newVeh, ...vehicles]);
+          showToast(`Kendaraan baru ${vehPlateNumber} (${vehRfidTag}) berhasil didaftarkan.`);
+        }
+        setShowVehicleModal(false);
+      } else {
+        showToast('Gagal menyimpan data kendaraan.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal terhubung ke server.');
+    } finally {
+      setVehSaving(false);
+    }
+  };
+
+  const handleToggleRfid = (id: string) => {
+    setVehicles(vehicles.map(v => {
+      if (v.id === id) {
+        const nextStatus = v.rfidStatus === 'AKTIF' ? 'DIBLOKIR' : 'AKTIF';
+        showToast(`Akses RFID kendaraan ${v.plateNumber} diubah menjadi ${nextStatus}.`);
+        return { ...v, rfidStatus: nextStatus as any };
+      }
+      return v;
+    }));
+  };
+
+  const handleConfirmDeleteVehicle = async () => {
+    if (!vehicleToDelete) return;
+    try {
+      const res = await fetch('/api/properties/vehicles/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: vehicleToDelete.id, plateNumber: vehicleToDelete.plateNumber, reason: vehicleDeleteReason }),
+      });
+      if (res.ok) {
+        setVehicles(vehicles.filter(v => v.id !== vehicleToDelete.id));
+        showToast(`Kendaraan ${vehicleToDelete.plateNumber} berhasil dihapus/dinonaktifkan.`);
+        setVehicleToDelete(null);
+        if (activeVehicleView?.id === vehicleToDelete.id) setActiveVehicleView(null);
+      } else {
+        showToast('Gagal menghapus data kendaraan.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus kendaraan.');
+    }
+  };
+
+  // Permit Handlers
+  const handleOpenAddPermit = () => {
+    setEditingPermitId(null);
+    setPCode(properties[0]?.code || 'A-17');
+    setPAreaLabel('Blok A');
+    setPOwnerName(properties[0]?.ownerName || 'Budi Santoso');
+    setPType('Pengecatan & Kanopi');
+    setPContractor('');
+    setPContractorPhone('0812-3344-5566');
+    setPWorkers(3);
+    setPWorkersList('');
+    setPStart('2026-09-01');
+    setPEnd('2026-09-10');
+    setPAllowedHours('08:00 - 17:00 WIB (Senin - Sabtu)');
+    setPDepositStatus('SUDAH_SETOR');
+    setPDepositAmount(2000000);
+    setPStatus('APPROVED');
+    setPDesc('');
+    setShowAddPermitModal(true);
+  };
+
+  const handleOpenEditPermit = (p: any) => {
+    setEditingPermitId(p.id);
+    setPCode(p.houseCode);
+    setPAreaLabel(p.areaLabel);
+    setPOwnerName(p.ownerName);
+    setPType(p.workType);
+    setPContractor(p.contractorName);
+    setPContractorPhone(p.contractorPhone);
+    setPWorkers(p.workersCount);
+    setPWorkersList(p.workersList);
+    setPStart(p.startDate);
+    setPEnd(p.endDate);
+    setPAllowedHours(p.allowedHours);
+    setPDepositStatus(p.depositStatus);
+    setPDepositAmount(p.depositAmount);
+    setPStatus(p.status);
+    setPDesc(p.description || '');
+    setShowAddPermitModal(true);
+  };
+
+  const handleSavePermit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPermitSaving(true);
+    try {
+      const payload = {
+        propertyId: `prop-${pCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        houseCode: pCode.toUpperCase(),
+        areaLabel: pAreaLabel,
+        ownerName: pOwnerName,
+        workType: pType,
+        contractorName: pContractor,
+        contractorPhone: pContractorPhone,
+        workersCount: Number(pWorkers),
+        workersList: pWorkersList,
+        startDate: pStart,
+        endDate: pEnd,
+        allowedHours: pAllowedHours,
+        depositStatus: pDepositStatus,
+        depositAmount: Number(pDepositAmount),
+        status: pStatus,
+        description: pDesc || undefined,
+      };
+
+      const res = await fetch('/api/properties/permits/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        if (editingPermitId) {
+          setPermits(permits.map(p => p.id === editingPermitId ? { ...p, ...payload, id: editingPermitId } : p));
+          showToast(`Surat izin renovasi ${editingPermitId} berhasil diperbarui.`);
+        } else {
+          const newPermit = { ...payload, id: `PERMIT-2026-00${permits.length + 1}` };
+          setPermits([newPermit, ...permits]);
+          showToast(`Surat izin renovasi untuk unit ${pCode} berhasil diterbitkan.`);
+        }
+        setShowAddPermitModal(false);
+      } else {
+        showToast('Gagal menerbitkan surat izin renovasi.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal terhubung ke server.');
+    } finally {
+      setPermitSaving(false);
+    }
+  };
+
+  const handleConfirmDeletePermit = async () => {
+    if (!permitToDelete) return;
+    try {
+      const res = await fetch('/api/properties/permits/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: permitToDelete.id, houseCode: permitToDelete.houseCode, reason: permitDeleteReason }),
+      });
+      if (res.ok) {
+        setPermits(permits.filter(p => p.id !== permitToDelete.id));
+        showToast(`Surat izin ${permitToDelete.id} berhasil dibatalkan/diarsipkan.`);
+        setPermitToDelete(null);
+        if (activePermitView?.id === permitToDelete.id) setActivePermitView(null);
+      } else {
+        showToast('Gagal membatalkan surat izin.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal membatalkan surat izin.');
+    }
+  };
+
+  // Utility Handlers
   const handleOpenAddUtility = () => {
     setEditingUtilityId(null);
     setUCode(properties[0]?.code || 'A-17');
@@ -444,7 +979,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         hasBiopori: uHasBiopori,
         hasSolarPanel: uHasSolarPanel,
         paymentStatus: uPaymentStatus,
-        notes: uNotes || undefined,
+        notes: uNotes || '',
       };
 
       const res = await fetch('/api/properties/utilities/create', {
@@ -506,7 +1041,127 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     }
   };
 
-  // Filtered & Sorted Utilities
+  // 1. Filtered & Sorted Properties
+  const filteredAndSortedProperties = useMemo(() => {
+    const list = (properties || []).filter((p) => {
+      const matchSearch = p.code.toLowerCase().includes(search.toLowerCase()) ||
+                          (p.ownerName || '').toLowerCase().includes(search.toLowerCase()) ||
+                          (p.address || '').toLowerCase().includes(search.toLowerCase());
+      const matchBlock = selectedBlock === 'ALL' || p.blockCode === selectedBlock;
+      const matchStatus = selectedStatus === 'ALL' || p.occupancyStatus === selectedStatus;
+      return matchSearch && matchBlock && matchStatus;
+    });
+
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'code') comparison = a.code.localeCompare(b.code, undefined, { numeric: true });
+      else if (sortBy === 'owner') comparison = (a.ownerName || '').localeCompare(b.ownerName || '');
+      else if (sortBy === 'status') comparison = a.occupancyStatus.localeCompare(b.occupancyStatus);
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [properties, search, selectedBlock, selectedStatus, sortBy, sortOrder]);
+
+  const totalItems = filteredAndSortedProperties.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedProperties = filteredAndSortedProperties.slice(startIndex, endIndex);
+
+  // 2. Filtered & Sorted Residents
+  const filteredAndSortedResidents = useMemo(() => {
+    const list = (residents || []).filter((r) => {
+      const matchSearch = r.fullName.toLowerCase().includes(residentSearch.toLowerCase()) ||
+                          r.houseCode.toLowerCase().includes(residentSearch.toLowerCase()) ||
+                          r.occupation.toLowerCase().includes(residentSearch.toLowerCase()) ||
+                          (r.phone || '').includes(residentSearch);
+      const matchCat = residentCategory === 'ALL' || r.relation === residentCategory || r.domicileStatus === residentCategory;
+      return matchSearch && matchCat;
+    });
+
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (residentSortBy === 'fullName') comparison = a.fullName.localeCompare(b.fullName);
+      else if (residentSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
+      else if (residentSortBy === 'relation') comparison = a.relation.localeCompare(b.relation);
+      else if (residentSortBy === 'occupation') comparison = a.occupation.localeCompare(b.occupation);
+      return residentSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [residents, residentSearch, residentCategory, residentSortBy, residentSortOrder]);
+
+  const totalResidents = filteredAndSortedResidents.length;
+  const totalResidentPages = Math.max(1, Math.ceil(totalResidents / residentPageSize));
+  const safeResidentPage = Math.min(residentCurrentPage, totalResidentPages);
+  const residentStartIndex = (safeResidentPage - 1) * residentPageSize;
+  const residentEndIndex = Math.min(residentStartIndex + residentPageSize, totalResidents);
+  const paginatedResidents = filteredAndSortedResidents.slice(residentStartIndex, residentEndIndex);
+
+  // 3. Filtered & Sorted Vehicles
+  const filteredAndSortedVehicles = useMemo(() => {
+    const list = (vehicles || []).filter((v) => {
+      const matchSearch = v.plateNumber.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          v.houseCode.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          v.ownerName.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+                          v.rfidTag.toLowerCase().includes(vehicleSearch.toLowerCase());
+      const matchType = vehicleTypeFilter === 'ALL' || v.type === vehicleTypeFilter;
+      const matchRfid = vehicleRfidFilter === 'ALL' || v.rfidStatus === vehicleRfidFilter;
+      return matchSearch && matchType && matchRfid;
+    });
+
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (vehicleSortBy === 'plateNumber') comparison = a.plateNumber.localeCompare(b.plateNumber);
+      else if (vehicleSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
+      else if (vehicleSortBy === 'type') comparison = a.type.localeCompare(b.type);
+      return vehicleSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [vehicles, vehicleSearch, vehicleTypeFilter, vehicleRfidFilter, vehicleSortBy, vehicleSortOrder]);
+
+  const totalVehicles = filteredAndSortedVehicles.length;
+  const totalVehiclePages = Math.max(1, Math.ceil(totalVehicles / vehiclePageSize));
+  const safeVehiclePage = Math.min(vehicleCurrentPage, totalVehiclePages);
+  const vehicleStartIndex = (safeVehiclePage - 1) * vehiclePageSize;
+  const vehicleEndIndex = Math.min(vehicleStartIndex + vehiclePageSize, totalVehicles);
+  const paginatedVehicles = filteredAndSortedVehicles.slice(vehicleStartIndex, vehicleEndIndex);
+
+  // 4. Filtered & Sorted Permits
+  const filteredAndSortedPermits = useMemo(() => {
+    const list = (permits || []).filter((p) => {
+      const matchSearch = p.id.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.houseCode.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.ownerName.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.workType.toLowerCase().includes(permitSearch.toLowerCase()) ||
+                          p.contractorName.toLowerCase().includes(permitSearch.toLowerCase());
+      const matchStatus = permitStatusFilter === 'ALL' || p.status === permitStatusFilter;
+      const matchType = permitTypeFilter === 'ALL' || p.workType.includes(permitTypeFilter);
+      return matchSearch && matchStatus && matchType;
+    });
+
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (permitSortBy === 'id') comparison = a.id.localeCompare(b.id);
+      else if (permitSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
+      else if (permitSortBy === 'startDate') comparison = a.startDate.localeCompare(b.startDate);
+      return permitSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  }, [permits, permitSearch, permitStatusFilter, permitTypeFilter, permitSortBy, permitSortOrder]);
+
+  const totalPermits = filteredAndSortedPermits.length;
+  const totalPermitPages = Math.max(1, Math.ceil(totalPermits / permitPageSize));
+  const safePermitPage = Math.min(permitCurrentPage, totalPermitPages);
+  const permitStartIndex = (safePermitPage - 1) * permitPageSize;
+  const permitEndIndex = Math.min(permitStartIndex + permitPageSize, totalPermits);
+  const paginatedPermits = filteredAndSortedPermits.slice(permitStartIndex, permitEndIndex);
+
+  // 5. Filtered & Sorted Utilities
   const filteredAndSortedUtilities = useMemo(() => {
     const list = utilities.filter((u) => {
       const matchSearch = u.houseCode.toLowerCase().includes(utilitySearch.toLowerCase()) ||
@@ -538,38 +1193,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   const utilEndIndex = Math.min(utilStartIndex + utilityPageSize, totalUtilities);
   const paginatedUtilities = filteredAndSortedUtilities.slice(utilStartIndex, utilEndIndex);
 
-  const handleExportUtilitiesCSV = () => {
-    const headers = ['No Unit', 'Wilayah', 'Pemilik / Penghuni', 'Daya PLN', 'ID Pelanggan PLN', 'No Meter PAM', 'Meter Lalu (m³)', 'Meter Ini (m³)', 'Pemakaian Air (m³)', 'Tarif IPL (Rp)', 'Jadwal Sampah', 'Biopori', 'Solar Panel', 'Status Bayar', 'Catatan'];
-    const rows = utilities.map((u) => [
-      u.houseCode,
-      `"${u.areaLabel}"`,
-      `"${u.ownerName}"`,
-      u.plnCapacity,
-      u.plnCustomerId,
-      u.pamMeterNo,
-      u.pamReadingLastMonth,
-      u.pamReadingThisMonth,
-      u.pamUsage,
-      u.monthlyIplFee,
-      u.wasteSchedule,
-      u.hasBiopori ? 'ADA' : 'TIDAK',
-      u.hasSolarPanel ? 'TERPASANG' : 'TIDAK',
-      u.paymentStatus,
-      `"${u.notes || '-'}"`,
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `LAPORAN_OKUPANSI_DAN_UTILITAS_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Laporan okupansi & meteran utilitas berhasil diekspor ke CSV.');
-  };
-
+  // CSV Export Handlers
   const handleExportPropertiesCSV = () => {
-    const headers = ['Kode Unit', 'Nomor', 'Blok / Kav / Jalan', 'Alamat Lengkap', 'Status Hunian', 'Nama Pemilik / Penghuni', 'Jumlah Penghuni', 'Jumlah Kendaraan'];
+    const headers = ['Kode Unit', 'Nomor', 'Blok / Kav / Jalan', 'Alamat Lengkap', 'Status Hunian', 'Nama Pemilik / Penghuni', 'Jumlah Penghuni'];
     const rows = properties.map((p) => [
       p.code,
       p.number,
@@ -577,8 +1203,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       `"${p.address}"`,
       p.occupancyStatus,
       `"${p.ownerName || '-'}"`,
-      p.residentCount,
-      p.vehicleCount,
+      p.residentCount || 1,
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -678,6 +1303,36 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
     showToast('Laporan izin renovasi & pekerja bangunan berhasil diekspor ke CSV.');
   };
 
+  const handleExportUtilitiesCSV = () => {
+    const headers = ['No Unit', 'Wilayah', 'Pemilik / Penghuni', 'Daya PLN', 'ID Pelanggan PLN', 'No Meter PAM', 'Meter Lalu (m³)', 'Meter Ini (m³)', 'Pemakaian Air (m³)', 'Tarif IPL (Rp)', 'Jadwal Sampah', 'Biopori', 'Solar Panel', 'Status Bayar', 'Catatan'];
+    const rows = utilities.map((u) => [
+      u.houseCode,
+      `"${u.areaLabel}"`,
+      `"${u.ownerName}"`,
+      u.plnCapacity,
+      u.plnCustomerId,
+      u.pamMeterNo,
+      u.pamReadingLastMonth,
+      u.pamReadingThisMonth,
+      u.pamUsage,
+      u.monthlyIplFee,
+      u.wasteSchedule,
+      u.hasBiopori ? 'ADA' : 'TIDAK',
+      u.hasSolarPanel ? 'TERPASANG' : 'TIDAK',
+      u.paymentStatus,
+      `"${u.notes || '-'}"`,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `LAPORAN_OKUPANSI_DAN_UTILITAS_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Laporan okupansi & meteran utilitas berhasil diekspor ke CSV.');
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notification Alert */}
@@ -691,26 +1346,29 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-black tracking-tight text-ink">Tata Kelola Rumah & Warga</h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-primary-100 text-primary-800 text-xs font-black border border-primary-200">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight text-ink">
+              Data Rumah, Warga & Keamanan
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-50 text-primary-700 border border-primary-200">
               {activeSubTab === 'analytics'
-                ? `${utilities.length} Unit Utilitas`
+                ? 'Okupansi & Utilitas'
                 : activeSubTab === 'permits'
-                ? `${permits.length} Izin Renovasi`
+                ? `${permits.length} Izin Kerja`
                 : activeSubTab === 'vehicles'
-                ? `${vehicles.length} Kendaraan Terdaftar`
+                ? `${vehicles.length} Kendaraan RFID`
                 : activeSubTab === 'residents'
                 ? `${residents.length} Jiwa Sensus`
                 : `${properties.length} Unit Terdaftar`}
             </span>
           </div>
-          <p className="text-xs text-ink-muted mt-1">
-            Master unit hunian komplek (Mendukung sistem <strong>Blok</strong>, <strong>Kavling (Kav.)</strong>, maupun <strong>Per Jalan / Cluster</strong> seperti Sariwangi Indah 1, 2, dst).
+          <p className="text-xs sm:text-sm text-ink-muted mt-1">
+            Manajemen direktori hunian, database sensus kependudukan, akses RFID barrier gate, izin renovasi, dan utilitas mandiri.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Export CSV Button */}
           <button
             type="button"
             onClick={
@@ -726,18 +1384,11 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             }
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
           >
-            <Download className="w-4 h-4 text-ink-muted" />
-            {activeSubTab === 'analytics'
-              ? 'Ekspor Utilitas (CSV)'
-              : activeSubTab === 'permits'
-              ? 'Ekspor Izin (CSV)'
-              : activeSubTab === 'vehicles'
-              ? 'Ekspor Kendaraan (CSV)'
-              : activeSubTab === 'residents'
-              ? 'Ekspor Sensus (CSV)'
-              : 'Ekspor CSV'}
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Ekspor CSV</span>
           </button>
-          
+
+          {/* Action Button */}
           {activeSubTab === 'analytics' ? (
             <button
               type="button"
@@ -788,35 +1439,34 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       </div>
 
       {/* 5-SubTab Navigation Bar */}
-      <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar">
+      <div className="flex border-b border-border gap-1 sm:gap-2 overflow-x-auto">
         {[
           { id: 'units', label: 'Direktori Rumah & Kavling', icon: Home, count: properties.length },
-          { id: 'residents', label: 'Database Kependudukan & Penghuni', icon: Users, count: residents.length },
-          { id: 'vehicles', label: 'Master Kendaraan & RFID', icon: Car, count: vehicles.length },
-          { id: 'permits', label: 'Izin Renovasi & Tukang', icon: Hammer, count: permits.filter(p => p.status === 'APPROVED').length },
-          { id: 'analytics', label: 'Okupansi & Utilitas', icon: TrendingUp, count: utilities.length },
+          { id: 'residents', label: 'Sensus Kependudukan', icon: Users, count: residents.length },
+          { id: 'vehicles', label: 'Kendaraan & Barrier RFID', icon: Car, count: vehicles.length },
+          { id: 'permits', label: 'Izin Renovasi & Pekerja', icon: Hammer, count: permits.length },
+          { id: 'analytics', label: 'Okupansi & Utilitas', icon: Gauge, count: utilities.length },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 py-3 px-3.5 border-b-2 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
                 isActive
-                  ? 'bg-primary-600 text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-canvas'
+                  ? 'border-primary-600 text-primary-700'
+                  : 'border-transparent text-ink-muted hover:text-ink hover:border-border'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-ink-muted'}`} />
               <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                isActive ? 'bg-primary-100 text-primary-800' : 'bg-canvas text-ink-muted'
+              }`}>
+                {tab.count}
+              </span>
             </button>
           );
         })}
@@ -825,51 +1475,53 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       {/* ================= SUBTAB 1: DIREKTORI RUMAH & KAVLING ================= */}
       {activeSubTab === 'units' && (
         <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Total Hunian & Kav</span>
+              <span className="text-[11px] text-ink-muted font-medium">Total Unit Master</span>
               <p className="text-xl font-black text-ink mt-0.5">{properties.length} Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold">Blok / Kavling / Jalan</span>
+              <span className="text-[10px] text-emerald-600 font-bold">100% Terdata</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Dihuni Pemilik</span>
               <p className="text-xl font-black text-emerald-700 mt-0.5">
                 {properties.filter(p => p.occupancyStatus === 'OWNER_OCCUPIED').length} Unit
               </p>
-              <span className="text-[10px] text-emerald-600 font-bold">Okupansi Utama</span>
+              <span className="text-[10px] text-ink-muted">Pemilik Tetap</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Disewa / Kontrak</span>
               <p className="text-xl font-black text-blue-700 mt-0.5">
                 {properties.filter(p => p.occupancyStatus === 'RENTED').length} Unit
               </p>
-              <span className="text-[10px] text-blue-600 font-bold">Warga Sewa</span>
+              <span className="text-[10px] text-ink-muted">Penyewa Aktif</span>
             </div>
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Kosong / Renovasi</span>
               <p className="text-xl font-black text-amber-700 mt-0.5">
                 {properties.filter(p => p.occupancyStatus === 'VACANT' || p.occupancyStatus === 'RENOVATION').length} Unit
               </p>
-              <span className="text-[10px] text-amber-600 font-bold">Belum Dihuni</span>
+              <span className="text-[10px] text-amber-600 font-bold">Potensi Hunian</span>
             </div>
           </div>
 
-          <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="w-full sm:w-72 relative">
-              <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
+          {/* Search & Filter Bar */}
+          <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
               <input
                 type="text"
-                placeholder="Cari kode/kav/jalan (cth: A-17, Kav 5, Sariwangi)..."
+                placeholder="Cari kode unit, pemilik, alamat..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
+                className="w-full pl-9 pr-3.5 py-2 bg-canvas border border-border rounded-xl text-xs font-medium text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
               <select
                 value={selectedBlock}
                 onChange={(e) => {
@@ -878,14 +1530,14 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 }}
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
-                <option value="ALL">Semua Wilayah (Blok / Kav / Jalan)</option>
+                <option value="ALL">Semua Wilayah</option>
                 <option value="A">Blok A</option>
                 <option value="B">Blok B</option>
                 <option value="C">Blok C</option>
                 <option value="D">Blok D</option>
-                <option value="KAV">Kavling (Kav.)</option>
-                <option value="SARIWANGI_1">Jl. Sariwangi Indah 1</option>
-                <option value="SARIWANGI_2">Jl. Sariwangi Indah 2</option>
+                <option value="KAV">Kavling</option>
+                <option value="SW1">Jl. Sariwangi Indah 1</option>
+                <option value="SW2">Jl. Sariwangi Indah 2</option>
               </select>
 
               <select
@@ -908,10 +1560,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
-                <option value="code">Urut Kode / Kav</option>
-                <option value="owner">Urut Nama Pemilik</option>
-                <option value="status">Urut Status Okupansi</option>
-                <option value="residents">Urut Jumlah Penghuni</option>
+                <option value="code">Urut Kode</option>
+                <option value="owner">Urut Pemilik</option>
+                <option value="status">Urut Status</option>
               </select>
 
               <button
@@ -949,11 +1600,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   <thead>
                     <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
                       <th className="py-3.5 px-4">Kode / Kavling</th>
-                      <th className="py-3.5 px-4">Wilayah / Alamat Jalan</th>
+                      <th className="py-3.5 px-4">Wilayah / Alamat</th>
                       <th className="py-3.5 px-4">Status Hunian</th>
                       <th className="py-3.5 px-4">Kepala Rumah / Pemilik</th>
                       <th className="py-3.5 px-4 text-center">Penghuni</th>
-                      <th className="py-3.5 px-4 text-center">Kendaraan</th>
                       <th className="py-3.5 px-4 text-right">Aksi Manajemen</th>
                     </tr>
                   </thead>
@@ -971,7 +1621,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                         <td className="py-3.5 px-4">{getStatusBadge(prop.occupancyStatus)}</td>
                         <td className="py-3.5 px-4 font-black text-ink">{prop.ownerName || '-'}</td>
                         <td className="py-3.5 px-4 text-center font-bold text-ink">{prop.residentCount || 3} Jiwa</td>
-                        <td className="py-3.5 px-4 text-center font-bold text-ink">{prop.vehicleCount || 1} Unit</td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
                             <button
@@ -1006,22 +1655,22 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               {/* PAGINATION */}
               <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                 <span className="text-ink-muted">
-                  Menampilkan <strong className="text-ink">{startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalItems}</strong> unit
+                  Menampilkan <strong className="text-ink">{totalItems === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalItems}</strong> unit
                 </span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
+                    disabled={safePage === 1}
                     className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="px-3 font-bold text-ink">Hal {currentPage} / {totalPages}</span>
+                  <span className="px-3 font-bold text-ink">Hal {safePage} / {totalPages}</span>
                   <button
                     type="button"
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
+                    disabled={safePage === totalPages}
                     className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -1324,10 +1973,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 5: OKUPANSI & UTILITAS (COMPREHENSIVE FULL SUITE) ================= */}
+      {/* ================= SUBTAB 5: OKUPANSI & UTILITAS ================= */}
       {activeSubTab === 'analytics' && (
         <div className="space-y-5 animate-in fade-in duration-150">
-          {/* Summary Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[11px] text-ink-muted font-medium">Tingkat Okupansi Komplek</span>
@@ -1351,434 +1999,227 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             </div>
           </div>
 
-          {/* Visual Progress & Eco-Green Initiative Dashboard */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Sebaran Okupansi per Wilayah */}
-            <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-4">
-              <h3 className="font-extrabold text-sm text-ink flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-primary-600" />
-                Sebaran Okupansi per Wilayah (Blok, Kavling, Jalan)
-              </h3>
-              <div className="space-y-3 text-xs">
-                {[
-                  { block: 'Blok A (Taman Sejahtera A)', rate: '96.7%', filled: 29, total: 30, color: 'bg-emerald-500' },
-                  { block: 'Blok B (Jl. Sariwangi Indah 1)', rate: '90.0%', filled: 27, total: 30, color: 'bg-blue-500' },
-                  { block: 'Blok C (Area Kavling Cluster)', rate: '93.3%', filled: 28, total: 30, color: 'bg-indigo-500' },
-                  { block: 'Blok D (Jl. Sariwangi Indah 2)', rate: '96.7%', filled: 29, total: 30, color: 'bg-purple-500' },
-                ].map((b, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <div className="flex justify-between font-semibold">
-                      <span>{b.block} ({b.filled}/{b.total} Unit)</span>
-                      <span className="font-mono text-primary-700 font-bold">{b.rate}</span>
-                    </div>
-                    <div className="w-full h-2 bg-canvas rounded-full overflow-hidden border border-border">
-                      <div className={`h-full ${b.color}`} style={{ width: b.rate }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Inisiatif Eco-Green & Daya PLN */}
-            <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-4">
-              <h3 className="font-extrabold text-sm text-ink flex items-center gap-2">
-                <Leaf className="w-4 h-4 text-emerald-600" />
-                Inisiatif Eco-Green Lingkungan & Daya Listrik
-              </h3>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80 space-y-1">
-                  <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
-                    <Droplets className="w-4 h-4 text-emerald-600" />
-                    <span>Sumur Resapan Biopori</span>
-                  </div>
-                  <p className="text-xl font-black text-emerald-900 mt-1">92 Unit</p>
-                  <span className="text-[10px] text-emerald-700">76.7% Terpasang Biopori</span>
-                </div>
-
-                <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-1">
-                  <div className="flex items-center gap-1.5 text-amber-800 font-bold">
-                    <Sun className="w-4 h-4 text-amber-600" />
-                    <span>Solar Panel Rooftop</span>
-                  </div>
-                  <p className="text-xl font-black text-amber-900 mt-1">16 Unit</p>
-                  <span className="text-[10px] text-amber-700">On-Grid PLTS Warga</span>
-                </div>
-
-                <div className="col-span-2 p-3 bg-canvas rounded-xl border border-border flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Trash className="w-4 h-4 text-primary-600" />
-                    <div>
-                      <p className="font-bold text-ink text-xs">Jadwal Pengangkutan Sampah Komplek</p>
-                      <p className="text-[10px] text-ink-muted">Senin, Rabu, Jumat & Sabtu (Pagi 06:30 WIB)</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-md bg-primary-100 text-primary-800 text-[10px] font-black">
-                    TERPADU
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Filter & Search Bar for Utilities Table */}
-          <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="w-full sm:w-72 relative">
-              <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
-              <input
-                type="text"
-                placeholder="Cari unit, nama, no meter PAM, ID PLN..."
-                value={utilitySearch}
-                onChange={(e) => {
-                  setUtilitySearch(e.target.value);
-                  setUtilityCurrentPage(1);
-                }}
-                className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-              <select
-                value={utilityPlnFilter}
-                onChange={(e) => {
-                  setUtilityPlnFilter(e.target.value);
-                  setUtilityCurrentPage(1);
-                }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="ALL">Semua Daya Listrik</option>
-                <option value="1.300 VA">1.300 VA</option>
-                <option value="2.200 VA">2.200 VA</option>
-                <option value="3.500 VA">3.500 VA</option>
-                <option value="4.400 VA">4.400 VA</option>
-                <option value="5.500 VA">5.500 VA</option>
-                <option value="7.700 VA">7.700 VA</option>
-              </select>
-
-              <select
-                value={utilityPaymentFilter}
-                onChange={(e) => {
-                  setUtilityPaymentFilter(e.target.value);
-                  setUtilityCurrentPage(1);
-                }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="ALL">Semua Status Bayar</option>
-                <option value="LUNAS">Lunas</option>
-                <option value="MENUNGGU_BAYAR">Menunggu Bayar</option>
-                <option value="MENUNGGAK">Menunggak</option>
-              </select>
-
-              <select
-                value={utilitySortBy}
-                onChange={(e) => setUtilitySortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="houseCode">Urut Nomor Unit</option>
-                <option value="pamUsage">Urut Pemakaian Air</option>
-                <option value="monthlyIplFee">Urut Tarif IPL</option>
-                <option value="paymentStatus">Urut Status Bayar</option>
-              </select>
-
-              <button
-                type="button"
-                onClick={() => setUtilitySortOrder(utilitySortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* MASTER UTILITY & METER READING TABLE */}
+          {/* UTILITIES TABLE */}
           <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b border-border bg-canvas/60 text-ink-muted font-bold">
-                    <th className="py-3.5 px-4">No Unit / Wilayah</th>
-                    <th className="py-3.5 px-4">Penghuni / Pemilik</th>
-                    <th className="py-3.5 px-4">Daya Listrik PLN</th>
-                    <th className="py-3.5 px-4">Meter Air PAM & Pemakaian</th>
-                    <th className="py-3.5 px-4">Iuran IPL Bulanan</th>
-                    <th className="py-3.5 px-4 text-center">Fitur Eco-Green</th>
-                    <th className="py-3.5 px-4 text-center">Status Bayar</th>
-                    <th className="py-3.5 px-4 text-right">Aksi Manajemen</th>
+                    <th className="py-3.5 px-4">No Unit</th>
+                    <th className="py-3.5 px-4">Pemilik</th>
+                    <th className="py-3.5 px-4">Daya Listrik</th>
+                    <th className="py-3.5 px-4">Meter PAM</th>
+                    <th className="py-3.5 px-4">Tarif IPL</th>
+                    <th className="py-3.5 px-4">Status Bayar</th>
+                    <th className="py-3.5 px-4 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {paginatedUtilities.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-ink-muted font-medium">
-                        Tidak ada catatan meteran utilitas yang cocok dengan filter.
+                  {paginatedUtilities.map((u) => (
+                    <tr key={u.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-primary-700">{u.houseCode}</td>
+                      <td className="py-3.5 px-4 font-bold text-ink">{u.ownerName}</td>
+                      <td className="py-3.5 px-4 font-mono">{u.plnCapacity}</td>
+                      <td className="py-3.5 px-4 font-mono">{u.pamUsage} m³</td>
+                      <td className="py-3.5 px-4 font-mono font-bold">Rp {u.monthlyIplFee.toLocaleString('id-ID')}</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-bold text-[10px] border border-emerald-200">
+                          {u.paymentStatus}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setActiveUtilityView(u)}
+                          className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg font-bold text-xs"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditUtility(u)}
+                          className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setUtilityToDelete(u)}
+                          className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    paginatedUtilities.map((u) => (
-                      <tr key={u.id} className="hover:bg-canvas/60 text-ink transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-primary-700">
-                          <span className="block text-sm font-black">{u.houseCode}</span>
-                          <span className="text-[10px] text-ink-muted">{u.areaLabel}</span>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-ink">{u.ownerName}</td>
-                        <td className="py-3.5 px-4">
-                          <span className="font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            {u.plnCapacity}
-                          </span>
-                          <span className="text-[10px] font-mono text-ink-muted block mt-0.5">{u.plnCustomerId}</span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <p className="font-bold text-ink">{u.pamUsage} m³ <span className="text-[10px] text-ink-muted">({u.pamReadingLastMonth} ➔ {u.pamReadingThisMonth})</span></p>
-                          <span className="text-[10px] font-mono text-ink-muted">{u.pamMeterNo}</span>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-ink">
-                          Rp {u.monthlyIplFee.toLocaleString('id-ID')}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {u.hasBiopori && (
-                              <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-800 rounded border border-emerald-200 text-[9px] font-bold" title="Sumur Resapan Biopori Aktif">
-                                Biopori
-                              </span>
-                            )}
-                            {u.hasSolarPanel && (
-                              <span className="px-1.5 py-0.2 bg-amber-50 text-amber-800 rounded border border-amber-200 text-[9px] font-bold" title="Solar Panel Rooftop">
-                                Solar
-                              </span>
-                            )}
-                            {!u.hasBiopori && !u.hasSolarPanel && (
-                              <span className="text-ink-muted text-[10px]">-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black border ${
-                            u.paymentStatus === 'LUNAS'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : u.paymentStatus === 'MENUNGGAK'
-                              ? 'bg-rose-50 text-rose-800 border-rose-200'
-                              : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}>
-                            {u.paymentStatus === 'LUNAS' ? '✓ LUNAS' : u.paymentStatus === 'MENUNGGAK' ? '✕ TUNGGAK' : '⏱ MENUNGGU'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setActiveUtilityView(u)}
-                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg transition-colors font-bold text-xs"
-                              title="Lihat Rincian Utilitas & Rekening"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              Detail
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditUtility(u)}
-                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors font-bold text-xs"
-                              title="Edit Catatan Meteran"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setUtilityToDelete(u)}
-                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors font-bold text-xs"
-                              title="Reset Catatan Meteran"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Reset
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
-            </div>
-
-            {/* UTILITY PAGINATION BAR */}
-            <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <span className="text-ink-muted">
-                  Menampilkan <strong className="text-ink">{totalUtilities === 0 ? 0 : utilStartIndex + 1}</strong> - <strong className="text-ink">{utilEndIndex}</strong> dari <strong className="text-ink">{totalUtilities}</strong> unit utilitas
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-ink-muted">Tampilkan:</span>
-                  <select
-                    value={utilityPageSize}
-                    onChange={(e) => {
-                      setUtilityPageSize(Number(e.target.value));
-                      setUtilityCurrentPage(1);
-                    }}
-                    className="px-2 py-1 bg-surface border border-border rounded-lg font-bold text-ink"
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setUtilityCurrentPage(1)}
-                  disabled={safeUtilityPage === 1}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40"
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUtilityCurrentPage(safeUtilityPage - 1)}
-                  disabled={safeUtilityPage === 1}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-
-                <div className="flex items-center gap-1 px-2">
-                  {Array.from({ length: Math.min(5, totalUtilityPages) }, (_, i) => {
-                    let pageNum = safeUtilityPage - 2 + i;
-                    if (pageNum < 1) pageNum = i + 1;
-                    if (pageNum > totalUtilityPages) return null;
-
-                    return (
-                      <button
-                        key={pageNum}
-                        type="button"
-                        onClick={() => setUtilityCurrentPage(pageNum)}
-                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
-                          safeUtilityPage === pageNum
-                            ? 'bg-primary-600 text-white shadow-xs'
-                            : 'bg-surface border border-border text-ink hover:bg-canvas'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setUtilityCurrentPage(safeUtilityPage + 1)}
-                  disabled={safeUtilityPage === totalUtilityPages}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUtilityCurrentPage(totalUtilityPages)}
-                  disabled={safeUtilityPage === totalUtilityPages}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40"
-                >
-                  <ChevronsRight className="w-4 h-4" />
-                </button>
-              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= MODAL: DETAIL REKENING & UTILITAS ================= */}
-      {activeUtilityView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 max-h-[90vh] overflow-y-auto">
+      {/* ================= MODAL: TAMBAH / EDIT RUMAH ================= */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-xl w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center font-black">
-                  <Gauge className="w-5 h-5" />
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold">
+                  <Home className="w-4 h-4" />
+                </div>
+                <h3 className="font-black text-base text-ink">
+                  {editingPropertyId ? `Edit Unit Rumah ${formCode}` : 'Tambah Unit Rumah / Kavling Baru'}
+                </h3>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="text-ink-muted hover:text-ink">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProperty} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Kode Unit *</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: A-17, KAV-04, SW1-02"
+                    value={formCode}
+                    onChange={(e) => setFormCode(e.target.value)}
+                    required
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                  />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-ink">Utilitas Unit {activeUtilityView.houseCode}</h3>
-                  <p className="text-xs text-ink-muted">{activeUtilityView.ownerName} • {activeUtilityView.areaLabel}</p>
+                  <label className="font-bold text-ink block mb-1">Nama Pemilik / Penghuni *</label>
+                  <input
+                    type="text"
+                    placeholder="Nama Lengkap"
+                    value={formOwner}
+                    onChange={(e) => setFormOwner(e.target.value)}
+                    required
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                  />
                 </div>
               </div>
-              <button onClick={() => setActiveUtilityView(null)} className="p-1 rounded-full text-ink-muted hover:text-ink">
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Alamat Lengkap *</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Jl. Palem Raya No. 17, Blok A"
+                  value={formAddress}
+                  onChange={(e) => setFormAddress(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Status Hunian</label>
+                  <select
+                    value={formOccupancy}
+                    onChange={(e) => setFormOccupancy(e.target.value as any)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                  >
+                    <option value="OWNER_OCCUPIED">Dihuni Pemilik</option>
+                    <option value="RENTED">Disewa / Kontrak</option>
+                    <option value="VACANT">Kosong</option>
+                    <option value="RENOVATION">Renovasi</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Tarif Iuran IPL Bulanan (Rp)</label>
+                  <input
+                    type="number"
+                    value={formMonthlyRate}
+                    onChange={(e) => setFormMonthlyRate(Number(e.target.value))}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50"
+                >
+                  {saving ? 'Menyimpan...' : editingPropertyId ? 'Perbarui Data Unit' : 'Simpan Unit Baru'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: DETAIL RUMAH ================= */}
+      {activeProperty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-black">
+                  <Home className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-ink">Spesifikasi Unit {activeProperty.code}</h3>
+                  <p className="text-xs text-ink-muted">{activeProperty.address}</p>
+                </div>
+              </div>
+              <button onClick={() => setActiveProperty(null)} className="p-1 rounded-full text-ink-muted hover:text-ink">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border grid grid-cols-2 gap-3">
+              <div className="p-3 bg-canvas rounded-xl border border-border grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Kapasitas Listrik PLN:</span>
-                  <p className="font-bold text-amber-800 text-sm mt-0.5">{activeUtilityView.plnCapacity}</p>
-                  <p className="font-mono text-[10px] text-ink-muted">{activeUtilityView.plnCustomerId}</p>
+                  <span className="text-ink-muted font-medium block">Kepala Rumah / Pemilik:</span>
+                  <p className="font-bold text-ink mt-0.5">{activeProperty.ownerName || '-'}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Meteran Air Bersih (PAM):</span>
-                  <p className="font-bold text-sky-800 text-sm mt-0.5">{activeUtilityView.pamUsage} m³ (Bulan Ini)</p>
-                  <p className="font-mono text-[10px] text-ink-muted">{activeUtilityView.pamMeterNo}</p>
+                  <span className="text-ink-muted font-medium block">Status Okupansi:</span>
+                  <div className="mt-0.5">{getStatusBadge(activeProperty.occupancyStatus)}</div>
                 </div>
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Iuran Lingkungan (IPL):</span>
-                  <p className="font-mono font-bold text-emerald-800 text-sm mt-0.5">Rp {activeUtilityView.monthlyIplFee.toLocaleString('id-ID')} / bln</p>
+                  <span className="text-ink-muted font-medium block">Luas Tanah / Bangunan:</span>
+                  <p className="font-bold text-ink mt-0.5">120 m² / 72 m² (Tipe 72)</p>
                 </div>
                 <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Status Pembayaran:</span>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-black text-[10px] border border-emerald-200 mt-0.5 inline-block">
-                    {activeUtilityView.paymentStatus}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Jadwal Angkut Sampah:</span>
-                  <p className="font-medium text-ink mt-0.5">{activeUtilityView.wasteSchedule.replace(/_/g, ' ')}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-ink-muted font-bold block">Status Eco-Green:</span>
-                  <p className="font-medium text-ink mt-0.5">
-                    Biopori: {activeUtilityView.hasBiopori ? '✓ Ada' : '✕ Belum'} • Solar: {activeUtilityView.hasSolarPanel ? '✓ Ada' : '✕ Belum'}
-                  </p>
+                  <span className="text-ink-muted font-medium block">Kapasitas PLN / PAM:</span>
+                  <p className="font-bold text-ink mt-0.5">3.500 VA / PAM-88301</p>
                 </div>
               </div>
-
-              {activeUtilityView.notes && (
-                <div className="p-3 bg-canvas/60 rounded-xl border border-border">
-                  <span className="text-[10px] text-ink-muted font-bold block">Catatan Khusus Utilitas:</span>
-                  <p className="font-medium text-ink mt-0.5">{activeUtilityView.notes}</p>
-                </div>
-              )}
             </div>
 
-            <div className="pt-2 flex justify-between items-center">
+            <div className="pt-2 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  alert(`Mencetak lembar rekening pemakaian utilitas Unit ${activeUtilityView.houseCode}`);
-                  setActiveUtilityView(null);
+                  const toEdit = activeProperty;
+                  setActiveProperty(null);
+                  handleOpenEdit(toEdit);
                 }}
-                className="px-4 py-2 bg-primary-50 text-primary-700 font-bold text-xs rounded-xl inline-flex items-center gap-1.5"
+                className="px-4 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl"
               >
-                <Printer className="w-3.5 h-3.5" />
-                Cetak Lembar Rekening
+                Edit Unit
               </button>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const toEdit = activeUtilityView;
-                    setActiveUtilityView(null);
-                    handleOpenEditUtility(toEdit);
-                  }}
-                  className="px-4 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl"
-                >
-                  Edit Data
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveUtilityView(null)}
-                  className="px-5 py-2 bg-primary-600 text-white font-bold rounded-xl shadow-xs text-xs"
-                >
-                  Tutup
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setActiveProperty(null)}
+                className="px-5 py-2 bg-primary-600 text-white font-bold rounded-xl shadow-xs text-xs"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>
@@ -1806,16 +2247,10 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             </div>
 
             <form onSubmit={handleSaveUtility} className="space-y-3.5 text-xs">
-              {/* Seksi 1: Lokasi Unit & Penghuni */}
               <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Home className="w-3.5 h-3.5 text-primary-600" />
-                  1. Unit Rumah & Pemilik
-                </h4>
-
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">Pilih Unit Rumah / Kavling *</label>
+                    <label className="font-bold text-ink block mb-1">Pilih Unit Rumah *</label>
                     <select
                       value={uCode}
                       onChange={(e) => {
@@ -1838,10 +2273,9 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-bold text-ink block mb-1">Nama Penghuni / Pemilik *</label>
+                    <label className="font-bold text-ink block mb-1">Nama Pemilik *</label>
                     <input
                       type="text"
-                      placeholder="Nama Lengkap Pemilik"
                       value={uOwnerName}
                       onChange={(e) => setUOwnerName(e.target.value)}
                       required
@@ -1849,86 +2283,25 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                     />
                   </div>
                 </div>
-              </div>
-
-              {/* Seksi 2: Meteran PLN & Air PAM */}
-              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-600" />
-                  2. Utilitas Listrik PLN & Air Bersih PAM
-                </h4>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="font-bold text-ink block mb-1">Kapasitas Daya PLN *</label>
+                    <label className="font-bold text-ink block mb-1">Daya Listrik PLN</label>
                     <select
                       value={uPlnCapacity}
                       onChange={(e) => setUPlnCapacity(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink"
+                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink font-bold"
                     >
                       <option value="1.300 VA">1.300 VA</option>
                       <option value="2.200 VA">2.200 VA</option>
                       <option value="3.500 VA">3.500 VA</option>
                       <option value="4.400 VA">4.400 VA</option>
                       <option value="5.500 VA">5.500 VA</option>
-                      <option value="7.700 VA">7.700 VA</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="font-bold text-ink block mb-1">ID Pelanggan PLN</label>
-                    <input
-                      type="text"
-                      placeholder="PLN-5388xxxx"
-                      value={uPlnCustomerId}
-                      onChange={(e) => setUPlnCustomerId(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">No Meter PAM</label>
-                    <input
-                      type="text"
-                      placeholder="PAM-88301"
-                      value={uPamMeterNo}
-                      onChange={(e) => setUPamMeterNo(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Meter Lalu (m³)</label>
-                    <input
-                      type="number"
-                      value={uPamLastMonth}
-                      onChange={(e) => setUPamLastMonth(Number(e.target.value))}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Meter Ini (m³)</label>
-                    <input
-                      type="number"
-                      value={uPamThisMonth}
-                      onChange={(e) => setUPamThisMonth(Number(e.target.value))}
-                      className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Seksi 3: Iuran IPL, Sampah & Eco-Green */}
-              <div className="p-3 bg-canvas/60 rounded-2xl border border-border space-y-2.5">
-                <h4 className="font-black text-ink text-xs flex items-center gap-1.5">
-                  <Leaf className="w-3.5 h-3.5 text-emerald-600" />
-                  3. Iuran IPL, Jadwal Sampah & Inisiatif Eco-Green
-                </h4>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Tarif IPL (Rp/bln)</label>
+                    <label className="font-bold text-ink block mb-1">Tarif Iuran IPL (Rp)</label>
                     <input
                       type="number"
                       value={uMonthlyIplFee}
@@ -1936,66 +2309,6 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                       className="w-full p-2 bg-surface border border-border rounded-xl font-mono text-ink"
                     />
                   </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Jadwal Sampah</label>
-                    <select
-                      value={uWasteSchedule}
-                      onChange={(e) => setUWasteSchedule(e.target.value)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="SENIN_RABU_JUMAT">Senin, Rabu, Jumat</option>
-                      <option value="SELASA_KAMIS_SABTU">Selasa, Kamis, Sabtu</option>
-                      <option value="SETIAP_HARI">Setiap Hari</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Status Bayar</label>
-                    <select
-                      value={uPaymentStatus}
-                      onChange={(e) => setUPaymentStatus(e.target.value as any)}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="LUNAS">LUNAS</option>
-                      <option value="MENUNGGU_BAYAR">Menunggu Bayar</option>
-                      <option value="MENUNGGAK">Menunggak</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Sumur Resapan Biopori</label>
-                    <select
-                      value={uHasBiopori ? 'YES' : 'NO'}
-                      onChange={(e) => setUHasBiopori(e.target.value === 'YES')}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="YES">Ada (Aktif)</option>
-                      <option value="NO">Belum Ada</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Solar Panel Rooftop</label>
-                    <select
-                      value={uHasSolarPanel ? 'YES' : 'NO'}
-                      onChange={(e) => setUHasSolarPanel(e.target.value === 'YES')}
-                      className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-bold"
-                    >
-                      <option value="NO">Belum Terpasang</option>
-                      <option value="YES">Terpasang (On-Grid)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-ink block mb-1">Catatan Khusus Utilitas</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Pompa booster terpasang / Meter air baru dikalibrasi"
-                    value={uNotes}
-                    onChange={(e) => setUNotes(e.target.value)}
-                    className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
-                  />
                 </div>
               </div>
 
@@ -2020,47 +2333,84 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: KONFIRMASI RESET / HAPUS UTILITAS ================= */}
+      {/* ================= MODAL: DETAIL REKENING & UTILITAS ================= */}
+      {activeUtilityView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center font-black">
+                  <Gauge className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-ink">Utilitas Unit {activeUtilityView.houseCode}</h3>
+                  <p className="text-xs text-ink-muted">{activeUtilityView.ownerName} • {activeUtilityView.areaLabel}</p>
+                </div>
+              </div>
+              <button onClick={() => setActiveUtilityView(null)} className="p-1 rounded-full text-ink-muted hover:text-ink">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-canvas rounded-2xl border border-border grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-[10px] text-ink-muted font-bold block">Kapasitas Listrik PLN:</span>
+                <p className="font-bold text-amber-800 text-sm mt-0.5">{activeUtilityView.plnCapacity}</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-ink-muted font-bold block">Meteran PAM:</span>
+                <p className="font-bold text-sky-800 text-sm mt-0.5">{activeUtilityView.pamUsage} m³</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-ink-muted font-bold block">Iuran Lingkungan (IPL):</span>
+                <p className="font-mono font-bold text-emerald-800 text-sm mt-0.5">Rp {activeUtilityView.monthlyIplFee.toLocaleString('id-ID')} / bln</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-ink-muted font-bold block">Status Pembayaran:</span>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-black text-[10px] border border-emerald-200 mt-0.5 inline-block">
+                  {activeUtilityView.paymentStatus}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveUtilityView(null)}
+                className="px-5 py-2 bg-primary-600 text-white font-bold rounded-xl shadow-xs text-xs"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS UTILITAS ================= */}
       {utilityToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-
             <div className="text-center space-y-1">
               <h3 className="font-black text-lg text-ink">Reset Utilitas {utilityToDelete.houseCode}?</h3>
               <p className="text-xs text-ink-muted">
-                Catatan meteran dan data utilitas untuk Unit <strong>{utilityToDelete.houseCode}</strong> ({utilityToDelete.ownerName}) akan direset. Tindakan ini tercatat di Jejak Audit.
+                Catatan meteran dan data utilitas untuk Unit <strong>{utilityToDelete.houseCode}</strong> akan direset.
               </p>
             </div>
-
-            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
-              <span className="font-bold block">Alasan Reset / Penghapusan:</span>
-              <select
-                value={utilityDeleteReason}
-                onChange={(e) => setUtilityDeleteReason(e.target.value)}
-                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
-              >
-                <option value="Meteran Diganti Baru / Dikalibrasi Ulang">Meteran Diganti Baru / Kalibrasi Ulang</option>
-                <option value="Koreksi Input Pembacaan Meter">Koreksi Input Pembacaan Meter</option>
-                <option value="Unit Kosong / Nonaktif">Unit Kosong / Nonaktif</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setUtilityToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas text-xs"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteUtility}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs text-xs"
               >
                 Ya, Reset Data
               </button>
@@ -2069,48 +2419,31 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: KONFIRMASI HAPUS IZIN RENOVASI ================= */}
+      {/* ================= MODAL: KONFIRMASI HAPUS PERMIT ================= */}
       {permitToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-
             <div className="text-center space-y-1">
               <h3 className="font-black text-lg text-ink">Hapus Izin {permitToDelete.id}?</h3>
               <p className="text-xs text-ink-muted">
-                Izin renovasi untuk Unit <strong>{permitToDelete.houseCode}</strong> ({permitToDelete.workType}) oleh <strong>{permitToDelete.contractorName}</strong> akan dihapus dan dicabut dari sistem pos satpam. Tindakan ini tercatat di Jejak Audit.
+                Izin renovasi untuk Unit <strong>{permitToDelete.houseCode}</strong> ({permitToDelete.workType}) akan dihapus.
               </p>
             </div>
-
-            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
-              <span className="font-bold block">Alasan Pembatalan / Penghapusan:</span>
-              <select
-                value={permitDeleteReason}
-                onChange={(e) => setPermitDeleteReason(e.target.value)}
-                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
-              >
-                <option value="Renovasi Batal Dilaksanakan">Renovasi Batal Dilaksanakan</option>
-                <option value="Masa Berlaku Habis / Kedaluwarsa">Masa Berlaku Habis</option>
-                <option value="Pelanggaran Jam Kerja Berat">Pelanggaran Jam Kerja Berat</option>
-                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setPermitToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas text-xs"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeletePermit}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs text-xs"
               >
                 Ya, Hapus Izin
               </button>
@@ -2126,41 +2459,24 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-
             <div className="text-center space-y-1">
               <h3 className="font-black text-lg text-ink">Hapus Kendaraan {vehicleToDelete.plateNumber}?</h3>
               <p className="text-xs text-ink-muted">
-                Kendaraan <strong>{vehicleToDelete.plateNumber}</strong> ({vehicleToDelete.brand} {vehicleToDelete.model}) milik Unit <strong>{vehicleToDelete.houseCode}</strong> akan dicabut hak akses barrier gate RFID-nya. Tindakan ini tercatat di Jejak Audit.
+                Kendaraan <strong>{vehicleToDelete.plateNumber}</strong> milik Unit <strong>{vehicleToDelete.houseCode}</strong> akan dicabut hak akses RFID-nya.
               </p>
             </div>
-
-            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
-              <span className="font-bold block">Alasan Pencabutan / Penghapusan:</span>
-              <select
-                value={vehicleDeleteReason}
-                onChange={(e) => setVehicleDeleteReason(e.target.value)}
-                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
-              >
-                <option value="Kendaraan Dijual / Diganti">Kendaraan Dijual / Diganti Baru</option>
-                <option value="Penghuni Pindah Keluar Komplek">Penghuni Pindah Keluar Komplek</option>
-                <option value="Stiker RFID Rusak / Hilang">Stiker RFID Rusak / Hilang</option>
-                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setVehicleToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas text-xs"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteVehicle}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs text-xs"
               >
                 Ya, Hapus Akses
               </button>
@@ -2176,41 +2492,24 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-
             <div className="text-center space-y-1">
               <h3 className="font-black text-lg text-ink">Hapus Data {residentToDelete.fullName}?</h3>
               <p className="text-xs text-ink-muted">
-                Penghuni <strong>{residentToDelete.fullName}</strong> ({residentToDelete.houseCode}) akan dihapus dari data kependudukan komplek. Tindakan ini tercatat di Jejak Audit.
+                Penghuni <strong>{residentToDelete.fullName}</strong> ({residentToDelete.houseCode}) akan dihapus dari data kependudukan.
               </p>
             </div>
-
-            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
-              <span className="font-bold block">Alasan Penghapusan Sensus:</span>
-              <select
-                value={residentDeleteReason}
-                onChange={(e) => setResidentDeleteReason(e.target.value)}
-                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
-              >
-                <option value="Pindah Domisili Keluar Komplek">Pindah Domisili Keluar Komplek</option>
-                <option value="Masa Kontrak / Sewa Berakhir">Masa Sewa Berakhir</option>
-                <option value="Meninggal Dunia">Meninggal Dunia</option>
-                <option value="Koreksi Data / Input Ganda">Koreksi Data Ganda</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setResidentToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas text-xs"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteResident}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs text-xs"
               >
                 Ya, Hapus Data
               </button>
@@ -2226,34 +2525,18 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
             <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-
             <div className="text-center space-y-1">
               <h3 className="font-black text-lg text-ink">Hapus Unit {propertyToDelete.code}?</h3>
               <p className="text-xs text-ink-muted">
-                Unit <strong>{propertyToDelete.address}</strong> akan dinonaktifkan dari direktori master. Tindakan ini akan tercatat dalam Jejak Audit Keamanan.
+                Unit <strong>{propertyToDelete.address}</strong> akan dinonaktifkan dari direktori master.
               </p>
             </div>
-
-            <div className="p-3 bg-red-50/50 rounded-2xl border border-red-100 text-xs text-red-900 space-y-1">
-              <span className="font-bold block">Alasan Penghapusan:</span>
-              <select
-                value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
-                className="w-full p-2 bg-surface border border-red-200 rounded-xl font-semibold text-ink text-xs"
-              >
-                <option value="Renovasi Penggabungan Unit / Koreksi Data">Penggabungan Unit / Koreksi Data</option>
-                <option value="Unit Dibongkar / Direnovasi Total">Unit Dibongkar / Renovasi Total</option>
-                <option value="Kesalahan Input Data Duplikat">Kesalahan Input Data Duplikat</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 disabled={deleting}
                 onClick={() => setPropertyToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas text-xs"
               >
                 Batal
               </button>
@@ -2261,7 +2544,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
                 type="button"
                 disabled={deleting}
                 onClick={handleConfirmDelete}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs disabled:opacity-50 text-xs"
               >
                 {deleting ? 'Menghapus...' : 'Ya, Hapus Unit'}
               </button>

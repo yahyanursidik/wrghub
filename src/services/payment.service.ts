@@ -10,6 +10,8 @@ export interface PaymentListItem {
   method: string;
   reference: string | null;
   proofFileUrl: string | null;
+  proofUrl?: string | null;
+  invoiceId?: string | null;
   status: string;
   paidAt: string;
   notes: string | null;
