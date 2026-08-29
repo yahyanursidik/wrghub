@@ -5,8 +5,9 @@ import { getFacilities, getMaintenanceRequests } from '../../services/facility.s
 
 const facilities = await getFacilities();
 const maintenanceRequests = await getMaintenanceRequests();
+const tab = Astro.url.searchParams.get('tab') || 'facilities';
 ---
 
 <AdminLayout title="Sarana & Maintenance - WargaHub" currentPath="/admin/facilities">
-  <FacilitiesManager facilities={facilities} maintenanceRequests={maintenanceRequests} client:load />
+  <FacilitiesManager facilities={facilities} maintenanceRequests={maintenanceRequests} initialTab={tab} client:load />
 </AdminLayout>

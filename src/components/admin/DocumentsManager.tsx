@@ -113,7 +113,16 @@ export const DocumentsManager: React.FC = () => {
   };
 
   const handleDownload = (doc: DocumentItem) => {
-    alert(`Mengunduh berkas: ${doc.title} (${doc.fileSize}). Berkas resmi telah diverifikasi.`);
+    const content = `DOKUMEN RESMI WARGAHUB\n=======================\nJudul: ${doc.title}\nKategori: ${doc.category}\nTanggal Unggah: ${doc.uploadedAt}\nUkuran: ${doc.fileSize}\n\nDokumen ini merupakan salinan resmi terverifikasi dari arsip pengurus Komplek Taman Sejahtera.`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (

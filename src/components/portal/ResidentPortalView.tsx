@@ -831,7 +831,18 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                         </div>
                         <button
                           type="button"
-                          onClick={() => alert(`Mengunduh berkas resmi: ${doc.title}`)}
+                          onClick={() => {
+                            const content = `DOKUMEN RESMI WARGAHUB\n=======================\nJudul: ${doc.title}\nKategori: ${doc.cat}\nUkuran: ${doc.size}\n\nDokumen resmi terverifikasi untuk warga Komplek Taman Sejahtera.`;
+                            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${doc.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.txt`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
                           className="p-1.5 bg-surface hover:bg-primary-50 text-primary-700 rounded-lg border border-border"
                         >
                           <Download className="w-3.5 h-3.5" />

@@ -237,8 +237,10 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
             method: formMethod,
             reference: formRef,
             proofUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
+            proofFileUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
             status: formStatus,
             paidAt: formPaidDate,
+            notes: formNotes || null,
             verifiedAt: formStatus === 'VERIFIED' ? new Date().toISOString() : null,
           };
           setPayments([newPay, ...payments]);

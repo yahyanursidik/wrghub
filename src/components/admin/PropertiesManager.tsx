@@ -70,7 +70,14 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
   initialProperties = [],
   initialTab = 'units'
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'units' | 'residents' | 'vehicles' | 'permits' | 'analytics'>('units');
+  const resolveTab = (t: string): 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics' => {
+    if (t === 'occupants' || t === 'residents' || t === 'owners') return 'residents';
+    if (t === 'vehicles' || t === 'rfid') return 'vehicles';
+    if (t === 'permits' || t === 'renovation') return 'permits';
+    if (t === 'analytics' || t === 'utilities' || t === 'occupancy') return 'analytics';
+    return 'units';
+  };
+  const [activeSubTab, setActiveSubTab] = useState<'units' | 'residents' | 'vehicles' | 'permits' | 'analytics'>(resolveTab(initialTab));
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties || []);
   const [search, setSearch] = useState('');
@@ -638,7 +645,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         domicileStatus: resDomicileStatus,
         bloodType: resBloodType,
         isEmergency: resIsEmergency,
-        notes: resNotes || undefined,
+        notes: resNotes || '',
       };
 
       const res = await fetch('/api/properties/occupants/create', {
@@ -745,7 +752,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         rfidTag: vehRfidTag,
         gateAccess: vehGateAccess,
         rfidStatus: vehRfidStatus,
-        notes: vehNotes || undefined,
+        notes: vehNotes || '',
       };
 
       const res = await fetch('/api/properties/vehicles/create', {
@@ -869,7 +876,7 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         depositStatus: pDepositStatus,
         depositAmount: Number(pDepositAmount),
         status: pStatus,
-        description: pDesc || undefined,
+        description: pDesc || '',
       };
 
       const res = await fetch('/api/properties/permits/create', {

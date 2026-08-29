@@ -28,10 +28,11 @@ interface MaintenanceItem {
 interface FacilitiesManagerProps {
   facilities: FacilityItem[];
   maintenanceRequests: MaintenanceItem[];
+  initialTab?: string;
 }
 
-export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({ facilities, maintenanceRequests }) => {
-  const [activeTab, setActiveTab] = useState<'facilities' | 'maintenance'>('facilities');
+export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({ facilities, maintenanceRequests, initialTab = 'facilities' }) => {
+  const [activeTab, setActiveTab] = useState<'facilities' | 'maintenance'>(initialTab === 'maintenance' ? 'maintenance' : 'facilities');
   const [requests, setRequests] = useState<MaintenanceItem[]>(maintenanceRequests);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
