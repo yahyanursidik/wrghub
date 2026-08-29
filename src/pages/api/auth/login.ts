@@ -28,11 +28,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const isAdminRole = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY'].includes(user.role);
 
     // Determine redirect
-    let redirectUrl = '/';
+    let redirectUrl = '/warga';
     if (portal === 'admin' || (isAdminRole && portal !== 'resident')) {
       redirectUrl = user.role === 'TREASURER' ? '/admin/payments' : user.role === 'SECURITY' ? '/admin/complaints' : '/admin';
     } else {
-      redirectUrl = '/';
+      redirectUrl = '/warga';
     }
 
     // Set cookie

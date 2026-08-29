@@ -42,7 +42,9 @@ async function runVerification() {
     // 2. HTTP Routes Verification
     console.log('\n--- 2. FRONTEND ROUTES & SSR RENDERING ---');
     const routesToTest = [
-      { path: '/', name: 'Portal Warga Mobile (/)' },
+      { path: '/', name: 'Gerbang Akses Masuk Portal Warga (/)' },
+      { path: '/warga', name: 'Dashboard Portal Warga (/warga)' },
+      { path: '/portal', name: 'Dashboard Portal Warga Alias (/portal)' },
       { path: '/transparency', name: 'Laporan Transparansi Keuangan (/transparency)' },
       { path: '/login', name: 'Halaman Login Terpadu (/login)' },
       { path: '/admin', name: 'Admin Dashboard Ringkasan (/admin)' },

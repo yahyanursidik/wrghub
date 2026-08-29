@@ -76,7 +76,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
 
       setSuccessMsg(data.data?.message || 'Berhasil masuk ke Portal Warga!');
       setTimeout(() => {
-        window.location.href = '/';
+        window.location.href = data.data?.redirectUrl || '/warga';
       }, 400);
     } catch (err: any) {
       setErrorMsg('Gagal terhubung ke server autentikasi.');
@@ -98,7 +98,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        window.location.href = '/';
+        window.location.href = data.data?.redirectUrl || '/warga';
       } else {
         setErrorMsg(data.error?.message || 'Gagal masuk.');
         setLoading(false);

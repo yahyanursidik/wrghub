@@ -42,7 +42,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({ initialPorta
 
       setSuccessMsg(data.data?.message || 'Berhasil masuk!');
       setTimeout(() => {
-        window.location.href = data.data?.redirectUrl || (activePortal === 'admin' ? '/admin' : '/');
+        window.location.href = data.data?.redirectUrl || (activePortal === 'admin' ? '/admin' : '/warga');
       }, 500);
     } catch (err: any) {
       setErrorMsg('Gagal terhubung ke server autentikasi.');
