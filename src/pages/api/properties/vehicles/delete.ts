@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../../services/audit.service';
 
 const deleteVehicleSchema = z.object({
-  vehicleId: z.string().min(1),
+  id: z.string().optional(),
+  vehicleId: z.string().optional(),
   plateNumber: z.string().optional(),
   houseCode: z.string().optional(),
   reason: z.string().optional(),
@@ -13,13 +14,18 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteVehicleSchema.parse(body);
+    const targetId = validated.vehicleId || validated.id || '';
+
+    if (!targetId && !validated.plateNumber) {
+      throw new Error('ID kendaraan atau plat nomor wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Pengurus Komplek',
         action: 'property.delete_vehicle',
         entityType: 'PROPERTY_VEHICLE',
-        entityId: validated.vehicleId,
+        entityId: targetId || validated.plateNumber || 'UNKNOWN',
         newValue: {
           plate: validated.plateNumber,
           house: validated.houseCode,
@@ -33,8 +39,8 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({
         data: {
           success: true,
-          id: validated.vehicleId,
-          message: `Kendaraan ${validated.plateNumber || validated.vehicleId} berhasil dinonaktifkan / dihapus dari master akses gerbang.`
+          id: targetId,
+          message: `Kendaraan ${validated.plateNumber || targetId} berhasil dinonaktifkan / dihapus dari master akses gerbang.`
         },
         meta: {},
         error: null,

@@ -113,7 +113,7 @@ export const DocumentsManager: React.FC = () => {
   };
 
   const handleDownload = (doc: DocumentItem) => {
-    const content = `DOKUMEN RESMI WARGAHUB\n=======================\nJudul: ${doc.title}\nKategori: ${doc.category}\nTanggal Unggah: ${doc.uploadedAt}\nUkuran: ${doc.fileSize}\n\nDokumen ini merupakan salinan resmi terverifikasi dari arsip pengurus Komplek Taman Sejahtera.`;
+    const content = `DOKUMEN RESMI WARGAHUB\n=======================\nJudul: ${doc.title}\nKategori: ${doc.category}\nTanggal Unggah: ${doc.createdAt || '-'}\nUkuran: ${doc.fileSize}\n\nDokumen ini merupakan salinan resmi terverifikasi dari arsip pengurus Komplek Taman Sejahtera.`;
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

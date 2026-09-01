@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../services/audit.service';
 
 const deleteBudgetSchema = z.object({
-  budgetId: z.string().min(1),
+  id: z.string().optional(),
+  budgetId: z.string().optional(),
   category: z.string().optional(),
   budgetAmount: z.number().optional(),
   reason: z.string().optional(),
@@ -13,15 +14,20 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteBudgetSchema.parse(body);
+    const targetId = validated.budgetId || validated.id || '';
+
+    if (!targetId) {
+      throw new Error('ID pos anggaran wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Ketua Komplek & Bendahara',
         action: 'budget.delete_allocation',
         entityType: 'BUDGET_ALLOCATION',
-        entityId: validated.budgetId,
+        entityId: targetId,
         newValue: {
-          budgetId: validated.budgetId,
+          budgetId: targetId,
           category: validated.category,
           budgetAmount: validated.budgetAmount,
           reason: validated.reason || 'Dihapus / Dibatalkan dari rencana kerja tahunan',

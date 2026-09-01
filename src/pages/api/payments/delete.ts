@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../services/audit.service';
 
 const deletePaymentSchema = z.object({
-  paymentId: z.string().min(1),
+  id: z.string().optional(),
+  paymentId: z.string().optional(),
   propertyCode: z.string().optional(),
   amount: z.number().optional(),
   reason: z.string().optional(),
@@ -13,15 +14,20 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deletePaymentSchema.parse(body);
+    const targetId = validated.paymentId || validated.id || '';
+
+    if (!targetId) {
+      throw new Error('ID pembayaran wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Bendahara Komplek',
         action: 'payment.delete_payment',
         entityType: 'PAYMENT',
-        entityId: validated.paymentId,
+        entityId: targetId,
         newValue: {
-          paymentId: validated.paymentId,
+          paymentId: targetId,
           house: validated.propertyCode,
           amount: validated.amount,
           reason: validated.reason || 'Dihapus dari mutasi pembayaran iuran',

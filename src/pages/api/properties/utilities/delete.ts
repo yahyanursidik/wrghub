@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../../services/audit.service';
 
 const deleteUtilitySchema = z.object({
-  utilityId: z.string().min(1),
+  id: z.string().optional(),
+  utilityId: z.string().optional(),
   houseCode: z.string().optional(),
   reason: z.string().optional(),
 });
@@ -12,15 +13,20 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteUtilitySchema.parse(body);
+    const targetId = validated.utilityId || validated.id || '';
+
+    if (!targetId && !validated.houseCode) {
+      throw new Error('ID catatan utilitas atau kode unit wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Pengurus Komplek',
         action: 'property.delete_utility',
         entityType: 'PROPERTY_UTILITY',
-        entityId: validated.utilityId,
+        entityId: targetId || validated.houseCode || 'UNKNOWN',
         newValue: {
-          utilityId: validated.utilityId,
+          utilityId: targetId,
           house: validated.houseCode,
           reason: validated.reason || 'Reset data meteran utilitas',
           deletedAt: new Date().toISOString()
@@ -32,8 +38,8 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({
         data: {
           success: true,
-          id: validated.utilityId,
-          message: `Catatan utilitas ${validated.utilityId} berhasil direset / dihapus.`
+          id: targetId,
+          message: `Catatan utilitas ${validated.houseCode || targetId} berhasil direset / dihapus.`
         },
         meta: {},
         error: null,

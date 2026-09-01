@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../../services/audit.service';
 
 const deleteOccupantSchema = z.object({
-  occupantId: z.string().min(1),
+  id: z.string().optional(),
+  occupantId: z.string().optional(),
   fullName: z.string().optional(),
   houseCode: z.string().optional(),
   reason: z.string().optional(),
@@ -13,13 +14,18 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteOccupantSchema.parse(body);
+    const targetId = validated.occupantId || validated.id || '';
+
+    if (!targetId && !validated.fullName) {
+      throw new Error('ID atau nama penghuni wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Pengurus Komplek',
         action: 'property.delete_occupant',
         entityType: 'PROPERTY_OCCUPANT',
-        entityId: validated.occupantId,
+        entityId: targetId || validated.fullName || 'UNKNOWN',
         newValue: {
           name: validated.fullName,
           house: validated.houseCode,
@@ -33,8 +39,8 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({
         data: {
           success: true,
-          id: validated.occupantId,
-          message: `Data kependudukan ${validated.fullName || validated.occupantId} berhasil dihapus/dinonaktifkan.`
+          id: targetId,
+          message: `Data kependudukan ${validated.fullName || targetId} berhasil dihapus/dinonaktifkan.`
         },
         meta: {},
         error: null,

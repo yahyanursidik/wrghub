@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../services/audit.service';
 
 const deleteLedgerSchema = z.object({
-  ledgerId: z.string().min(1),
+  id: z.string().optional(),
+  ledgerId: z.string().optional(),
   description: z.string().optional(),
   amount: z.number().optional(),
   reason: z.string().optional(),
@@ -13,15 +14,20 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteLedgerSchema.parse(body);
+    const targetId = validated.ledgerId || validated.id || '';
+
+    if (!targetId) {
+      throw new Error('ID entri jurnal wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Bendahara Komplek',
         action: 'finance.delete_ledger',
         entityType: 'LEDGER_ENTRY',
-        entityId: validated.ledgerId,
+        entityId: targetId,
         newValue: {
-          ledgerId: validated.ledgerId,
+          ledgerId: targetId,
           description: validated.description,
           amount: validated.amount,
           reason: validated.reason || 'Dibatalkan / Dihapus dari jurnal kas',

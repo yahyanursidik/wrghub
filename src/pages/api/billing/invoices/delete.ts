@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../../services/audit.service';
 
 const deleteInvoiceSchema = z.object({
-  invoiceId: z.string().min(1),
+  id: z.string().optional(),
+  invoiceId: z.string().optional(),
   invoiceNumber: z.string().optional(),
   propertyCode: z.string().optional(),
   reason: z.string().optional(),
@@ -13,15 +14,20 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteInvoiceSchema.parse(body);
+    const targetId = validated.invoiceId || validated.id || validated.invoiceNumber || '';
+
+    if (!targetId) {
+      throw new Error('ID atau nomor tagihan wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Pengurus Komplek',
         action: 'billing.delete_invoice',
         entityType: 'INVOICE',
-        entityId: validated.invoiceNumber || validated.invoiceId,
+        entityId: validated.invoiceNumber || targetId,
         newValue: {
-          invoiceId: validated.invoiceId,
+          invoiceId: targetId,
           house: validated.propertyCode,
           reason: validated.reason || 'Dibatalkan / Dihapus dari sistem tagihan',
           deletedAt: new Date().toISOString(),

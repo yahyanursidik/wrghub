@@ -4,7 +4,9 @@ import { neonSql } from '../../../db/neon';
 import { recordAuditLog } from '../../../services/audit.service';
 
 const deleteSchema = z.object({
-  propertyId: z.string().min(1),
+  id: z.string().optional(),
+  propertyId: z.string().optional(),
+  code: z.string().optional(),
   propertyCode: z.string().optional(),
   reason: z.string().optional(),
 });
@@ -13,22 +15,28 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteSchema.parse(body);
+    const targetId = validated.propertyId || validated.id || '';
+    const targetCode = validated.propertyCode || validated.code || '';
+
+    if (!targetId && !targetCode) {
+      throw new Error('ID atau kode unit rumah wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       // Soft-delete or remove property
       await neonSql`
         UPDATE properties
         SET is_active = false, updated_at = NOW()
-        WHERE id = ${validated.propertyId} OR code = ${validated.propertyCode || ''};
+        WHERE id = ${targetId} OR code = ${targetCode};
       `;
 
       await recordAuditLog({
         actorName: 'Pengurus Komplek',
         action: 'property.delete',
         entityType: 'PROPERTY',
-        entityId: validated.propertyId,
+        entityId: targetId || targetCode,
         newValue: {
-          code: validated.propertyCode,
+          code: targetCode,
           reason: validated.reason || 'Dihapus oleh pengurus komplek',
           deletedAt: new Date().toISOString()
         },
@@ -38,8 +46,8 @@ export const POST: APIRoute = async ({ request }) => {
         JSON.stringify({
           data: {
             success: true,
-            id: validated.propertyId,
-            message: `Unit rumah ${validated.propertyCode || validated.propertyId} berhasil dihapus dari direktori aktif.`
+            id: targetId || targetCode,
+            message: `Unit rumah ${targetCode || targetId} berhasil dihapus dari direktori aktif.`
           },
           meta: {},
           error: null,

@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { recordAuditLog } from '../../../../services/audit.service';
 
 const deletePermitSchema = z.object({
-  permitId: z.string().min(1),
+  id: z.string().optional(),
+  permitId: z.string().optional(),
   houseCode: z.string().optional(),
   contractorName: z.string().optional(),
   reason: z.string().optional(),
@@ -13,15 +14,20 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deletePermitSchema.parse(body);
+    const targetId = validated.permitId || validated.id || '';
+
+    if (!targetId) {
+      throw new Error('ID surat izin renovasi wajib disertakan.');
+    }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Pengurus Komplek',
         action: 'property.delete_permit',
         entityType: 'RENOVATION_PERMIT',
-        entityId: validated.permitId,
+        entityId: targetId,
         newValue: {
-          permitId: validated.permitId,
+          permitId: targetId,
           house: validated.houseCode,
           contractor: validated.contractorName,
           reason: validated.reason || 'Dibatalkan / Dihapus dari sistem pengawasan',
@@ -34,8 +40,8 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({
         data: {
           success: true,
-          id: validated.permitId,
-          message: `Izin renovasi ${validated.permitId} berhasil dibatalkan / dihapus dari sistem pengawasan.`
+          id: targetId,
+          message: `Izin renovasi ${targetId} berhasil dibatalkan / dihapus dari sistem pengawasan.`
         },
         meta: {},
         error: null,

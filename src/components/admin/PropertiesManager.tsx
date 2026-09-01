@@ -562,16 +562,23 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       const res = await fetch('/api/properties/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: propertyToDelete.id, code: propertyToDelete.code, reason: deleteReason }),
+        body: JSON.stringify({
+          id: propertyToDelete.id,
+          propertyId: propertyToDelete.id,
+          code: propertyToDelete.code,
+          propertyCode: propertyToDelete.code,
+          reason: deleteReason,
+        }),
       });
 
       if (res.ok) {
-        setProperties(properties.filter(p => p.id !== propertyToDelete.id));
-        showToast(`Unit ${propertyToDelete.code} berhasil dihapus/diarsipkan.`);
+        setProperties(properties.filter(p => p.id !== propertyToDelete.id && p.code !== propertyToDelete.code));
+        showToast(`Unit ${propertyToDelete.code} berhasil dihapus dari direktori aktif.`);
         setPropertyToDelete(null);
         if (activeProperty?.id === propertyToDelete.id) setActiveProperty(null);
       } else {
-        showToast('Gagal menghapus data unit properti.');
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error?.message || 'Gagal menghapus data unit properti.');
       }
     } catch (err) {
       console.error(err);
@@ -681,7 +688,13 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       const res = await fetch('/api/properties/occupants/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: residentToDelete.id, fullName: residentToDelete.fullName, reason: residentDeleteReason }),
+        body: JSON.stringify({
+          id: residentToDelete.id,
+          occupantId: residentToDelete.id,
+          fullName: residentToDelete.fullName,
+          houseCode: residentToDelete.houseCode,
+          reason: residentDeleteReason,
+        }),
       });
       if (res.ok) {
         setResidents(residents.filter(r => r.id !== residentToDelete.id));
@@ -689,7 +702,8 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         setResidentToDelete(null);
         if (activeResidentView?.id === residentToDelete.id) setActiveResidentView(null);
       } else {
-        showToast('Gagal menghapus data penghuni.');
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error?.message || 'Gagal menghapus data penghuni.');
       }
     } catch (err) {
       console.error(err);
@@ -799,7 +813,13 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       const res = await fetch('/api/properties/vehicles/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: vehicleToDelete.id, plateNumber: vehicleToDelete.plateNumber, reason: vehicleDeleteReason }),
+        body: JSON.stringify({
+          id: vehicleToDelete.id,
+          vehicleId: vehicleToDelete.id,
+          plateNumber: vehicleToDelete.plateNumber,
+          houseCode: vehicleToDelete.houseCode,
+          reason: vehicleDeleteReason,
+        }),
       });
       if (res.ok) {
         setVehicles(vehicles.filter(v => v.id !== vehicleToDelete.id));
@@ -807,7 +827,8 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         setVehicleToDelete(null);
         if (activeVehicleView?.id === vehicleToDelete.id) setActiveVehicleView(null);
       } else {
-        showToast('Gagal menghapus data kendaraan.');
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error?.message || 'Gagal menghapus data kendaraan.');
       }
     } catch (err) {
       console.error(err);
@@ -912,7 +933,13 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       const res = await fetch('/api/properties/permits/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: permitToDelete.id, houseCode: permitToDelete.houseCode, reason: permitDeleteReason }),
+        body: JSON.stringify({
+          id: permitToDelete.id,
+          permitId: permitToDelete.id,
+          houseCode: permitToDelete.houseCode,
+          contractorName: permitToDelete.contractorName,
+          reason: permitDeleteReason,
+        }),
       });
       if (res.ok) {
         setPermits(permits.filter(p => p.id !== permitToDelete.id));
@@ -920,7 +947,8 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         setPermitToDelete(null);
         if (activePermitView?.id === permitToDelete.id) setActivePermitView(null);
       } else {
-        showToast('Gagal membatalkan surat izin.');
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error?.message || 'Gagal membatalkan surat izin.');
       }
     } catch (err) {
       console.error(err);
