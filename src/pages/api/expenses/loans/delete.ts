@@ -1,39 +1,37 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { recordAuditLog } from '../../../services/audit.service';
+import { recordAuditLog } from '../../../../services/audit.service';
 
-const deletePaymentSchema = z.object({
+const deleteLoanSchema = z.object({
   id: z.string().optional(),
-  paymentId: z.string().optional(),
+  loanId: z.string().optional(),
   ids: z.array(z.string()).optional(),
-  propertyCode: z.string().optional(),
-  amount: z.number().optional(),
+  staffName: z.string().optional(),
   reason: z.string().optional(),
 });
 
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
-    const validated = deletePaymentSchema.parse(body);
+    const validated = deleteLoanSchema.parse(body);
     const targetIds = validated.ids && validated.ids.length > 0 
       ? validated.ids 
-      : [validated.paymentId || validated.id || ''].filter(Boolean);
+      : [validated.loanId || validated.id || ''].filter(Boolean);
 
     if (targetIds.length === 0) {
-      throw new Error('ID pembayaran wajib disertakan.');
+      throw new Error('ID pinjaman/kasbon wajib disertakan.');
     }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Bendahara Komplek',
-        action: 'payment.delete_payment',
-        entityType: 'PAYMENT',
+        action: 'staff.delete_loan',
+        entityType: 'STAFF_LOAN',
         entityId: targetIds[0] || 'bulk',
         newValue: {
-          paymentIds: targetIds,
-          house: validated.propertyCode,
-          amount: validated.amount,
-          reason: validated.reason || 'Dihapus dari mutasi pembayaran iuran',
+          loanIds: targetIds,
+          staffName: validated.staffName,
+          reason: validated.reason || 'Dihapus dari buku kasbon petugas',
           deletedAt: new Date().toISOString(),
         },
       });
@@ -44,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
         data: {
           success: true,
           ids: targetIds,
-          message: `Sebanyak ${targetIds.length} data pembayaran berhasil dihapus.`
+          message: `Sebanyak ${targetIds.length} data kasbon berhasil dihapus.`
         },
         meta: {},
         error: null,
@@ -55,7 +53,7 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(
       JSON.stringify({
         data: null,
-        error: { code: 'PAYMENT_DELETE_FAILED', message: err.message },
+        error: { code: 'LOAN_DELETE_FAILED', message: err.message },
       }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );

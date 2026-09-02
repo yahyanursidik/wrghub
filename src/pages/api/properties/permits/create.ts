@@ -15,8 +15,8 @@ const permitSchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   allowedHours: z.string().default('08:00 - 17:00 WIB (Senin - Sabtu)'),
-  depositStatus: z.string().default('SUDAH_SETOR'),
-  depositAmount: z.number().default(2000000),
+  depositStatus: z.string().optional(),
+  depositAmount: z.number().optional(),
   description: z.string(),
   status: z.enum(['APPROVED', 'PENDING_REVIEW', 'COMPLETED', 'SUSPENDED']).default('APPROVED'),
 });
@@ -61,7 +61,6 @@ export const POST: APIRoute = async ({ request }) => {
           workType: validated.workType,
           workers: validated.workersCount,
           period: `${validated.startDate} s/d ${validated.endDate}`,
-          deposit: validated.depositAmount,
           status: validated.status
         },
       });

@@ -26,7 +26,7 @@
   }
 }
 
-/* Custom subtle scrollbar */
+/* Custom subtle global scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -41,3 +41,36 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #B8DDD0;
 }
+
+/* Modern Sleek Scrollbar for Sidebar & Interactive Panels */
+.modern-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(36, 92, 74, 0.25) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modern-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+  border-radius: 9999px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(36, 92, 74, 0.2);
+  border-radius: 9999px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modern-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(36, 92, 74, 0.4);
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(36, 92, 74, 0.7);
+}
+

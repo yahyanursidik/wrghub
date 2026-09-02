@@ -80,6 +80,19 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({ initialPorta
   const residentAccounts = accountsList.filter(a => a.targetPortal === 'resident');
   const adminAccounts = accountsList.filter(a => a.targetPortal === 'admin');
 
+  // Dynamic branding from settings
+  const [loginTitle, setLoginTitle] = useState('WargaHub');
+  const [loginSubtitle, setLoginSubtitle] = useState('Sistem Tata Kelola & Transparansi Komplek Taman Sejahtera');
+
+  React.useEffect(() => {
+    try {
+      const savedTitle = localStorage.getItem('wargahub_set_login_title');
+      const savedSub = localStorage.getItem('wargahub_set_login_subtitle');
+      if (savedTitle) setLoginTitle(JSON.parse(savedTitle));
+      if (savedSub) setLoginSubtitle(JSON.parse(savedSub));
+    } catch (e) {}
+  }, []);
+
   return (
     <div className="min-h-screen bg-canvas flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
@@ -87,10 +100,10 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({ initialPorta
           <Building2 className="w-8 h-8" />
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">
-          Warga<span className="text-primary-600">Hub</span>
+          {loginTitle}
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Sistem Tata Kelola & Transparansi Komplek Taman Sejahtera
+          {loginSubtitle}
         </p>
       </div>
 

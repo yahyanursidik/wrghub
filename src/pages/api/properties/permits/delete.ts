@@ -7,6 +7,7 @@ const deletePermitSchema = z.object({
   permitId: z.string().optional(),
   houseCode: z.string().optional(),
   contractorName: z.string().optional(),
+  ids: z.array(z.string()).optional(),
   reason: z.string().optional(),
 });
 
@@ -14,6 +15,42 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deletePermitSchema.parse(body);
+
+    // Case 1: Bulk delete
+    if (validated.ids && validated.ids.length > 0) {
+      const targetIds = validated.ids;
+
+      if (process.env.DATABASE_URL) {
+        await recordAuditLog({
+          actorName: 'Pengurus Komplek',
+          action: 'property.bulk_delete_permit',
+          entityType: 'RENOVATION_PERMIT',
+          entityId: `BULK-PERM-${targetIds.length}`,
+          newValue: {
+            ids: targetIds,
+            count: targetIds.length,
+            reason: validated.reason || `Penghapusan massal ${targetIds.length} izin renovasi & pekerja`,
+            deletedAt: new Date().toISOString()
+          },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            success: true,
+            deletedCount: targetIds.length,
+            ids: targetIds,
+            message: `Sebanyak ${targetIds.length} izin renovasi & akses pekerja berhasil dibatalkan / dihapus.`
+          },
+          meta: {},
+          error: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Case 2: Single delete
     const targetId = validated.permitId || validated.id || '';
 
     if (!targetId) {

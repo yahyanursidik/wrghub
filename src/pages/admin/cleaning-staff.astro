@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { CleaningStaffManager } from '../../components/admin/CleaningStaffManager';
+---
+
+<AdminLayout title="Pengelolaan Tim Kebersihan & Sampah - WargaHub" currentPath="/admin/cleaning-staff">
+  <CleaningStaffManager client:load />
+</AdminLayout>

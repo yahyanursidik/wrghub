@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Home,
   CheckCircle2,
@@ -27,58 +27,149 @@ import {
   DollarSign,
   TrendingUp,
   Clock,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  MessageCircle,
+  HelpCircle,
+  Wallet,
+  PhoneCall,
+  Info
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 
-interface PropertyDuesItem {
+export interface PropertyDuesItem {
   code: string;
   number: string;
   block: string;
   ownerName: string;
   phone?: string;
   monthlyRate: number;
+  unpaidMonthsCount: number; // 0 = Lunas, 1 = 1 Bulan ini, 2 = 2 Bulan, dst
+  unpaidPeriodNames?: string[];
+  totalDueAmount: number;
   status: 'PAID' | 'UNPAID';
   paidAt?: string;
   paymentMethod?: string;
   receiptNumber?: string;
 }
 
+export interface BankAccountInfo {
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  qrisNmid?: string;
+}
+
 export const PublicDuesLedger: React.FC = () => {
-  const [activePeriod, setActivePeriod] = useState('Agustus 2026');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'UNPAID'>('ALL');
+  const activePeriod = 'Agustus 2026';
+
+  // State
+  const [activeTab, setActiveTab] = useState<'UNPAID' | 'PAID' | 'ALL'>('UNPAID');
   const [blockFilter, setBlockFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'code' | 'owner' | 'amount' | 'status'>('code');
+  const [sortBy, setSortBy] = useState<'code' | 'owner' | 'dueAmount' | 'status'>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Modals & Feedback
+  const [selectedReceipt, setSelectedReceipt] = useState<PropertyDuesItem | null>(null);
+  const [showPaymentInfoModal, setShowPaymentInfoModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
-
-  // Modals & Feedback
-  const [selectedReceipt, setSelectedReceipt] = useState<PropertyDuesItem | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Generate All 123 Complex Properties (Blok A-D, Kavling, and Jl. Sariwangi Indah)
+  // Bank Info from LocalStorage or Default
+  const [bankInfo, setBankInfo] = useState<BankAccountInfo>({
+    bankName: 'Bank Central Asia (BCA)',
+    accountNumber: '8830-1928-33',
+    accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
+    qrisNmid: 'ID102008891230',
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_bank_accounts');
+        if (saved) {
+          const accounts = JSON.parse(saved);
+          if (Array.isArray(accounts) && accounts.length > 0) {
+            const primary = accounts.find((a: any) => a.isPrimary) || accounts[0];
+            setBankInfo({
+              bankName: primary.bankName || 'Bank Central Asia (BCA)',
+              accountNumber: primary.accountNumber || '8830-1928-33',
+              accountHolder: primary.accountHolder || 'PENGURUS KOMPLEK WARGAHUB',
+              qrisNmid: primary.qrisNmid || 'ID102008891230',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+  }, []);
+
+  // Generate All 123 Complex Properties with Real-time Sync with LocalStorage Payments
   const propertiesData: PropertyDuesItem[] = useMemo(() => {
+    let verifiedCodes = new Set<string>();
+    let deletedCodes = new Set<string>();
+
+    if (typeof window !== 'undefined') {
+      try {
+        const paymentsStr = localStorage.getItem('wargahub_payments');
+        if (paymentsStr) {
+          const payments = JSON.parse(paymentsStr);
+          if (Array.isArray(payments)) {
+            payments.forEach((p: any) => {
+              if (p.status === 'VERIFIED') {
+                verifiedCodes.add(p.propertyCode.toUpperCase());
+              }
+            });
+          }
+        }
+
+        const delProps = localStorage.getItem('wargahub_deleted_properties');
+        if (delProps) {
+          const parsed = JSON.parse(delProps);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((id: string) => deletedCodes.add(id.toUpperCase()));
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
     const list: PropertyDuesItem[] = [];
 
     // Blok A (30 Units)
     for (let i = 1; i <= 30; i++) {
-      const isPaid = i !== 12 && i !== 24; // 28 Paid, 2 Unpaid
+      const code = `A-${i.toString().padStart(2, '0')}`;
+      if (deletedCodes.has(code)) continue;
+
+      const isDefaultUnpaid = i === 12 || i === 24 || i === 18;
+      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
+
+      // Overdue mock
+      const isMultiMonthOverdue = i === 24;
+      const unpaidMonths = isPaid ? 0 : isMultiMonthOverdue ? 2 : 1;
+      const periodNames = isPaid ? [] : isMultiMonthOverdue ? ['Juli 2026', 'Agustus 2026'] : ['Agustus 2026'];
+
       list.push({
-        code: `A-${i.toString().padStart(2, '0')}`,
+        code,
         number: `${i}`,
         block: 'Blok A',
-        ownerName: i === 17 ? 'Budi Santoso' : `Warga Blok A No. ${i}`,
+        ownerName: i === 17 ? 'Budi Santoso' : i === 1 ? 'Hendra Gunawan' : `Warga Blok A No. ${i}`,
         monthlyRate: 750000,
+        unpaidMonthsCount: unpaidMonths,
+        unpaidPeriodNames: periodNames,
+        totalDueAmount: unpaidMonths * 750000,
         status: isPaid ? 'PAID' : 'UNPAID',
         paidAt: isPaid ? `2026-08-${(10 + (i % 12)).toString().padStart(2, '0')}` : undefined,
         paymentMethod: isPaid ? (i % 3 === 0 ? 'TUNAI_BENDAHARA' : 'BCA_TRANSFER') : undefined,
@@ -88,13 +179,24 @@ export const PublicDuesLedger: React.FC = () => {
 
     // Blok B (30 Units)
     for (let i = 1; i <= 30; i++) {
-      const isPaid = i !== 5 && i !== 18 && i !== 29; // 27 Paid, 3 Unpaid
+      const code = `B-${i.toString().padStart(2, '0')}`;
+      if (deletedCodes.has(code)) continue;
+
+      const isDefaultUnpaid = i === 5 || i === 18 || i === 29;
+      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
+      const isMultiMonthOverdue = i === 5;
+      const unpaidMonths = isPaid ? 0 : isMultiMonthOverdue ? 3 : 1;
+      const periodNames = isPaid ? [] : isMultiMonthOverdue ? ['Juni 2026', 'Juli 2026', 'Agustus 2026'] : ['Agustus 2026'];
+
       list.push({
-        code: `B-${i.toString().padStart(2, '0')}`,
+        code,
         number: `${i}`,
         block: 'Blok B',
         ownerName: `Warga Blok B No. ${i}`,
         monthlyRate: 750000,
+        unpaidMonthsCount: unpaidMonths,
+        unpaidPeriodNames: periodNames,
+        totalDueAmount: unpaidMonths * 750000,
         status: isPaid ? 'PAID' : 'UNPAID',
         paidAt: isPaid ? `2026-08-${(12 + (i % 10)).toString().padStart(2, '0')}` : undefined,
         paymentMethod: isPaid ? 'BCA_TRANSFER' : undefined,
@@ -104,13 +206,22 @@ export const PublicDuesLedger: React.FC = () => {
 
     // Blok C (30 Units)
     for (let i = 1; i <= 30; i++) {
-      const isPaid = i !== 7 && i !== 22; // 28 Paid, 2 Unpaid
+      const code = `C-${i.toString().padStart(2, '0')}`;
+      if (deletedCodes.has(code)) continue;
+
+      const isDefaultUnpaid = i === 7 || i === 22;
+      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
+      const unpaidMonths = isPaid ? 0 : 1;
+
       list.push({
-        code: `C-${i.toString().padStart(2, '0')}`,
+        code,
         number: `${i}`,
         block: 'Blok C',
         ownerName: `Warga Blok C No. ${i}`,
         monthlyRate: 750000,
+        unpaidMonthsCount: unpaidMonths,
+        unpaidPeriodNames: isPaid ? [] : ['Agustus 2026'],
+        totalDueAmount: unpaidMonths * 750000,
         status: isPaid ? 'PAID' : 'UNPAID',
         paidAt: isPaid ? `2026-08-${(14 + (i % 8)).toString().padStart(2, '0')}` : undefined,
         paymentMethod: isPaid ? 'QRIS_DINAMIS' : undefined,
@@ -120,13 +231,22 @@ export const PublicDuesLedger: React.FC = () => {
 
     // Blok D (30 Units)
     for (let i = 1; i <= 30; i++) {
-      const isPaid = i !== 14; // 29 Paid, 1 Unpaid
+      const code = `D-${i.toString().padStart(2, '0')}`;
+      if (deletedCodes.has(code)) continue;
+
+      const isDefaultUnpaid = i === 14;
+      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
+      const unpaidMonths = isPaid ? 0 : 1;
+
       list.push({
-        code: `D-${i.toString().padStart(2, '0')}`,
+        code,
         number: `${i}`,
         block: 'Blok D',
         ownerName: `Warga Blok D No. ${i}`,
         monthlyRate: 750000,
+        unpaidMonthsCount: unpaidMonths,
+        unpaidPeriodNames: isPaid ? [] : ['Agustus 2026'],
+        totalDueAmount: unpaidMonths * 750000,
         status: isPaid ? 'PAID' : 'UNPAID',
         paidAt: isPaid ? `2026-08-${(11 + (i % 11)).toString().padStart(2, '0')}` : undefined,
         paymentMethod: isPaid ? 'BCA_TRANSFER' : undefined,
@@ -136,13 +256,22 @@ export const PublicDuesLedger: React.FC = () => {
 
     // Kavling Mandiri (10 Units)
     for (let i = 1; i <= 10; i++) {
-      const isPaid = i !== 4; // 9 Paid, 1 Unpaid
+      const code = `KAV-${i.toString().padStart(2, '0')}`;
+      if (deletedCodes.has(code)) continue;
+
+      const isDefaultUnpaid = i === 4;
+      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
+      const unpaidMonths = isPaid ? 0 : 1;
+
       list.push({
-        code: `KAV-${i.toString().padStart(2, '0')}`,
+        code,
         number: `${i}`,
         block: 'Kavling Mandiri',
         ownerName: `Pemilik Kavling ${i}`,
         monthlyRate: 750000,
+        unpaidMonthsCount: unpaidMonths,
+        unpaidPeriodNames: isPaid ? [] : ['Agustus 2026'],
+        totalDueAmount: unpaidMonths * 750000,
         status: isPaid ? 'PAID' : 'UNPAID',
         paidAt: isPaid ? `2026-08-${(15 + i).toString().padStart(2, '0')}` : undefined,
         paymentMethod: isPaid ? 'BCA_TRANSFER' : undefined,
@@ -152,13 +281,20 @@ export const PublicDuesLedger: React.FC = () => {
 
     // Jl. Sariwangi Indah 1 & 2 (13 Units)
     for (let i = 1; i <= 13; i++) {
-      const streetName = i <= 6 ? 'Jl. Sariwangi Indah 1' : 'Jl. Sariwangi Indah 2';
+      const isSw1 = i <= 6;
+      const code = isSw1 ? `SW1-${i.toString().padStart(2, '0')}` : `SW2-${(i - 6).toString().padStart(2, '0')}`;
+      if (deletedCodes.has(code)) continue;
+
+      const streetName = isSw1 ? 'Jl. Sariwangi Indah 1' : 'Jl. Sariwangi Indah 2';
       list.push({
-        code: i <= 6 ? `SW1-${i.toString().padStart(2, '0')}` : `SW2-${(i - 6).toString().padStart(2, '0')}`,
+        code,
         number: `${i}`,
         block: streetName,
         ownerName: `Warga ${streetName} No. ${i}`,
         monthlyRate: 750000,
+        unpaidMonthsCount: 0,
+        unpaidPeriodNames: [],
+        totalDueAmount: 0,
         status: 'PAID',
         paidAt: `2026-08-${(10 + (i % 8)).toString().padStart(2, '0')}`,
         paymentMethod: 'BCA_TRANSFER',
@@ -169,63 +305,66 @@ export const PublicDuesLedger: React.FC = () => {
     return list;
   }, []);
 
-  // Metrics
+  // Metrics Calculation
   const totalUnits = propertiesData.length;
   const paidCount = propertiesData.filter((p) => p.status === 'PAID').length;
   const unpaidCount = propertiesData.filter((p) => p.status === 'UNPAID').length;
   const paidPercentage = totalUnits > 0 ? (paidCount / totalUnits) * 100 : 0;
   const totalCollected = paidCount * 750000;
-  const totalUnpaidAmount = unpaidCount * 750000;
+  const totalUnpaidAmount = propertiesData.reduce((sum, p) => sum + (p.status === 'UNPAID' ? p.totalDueAmount : 0), 0);
 
-  // Filter & Sort
-  const filteredAndSortedProperties = useMemo(() => {
-    const list = propertiesData.filter((p) => {
-      const matchStatus = statusFilter === 'ALL' || p.status === statusFilter;
+  // Filter & Sort Properties
+  const filteredProperties = useMemo(() => {
+    let list = propertiesData.filter((p) => {
+      const matchTab = activeTab === 'ALL' || (activeTab === 'PAID' ? p.status === 'PAID' : p.status === 'UNPAID');
       const matchBlock = blockFilter === 'ALL' || p.block === blockFilter;
       const matchSearch =
         p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.block.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchStatus && matchBlock && matchSearch;
+
+      return matchTab && matchBlock && matchSearch;
     });
 
     list.sort((a, b) => {
-      let comparison = 0;
-      if (sortBy === 'code') comparison = a.code.localeCompare(b.code, undefined, { numeric: true });
-      else if (sortBy === 'owner') comparison = a.ownerName.localeCompare(b.ownerName);
-      else if (sortBy === 'amount') comparison = a.monthlyRate - b.monthlyRate;
-      else if (sortBy === 'status') comparison = a.status.localeCompare(b.status);
-      return sortOrder === 'asc' ? comparison : -comparison;
+      let comp = 0;
+      if (sortBy === 'code') comp = a.code.localeCompare(b.code, undefined, { numeric: true });
+      else if (sortBy === 'owner') comp = a.ownerName.localeCompare(b.ownerName);
+      else if (sortBy === 'dueAmount') comp = a.totalDueAmount - b.totalDueAmount;
+      else if (sortBy === 'status') comp = a.status.localeCompare(b.status);
+      return sortOrder === 'asc' ? comp : -comp;
     });
 
     return list;
-  }, [propertiesData, statusFilter, blockFilter, searchTerm, sortBy, sortOrder]);
+  }, [propertiesData, activeTab, blockFilter, searchTerm, sortBy, sortOrder]);
 
   // Pagination
-  const totalFiltered = filteredAndSortedProperties.length;
+  const totalFiltered = filteredProperties.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const startIndex = (safeCurrentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalFiltered);
-  const paginatedProperties = filteredAndSortedProperties.slice(startIndex, endIndex);
+  const paginatedProperties = filteredProperties.slice(startIndex, endIndex);
 
   // Copy Link
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
+    const url = typeof window !== 'undefined' ? window.location.href : 'http://localhost:4321/rekap-iuran';
+    navigator.clipboard.writeText(url);
     setCopiedLink(true);
-    showToast('Tautan rekapitulasi iuran warga berhasil disalin!');
+    showToast('Tautan publik status iuran warga berhasil disalin!');
     setTimeout(() => setCopiedLink(false), 3000);
   };
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['Kode Rumah / Unit', 'Blok / Jalan', 'Nama Pemilik', 'Nominal Iuran (Rp)', 'Status Pembayaran', 'Tanggal Bayar', 'Metode Bayar', 'No. Kuitansi'];
-    const rows = filteredAndSortedProperties.map((p) => [
+    const headers = ['Kode Rumah / Unit', 'Blok / Jalan', 'Nama Pemilik', 'Nominal Tagihan (Rp)', 'Status Iuran', 'Bulan Menunggak', 'Tanggal Bayar', 'Metode Bayar', 'No. Kuitansi'];
+    const rows = filteredProperties.map((p) => [
       p.code,
       `"${p.block}"`,
       `"${p.ownerName}"`,
-      p.monthlyRate,
+      p.status === 'PAID' ? p.monthlyRate : p.totalDueAmount,
       p.status === 'PAID' ? 'LUNAS' : 'BELUM LUNAS',
+      p.unpaidMonthsCount > 0 ? `"${p.unpaidPeriodNames?.join(', ')}"` : '-',
       p.paidAt || '-',
       p.paymentMethod || '-',
       p.receiptNumber || '-',
@@ -235,91 +374,94 @@ export const PublicDuesLedger: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `REKAPITULASI_IURAN_WARGAHUB_${activePeriod.replace(/\s+/g, '_')}.csv`);
+    link.setAttribute('download', `STATUS_IURAN_WARGA_${activePeriod.replace(/\s+/g, '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Data rekapitulasi iuran warga berhasil diunduh (CSV).');
+    showToast('Daftar status iuran warga berhasil diunduh (CSV).');
   };
 
   return (
     <div className="space-y-6">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 bg-emerald-700 text-white rounded-2xl shadow-xl font-bold text-xs animate-in slide-in-from-top-3">
-          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-xl font-bold text-xs animate-in slide-in-from-top-3">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Hero Header & Period */}
+      {/* Main Focus Header */}
       <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2.5">
-              <span className="px-3 py-1 bg-primary-50 text-primary-700 font-black rounded-xl text-xs border border-primary-200">
-                🌐 PORTAL REKAPITULASI PUBLIK
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-900 font-black rounded-xl text-xs border border-emerald-300">
+                📢 STATUS IURAN RESMI
               </span>
-              <span className="px-3 py-1 bg-emerald-50 text-emerald-800 font-black rounded-xl text-xs border border-emerald-200">
-                {activePeriod} (Bulan Aktif)
+              <span className="px-3 py-1 bg-primary-50 text-primary-800 font-bold rounded-xl text-xs border border-primary-200">
+                Periode: {activePeriod}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink mt-2">
-              Daftar Rekapitulasi Iuran Warga Komplek
+              Informasi Pembayaran & Tunggakan Iuran Warga
             </h1>
             <p className="text-xs sm:text-sm text-ink-muted mt-1 leading-relaxed max-w-2xl">
-              Halaman publik terbuka untuk memantau status pembayaran iuran warga (Blok A, B, C, D, Kavling Mandiri, dan Jl. Sariwangi Indah). Warga dapat memeriksa status dan mengunduh kuitansi digital resmi ber-QR Code.
+              Halaman khusus untuk memantau status kelunasan dan tagihan iuran komplek per unit rumah. Warga dapat memeriksa status rumah masing-masing, mengunduh kuitansi digital, dan melihat info rekening transfer resmi.
             </p>
           </div>
 
+          {/* Quick Actions */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={() => setShowPaymentInfoModal(true)}
+              className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-2 transition-colors"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Cara Bayar & Rekening Kas</span>
+            </button>
+            <button
+              type="button"
               onClick={handleCopyLink}
-              className="px-4 py-2.5 bg-white hover:bg-canvas text-ink font-bold text-xs rounded-xl border border-border shadow-xs inline-flex items-center gap-2 transition-colors"
+              className="px-3.5 py-2.5 bg-surface hover:bg-canvas text-ink font-bold text-xs rounded-xl border border-border shadow-xs inline-flex items-center gap-1.5 transition-colors"
             >
               {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-ink-muted" />}
-              {copiedLink ? 'Tersalin!' : 'Salin Tautan'}
+              <span>{copiedLink ? 'Tersalin!' : 'Salin Tautan'}</span>
             </button>
             <a
               href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                `📢 Rekapitulasi Iuran Warga Bulan ${activePeriod}\n\n• Tingkat Kelunasan: ${paidCount} dari ${totalUnits} Rumah (${paidPercentage.toFixed(1)}%)\n• Terkumpul: Rp ${totalCollected.toLocaleString('id-ID')}\n• Belum Bayar: ${unpaidCount} Rumah (Rp ${totalUnpaidAmount.toLocaleString('id-ID')})\n\nPeriksa status unit dan download kuitansi pembayaran di:\nhttp://localhost:4321/rekap-iuran`
+                `📢 Status Iuran Warga Komplek - Periode ${activePeriod}\n\n• Sudah Lunas: ${paidCount} dari ${totalUnits} Rumah (${paidPercentage.toFixed(1)}%)\n• Menunggu Bayar / Menunggak: ${unpaidCount} Rumah\n• Nominal Iuran: Rp 750.000 / bulan\n• Rekening Kas BCA: ${bankInfo.accountNumber} a.n ${bankInfo.accountHolder}\n\nPeriksa daftar status unit Anda secara mandiri di:\nhttp://localhost:4321/rekap-iuran`
               )}`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-2 transition-colors"
             >
               <Send className="w-4 h-4" />
-              Bagikan ke Grup WhatsApp
+              <span>Bagikan ke Grup WA</span>
             </a>
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="p-2.5 bg-surface hover:bg-canvas text-ink-muted hover:text-ink rounded-xl border border-border"
-              title="Unduh CSV"
-            >
-              <Download className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
-        {/* Progress Participation Bar */}
-        <div className="p-5 bg-canvas rounded-2xl border border-border/80 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        {/* Realtime Participation Progress Bar */}
+        <div className="p-4 sm:p-5 bg-canvas rounded-2xl border border-border space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div>
-              <span className="text-xl sm:text-2xl font-black text-ink">
-                {paidCount} dari {totalUnits} Rumah ({paidPercentage.toFixed(1)}%) Telah Lunas
+              <span className="text-lg sm:text-xl font-black text-ink">
+                {paidCount} dari {totalUnits} Rumah ({paidPercentage.toFixed(1)}%) Sudah Lunas
               </span>
-              <p className="text-xs text-ink-muted mt-0.5">
-                Total Dana Terkumpul: <strong className="text-emerald-700 font-mono">{formatRupiah(totalCollected)}</strong> • Sisa Piutang: <strong className="text-rose-700 font-mono">{formatRupiah(totalUnpaidAmount)}</strong>
+              <p className="text-ink-muted text-xs mt-0.5">
+                Terkumpul: <strong className="text-emerald-700 font-mono">{formatRupiah(totalCollected)}</strong> • Sisa Tagihan Berjalan: <strong className="text-rose-700 font-mono">{formatRupiah(totalUnpaidAmount)}</strong>
               </p>
             </div>
-            <span className="px-3 py-1 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-black self-start sm:self-center">
-              ✓ Arus Kas Sangat Tertib
+            <span className={`px-3 py-1 rounded-xl text-xs font-black self-start sm:self-center ${
+              paidPercentage >= 80 ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'
+            }`}>
+              {paidPercentage >= 80 ? '✓ Partisipasi Warga Sangat Baik' : '⏳ Pengumpulan Iuran Sedang Berjalan'}
             </span>
           </div>
 
-          <div className="w-full bg-surface rounded-full h-3.5 overflow-hidden border border-border">
+          <div className="w-full bg-surface rounded-full h-3 overflow-hidden border border-border">
             <div
               className="bg-emerald-500 h-full rounded-full transition-all duration-500"
               style={{ width: `${paidPercentage}%` }}
@@ -327,88 +469,149 @@ export const PublicDuesLedger: React.FC = () => {
           </div>
         </div>
 
-        {/* 4 Summary Mini Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-            <span className="text-ink-muted font-medium block">Total Rumah</span>
-            <span className="text-xl font-black text-ink font-mono mt-1 block">{totalUnits} Unit</span>
+        {/* 3 Main Focused Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          {/* Card 1: Belum Lunas */}
+          <div
+            onClick={() => {
+              setActiveTab('UNPAID');
+              setCurrentPage(1);
+            }}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              activeTab === 'UNPAID'
+                ? 'bg-rose-50/80 border-rose-400 ring-2 ring-rose-300 shadow-xs'
+                : 'bg-surface border-border hover:bg-canvas'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-rose-950 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-rose-600" />
+                Belum Bayar / Menunggak
+              </span>
+              <span className="px-2 py-0.5 bg-rose-200 text-rose-900 font-black rounded text-[10px]">
+                {unpaidCount} Unit
+              </span>
+            </div>
+            <p className="text-2xl font-black text-rose-700 font-mono mt-2">
+              {formatRupiah(totalUnpaidAmount)}
+            </p>
+            <span className="text-[11px] text-rose-800 mt-0.5 block">Klik untuk melihat daftar unit belum bayar</span>
           </div>
-          <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200 shadow-xs">
-            <span className="text-emerald-900 font-medium block">Sudah Lunas</span>
-            <span className="text-xl font-black text-emerald-700 font-mono mt-1 block">{paidCount} Unit ({formatRupiah(totalCollected)})</span>
+
+          {/* Card 2: Sudah Lunas */}
+          <div
+            onClick={() => {
+              setActiveTab('PAID');
+              setCurrentPage(1);
+            }}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              activeTab === 'PAID'
+                ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-300 shadow-xs'
+                : 'bg-surface border-border hover:bg-canvas'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Sudah Lunas Terverifikasi
+              </span>
+              <span className="px-2 py-0.5 bg-emerald-200 text-emerald-900 font-black rounded text-[10px]">
+                {paidCount} Unit
+              </span>
+            </div>
+            <p className="text-2xl font-black text-emerald-700 font-mono mt-2">
+              {formatRupiah(totalCollected)}
+            </p>
+            <span className="text-[11px] text-emerald-800 mt-0.5 block">Klik untuk melihat kuitansi lunas</span>
           </div>
-          <div className="p-3.5 bg-rose-50/60 rounded-2xl border border-rose-200 shadow-xs">
-            <span className="text-rose-900 font-medium block">Menunggu Bayar</span>
-            <span className="text-xl font-black text-rose-700 font-mono mt-1 block">{unpaidCount} Unit ({formatRupiah(totalUnpaidAmount)})</span>
-          </div>
-          <div className="p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-200 shadow-xs">
-            <span className="text-indigo-900 font-medium block">Iuran per Rumah</span>
-            <span className="text-xl font-black text-indigo-700 font-mono mt-1 block">Rp 750.000 / bln</span>
+
+          {/* Card 3: Rekening Kas Paguyuban */}
+          <div
+            onClick={() => setShowPaymentInfoModal(true)}
+            className="p-4 bg-surface rounded-2xl border border-border hover:bg-canvas transition-all cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-ink flex items-center gap-1.5">
+                <Building className="w-4 h-4 text-primary-600" />
+                Rekening Kas Paguyuban
+              </span>
+              <span className="px-2 py-0.5 bg-primary-50 text-primary-800 font-bold rounded text-[10px]">
+                Info Transfer
+              </span>
+            </div>
+            <p className="text-base font-black text-primary-800 font-mono mt-2 truncate">
+              {bankInfo.bankName} {bankInfo.accountNumber}
+            </p>
+            <span className="text-[11px] text-ink-muted mt-0.5 block">a.n {bankInfo.accountHolder}</span>
           </div>
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="bg-surface p-4 rounded-3xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
-        {/* Status Filter Buttons */}
-        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+      {/* Focus Tabs & Filter Toolbar */}
+      <div className="bg-surface p-4 rounded-3xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between text-xs">
+        {/* 3 Focused Sub-Tabs */}
+        <div className="flex items-center gap-1.5 w-full sm:w-auto p-1 bg-canvas rounded-2xl border border-border">
           <button
             type="button"
             onClick={() => {
-              setStatusFilter('ALL');
+              setActiveTab('UNPAID');
               setCurrentPage(1);
             }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-colors ${
-              statusFilter === 'ALL'
-                ? 'bg-primary-600 text-white shadow-xs'
-                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-            }`}
-          >
-            Semua Rumah ({totalUnits})
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStatusFilter('PAID');
-              setCurrentPage(1);
-            }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-colors ${
-              statusFilter === 'PAID'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-canvas text-emerald-800 hover:bg-emerald-50 border border-border'
-            }`}
-          >
-            ✓ Sudah Lunas ({paidCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStatusFilter('UNPAID');
-              setCurrentPage(1);
-            }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-colors ${
-              statusFilter === 'UNPAID'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black transition-all ${
+              activeTab === 'UNPAID'
                 ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-canvas text-rose-800 hover:bg-rose-50 border border-border'
+                : 'text-ink-muted hover:text-ink'
             }`}
           >
-            ⏳ Belum Bayar ({unpaidCount})
+            <Clock className="w-3.5 h-3.5" />
+            <span>Belum Bayar ({unpaidCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('PAID');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black transition-all ${
+              activeTab === 'PAID'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Sudah Lunas ({paidCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('ALL');
+              setCurrentPage(1);
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black transition-all ${
+              activeTab === 'ALL'
+                ? 'bg-primary-700 text-white shadow-xs'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            <span>Semua Rumah ({totalUnits})</span>
           </button>
         </div>
 
         {/* Search & Area Filter */}
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="relative w-full sm:w-56">
             <Search className="w-4 h-4 text-ink-muted absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Cari no. rumah / nama..."
+              placeholder="Cari no. rumah (A-17, B-04)..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink"
+              className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted"
             />
           </div>
 
@@ -420,7 +623,7 @@ export const PublicDuesLedger: React.FC = () => {
             }}
             className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
           >
-            <option value="ALL">Semua Wilayah</option>
+            <option value="ALL">Semua Blok / Wilayah</option>
             <option value="Blok A">Blok A</option>
             <option value="Blok B">Blok B</option>
             <option value="Blok C">Blok C</option>
@@ -435,8 +638,9 @@ export const PublicDuesLedger: React.FC = () => {
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
           >
-            <option value="code">Urut No. Unit</option>
-            <option value="owner">Urut Nama</option>
+            <option value="code">Urut Nomor Rumah</option>
+            <option value="owner">Urut Nama Pemilik</option>
+            <option value="dueAmount">Urut Nominal Tagihan</option>
             <option value="status">Urut Status</option>
           </select>
 
@@ -444,62 +648,89 @@ export const PublicDuesLedger: React.FC = () => {
             type="button"
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
             className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
+            title={`Urutan: ${sortOrder === 'asc' ? 'Menaik' : 'Menurun'}`}
           >
             <ArrowUpDown className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
+            title="Unduh Rekap CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Dues Table with Pagination */}
+      {/* Main Status Table */}
       <div className="bg-surface rounded-3xl border border-border shadow-card overflow-hidden text-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-canvas border-b border-border text-ink-muted font-bold">
               <tr>
-                <th className="py-4 px-4">No. Unit & Rumah</th>
+                <th className="py-4 px-4">Nomor Unit / Rumah</th>
                 <th className="py-4 px-4">Wilayah / Blok</th>
-                <th className="py-4 px-4">Nama Pemilik</th>
-                <th className="py-4 px-4 text-right">Nominal Iuran</th>
-                <th className="py-4 px-4 text-center">Status Pembayaran</th>
-                <th className="py-4 px-4 text-center">Tanggal & Metode</th>
-                <th className="py-4 px-4 text-right">Kuitansi Resmi</th>
+                <th className="py-4 px-4">Nama Warga</th>
+                <th className="py-4 px-4 text-center">Status Pembayaran ({activePeriod})</th>
+                <th className="py-4 px-4 text-right">Nominal Tagihan</th>
+                <th className="py-4 px-4 text-center">Keterangan / Waktu</th>
+                <th className="py-4 px-4 text-right">Aksi & Kuitansi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {paginatedProperties.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-ink-muted font-medium">
-                    Tidak ada unit rumah yang sesuai dengan pencarian atau filter.
+                  <td colSpan={7} className="py-12 text-center text-ink-muted font-medium">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                    Tidak ada unit rumah yang sesuai dengan kriteria filter saat ini.
                   </td>
                 </tr>
               ) : (
                 paginatedProperties.map((p) => {
                   const isPaid = p.status === 'PAID';
                   return (
-                    <tr key={p.code} className="hover:bg-canvas/50 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-black text-ink text-sm">
-                        {p.code}
+                    <tr key={p.code} className={`hover:bg-canvas/50 transition-colors ${!isPaid ? 'bg-rose-50/20' : ''}`}>
+                      <td className="py-3.5 px-4 font-black text-sm font-mono text-primary-800">
+                        Rumah {p.code}
                       </td>
+
                       <td className="py-3.5 px-4 font-semibold text-ink-muted">
                         {p.block}
                       </td>
+
                       <td className="py-3.5 px-4 font-bold text-ink">
                         {p.ownerName}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-black font-mono text-ink">
-                        {formatRupiah(p.monthlyRate)}
-                      </td>
+
                       <td className="py-3.5 px-4 text-center">
                         {isPaid ? (
-                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black border border-emerald-300">
-                            ✓ LUNAS (VERIFIED)
+                          <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-black border border-emerald-300 inline-flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>LUNAS</span>
+                          </span>
+                        ) : p.unpaidMonthsCount > 1 ? (
+                          <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-900 text-[10px] font-black border border-rose-300 inline-flex items-center gap-1 animate-pulse">
+                            <AlertTriangle className="w-3 h-3 text-rose-600" />
+                            <span>MENUNGGAK ({p.unpaidMonthsCount} BULAN)</span>
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 text-[10px] font-black border border-rose-300">
-                            ⏳ BELUM LUNAS
+                          <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-900 text-[10px] font-black border border-amber-300 inline-flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-700" />
+                            <span>BELUM BAYAR</span>
                           </span>
                         )}
                       </td>
+
+                      <td className="py-3.5 px-4 text-right font-black font-mono">
+                        {isPaid ? (
+                          <span className="text-emerald-700">{formatRupiah(p.monthlyRate)}</span>
+                        ) : (
+                          <span className="text-rose-700">{formatRupiah(p.totalDueAmount)}</span>
+                        )}
+                      </td>
+
                       <td className="py-3.5 px-4 text-center">
                         {isPaid ? (
                           <div>
@@ -507,31 +738,44 @@ export const PublicDuesLedger: React.FC = () => {
                             <span className="text-[10px] text-ink-muted">{p.paymentMethod?.replace('_', ' ')}</span>
                           </div>
                         ) : (
-                          <span className="text-ink-muted">-</span>
+                          <span className="text-[11px] text-rose-700 font-semibold block">
+                            Tagihan: {p.unpaidPeriodNames?.join(', ')}
+                          </span>
                         )}
                       </td>
+
                       <td className="py-3.5 px-4 text-right">
                         {isPaid ? (
                           <button
                             type="button"
                             onClick={() => setSelectedReceipt(p)}
-                            className="px-3 py-1.5 bg-primary-50 hover:bg-primary-100 text-primary-800 rounded-xl font-bold inline-flex items-center gap-1.5 text-xs shadow-2xs"
+                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold inline-flex items-center gap-1.5 text-xs shadow-2xs transition-colors"
                           >
-                            <Receipt className="w-3.5 h-3.5" />
-                            Lihat Kuitansi
+                            <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Kuitansi</span>
                           </button>
                         ) : (
-                          <a
-                            href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                              `Halo Bapak/Ibu ${p.ownerName} (${p.code}), mohon izin mengingatkan untuk iuran paguyuban periode ${activePeriod} sebesar ${formatRupiah(p.monthlyRate)}. Pembayaran dapat ditransfer ke Rekening BCA: 7720-192-881 an Paguyuban WargaHub. Terima kasih.`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-2.5 py-1 text-ink-muted hover:text-emerald-700 font-bold inline-flex items-center gap-1"
-                            title="Kirim Pengingat WhatsApp"
-                          >
-                            <Send className="w-3.5 h-3.5" /> Ingatkan
-                          </a>
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setShowPaymentInfoModal(true)}
+                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[10px] shadow-2xs"
+                            >
+                              Bayar
+                            </button>
+                            <a
+                              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                                `Halo Bpk/Ibu Warga Rumah ${p.code} (${p.ownerName}), mengingatkan bahwa iuran komplek periode ${p.unpaidPeriodNames?.join(', ')} sebesar ${formatRupiah(p.totalDueAmount)} dapat disetor ke Rekening BCA: ${bankInfo.accountNumber} a.n ${bankInfo.accountHolder}. Terima kasih banyak atas partisipasinya demi keamanan dan kebersihan komplek kita bersama.`
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg inline-flex items-center gap-1 font-bold text-[10px]"
+                              title="Kirim Pesan Pengingat WhatsApp"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>WA</span>
+                            </a>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -549,7 +793,7 @@ export const PublicDuesLedger: React.FC = () => {
               Menampilkan <strong className="text-ink">{totalFiltered === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalFiltered}</strong> rumah
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="text-ink-muted">Baris:</span>
+              <span className="text-ink-muted">Tampilkan:</span>
               <select
                 value={pageSize}
                 onChange={(e) => {
@@ -631,19 +875,88 @@ export const PublicDuesLedger: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: KUITANSI PEMBAYARAN DIGITAL RESMI BER-QR CODE */}
+      {/* ================= MODAL: CARA BAYAR & REKENING RESMI ================= */}
+      {showPaymentInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-black text-base text-ink flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-emerald-600" />
+                <span>Petunjuk Pembayaran Iuran Paguyuban</span>
+              </h3>
+              <button onClick={() => setShowPaymentInfoModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+            </div>
+
+            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-xs text-emerald-950">Rekening Transfer Resmi BCA:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(bankInfo.accountNumber);
+                    showToast('Nomor rekening BCA berhasil disalin!');
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-[10px] border border-emerald-300 inline-flex items-center gap-1"
+                >
+                  <Copy className="w-3 h-3" /> Salin No. Rekening
+                </button>
+              </div>
+
+              <div>
+                <p className="text-xl font-black font-mono text-emerald-800">{bankInfo.accountNumber}</p>
+                <p className="text-xs font-bold text-emerald-950 mt-0.5">{bankInfo.bankName}</p>
+                <p className="text-[11px] text-emerald-800">a.n <strong>{bankInfo.accountHolder}</strong></p>
+              </div>
+
+              <div className="pt-2 border-t border-emerald-200/80 text-[11px] text-emerald-900 leading-relaxed">
+                <strong>Format Berita Transfer:</strong><br />
+                Cantumkan nomor rumah saat transfer (Contoh: <code>IPL A17 AGUSTUS</code>).
+              </div>
+            </div>
+
+            {/* QRIS Support */}
+            <div className="p-4 bg-canvas rounded-2xl border border-border flex items-center justify-between gap-3">
+              <div>
+                <span className="font-bold text-ink block text-xs">Mendukung Pembayaran QRIS</span>
+                <p className="text-[11px] text-ink-muted mt-0.5">Scan via GoPay, OVO, ShopeePay, BCA Mobile, Livin', dll.</p>
+                <span className="text-[10px] font-mono text-primary-700 font-bold block mt-1">NMID: {bankInfo.qrisNmid || 'ID102008891230'}</span>
+              </div>
+              <div className="w-14 h-14 bg-white rounded-xl border border-border p-1 flex items-center justify-center shrink-0">
+                <QrCode className="w-full h-full text-slate-800" />
+              </div>
+            </div>
+
+            <div className="space-y-1 text-ink-muted text-[11px]">
+              <p>• Setelah transfer, pembayaran akan diverifikasi bendahara dan otomatis berstatus <strong>LUNAS</strong> di halaman ini.</p>
+              <p>• Kuitansi resmi ber-QR Code dapat langsung diunduh setelah terverifikasi.</p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPaymentInfoModal(false)}
+                className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs"
+              >
+                Saya Mengerti & Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KUITANSI DIGITAL RESMI ================= */}
       {selectedReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
-                <h3 className="font-black text-sm text-ink">Tanda Terima & Kuitansi Digital Resmi</h3>
-                <p className="text-[11px] text-ink-muted">No: {selectedReceipt.receiptNumber}</p>
+                <h3 className="font-black text-sm text-ink">Kuitansi Pembayaran Iuran Warga</h3>
+                <p className="text-[11px] text-ink-muted">No. Seri: {selectedReceipt.receiptNumber}</p>
               </div>
               <button onClick={() => setSelectedReceipt(null)} className="text-ink-muted hover:text-ink">✕</button>
             </div>
 
-            <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5">
+            <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
               <div className="flex justify-between">
                 <span className="text-ink-muted">Unit Rumah:</span>
                 <span className="font-black text-ink font-mono">{selectedReceipt.code} ({selectedReceipt.block})</span>
@@ -665,7 +978,7 @@ export const PublicDuesLedger: React.FC = () => {
                 <span className="font-semibold text-ink">{selectedReceipt.paymentMethod?.replace('_', ' ')}</span>
               </div>
               <div className="pt-2 border-t border-border flex justify-between items-center">
-                <span className="font-bold text-ink">Jumlah Dibayarkan:</span>
+                <span className="font-bold text-ink">Jumlah Terbayar:</span>
                 <span className="font-black text-base text-emerald-700 font-mono">{formatRupiah(selectedReceipt.monthlyRate)}</span>
               </div>
             </div>
@@ -678,7 +991,7 @@ export const PublicDuesLedger: React.FC = () => {
                   <span className="font-black text-emerald-950 text-xs">LUNAS & TERVERIFIKASI</span>
                 </div>
                 <p className="text-[10px] text-emerald-800">
-                  Rekening BCA: 7720-192-881 an Paguyuban WargaHub
+                  {bankInfo.bankName}: {bankInfo.accountNumber}
                 </p>
               </div>
               <div className="w-12 h-12 bg-white rounded-xl border border-emerald-300 p-1 flex items-center justify-center shrink-0">

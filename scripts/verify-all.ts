@@ -320,6 +320,63 @@ async function runVerification() {
     const utilDelData = await utilDelRes.json();
     assert(utilDelRes.status === 200 && utilDelData.data?.success === true, `API /api/properties/utilities/delete: Utility record reset/archived`);
 
+    // Security & Guard Management Suite Endpoints
+    const guardRes = await fetch(`${BASE_URL}/api/security/guards/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: 'Satpam Uji Otomatis',
+        role: 'Anggota Jaga Pos Utama',
+        team: 'Regu A - Garuda',
+        phone: '0812-9988-7711',
+        certification: 'GADA_PRATAMA',
+        assignedPost: 'Pos Gerbang Utama',
+        shift: 'SHIFT_PAGI',
+        status: 'AKTIF_BERTUGAS',
+      })
+    });
+    const guardData = await guardRes.json();
+    assert(guardRes.status === 201 && Boolean(guardData.data?.id), `API /api/security/guards/create: Security guard registered`);
+
+    const guardDelRes = await fetch(`${BASE_URL}/api/security/guards/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: guardData.data?.id || 'SEC-TEST',
+        reason: 'Uji Otomatis Penonaktifan Satpam'
+      })
+    });
+    const guardDelData = await guardDelRes.json();
+    assert(guardDelRes.status === 200 && guardDelData.data?.success === true, `API /api/security/guards/delete: Security guard deactivated/archived`);
+
+    const patrolRes = await fetch(`${BASE_URL}/api/security/patrol/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        checkpointCode: 'CP-01',
+        checkpointName: 'Pos Gerbang Utama (Main Gate)',
+        guardName: 'Bambang Sudiro',
+        condition: 'AMAN_KONDUSIF',
+        notes: 'Uji Laporan Patroli Otomatis'
+      })
+    });
+    const patrolData = await patrolRes.json();
+    assert(patrolRes.status === 201 && Boolean(patrolData.data?.id), `API /api/security/patrol/create: Patrol checkpoint log recorded`);
+
+    const equipRes = await fetch(`${BASE_URL}/api/security/inventory/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'HT Motorola Uji Otomatis',
+        category: 'KOMUNIKASI',
+        quantity: 2,
+        condition: 'BAIK',
+        location: 'Pos Utama',
+      })
+    });
+    const equipData = await equipRes.json();
+    assert(equipRes.status === 201 && Boolean(equipData.data?.id), `API /api/security/inventory/create: Security equipment logged`);
+
     const waTplCreateRes = await fetch(`${BASE_URL}/api/whatsapp/templates/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -4,8 +4,9 @@ import { AnnouncementsManager } from '../../components/admin/AnnouncementsManage
 import { getAnnouncements } from '../../services/announcement.service';
 
 const announcements = await getAnnouncements();
+const tab = Astro.url.searchParams.get('tab') || 'announcements';
 ---
 
 <AdminLayout title="Pengumuman & Agenda - WargaHub" currentPath="/admin/announcements">
-  <AnnouncementsManager initialAnnouncements={announcements} client:load />
+  <AnnouncementsManager initialAnnouncements={announcements} initialTab={tab} client:load />
 </AdminLayout>

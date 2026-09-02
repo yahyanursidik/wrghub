@@ -29,6 +29,7 @@ export async function getProperties(): Promise<PropertyListItem[]> {
         LEFT JOIN blocks b ON p.block_id = b.id
         LEFT JOIN property_ownerships po ON p.id = po.property_id AND po.is_active = true
         LEFT JOIN persons per ON po.person_id = per.id
+        WHERE p.is_active = true
         ORDER BY p.code ASC
       `;
 
@@ -50,7 +51,7 @@ export async function getProperties(): Promise<PropertyListItem[]> {
   }
 
   // Fallback to local Drizzle
-  const props = await db.select().from(schema.properties).orderBy(schema.properties.code);
+  const props = await db.select().from(schema.properties).where(eq(schema.properties.isActive, true)).orderBy(schema.properties.code);
   const blocks = await db.select().from(schema.blocks);
   const blockMap = new Map(blocks.map(b => [b.id, b]));
   const persons = await db.select().from(schema.persons);

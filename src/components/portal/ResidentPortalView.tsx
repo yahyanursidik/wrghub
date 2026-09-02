@@ -41,6 +41,7 @@ import {
   Edit3,
   BadgeCheck,
   FileCheck,
+  Trophy,
 } from 'lucide-react';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
 import { DEMO_USERS, type UserSession } from '../../types/auth';
@@ -65,6 +66,68 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
   const [showVotingModal, setShowVotingModal] = useState(false);
 
   const isAdminUser = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY'].includes(currentUser?.role || '');
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'BS';
+    const clean = name.replace(/^(Bpk\.|Ibu|Dr\.|Ir\.|H\.|Hj\.)\s*/gi, '').trim();
+    const parts = clean.split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  // Dynamic Settings from Master Settings
+  const [residentTitle, setResidentTitle] = useState('Portal Warga Komplek');
+  const [residentSubtitle, setResidentSubtitle] = useState('Layanan Iuran, Keamanan, Fasilitas & Aduan Warga 24 Jam');
+  const [communityName, setCommunityName] = useState('Komplek Perumahan Taman Sejahtera');
+  const [monthlyFeeRate, setMonthlyFeeRate] = useState(750000);
+  const [bankKasName, setBankKasName] = useState('BCA (Bank Central Asia)');
+  const [bankKasAcc, setBankKasAcc] = useState('8830-1928-33');
+  const [bankKasHolder, setBankKasHolder] = useState('PENGURUS KOMPLEK WARGAHUB');
+  const [qrisNmid, setQrisNmid] = useState('ID1020088921829');
+  const [securityPhone, setSecurityPhone] = useState('0812-3456-7801');
+  const [rwHeadName, setRwHeadName] = useState('Bpk. Ir. H. Bambang Sutrisno');
+  const [rwHeadPhone, setRwHeadPhone] = useState('0812-3456-7890');
+  const [wasteOrgDays, setWasteOrgDays] = useState('Senin, Rabu, Jumat');
+  const [wasteInorgDays, setWasteInorgDays] = useState('Rabu & Sabtu');
+  const [wasteHours, setWasteHours] = useState('06:30 - 10:30 WIB');
+  const [copiedAcc, setCopiedAcc] = useState(false);
+
+  // Info Tab Sub-Navigation
+  const [infoSubTab, setInfoSubTab] = useState<'announcements' | 'facilities' | 'sanitation' | 'complaints'>('announcements');
+
+  React.useEffect(() => {
+    try {
+      const savedResTitle = localStorage.getItem('wargahub_set_res_title');
+      const savedResSub = localStorage.getItem('wargahub_set_res_subtitle');
+      const savedComm = localStorage.getItem('wargahub_set_comm_name');
+      const savedFee = localStorage.getItem('wargahub_set_fee');
+      const savedBank = localStorage.getItem('wargahub_set_bankname');
+      const savedAcc = localStorage.getItem('wargahub_set_bankacc');
+      const savedHolder = localStorage.getItem('wargahub_set_accholder');
+      const savedQris = localStorage.getItem('wargahub_set_qris');
+      const savedSecPhone = localStorage.getItem('wargahub_set_secphone');
+      const savedRwName = localStorage.getItem('wargahub_set_rwheadname');
+      const savedRwPhone = localStorage.getItem('wargahub_set_rwheadphone');
+      const savedWasteOrg = localStorage.getItem('wargahub_set_waste_org');
+      const savedWasteInorg = localStorage.getItem('wargahub_set_waste_inorg');
+      const savedWasteHours = localStorage.getItem('wargahub_set_collection_hours');
+
+      if (savedResTitle) setResidentTitle(JSON.parse(savedResTitle));
+      if (savedResSub) setResidentSubtitle(JSON.parse(savedResSub));
+      if (savedComm) setCommunityName(JSON.parse(savedComm));
+      if (savedFee) setMonthlyFeeRate(Number(JSON.parse(savedFee)));
+      if (savedBank) setBankKasName(JSON.parse(savedBank));
+      if (savedAcc) setBankKasAcc(JSON.parse(savedAcc));
+      if (savedHolder) setBankKasHolder(JSON.parse(savedHolder));
+      if (savedQris) setQrisNmid(JSON.parse(savedQris));
+      if (savedSecPhone) setSecurityPhone(JSON.parse(savedSecPhone));
+      if (savedRwName) setRwHeadName(JSON.parse(savedRwName));
+      if (savedRwPhone) setRwHeadPhone(JSON.parse(savedRwPhone));
+      if (savedWasteOrg) setWasteOrgDays(JSON.parse(savedWasteOrg));
+      if (savedWasteInorg) setWasteInorgDays(JSON.parse(savedWasteInorg));
+      if (savedWasteHours) setWasteHours(JSON.parse(savedWasteHours));
+    } catch (e) {}
+  }, []);
 
   // Property Specs State
   const [buildingType, setBuildingType] = useState('Tipe 72/120');
@@ -414,9 +477,9 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
             )}
             <button
               onClick={() => setActiveTab('akun')}
-              className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 hover:ring-2 hover:ring-primary-500 transition-all ml-1"
+              className="w-8 h-8 rounded-full overflow-hidden bg-primary-600 text-white font-extrabold text-xs flex items-center justify-center border border-primary-400 shrink-0 hover:ring-2 hover:ring-primary-500 transition-all ml-1 uppercase"
             >
-              <img src={currentUser.avatarUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
+              {getInitials(currentUser.fullName)}
             </button>
           </div>
         </div>
@@ -428,102 +491,217 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
           {/* ================= TAB 1: BERANDA ================= */}
           {activeTab === 'beranda' && (
             <div className="p-5 sm:p-6 space-y-5 animate-in fade-in duration-150">
-              {/* Greeting */}
+              {/* Greeting & Dynamic Title */}
               <div>
-                <h2 className="text-2xl font-bold tracking-tight text-ink">
+                <div className="flex items-center gap-1.5 text-primary-700 font-bold text-[11px] mb-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{communityName}</span>
+                </div>
+                <h2 className="text-2xl font-black tracking-tight text-ink">
                   Halo, {currentUser.fullName} 👋
                 </h2>
-                <p className="text-xs text-ink-muted mt-1">
-                  Selamat datang di Portal Warga Komplek Taman Sejahtera
+                <p className="text-xs text-ink-muted mt-0.5">
+                  {residentSubtitle}
                 </p>
               </div>
 
               {/* Quick House Card */}
               <button
                 onClick={() => setActiveTab('rumah')}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-canvas border border-border hover:bg-primary-50/40 transition-colors text-left"
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-primary-900 to-slate-900 text-white shadow-card hover:shadow-md transition-all text-left group"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-primary-600 shadow-xs">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-xs border border-white/20 flex items-center justify-center text-primary-300 font-bold">
                     <Home className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[11px] font-medium text-ink-muted">Rumah Saya</span>
-                    <p className="text-sm font-bold text-ink">Rumah {currentUser.propertyCode || 'A-17'}</p>
+                    <span className="text-[10px] uppercase font-extrabold text-primary-300 tracking-wider">Unit Hunian Saya</span>
+                    <p className="text-base font-black tracking-tight">Rumah {currentUser.propertyCode || 'A-17'}</p>
+                    <span className="text-[10px] text-white/70">{buildingType} • {occupants.length} Jiwa</span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-ink-muted" />
+                <div className="flex items-center gap-1.5 text-xs text-primary-200 font-bold group-hover:translate-x-1 transition-transform">
+                  <span>Detail Rumah</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
               </button>
 
               {/* Status Iuran Aktif Card */}
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card flex items-start gap-3.5">
-                <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 className="w-5 h-5" />
+              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 font-bold border border-emerald-200">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold text-ink">Iuran Agustus 2026</p>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] border border-emerald-200">
+                        Lunas
+                      </span>
+                    </div>
+                    <p className="text-xs font-black text-primary-700 mt-0.5 tabular-nums">
+                      {formatRupiah(monthlyFeeRate)}
+                    </p>
+                    <p className="text-[10px] text-ink-muted mt-0.5">
+                      Terverifikasi otomatis via Transfer Bank BCA
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setSelectedReceipt({
+                    invoiceNumber: 'INV-202608-A17',
+                    periodName: 'Agustus 2026',
+                    propertyCode: currentUser.propertyCode || 'A-17',
+                    residentName: currentUser.fullName,
+                    amount: monthlyFeeRate,
+                    paidAt: '20 Agustus 2026, 10:21 WIB',
+                    paymentMethod: 'Transfer Bank BCA',
+                    referenceNumber: 'TRX-BCA-A17',
+                  })}
+                  className="px-3 py-1.5 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink hover:text-primary-700 transition-colors shrink-0 shadow-2xs flex items-center gap-1"
+                >
+                  <Printer className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Kuitansi</span>
+                </button>
+              </div>
+
+              {/* 6 Quick Service Shortcuts Grid */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold text-ink">Layanan Warga Cepat</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('iuran')}
+                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-bold text-ink">Bayar Iuran</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('info');
+                      setInfoSubTab('facilities');
+                    }}
+                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center font-bold">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-bold text-ink">Pesan Sarana</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('rumah');
+                      setRumahSubTab('pass');
+                    }}
+                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                      <QrCode className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-bold text-ink">Pas Tamu QR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('info');
+                      setInfoSubTab('sanitation');
+                    }}
+                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+                      <Trash2 className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-bold text-ink">Jadwal Sampah</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowVotingModal(true)}
+                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                      <Vote className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-bold text-ink">E-Voting Warga</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowComplaintModal(true)}
+                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center font-bold">
+                      <Headphones className="w-4 h-4" />
+                    </div>
+                    <span className="text-[11px] font-bold text-ink">Aduan Warga</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Operasional Komplek Hari Ini */}
+              <div className="p-4 rounded-2xl bg-canvas border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    Status Operasional Komplek Hari Ini
+                  </h4>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Normal 24 Jam
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {/* Satpam */}
+                  <div className="p-2.5 bg-surface rounded-xl border border-border/70 flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-semibold text-ink-muted">Iuran Agustus 2026</p>
-                      <p className="text-sm font-bold text-emerald-700">Lunas</p>
+                      <span className="text-[10px] text-ink-muted font-bold block">Pos Satpam Utama</span>
+                      <p className="font-bold text-ink">Regu A Siaga</p>
+                      <span className="text-[10px] text-ink-muted">{securityPhone}</span>
                     </div>
-                    <span className="text-sm font-bold text-ink tabular-nums">Rp750.000</span>
-                  </div>
-                  <p className="text-[11px] text-ink-muted mt-1.5">
-                    Dibayarkan pada 20 Agu 2026, 10:21 WIB
-                  </p>
-                </div>
-              </div>
-
-              {/* Ringkasan Komplek Mini Grid */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink">Ringkasan Komplek</h3>
-                  <a href="/transparency" className="text-[11px] font-semibold text-primary-600 hover:underline">
-                    Lihat Semua
-                  </a>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2">
-                  {/* Saldo Kas */}
-                  <div className="p-2.5 rounded-xl bg-canvas border border-border text-center flex flex-col items-center justify-between">
-                    <span className="text-[10px] text-ink-muted">Saldo Kas</span>
-                    <Wallet className="w-4 h-4 text-primary-600 my-1" />
-                    <span className="text-[11px] font-bold text-ink tabular-nums">Rp128,45 jt</span>
-                    <span className="text-[9px] text-ink-muted">Per 20 Agu</span>
+                    <a
+                      href={`tel:${securityPhone.replace(/[^0-9]/g, '')}`}
+                      className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200 transition-colors"
+                      title="Hubungi Satpam"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                    </a>
                   </div>
 
-                  {/* Iuran Lunas */}
-                  <div className="p-2.5 rounded-xl bg-canvas border border-border text-center flex flex-col items-center justify-between">
-                    <span className="text-[10px] text-ink-muted">Iuran Lunas</span>
-                    <div className="w-5 h-5 rounded-full border-2 border-primary-500 text-[10px] font-bold text-primary-600 flex items-center justify-center my-0.5">
-                      72%
+                  {/* Sampah */}
+                  <div className="p-2.5 bg-surface rounded-xl border border-border/70 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-ink-muted font-bold block">Tim Kebersihan</span>
+                      <p className="font-bold text-ink">Viar Tossa 01 & 02</p>
+                      <span className="text-[10px] text-teal-700 font-bold">{wasteOrgDays} ({wasteHours})</span>
                     </div>
-                    <span className="text-[10px] font-bold text-ink">86/120</span>
-                    <span className="text-[9px] text-ink-muted">rumah</span>
-                  </div>
-
-                  {/* Transaksi */}
-                  <div className="p-2.5 rounded-xl bg-canvas border border-border text-center flex flex-col items-center justify-between">
-                    <span className="text-[10px] text-ink-muted">Transaksi</span>
-                    <Hourglass className="w-4 h-4 text-amber-600 my-1" />
-                    <span className="text-[11px] font-bold text-ink">3</span>
-                    <span className="text-[9px] text-amber-700 font-medium">Agu 2026</span>
-                  </div>
-
-                  {/* Aduan */}
-                  <div className="p-2.5 rounded-xl bg-canvas border border-border text-center flex flex-col items-center justify-between">
-                    <span className="text-[10px] text-ink-muted">Aduan</span>
-                    <Headphones className="w-4 h-4 text-red-500 my-1" />
-                    <span className="text-[11px] font-bold text-ink">4</span>
-                    <span className="text-[9px] text-red-700 font-medium">Menunggu</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('info');
+                        setInfoSubTab('sanitation');
+                      }}
+                      className="p-2 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-xl border border-teal-200 transition-colors"
+                      title="Detail Jadwal"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Pengumuman Terbaru */}
+              {/* Ringkasan Kas & Pengumuman */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink">Pengumuman Terbaru</h3>
+                  <h3 className="text-xs font-bold text-ink">Pengumuman & Agenda Terkini</h3>
                   <button onClick={() => setActiveTab('info')} className="text-[11px] font-semibold text-primary-600 hover:underline">
                     Lihat Semua
                   </button>
@@ -536,9 +714,9 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                         <Megaphone className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-ink leading-tight">Kerja Bakti Lingkungan</p>
+                        <p className="text-xs font-bold text-ink leading-tight">Kerja Bakti Lingkungan & Taman</p>
                         <p className="text-[10px] text-ink-muted mt-0.5">Minggu, 24 Agustus 2026 • 07:00 WIB</p>
-                        <p className="text-[10px] text-primary-700">Lapangan Blok A</p>
+                        <p className="text-[10px] text-primary-700 font-bold">Lapangan Blok A</p>
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
@@ -546,27 +724,13 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
 
                   <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                        <Wrench className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-ink leading-tight">Perbaikan Pompa Air</p>
+                        <p className="text-xs font-bold text-ink leading-tight">Perbaikan Pompa Air & Tandon</p>
                         <p className="text-[10px] text-ink-muted mt-0.5">Rabu, 27 Agustus 2026 • 09:00 WIB</p>
-                        <p className="text-[10px] text-primary-700">Area Rumah Pompa</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
-                  </div>
-
-                  <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
-                        <Info className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-ink leading-tight">Pembagian Tempat Sampah Baru</p>
-                        <p className="text-[10px] text-ink-muted mt-0.5">Mulai 1 September 2026</p>
-                        <p className="text-[10px] text-primary-700">Setiap RT</p>
+                        <p className="text-[10px] text-amber-800 font-bold">Area Rumah Pompa Utama</p>
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
@@ -585,17 +749,31 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   <button onClick={() => setActiveTab('beranda')} className="p-1 -ml-1 text-ink hover:bg-canvas rounded-full">
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                  <h2 className="font-bold text-base text-ink">Iuran Saya</h2>
+                  <h2 className="font-bold text-base text-ink">Iuran & Keuangan Rumah</h2>
                 </div>
-                <button className="p-2 text-ink hover:bg-canvas rounded-full">
-                  <Bell className="w-5 h-5" />
+                <button
+                  type="button"
+                  onClick={() => setSelectedReceipt({
+                    invoiceNumber: 'INV-202608-A17',
+                    periodName: 'Agustus 2026',
+                    propertyCode: currentUser.propertyCode || 'A-17',
+                    residentName: currentUser.fullName,
+                    amount: monthlyFeeRate,
+                    paidAt: '20 Agustus 2026, 10:21 WIB',
+                    paymentMethod: 'Transfer Bank BCA',
+                    referenceNumber: 'TRX-BCA-A17',
+                  })}
+                  className="px-2.5 py-1 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-lg flex items-center gap-1 shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Kuitansi</span>
                 </button>
               </div>
 
               {/* Status Iuran 2026 */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink">Status Iuran 2026</h3>
+                  <h3 className="text-xs font-bold text-ink">Status Iuran Tahun 2026</h3>
                   <div className="flex items-center gap-2.5 text-[10px] text-ink-muted">
                     <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Lunas</span>
                     <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-border-dark" /> Belum</span>
@@ -636,7 +814,10 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
               {/* Main Card: Iuran Agustus 2026 */}
               <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-ink">Iuran Agustus 2026</span>
+                  <div>
+                    <span className="text-sm font-bold text-ink">Iuran {selectedMonth === 'Agu' ? 'Agustus 2026' : `${selectedMonth} 2026`}</span>
+                    <p className="text-[10px] text-ink-muted mt-0.5">Komponen: Sampah, Satpam, Pemeliharaan Fasum</p>
+                  </div>
                   <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-semibold text-xs border border-emerald-200">
                     Lunas
                   </span>
@@ -644,95 +825,92 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-4 pt-1">
                   <div>
-                    <span className="text-[11px] text-ink-muted">Nominal</span>
-                    <p className="text-base font-bold text-ink tabular-nums">Rp750.000</p>
+                    <span className="text-[11px] text-ink-muted">Nominal Tagihan</span>
+                    <p className="text-lg font-black text-ink tabular-nums">{formatRupiah(monthlyFeeRate)}</p>
                   </div>
                   <div>
                     <span className="text-[11px] text-ink-muted">Jatuh Tempo</span>
-                    <p className="text-xs font-semibold text-ink mt-0.5">10 Agu 2026</p>
+                    <p className="text-xs font-semibold text-ink mt-0.5">10 Setiap Bulan</p>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-ink-muted">
-                  Dibayarkan pada 20 Agu 2026, 10:21 WIB
-                </p>
+                {/* Bank Official Kas Paguyuban Card */}
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-slate-900 to-primary-950 text-white space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-primary-200 font-bold uppercase tracking-wider">Rekening Kas Resmi Paguyuban</span>
+                    <span className="px-2 py-0.5 bg-white/20 text-white rounded text-[10px] font-mono font-bold">QRIS Ready</span>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(true)}
-                  className="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-surface font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  Konfirmasi Pembayaran
-                </button>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-300">{bankKasName}</p>
+                      <p className="text-base font-black font-mono tracking-wider text-emerald-300">{bankKasAcc}</p>
+                      <p className="text-[10px] text-slate-300">{bankKasHolder}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(bankKasAcc.replace(/[^0-9]/g, ''));
+                        setCopiedAcc(true);
+                        setTimeout(() => setCopiedAcc(false), 2000);
+                      }}
+                      className="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-xs font-bold text-white transition-colors flex items-center gap-1.5"
+                    >
+                      {copiedAcc ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Tersalin!</span>
+                        </>
+                      ) : (
+                        <span>Salin No. Rek</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentModal(true)}
+                    className="flex-1 py-2.5 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-surface font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Konfirmasi / Unggah Bukti
+                  </button>
+                </div>
               </div>
 
               {/* Riwayat Pembayaran */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink">Riwayat Pembayaran</h3>
-                  <button className="text-[11px] font-semibold text-primary-600 hover:underline">
-                    Lihat Semua
-                  </button>
+                  <h3 className="text-xs font-bold text-ink">Riwayat Pembayaran Sebelumnya</h3>
+                  <span className="text-[11px] text-ink-muted">Tercatat di Buku Kas</span>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-ink">Juli 2026</p>
-                      <p className="text-[10px] text-ink-muted">18 Jul 2026, 09:14 WIB</p>
+                  {[
+                    { month: 'Juli 2026', date: '18 Jul 2026, 09:14 WIB', amount: monthlyFeeRate },
+                    { month: 'Juni 2026', date: '20 Jun 2026, 10:02 WIB', amount: monthlyFeeRate },
+                    { month: 'Mei 2026', date: '20 Mei 2026, 09:47 WIB', amount: monthlyFeeRate },
+                  ].map((row, idx) => (
+                    <div key={idx} className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-ink">{row.month}</p>
+                        <p className="text-[10px] text-ink-muted">{row.date}</p>
+                      </div>
+                      <div className="text-right flex items-center gap-2">
+                        <span className="text-xs font-semibold text-ink tabular-nums">{formatRupiah(row.amount)}</span>
+                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold rounded">Lunas</span>
+                      </div>
                     </div>
-                    <div className="text-right flex items-center gap-2">
-                      <span className="text-xs font-semibold text-ink tabular-nums">Rp750.000</span>
-                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold rounded">Lunas</span>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-ink">Juni 2026</p>
-                      <p className="text-[10px] text-ink-muted">20 Jun 2026, 10:02 WIB</p>
-                    </div>
-                    <div className="text-right flex items-center gap-2">
-                      <span className="text-xs font-semibold text-ink tabular-nums">Rp750.000</span>
-                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold rounded">Lunas</span>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-ink">Mei 2026</p>
-                      <p className="text-[10px] text-ink-muted">20 Mei 2026, 09:47 WIB</p>
-                    </div>
-                    <div className="text-right flex items-center gap-2">
-                      <span className="text-xs font-semibold text-ink tabular-nums">Rp750.000</span>
-                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold rounded">Lunas</span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedReceipt({
-                    invoiceNumber: 'INV-202608-A17',
-                    periodName: 'Agustus 2026',
-                    propertyCode: currentUser.propertyCode || 'A-17',
-                    residentName: currentUser.fullName,
-                    amount: 750000,
-                    paidAt: '20 Agustus 2026, 10:21 WIB',
-                    paymentMethod: 'Transfer Bank BCA',
-                    referenceNumber: 'TRX-BCA-A17',
-                  })}
-                  className="w-full py-2.5 border border-border hover:bg-canvas text-ink text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors mt-2"
-                >
-                  <Printer className="w-4 h-4 text-primary-600" />
-                  Lihat / Cetak Kuitansi Resmi
-                </button>
               </div>
             </div>
           )}
 
-          {/* ================= TAB 3: INFO & PENGUMUMAN ================= */}
+          {/* ================= TAB 3: INFO & LAYANAN WARGA ================= */}
           {activeTab === 'info' && (
             <div className="p-5 space-y-5 flex-1 animate-in fade-in duration-150">
               <div className="flex items-center justify-between pt-2">
@@ -740,7 +918,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   <button onClick={() => setActiveTab('beranda')} className="p-1 -ml-1 text-ink hover:bg-canvas rounded-full">
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                  <h2 className="font-bold text-base text-ink">Info & Agenda Warga</h2>
+                  <h2 className="font-bold text-base text-ink">Layanan & Agenda Warga</h2>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -760,110 +938,249 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-primary-100 text-primary-800 text-[10px] font-bold rounded-md">KEGIATAN</span>
-                    <span className="text-[10px] text-ink-muted">20 Agustus 2026</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-ink">Kerja Bakti Lingkungan</h4>
-                  <p className="text-xs text-ink-muted leading-relaxed">
-                    Mengundang seluruh warga untuk hadir dalam kegiatan kerja bakti pembersihan saluran air dan taman bersama. Diharapkan membawa peralatan masing-masing.
-                  </p>
-                  <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-primary-700 font-medium">
-                    <span>Minggu, 24 Agu 2026 • 07:00 WIB</span>
-                    <span>Lapangan Blok A</span>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md">MAINTENANCE</span>
-                    <span className="text-[10px] text-ink-muted">22 Agustus 2026</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-ink">Perbaikan Pompa Air</h4>
-                  <p className="text-xs text-ink-muted leading-relaxed">
-                    Akan dilakukan perbaikan dan pengurasan tandon pompa air utama komplek. Pasokan air fasum akan dimatikan sementara.
-                  </p>
-                  <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-primary-700 font-medium">
-                    <span>Rabu, 27 Agu 2026 • 09:00 WIB</span>
-                    <span>Area Rumah Pompa</span>
-                  </div>
-                </div>
-
-                {/* E-Voting Banner */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-surface shadow-card space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded-md bg-white/20 text-[10px] font-bold uppercase tracking-wider">
-                      Musyawarah Digital
-                    </span>
-                    <span className="text-[10px] text-emerald-200">1 Rumah = 1 Suara</span>
-                  </div>
-                  <h4 className="font-bold text-sm">Pemilihan Ketua RW 05 / RT 02 (2026-2029)</h4>
-                  <p className="text-[11px] text-surface/80 leading-relaxed">
-                    Bilik suara digital telah dibuka. Gunakan hak suara keluarga Anda untuk menentukan kemajuan komplek perumahan.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowVotingModal(true)}
-                    className="w-full py-2 bg-surface text-primary-700 hover:bg-canvas font-bold text-xs rounded-xl shadow-xs transition-colors"
-                  >
-                    Buka Bilik Suara & Berikan Pilihan ➔
-                  </button>
-                </div>
-
-                {/* Dokumen Resmi Komplek */}
-                <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-3">
-                  <h4 className="text-xs font-bold text-ink flex items-center justify-between">
-                    <span>Arsip & Dokumen Resmi</span>
-                    <span className="text-[10px] text-primary-600 font-normal">3 Berkas Tersedia</span>
-                  </h4>
-                  <div className="space-y-2">
-                    {[
-                      { title: 'Tata Tertib Warga 2026', size: '1.2 MB', cat: 'TATA TERTIB' },
-                      { title: 'Surat Edaran Kerja Bakti & Ronda', size: '450 KB', cat: 'SURAT EDARAN' },
-                      { title: 'Laporan Keuangan Semester 1 2026', size: '3.4 MB', cat: 'LAPORAN' },
-                    ].map((doc, idx) => (
-                      <div key={idx} className="p-2.5 bg-canvas rounded-xl flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-bold text-ink">{doc.title}</p>
-                          <span className="text-[10px] text-ink-muted">{doc.cat} • {doc.size}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const content = `DOKUMEN RESMI WARGAHUB\n=======================\nJudul: ${doc.title}\nKategori: ${doc.cat}\nUkuran: ${doc.size}\n\nDokumen resmi terverifikasi untuk warga Komplek Taman Sejahtera.`;
-                            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `${doc.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.txt`;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                          }}
-                          className="p-1.5 bg-surface hover:bg-primary-50 text-primary-700 rounded-lg border border-border"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200/80 space-y-3">
-                  <h4 className="text-xs font-bold text-emerald-900 flex items-center gap-2">
-                    <PhoneCall className="w-4 h-4 text-emerald-700" />
-                    Kontak Darurat & Keamanan
-                  </h4>
-                  <div className="space-y-1.5 text-xs text-emerald-800">
-                    <p className="flex justify-between"><span>Pos Satpam Utama (24 Jam):</span> <strong className="font-mono">0812-1111-2222</strong></p>
-                    <p className="flex justify-between"><span>Ketua RW 05:</span> <strong className="font-mono">0812-3456-7890</strong></p>
-                    <p className="flex justify-between"><span>Petugas Sarana:</span> <strong className="font-mono">0813-8888-9999</strong></p>
-                  </div>
-                </div>
+              {/* Sub-Navigation Pills for Info Tab */}
+              <div className="flex items-center gap-1.5 p-1 bg-canvas rounded-2xl border border-border overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'announcements', label: 'Pengumuman', icon: Megaphone },
+                  { id: 'facilities', label: 'Sarana & Fasum', icon: Building2 },
+                  { id: 'sanitation', label: 'Kebersihan', icon: Trash2 },
+                  { id: 'complaints', label: 'Aduan & SOS', icon: Headphones },
+                ].map((st) => {
+                  const Icon = st.icon;
+                  const isActive = infoSubTab === st.id;
+                  return (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setInfoSubTab(st.id as any)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                        isActive
+                          ? 'bg-surface text-primary-700 shadow-xs border border-border'
+                          : 'text-ink-muted hover:text-ink hover:bg-surface/50'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {st.label}
+                    </button>
+                  );
+                })}
               </div>
+
+              {/* SUBTAB 1: PENGUMUMAN & AGENDA */}
+              {infoSubTab === 'announcements' && (
+                <div className="space-y-3 animate-in fade-in duration-100">
+                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-primary-100 text-primary-800 text-[10px] font-bold rounded-md">KEGIATAN</span>
+                      <span className="text-[10px] text-ink-muted">20 Agustus 2026</span>
+                    </div>
+                    <h4 className="text-sm font-bold text-ink">Kerja Bakti Lingkungan & Taman</h4>
+                    <p className="text-xs text-ink-muted leading-relaxed">
+                      Mengundang seluruh warga untuk hadir dalam kegiatan kerja bakti pembersihan saluran air dan taman bersama. Diharapkan membawa peralatan masing-masing.
+                    </p>
+                    <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-primary-700 font-medium">
+                      <span>Minggu, 24 Agu 2026 • 07:00 WIB</span>
+                      <span>Lapangan Blok A</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md">MAINTENANCE</span>
+                      <span className="text-[10px] text-ink-muted">22 Agustus 2026</span>
+                    </div>
+                    <h4 className="text-sm font-bold text-ink">Perbaikan Pompa Air & Tandon Utama</h4>
+                    <p className="text-xs text-ink-muted leading-relaxed">
+                      Akan dilakukan perbaikan dan pengurasan tandon pompa air utama komplek. Pasokan air fasum akan dimatikan sementara.
+                    </p>
+                    <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-primary-700 font-medium">
+                      <span>Rabu, 27 Agu 2026 • 09:00 WIB</span>
+                      <span>Area Rumah Pompa</span>
+                    </div>
+                  </div>
+
+                  {/* E-Voting Banner */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-surface shadow-card space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded-md bg-white/20 text-[10px] font-bold uppercase tracking-wider">
+                        Musyawarah Digital
+                      </span>
+                      <span className="text-[10px] text-emerald-200">1 Rumah = 1 Suara</span>
+                    </div>
+                    <h4 className="font-bold text-sm">Pemilihan Ketua RW 05 / RT 02 (2026-2029)</h4>
+                    <p className="text-[11px] text-surface/80 leading-relaxed">
+                      Bilik suara digital telah dibuka. Gunakan hak suara keluarga Anda untuk menentukan kemajuan komplek perumahan.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowVotingModal(true)}
+                      className="w-full py-2 bg-surface text-primary-700 hover:bg-canvas font-bold text-xs rounded-xl shadow-xs transition-colors"
+                    >
+                      Buka Bilik Suara & Berikan Pilihan ➔
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* SUBTAB 2: KATALOG SARANA & FASUM */}
+              {infoSubTab === 'facilities' && (
+                <div className="space-y-3 animate-in fade-in duration-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-ink">Katalog Sarana & Fasilitas Komplek</h4>
+                      <p className="text-[10px] text-ink-muted">Peminjaman fasilitas untuk keperluan warga</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowFacilityModal(true)}
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Ajukan Sewa</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {[
+                      { id: 'fac-balai', name: 'Balai Warga Serbaguna', capacity: '150 Orang', fee: 'Gratis untuk Acara Warga', icon: Building2, status: 'Tersedia' },
+                      { id: 'fac-tennis', name: 'Lapangan Tenis & Badminton', capacity: '2 Lapangan', fee: 'Gratis (Wajib Booking)', icon: Trophy, status: 'Tersedia' },
+                      { id: 'fac-pool', name: 'Kolam Renang Komplek', capacity: '30 Orang', fee: 'Khusus Penghuni', icon: Droplets, status: 'Operasional' },
+                      { id: 'fac-mosque', name: 'Masjid Al-Ikhlas', capacity: '200 Jamaah', fee: 'Kegiatan Keagamaan', icon: Home, status: 'Buka' },
+                    ].map((fac) => {
+                      const Icon = fac.icon || Building2;
+                      return (
+                        <div key={fac.id} className="p-3.5 rounded-2xl bg-surface border border-border shadow-xs flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center font-bold">
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-ink">{fac.name}</p>
+                              <p className="text-[10px] text-ink-muted">Kapasitas: {fac.capacity} • {fac.fee}</p>
+                              <span className="inline-block mt-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-bold rounded">
+                                {fac.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFacId(fac.id);
+                              setFacName(fac.name);
+                              setShowFacilityModal(true);
+                            }}
+                            className="px-3 py-1.5 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink hover:text-primary-700 transition-colors"
+                          >
+                            Pesan
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SUBTAB 3: JADWAL KEBERSIHAN & SAMPAH */}
+              {infoSubTab === 'sanitation' && (
+                <div className="space-y-3 animate-in fade-in duration-100">
+                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                        <Trash2 className="w-4 h-4 text-teal-600" />
+                        Jadwal & Rute Armada Kebersihan Viar Tossa
+                      </h4>
+                      <span className="px-2 py-0.5 bg-teal-100 text-teal-800 text-[10px] font-bold rounded-full">
+                        TPS3R Aktif
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs pt-1">
+                      <div className="p-3 bg-canvas rounded-xl border border-border/70 space-y-1">
+                        <span className="text-[10px] text-ink-muted font-bold block">Sampah Organik / Basah (Dapur)</span>
+                        <p className="font-bold text-ink">{wasteOrgDays}</p>
+                        <p className="text-[10px] text-teal-700 font-bold">{wasteHours}</p>
+                      </div>
+
+                      <div className="p-3 bg-canvas rounded-xl border border-border/70 space-y-1">
+                        <span className="text-[10px] text-ink-muted font-bold block">Sampah Anorganik (Kardus/Plastik)</span>
+                        <p className="font-bold text-ink">{wasteInorgDays}</p>
+                        <p className="text-[10px] text-teal-700 font-bold">{wasteHours}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-canvas border border-border space-y-2 text-xs">
+                    <h4 className="font-bold text-ink">Permintaan Angkut Khusus (Puing / Dahan Pohon)</h4>
+                    <p className="text-ink-muted text-[11px]">
+                      Untuk sampah dalam volume besar (potongan pohon, sisa renovasi), hubungi Koordinator Kebersihan komplek.
+                    </p>
+                    <a
+                      href={`https://wa.me/6281277778888?text=Halo%20Koordinator%20Kebersihan,%20saya%20warga%20${currentUser.propertyCode}%20ingin%20request%20angkut%20sampah%20khusus`}
+                      target="_blank"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xs text-xs mt-1"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>Chat WhatsApp Koordinator Kebersihan</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* SUBTAB 4: ADUAN & SOS */}
+              {infoSubTab === 'complaints' && (
+                <div className="space-y-3 animate-in fade-in duration-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-ink">Layanan Aduan & Keluhan Warga</h4>
+                      <p className="text-[10px] text-ink-muted">Sampaikan aduan fasilitas, kebersihan, atau keamanan</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowComplaintModal(true)}
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Buat Aduan</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="p-3.5 rounded-2xl bg-surface border border-border shadow-xs flex items-center justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                          <Headphones className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-ink">Lampu PJU Padam Depan Rumah C-07</p>
+                          <p className="text-[10px] text-ink-muted">Kategori: Fasilitas • Dilaporkan Kemarin</p>
+                          <span className="inline-block mt-1 px-2 py-0.5 bg-amber-50 text-amber-800 text-[9px] font-bold rounded">
+                            Sedang Dikerjakan Teknisi
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Emergency Satpam Hotline */}
+                  <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2 text-xs">
+                    <h4 className="font-bold text-rose-900 flex items-center gap-1.5">
+                      <PhoneCall className="w-4 h-4 text-rose-700" />
+                      Panggilan Darurat Satpam 24 Jam
+                    </h4>
+                    <p className="text-rose-800 text-[11px]">
+                      Jika terjadi keadaan darurat keamanan atau medis di lingkungan komplek, segera hubungi Pos Satpam.
+                    </p>
+                    <a
+                      href={`tel:${securityPhone.replace(/[^0-9]/g, '')}`}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs text-xs mt-1"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>Telepon Pos Satpam ({securityPhone})</span>
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1223,49 +1540,134 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
           {activeTab === 'akun' && (
             <div className="p-5 space-y-5 flex-1 animate-in fade-in duration-150">
               <div className="flex items-center justify-between pt-2">
-                <h2 className="font-bold text-base text-ink">Akun Saya</h2>
-                <button className="p-2 text-ink hover:bg-canvas rounded-full">
-                  <Bell className="w-5 h-5" />
-                </button>
+                <h2 className="font-bold text-base text-ink">Profil & Layanan Pengurus</h2>
+                <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 font-bold px-2 py-0.5 rounded-full">
+                  Akun Warga Terdaftar
+                </span>
               </div>
 
               {/* User Profile Card */}
               <div className="p-4 rounded-2xl bg-surface border border-border shadow-card flex items-center gap-4">
-                <img
-                  src={currentUser.avatarUrl}
-                  alt={currentUser.fullName}
-                  className="w-14 h-14 rounded-full object-cover border-2 border-primary-200"
-                />
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-white font-black text-lg flex items-center justify-center border-2 border-primary-200 uppercase tracking-wider shrink-0 shadow-sm">
+                  {getInitials(currentUser.fullName)}
+                </div>
                 <div>
                   <h3 className="font-bold text-base text-ink">{currentUser.fullName}</h3>
                   <p className="text-xs text-ink-muted">{currentUser.email}</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 bg-primary-100 text-primary-800 text-[10px] font-bold rounded">
-                    {currentUser.role}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="px-2 py-0.5 bg-primary-100 text-primary-800 text-[10px] font-bold rounded">
+                      Rumah {currentUser.propertyCode || 'A-17'}
+                    </span>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
+                      Kepala Keluarga
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Demo Switcher */}
-              <div className="p-4 rounded-2xl bg-canvas border border-border space-y-3">
-                <span className="text-xs font-bold text-ink">Simulasi Peran Pengguna</span>
-                <div className="space-y-1.5">
-                  {Object.entries(DEMO_USERS).map(([key, user]) => (
-                    <button
-                      key={key}
-                      onClick={() => setCurrentUser(user)}
-                      className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-semibold transition-colors ${
-                        currentUser.username === user.username
-                          ? 'bg-primary-600 text-surface'
-                          : 'bg-surface hover:bg-primary-50 text-ink border border-border'
-                      }`}
+              {/* Susunan Pengurus & Kontak Hotline */}
+              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-3">
+                <div className="flex items-center justify-between border-b border-border/80 pb-2">
+                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                    <PhoneCall className="w-4 h-4 text-emerald-600" />
+                    Susunan Pengurus & Kontak Penting
+                  </h4>
+                  <span className="text-[10px] text-ink-muted">Komplek Taman Sejahtera</span>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div className="p-2.5 bg-canvas rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-ink-muted font-bold block">Ketua RW 05 / RT 02</span>
+                      <p className="font-bold text-ink">{rwHeadName}</p>
+                      <span className="text-[10px] text-ink-muted">{rwHeadPhone}</span>
+                    </div>
+                    <a
+                      href={`https://wa.me/${rwHeadPhone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10px] transition-colors"
                     >
-                      <span>{user.fullName} ({user.role === 'CHAIRMAN' ? 'Ketua' : user.role === 'TREASURER' ? 'Bendahara' : `Warga ${user.propertyCode}`})</span>
-                      {currentUser.username === user.username && <Check className="w-4 h-4" />}
-                    </button>
+                      WhatsApp
+                    </a>
+                  </div>
+
+                  <div className="p-2.5 bg-canvas rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-ink-muted font-bold block">Pos Satpam 24 Jam (Gerbang 1)</span>
+                      <p className="font-bold text-ink">Regu Jaga Satpam Utama</p>
+                      <span className="text-[10px] text-ink-muted">{securityPhone}</span>
+                    </div>
+                    <a
+                      href={`tel:${securityPhone.replace(/[^0-9]/g, '')}`}
+                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[10px] transition-colors"
+                    >
+                      Telepon
+                    </a>
+                  </div>
+
+                  <div className="p-2.5 bg-canvas rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-ink-muted font-bold block">Koordinator Kebersihan & Viar Tossa</span>
+                      <p className="font-bold text-ink">Bpk. Sugeng (Tim TPS3R)</p>
+                      <span className="text-[10px] text-teal-700 font-bold">{wasteOrgDays}</span>
+                    </div>
+                    <a
+                      href="https://wa.me/6281277778888"
+                      target="_blank"
+                      className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[10px] transition-colors"
+                    >
+                      WhatsApp
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dokumen Resmi Lingkungan */}
+              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-3">
+                <div className="flex items-center justify-between border-b border-border/80 pb-2">
+                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-primary-600" />
+                    Arsip & Dokumen Resmi Lingkungan
+                  </h4>
+                  <span className="text-[10px] text-primary-700 font-bold">3 Dokumen</span>
+                </div>
+
+                <div className="space-y-2">
+                  {[
+                    { title: 'Tata Tertib Komplek & Parkir 2026', size: '1.2 MB', cat: 'TATA TERTIB' },
+                    { title: 'Surat Edaran Jadwal Ronda & Iuran IPL', size: '450 KB', cat: 'SURAT EDARAN' },
+                    { title: 'Laporan Keuangan Kas Semester 1 2026', size: '3.4 MB', cat: 'LAPORAN' },
+                  ].map((doc, idx) => (
+                    <div key={idx} className="p-2.5 bg-canvas rounded-xl flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-bold text-ink">{doc.title}</p>
+                        <span className="text-[10px] text-ink-muted">{doc.cat} • {doc.size}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const content = `DOKUMEN RESMI WARGAHUB\n=======================\nJudul: ${doc.title}\nKategori: ${doc.cat}\nUkuran: ${doc.size}\n\nDokumen resmi terverifikasi untuk warga Komplek Taman Sejahtera.`;
+                          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${doc.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.txt`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="p-1.5 bg-surface hover:bg-primary-50 text-primary-700 rounded-lg border border-border"
+                        title="Unduh Berkas"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
 
+              {/* Tautan Tambahan */}
               <div className="space-y-2">
                 {isAdminUser && (
                   <a
@@ -1287,7 +1689,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   href="/transparency"
                   className="w-full py-2.5 px-4 bg-surface hover:bg-canvas border border-border text-ink font-semibold text-xs rounded-xl flex items-center justify-between transition-colors"
                 >
-                  <span>Buka Laporan Transparansi Warga</span>
+                  <span>Buka Laporan Transparansi Kas Paguyuban</span>
                   <ChevronRight className="w-4 h-4 text-ink-muted" />
                 </a>
                 <button

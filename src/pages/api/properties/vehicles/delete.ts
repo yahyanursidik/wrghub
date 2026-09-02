@@ -7,6 +7,8 @@ const deleteVehicleSchema = z.object({
   vehicleId: z.string().optional(),
   plateNumber: z.string().optional(),
   houseCode: z.string().optional(),
+  ids: z.array(z.string()).optional(),
+  plateNumbers: z.array(z.string()).optional(),
   reason: z.string().optional(),
 });
 
@@ -14,6 +16,44 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = deleteVehicleSchema.parse(body);
+
+    // Case 1: Bulk delete
+    if (validated.ids && validated.ids.length > 0) {
+      const targetIds = validated.ids;
+      const targetPlates = validated.plateNumbers || [];
+
+      if (process.env.DATABASE_URL) {
+        await recordAuditLog({
+          actorName: 'Pengurus Komplek',
+          action: 'property.bulk_delete_vehicle',
+          entityType: 'PROPERTY_VEHICLE',
+          entityId: `BULK-VEH-${targetIds.length}`,
+          newValue: {
+            ids: targetIds,
+            plates: targetPlates,
+            count: targetIds.length,
+            reason: validated.reason || `Penghapusan massal ${targetIds.length} kendaraan`,
+            deletedAt: new Date().toISOString()
+          },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            success: true,
+            deletedCount: targetIds.length,
+            ids: targetIds,
+            message: `Sebanyak ${targetIds.length} kendaraan berhasil dinonaktifkan / dicabut akses RFID-nya.`
+          },
+          meta: {},
+          error: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Case 2: Single delete
     const targetId = validated.vehicleId || validated.id || '';
 
     if (!targetId && !validated.plateNumber) {

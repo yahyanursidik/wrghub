@@ -1,8 +1,10 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { VotingManager } from '../../components/admin/VotingManager';
+
+const tab = Astro.url.searchParams.get('tab') || 'election';
 ---
 
 <AdminLayout title="E-Voting & Musyawarah Warga - WargaHub" currentPath="/admin/voting">
-  <VotingManager client:load />
+  <VotingManager initialTab={tab} client:load />
 </AdminLayout>

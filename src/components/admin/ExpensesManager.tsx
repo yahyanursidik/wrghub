@@ -48,6 +48,7 @@ import {
   Banknote
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
+import { StaffLoansManager } from './StaffLoansManager';
 
 interface ExpenseItem {
   id: string;
@@ -740,81 +741,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
       {/* ================= SUBTAB 2: KASBON & PINJAMAN PETUGAS SATPAM ================= */}
       {activeSubTab === 'staff_loans' && (
         <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-              <div>
-                <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <Banknote className="w-5 h-5 text-indigo-600" />
-                  Manajemen Kasbon & Pinjaman Petugas (Satpam & Kebersihan)
-                </h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Catat pinjaman darurat / gaji diambil lebih awal, dan kelola cicilan pengembalian potong gaji bulanan secara tertib.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowLoanModal(true)}
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                Catat Pinjaman Baru
-              </button>
-            </div>
-
-            {/* List of Staff Loans */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {staffLoans.map((loan) => {
-                const isPaidOff = loan.status === 'PAID_OFF';
-                return (
-                  <div key={loan.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-3 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] font-bold text-ink-muted">{loan.id}</span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                        isPaidOff ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
-                      }`}>
-                        {isPaidOff ? '✓ LUNAS' : 'SEDANG DICICIL'}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h4 className="font-black text-ink text-sm">{loan.staffName}</h4>
-                      <p className="text-[11px] text-indigo-700 font-semibold">{loan.staffRole}</p>
-                      <p className="text-[11px] text-ink-muted mt-1 italic">"{loan.purpose}"</p>
-                    </div>
-
-                    <div className="p-2.5 bg-surface rounded-xl border border-border space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-ink-muted">Total Pinjaman:</span>
-                        <span className="font-bold text-ink font-mono">{formatRupiah(loan.totalLoanAmount)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-ink-muted">Sudah Dibayar:</span>
-                        <span className="font-bold text-emerald-700 font-mono">{formatRupiah(loan.paidAmount)}</span>
-                      </div>
-                      <div className="flex justify-between pt-1 border-t border-border">
-                        <span className="font-bold text-ink">Sisa Hutang:</span>
-                        <span className="font-black text-rose-700 font-mono">{formatRupiah(loan.remainingBalance)}</span>
-                      </div>
-                    </div>
-
-                    {!isPaidOff && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedLoanForInstallment(loan);
-                          setInstallmentAmountInput(loan.monthlyDeduction);
-                        }}
-                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs"
-                      >
-                        Bayar Cicilan Potong Gaji ({formatRupiah(loan.monthlyDeduction)})
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <StaffLoansManager />
         </div>
       )}
 

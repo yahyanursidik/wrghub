@@ -70,6 +70,21 @@ export const PORTAL_ACCOUNTS: Record<string, DemoAccountInfo> = {
     badge: 'Keuangan & Kas',
     description: 'Akses khusus verifikasi bukti transfer, pencatatan pengeluaran, arus kas, dan anggaran.'
   },
+  sekretaris: {
+    id: 'user-sekretaris',
+    username: 'sekretaris',
+    name: 'Siti Rahmawati',
+    roleTitle: 'Sekretaris Komplek',
+    role: 'SECRETARY',
+    passwordHint: 'sekretaris123',
+    defaultPassword: 'sekretaris123',
+    targetPortal: 'admin',
+    targetUrl: '/admin/announcements',
+    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    propertyCode: 'A-05',
+    badge: 'Administrasi Warga',
+    description: 'Akses administrasi data warga, surat edaran, e-voting musyawarah, dan broadcast pengumuman.'
+  },
   warga_a17: {
     id: 'user-warga-a17',
     username: 'warga_a17',
@@ -104,15 +119,29 @@ export const PORTAL_ACCOUNTS: Record<string, DemoAccountInfo> = {
     id: 'user-satpam',
     username: 'satpam',
     name: 'Joko Santoso (Komandan Satpam)',
-    roleTitle: 'Petugas Keamanan',
+    roleTitle: 'Petugas Keamanan Pos',
     role: 'SECURITY',
     passwordHint: 'satpam123',
     defaultPassword: 'satpam123',
     targetPortal: 'admin',
-    targetUrl: '/admin/complaints',
+    targetUrl: '/admin/security-gate',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    badge: 'Operasional Pos',
-    description: 'Akses operasional pos keamanan, pantauan aduan warga darurat, dan fasilitas komplek.'
+    badge: 'Pos Gerbang & Patroli',
+    description: 'Akses operasional pos keamanan, kontrol barrier gate, buku tamu, plat nomor, dan patroli QR.'
+  },
+  teknisi: {
+    id: 'user-teknisi',
+    username: 'teknisi',
+    name: 'Sugeng Riyadi (Koordinator Kebersihan & Fasum)',
+    roleTitle: 'Petugas Kebersihan & Teknisi',
+    role: 'MAINTENANCE',
+    passwordHint: 'teknisi123',
+    defaultPassword: 'teknisi123',
+    targetPortal: 'admin',
+    targetUrl: '/admin/cleaning-staff',
+    avatarUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80',
+    badge: 'Armada & Fasilitas',
+    description: 'Akses jadwal armada Viar Tossa, TPS3R, pemeliharaan pompa air, dan perawatan fasum.'
   }
 };
 
@@ -136,6 +165,16 @@ export const DEMO_USERS: Record<string, UserSession> = {
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     propertyCode: 'B-01',
     propertyId: 'prop-b-01'
+  },
+  sekretaris: {
+    id: 'user-sekretaris',
+    username: 'sekretaris',
+    fullName: 'Siti Rahmawati',
+    email: 'sekretaris@wargahub.id',
+    role: 'SECRETARY',
+    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    propertyCode: 'A-05',
+    propertyId: 'prop-a-05'
   },
   warga: {
     id: 'user-warga-a17',
@@ -164,5 +203,13 @@ export const DEMO_USERS: Record<string, UserSession> = {
     email: 'satpam@wargahub.id',
     role: 'SECURITY',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  },
+  teknisi: {
+    id: 'user-teknisi',
+    username: 'teknisi',
+    fullName: 'Sugeng Riyadi',
+    email: 'teknisi@wargahub.id',
+    role: 'MAINTENANCE',
+    avatarUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80',
   }
 };

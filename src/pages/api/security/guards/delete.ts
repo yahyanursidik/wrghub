@@ -2,37 +2,31 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { recordAuditLog } from '../../../../services/audit.service';
 
-const deleteOccupantSchema = z.object({
+const deleteGuardSchema = z.object({
   id: z.string().optional(),
-  occupantId: z.string().optional(),
-  fullName: z.string().optional(),
-  houseCode: z.string().optional(),
   ids: z.array(z.string()).optional(),
-  names: z.array(z.string()).optional(),
   reason: z.string().optional(),
 });
 
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
-    const validated = deleteOccupantSchema.parse(body);
+    const validated = deleteGuardSchema.parse(body);
 
-    // Case 1: Bulk delete
+    // Case 1: Bulk Delete
     if (validated.ids && validated.ids.length > 0) {
       const targetIds = validated.ids;
-      const targetNames = validated.names || [];
 
       if (process.env.DATABASE_URL) {
         await recordAuditLog({
-          actorName: 'Pengurus Komplek',
-          action: 'property.bulk_delete_occupant',
-          entityType: 'PROPERTY_OCCUPANT',
-          entityId: `BULK-OCC-${targetIds.length}`,
+          actorName: 'Kepala Keamanan Komplek',
+          action: 'security.bulk_delete_guard',
+          entityType: 'SECURITY_GUARD',
+          entityId: `BULK-SEC-${targetIds.length}`,
           newValue: {
             ids: targetIds,
-            names: targetNames,
             count: targetIds.length,
-            reason: validated.reason || `Penghapusan massal ${targetIds.length} data penghuni`,
+            reason: validated.reason || `Penonaktifan massal ${targetIds.length} personel satpam`,
             deletedAt: new Date().toISOString()
           },
         });
@@ -44,7 +38,7 @@ export const POST: APIRoute = async ({ request }) => {
             success: true,
             deletedCount: targetIds.length,
             ids: targetIds,
-            message: `Sebanyak ${targetIds.length} data penghuni berhasil dihapus/diarsipkan.`
+            message: `Sebanyak ${targetIds.length} data personel satpam berhasil dihapus / dinonaktifkan.`
           },
           meta: {},
           error: null,
@@ -53,23 +47,21 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Case 2: Single delete
-    const targetId = validated.occupantId || validated.id || '';
-
-    if (!targetId && !validated.fullName) {
-      throw new Error('ID atau nama penghuni wajib disertakan.');
+    // Case 2: Single Delete
+    const targetId = validated.id || '';
+    if (!targetId) {
+      throw new Error('ID personel satpam wajib disertakan.');
     }
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
-        actorName: 'Pengurus Komplek',
-        action: 'property.delete_occupant',
-        entityType: 'PROPERTY_OCCUPANT',
-        entityId: targetId || validated.fullName || 'UNKNOWN',
+        actorName: 'Kepala Keamanan Komplek',
+        action: 'security.delete_guard',
+        entityType: 'SECURITY_GUARD',
+        entityId: targetId,
         newValue: {
-          name: validated.fullName,
-          house: validated.houseCode,
-          reason: validated.reason || 'Dihapus dari database kependudukan',
+          guardId: targetId,
+          reason: validated.reason || 'Penonaktifan personel satpam',
           deletedAt: new Date().toISOString()
         },
       });
@@ -80,7 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
         data: {
           success: true,
           id: targetId,
-          message: `Data kependudukan ${validated.fullName || targetId} berhasil dihapus/dinonaktifkan.`
+          message: `Personel satpam ${targetId} berhasil dihapus / dinonaktifkan.`
         },
         meta: {},
         error: null,
@@ -91,7 +83,7 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(
       JSON.stringify({
         data: null,
-        error: { code: 'DELETE_OCCUPANT_FAILED', message: err.message },
+        error: { code: 'GUARD_DELETE_FAILED', message: err.message },
       }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
