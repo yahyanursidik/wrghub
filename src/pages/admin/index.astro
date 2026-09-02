@@ -43,8 +43,22 @@ const stats = {
   openComplaintsCount: openComplaints || 4,
   needingRepairCount: needingRepair || 2,
 };
+
+const cookieUser = Astro.cookies.get('wargahub_user');
+let currentUser = undefined;
+if (cookieUser && cookieUser.value) {
+  try {
+    currentUser = JSON.parse(cookieUser.value);
+  } catch (e) {}
+}
+
+const pageTitle = currentUser?.role === 'TREASURER' ? 'Dashboard Bendahara - WargaHub'
+  : currentUser?.role === 'SECRETARY' ? 'Dashboard Sekretaris - WargaHub'
+  : currentUser?.role === 'SECURITY' ? 'Dashboard Satpam & Keamanan - WargaHub'
+  : currentUser?.role === 'MAINTENANCE' ? 'Dashboard Kebersihan & Fasum - WargaHub'
+  : 'Dashboard Ketua Komplek - WargaHub';
 ---
 
-<AdminLayout title="Dashboard Ketua Komplek - WargaHub" currentPath="/admin">
-  <AdminDashboardView stats={stats} client:load />
+<AdminLayout title={pageTitle} currentPath="/admin">
+  <AdminDashboardView stats={stats} currentUser={currentUser} client:load />
 </AdminLayout>

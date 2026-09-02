@@ -10,6 +10,14 @@ interface Props {
 }
 
 const { title = 'WargaHub - Tata Kelola Komplek', currentPath = Astro.url.pathname } = Astro.props;
+
+const cookieUser = Astro.cookies.get('wargahub_user');
+let currentUser = undefined;
+if (cookieUser && cookieUser.value) {
+  try {
+    currentUser = JSON.parse(cookieUser.value);
+  } catch (e) {}
+}
 ---
 
 <!doctype html>
@@ -33,10 +41,10 @@ const { title = 'WargaHub - Tata Kelola Komplek', currentPath = Astro.url.pathna
     </script>
   </head>
   <body class="bg-canvas text-ink font-sans min-h-screen flex antialiased selection:bg-primary-100 selection:text-primary-900 relative">
-    <AdminSidebar currentPath={currentPath} client:load />
+    <AdminSidebar currentPath={currentPath} currentUser={currentUser} client:load />
 
     <div class="flex-1 flex flex-col min-w-0">
-      <AdminHeader client:load />
+      <AdminHeader currentUser={currentUser} client:load />
       <main class="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto pb-20">
         <slot />
       </main>

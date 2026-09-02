@@ -75,9 +75,10 @@ interface AdminDashboardViewProps {
     openComplaintsCount: number;
     needingRepairCount: number;
   };
+  currentUser?: UserSession;
 }
 
-export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ stats }) => {
+export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ stats, currentUser }) => {
   const [selectedMonth, setSelectedMonth] = useState('Agustus 2026');
   const [activityFilter, setActivityFilter] = useState<'all' | 'finance' | 'complaint' | 'security' | 'facility'>('all');
 
@@ -92,12 +93,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ stats })
         }
       } catch (e) {}
     }
-    return DEMO_USERS.ketua;
+    return currentUser || DEMO_USERS.ketua;
   });
 
   // Dynamic dashboard role filter (defaults to active user role)
   const [activeRoleView, setActiveRoleView] = useState<UserRole>(() => {
-    return activeUser?.role || 'CHAIRMAN';
+    return activeUser?.role || currentUser?.role || 'CHAIRMAN';
   });
 
   // Dynamic dashboard title & subtitle from settings

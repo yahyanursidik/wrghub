@@ -25,12 +25,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     const user = result.user;
-    const isAdminRole = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY'].includes(user.role);
+    const isAdminRole = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY', 'MAINTENANCE', 'AUDITOR'].includes(user.role);
 
     // Determine redirect
     let redirectUrl = '/warga';
     if (portal === 'admin' || (isAdminRole && portal !== 'resident')) {
-      redirectUrl = user.role === 'TREASURER' ? '/admin/payments' : user.role === 'SECURITY' ? '/admin/complaints' : '/admin';
+      redirectUrl = user.role === 'TREASURER' ? '/admin/payments'
+        : user.role === 'SECURITY' ? '/admin/security-gate'
+        : user.role === 'MAINTENANCE' ? '/admin/cleaning-staff'
+        : user.role === 'SECRETARY' ? '/admin/announcements'
+        : '/admin';
     } else {
       redirectUrl = '/warga';
     }

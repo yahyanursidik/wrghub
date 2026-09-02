@@ -39,6 +39,7 @@ import { DEMO_USERS, type UserRole, type UserSession } from '../../types/auth';
 
 interface AdminSidebarProps {
   currentPath?: string;
+  currentUser?: UserSession;
 }
 
 interface NavItem {
@@ -55,7 +56,7 @@ interface NavGroup {
   items: NavItem[];
 }
 
-export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admin' }) => {
+export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admin', currentUser }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [systemTitle, setSystemTitle] = useState('WargaHub');
 
@@ -70,7 +71,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admi
         }
       } catch (e) {}
     }
-    return DEMO_USERS.ketua;
+    return currentUser || DEMO_USERS.ketua;
   });
 
   useEffect(() => {

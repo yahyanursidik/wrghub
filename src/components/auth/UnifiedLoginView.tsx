@@ -41,6 +41,10 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({ initialPorta
       }
 
       setSuccessMsg(data.data?.message || 'Berhasil masuk!');
+      if (typeof window !== 'undefined' && data.data?.user) {
+        localStorage.setItem('wargahub_user', JSON.stringify(data.data.user));
+        window.dispatchEvent(new CustomEvent('wargahub_user_changed', { detail: data.data.user }));
+      }
       setTimeout(() => {
         window.location.href = data.data?.redirectUrl || (activePortal === 'admin' ? '/admin' : '/warga');
       }, 500);
@@ -65,6 +69,10 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({ initialPorta
       });
       const data = await res.json();
       if (res.ok && data.data?.redirectUrl) {
+        if (typeof window !== 'undefined' && data.data?.user) {
+          localStorage.setItem('wargahub_user', JSON.stringify(data.data.user));
+          window.dispatchEvent(new CustomEvent('wargahub_user_changed', { detail: data.data.user }));
+        }
         window.location.href = data.data.redirectUrl;
       } else {
         setErrorMsg(data.error?.message || 'Gagal masuk.');
