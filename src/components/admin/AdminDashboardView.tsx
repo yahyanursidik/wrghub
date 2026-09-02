@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { DEMO_USERS, type UserRole, type UserSession } from '../../types/auth';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
+import { ErrorBoundary } from '../shared/ErrorBoundary';
 
 interface AdminDashboardViewProps {
   stats: {
@@ -78,7 +79,7 @@ interface AdminDashboardViewProps {
   currentUser?: UserSession;
 }
 
-export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ stats, currentUser }) => {
+const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, currentUser }) => {
   const [selectedMonth, setSelectedMonth] = useState('Agustus 2026');
   const [activityFilter, setActivityFilter] = useState<'all' | 'finance' | 'complaint' | 'security' | 'facility'>('all');
 
@@ -1334,5 +1335,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ stats, c
         </div>
       </div>
     </div>
+  );
+};
+
+export const AdminDashboardView: React.FC<AdminDashboardViewProps> = (props) => {
+  return (
+    <ErrorBoundary fallbackTitle="Kendala Memuat Dashboard Admin">
+      <AdminDashboardInner {...props} />
+    </ErrorBoundary>
   );
 };

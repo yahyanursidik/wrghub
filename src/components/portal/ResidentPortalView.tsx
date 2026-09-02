@@ -48,12 +48,13 @@ import { DEMO_USERS, type UserSession } from '../../types/auth';
 import { ReceiptModal } from '../shared/ReceiptModal';
 import { WargaAIChatWidget } from '../shared/WargaAIChatWidget';
 import { VotingSectionModal } from './VotingSectionModal';
+import { ErrorBoundary } from '../shared/ErrorBoundary';
 
 interface ResidentPortalViewProps {
   initialUser?: UserSession;
 }
 
-export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
+const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   initialUser = DEMO_USERS.warga,
 }) => {
   const [activeTab, setActiveTab] = useState<'beranda' | 'iuran' | 'info' | 'rumah' | 'akun'>('beranda');
@@ -230,8 +231,8 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
         body: JSON.stringify({
           facilityId: facId,
           facilityName: facName,
-          propertyId: currentUser.propertyId || 'prop-a-17',
-          residentName: currentUser.fullName,
+          propertyId: currentUser?.propertyId || 'prop-a-17',
+          residentName: currentUser?.fullName || currentUser?.name || 'Warga',
           date: facDate,
           startTime: facStart,
           endTime: facEnd,
@@ -258,7 +259,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
     { code: 'Mei', name: 'Mei', status: 'paid' },
     { code: 'Jun', name: 'Juni', status: 'paid' },
     { code: 'Jul', name: 'Juli', status: 'paid' },
-    { code: 'Agu', name: 'Agustus', status: currentUser.username === 'warga_b07' ? 'unpaid' : 'paid' },
+    { code: 'Agu', name: 'Agustus', status: currentUser?.username === 'warga_b07' ? 'unpaid' : 'paid' },
     { code: 'Sep', name: 'September', status: 'pending' },
     { code: 'Okt', name: 'Oktober', status: 'pending' },
     { code: 'Nov', name: 'November', status: 'pending' },
@@ -272,7 +273,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser.propertyId || 'prop-a-17',
+          propertyId: currentUser?.propertyId || 'prop-a-17',
           billingPeriodId: 'period-2026-08',
           amount: 750000,
           method: 'TRANSFER',
@@ -298,7 +299,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser.propertyId || 'prop-a-17',
+          propertyId: currentUser?.propertyId || 'prop-a-17',
           title: compTitle,
           description: compDesc,
           category: compCategory,
@@ -327,7 +328,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser.propertyId || 'prop-a-17',
+          propertyId: currentUser?.propertyId || 'prop-a-17',
           plateNumber: vehPlate,
           type: vehType,
           brand: vehBrand,
@@ -363,7 +364,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser.propertyId || 'prop-a-17',
+          propertyId: currentUser?.propertyId || 'prop-a-17',
           fullName: newOccName,
           relation: newOccRelation,
           idCardNumber: newOccIdCard,
@@ -402,7 +403,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyCode: currentUser.propertyCode || 'A-17',
+          propertyCode: currentUser?.propertyCode || 'A-17',
           workType: permitWorkType,
           contractorName: permitContractor,
           workersCount: Number(permitWorkers),
@@ -443,7 +444,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyCode: currentUser.propertyCode || 'A-17',
+          propertyCode: currentUser?.propertyCode || 'A-17',
           buildingType,
           landArea: Number(landArea),
           buildingArea: Number(buildingArea),
@@ -540,7 +541,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-extrabold text-primary-300 tracking-wider">Unit Hunian Saya</span>
-                    <p className="text-base font-black tracking-tight">Rumah {currentUser.propertyCode || 'A-17'}</p>
+                    <p className="text-base font-black tracking-tight">Rumah {currentUser?.propertyCode || 'A-17'}</p>
                     <span className="text-[10px] text-white/70">{buildingType} • {occupants.length} Jiwa</span>
                   </div>
                 </div>
@@ -576,8 +577,8 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   onClick={() => setSelectedReceipt({
                     invoiceNumber: 'INV-202608-A17',
                     periodName: 'Agustus 2026',
-                    propertyCode: currentUser.propertyCode || 'A-17',
-                    residentName: currentUser.fullName,
+                    propertyCode: currentUser?.propertyCode || 'A-17',
+                    residentName: currentUser?.fullName || currentUser?.name || 'Warga',
                     amount: monthlyFeeRate,
                     paidAt: '20 Agustus 2026, 10:21 WIB',
                     paymentMethod: 'Transfer Bank BCA',
@@ -780,8 +781,8 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   onClick={() => setSelectedReceipt({
                     invoiceNumber: 'INV-202608-A17',
                     periodName: 'Agustus 2026',
-                    propertyCode: currentUser.propertyCode || 'A-17',
-                    residentName: currentUser.fullName,
+                    propertyCode: currentUser?.propertyCode || 'A-17',
+                    residentName: currentUser?.fullName || currentUser?.name || 'Warga',
                     amount: monthlyFeeRate,
                     paidAt: '20 Agustus 2026, 10:21 WIB',
                     paymentMethod: 'Transfer Bank BCA',
@@ -1140,7 +1141,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                       Untuk sampah dalam volume besar (potongan pohon, sisa renovasi), hubungi Koordinator Kebersihan komplek.
                     </p>
                     <a
-                      href={`https://wa.me/6281277778888?text=Halo%20Koordinator%20Kebersihan,%20saya%20warga%20${currentUser.propertyCode}%20ingin%20request%20angkut%20sampah%20khusus`}
+                      href={`https://wa.me/6281277778888?text=Halo%20Koordinator%20Kebersihan,%20saya%20warga%20${currentUser?.propertyCode || 'A-17'}%20ingin%20request%20angkut%20sampah%20khusus`}
                       target="_blank"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xs text-xs mt-1"
                     >
@@ -1236,17 +1237,17 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                 <div className="relative z-10 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-md rounded-md text-[10px] font-bold tracking-wide uppercase">
-                      {currentUser.propertyCode?.toUpperCase().startsWith('KAV')
+                      {(currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('KAV')
                         ? 'Area Kavling'
-                        : currentUser.propertyCode?.toUpperCase().startsWith('SW')
+                        : (currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('SW')
                         ? 'Jl. Sariwangi Indah'
-                        : `Blok ${currentUser.propertyCode?.split('-')[0] || 'A'}`} • RT 02 / RW 05
+                        : `Blok ${(currentUser?.propertyCode || 'A-17').split('-')[0] || 'A'}`} • RT 02 / RW 05
                     </span>
                     <span className="text-[11px] text-primary-200 font-medium">Komplek Taman Sejahtera</span>
                   </div>
                   <div>
                     <span className="text-xs text-primary-200">Nomor Unit Hunian:</span>
-                    <h3 className="text-2xl font-black tracking-tight">Rumah {currentUser.propertyCode || 'A-17'}</h3>
+                    <h3 className="text-2xl font-black tracking-tight">Rumah {currentUser?.propertyCode || 'A-17'}</h3>
                   </div>
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/15 text-xs">
                     <div>
@@ -1386,8 +1387,8 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                     {occupants.map((occ) => (
                       <div key={occ.id} className="p-3.5 rounded-2xl bg-surface border border-border shadow-xs flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-primary-50 text-primary-700 font-bold text-xs flex items-center justify-center border border-primary-200">
-                            {occ.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          <div className="w-9 h-9 rounded-full bg-primary-50 text-primary-700 font-bold text-xs flex items-center justify-center border border-primary-200 uppercase">
+                            {getInitials(occ.fullName)}
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
@@ -1544,7 +1545,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                       <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-md border border-emerald-200">
                         STATUS: TERVERIFIKASI
                       </span>
-                      <h3 className="text-xl font-black text-ink mt-2">Rumah {currentUser.propertyCode || 'A-17'}</h3>
+                      <h3 className="text-xl font-black text-ink mt-2">Rumah {currentUser?.propertyCode || 'A-17'}</h3>
                       <p className="text-xs text-ink-muted">Komplek Taman Sejahtera • RT 02 / RW 05</p>
                       <p className="text-[11px] font-mono text-ink-muted mt-1">ID: PROP-A17-2026-BCA88</p>
                     </div>
@@ -1812,7 +1813,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={`Rumah ${currentUser.propertyCode || 'A-17'}`}
+                    value={`Rumah ${currentUser?.propertyCode || 'A-17'}`}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   />
                 </div>
@@ -2479,5 +2480,13 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
       {/* Floating Warga AI Assistant Widget */}
       <WargaAIChatWidget currentPropertyCode={currentUser?.propertyCode || 'A-17'} />
     </div>
+  );
+};
+
+export const ResidentPortalView: React.FC<ResidentPortalViewProps> = (props) => {
+  return (
+    <ErrorBoundary fallbackTitle="Kendala Memuat Portal Warga">
+      <ResidentPortalInner {...props} />
+    </ErrorBoundary>
   );
 };

@@ -52,6 +52,10 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
       }
 
       setSuccessMsg(data.data?.message || 'Berhasil masuk ke Portal Warga!');
+      if (typeof window !== 'undefined' && data.data?.user) {
+        localStorage.setItem('wargahub_user', JSON.stringify(data.data.user));
+        window.dispatchEvent(new CustomEvent('wargahub_user_changed', { detail: data.data.user }));
+      }
       setTimeout(() => {
         window.location.href = data.data?.redirectUrl || '/warga';
       }, 400);
@@ -75,6 +79,10 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
+        if (typeof window !== 'undefined' && data.data?.user) {
+          localStorage.setItem('wargahub_user', JSON.stringify(data.data.user));
+          window.dispatchEvent(new CustomEvent('wargahub_user_changed', { detail: data.data.user }));
+        }
         window.location.href = data.data?.redirectUrl || '/warga';
       } else {
         setErrorMsg(data.error?.message || 'Gagal masuk.');
