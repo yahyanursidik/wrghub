@@ -61,18 +61,31 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('Agu');
-  const [currentUser, setCurrentUser] = useState<UserSession>(initialUser);
+  const [currentUser, setCurrentUser] = useState<UserSession>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedUser = localStorage.getItem('wargahub_user');
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          if (parsed && typeof parsed === 'object') return parsed;
+        }
+      } catch (e) {}
+    }
+    return initialUser || DEMO_USERS.warga;
+  });
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [showVotingModal, setShowVotingModal] = useState(false);
 
-  const isAdminUser = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY'].includes(currentUser?.role || '');
+  const isAdminUser = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY', 'MAINTENANCE'].includes(currentUser?.role || '');
 
   const getInitials = (name?: string) => {
-    if (!name) return 'BS';
+    if (!name || typeof name !== 'string') return 'BS';
     const clean = name.replace(/^(Bpk\.|Ibu|Dr\.|Ir\.|H\.|Hj\.)\s*/gi, '').trim();
-    const parts = clean.split(/\s+/);
+    if (!clean) return 'BS';
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'BS';
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return (parts[0][0] + (parts[parts.length - 1][0] || '')).toUpperCase();
   };
 
   // Dynamic Settings from Master Settings
@@ -97,6 +110,11 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
 
   React.useEffect(() => {
     try {
+      const savedUser = localStorage.getItem('wargahub_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && typeof parsed === 'object') setCurrentUser(parsed);
+      }
       const savedResTitle = localStorage.getItem('wargahub_set_res_title');
       const savedResSub = localStorage.getItem('wargahub_set_res_subtitle');
       const savedComm = localStorage.getItem('wargahub_set_comm_name');
@@ -127,6 +145,12 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
       if (savedWasteInorg) setWasteInorgDays(JSON.parse(savedWasteInorg));
       if (savedWasteHours) setWasteHours(JSON.parse(savedWasteHours));
     } catch (e) {}
+
+    const handleUserChanged = (e: any) => {
+      if (e.detail) setCurrentUser(e.detail);
+    };
+    window.addEventListener('wargahub_user_changed', handleUserChanged);
+    return () => window.removeEventListener('wargahub_user_changed', handleUserChanged);
   }, []);
 
   // Property Specs State
@@ -479,7 +503,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
               onClick={() => setActiveTab('akun')}
               className="w-8 h-8 rounded-full overflow-hidden bg-primary-600 text-white font-extrabold text-xs flex items-center justify-center border border-primary-400 shrink-0 hover:ring-2 hover:ring-primary-500 transition-all ml-1 uppercase"
             >
-              {getInitials(currentUser.fullName)}
+              {getInitials(currentUser?.fullName || currentUser?.name)}
             </button>
           </div>
         </div>
@@ -498,7 +522,7 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                   <span>{communityName}</span>
                 </div>
                 <h2 className="text-2xl font-black tracking-tight text-ink">
-                  Halo, {currentUser.fullName} 👋
+                  Halo, {currentUser?.fullName || currentUser?.name || 'Warga'} 👋
                 </h2>
                 <p className="text-xs text-ink-muted mt-0.5">
                   {residentSubtitle}
@@ -1324,11 +1348,11 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
                     <h4 className="text-xs font-bold text-ink">Kepala Rumah Tangga</h4>
                     <div className="flex items-center justify-between p-3 rounded-xl bg-canvas border border-border/70">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-800 font-extrabold flex items-center justify-center text-sm">
-                          {currentUser.fullName.split(' ').map(n => n[0]).join('')}
+                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-800 font-extrabold flex items-center justify-center text-sm uppercase">
+                          {getInitials(currentUser?.fullName || currentUser?.name)}
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-ink">{currentUser.fullName}</p>
+                          <p className="text-xs font-bold text-ink">{currentUser?.fullName || currentUser?.name || 'Kepala Keluarga'}</p>
                           <p className="text-[10px] text-ink-muted font-mono">NIK: 3171091203850001 • HP: 0812-3456-7890</p>
                         </div>
                       </div>
@@ -1549,14 +1573,14 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
               {/* User Profile Card */}
               <div className="p-4 rounded-2xl bg-surface border border-border shadow-card flex items-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-white font-black text-lg flex items-center justify-center border-2 border-primary-200 uppercase tracking-wider shrink-0 shadow-sm">
-                  {getInitials(currentUser.fullName)}
+                  {getInitials(currentUser?.fullName || currentUser?.name)}
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-ink">{currentUser.fullName}</h3>
-                  <p className="text-xs text-ink-muted">{currentUser.email}</p>
+                  <h3 className="font-bold text-base text-ink">{currentUser?.fullName || currentUser?.name || 'Warga Komplek'}</h3>
+                  <p className="text-xs text-ink-muted">{currentUser?.email || 'warga@wargahub.id'}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="px-2 py-0.5 bg-primary-100 text-primary-800 text-[10px] font-bold rounded">
-                      Rumah {currentUser.propertyCode || 'A-17'}
+                      Rumah {currentUser?.propertyCode || 'A-17'}
                     </span>
                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
                       Kepala Keluarga
@@ -2448,12 +2472,12 @@ export const ResidentPortalView: React.FC<ResidentPortalViewProps> = ({
       <VotingSectionModal
         isOpen={showVotingModal}
         onClose={() => setShowVotingModal(false)}
-        propertyCode={currentUser.propertyCode || 'A-17'}
-        residentName={currentUser.fullName}
+        propertyCode={currentUser?.propertyCode || 'A-17'}
+        residentName={currentUser?.fullName || currentUser?.name || 'Warga'}
       />
 
       {/* Floating Warga AI Assistant Widget */}
-      <WargaAIChatWidget currentPropertyCode={currentUser.propertyCode || 'A-17'} />
+      <WargaAIChatWidget currentPropertyCode={currentUser?.propertyCode || 'A-17'} />
     </div>
   );
 };
