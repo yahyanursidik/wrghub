@@ -74,7 +74,8 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   initialTab = 'units'
 }) => {
   const resolveTab = (t: string): 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics' => {
-    if (t === 'occupants' || t === 'residents' || t === 'owners') return 'residents';
+    if (t === 'occupants' || t === 'residents') return 'residents';
+    if (t === 'owners') return 'units';
     if (t === 'vehicles' || t === 'rfid') return 'vehicles';
     if (t === 'permits' || t === 'renovation') return 'permits';
     if (t === 'analytics' || t === 'utilities' || t === 'occupancy') return 'analytics';
@@ -86,7 +87,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties || []);
   const [search, setSearch] = useState('');
   const [selectedBlock, setSelectedBlock] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState(initialTab === 'owners' ? 'OWNER_OCCUPIED' : 'ALL');
   const [sortBy, setSortBy] = useState<'code' | 'owner' | 'status' | 'residents'>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -173,6 +174,18 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
           if (Array.isArray(deletedIds) && deletedIds.length > 0) {
             setProperties(prev => prev.filter(p => !deletedIds.includes(p.id) && !deletedIds.includes(p.code)));
           }
+        }
+
+        if (properties.length === 0) {
+          fetch('/api/properties')
+            .then(r => r.json())
+            .then(data => {
+              if (Array.isArray(data) && data.length > 0) {
+                const deletedIds: string[] = deletedPropsStr ? JSON.parse(deletedPropsStr) : [];
+                setProperties(data.filter((p: any) => !deletedIds.includes(p.id) && !deletedIds.includes(p.code)));
+              }
+            })
+            .catch(() => {});
         }
 
         const savedResidents = localStorage.getItem('wargahub_residents');
@@ -1783,24 +1796,46 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black tracking-tight text-ink">
-              Data Rumah, Warga & Keamanan
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-50 text-primary-700 border border-primary-200">
-              {activeSubTab === 'analytics'
-                ? 'Okupansi & Utilitas'
-                : activeSubTab === 'permits'
-                ? `${permits.length} Izin Kerja`
+              {activeSubTab === 'units'
+                ? selectedStatus === 'OWNER_OCCUPIED'
+                  ? 'Data Kepemilikan Rumah & Sertifikat'
+                  : 'Pengelolaan Unit Rumah & Kavling'
+                : activeSubTab === 'residents'
+                ? 'Sensus & Data Penghuni Warga'
                 : activeSubTab === 'vehicles'
-                ? `${vehicles.length} Kendaraan RFID`
+                ? 'Data Kendaraan & Akses RFID'
+                : activeSubTab === 'permits'
+                ? 'Izin Renovasi & Pekerja Proyek'
+                : 'Okupansi & Utilitas Mandiri'}
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-primary-50 text-primary-800 border border-primary-200">
+              {activeSubTab === 'units'
+                ? selectedStatus === 'OWNER_OCCUPIED'
+                  ? `${properties.filter(p => p.occupancyStatus === 'OWNER_OCCUPIED').length} Pemilik Terdaftar`
+                  : `${properties.length} Unit Terdaftar`
                 : activeSubTab === 'residents'
                 ? `${residents.length} Jiwa Sensus`
-                : `${properties.length} Unit Terdaftar`}
+                : activeSubTab === 'vehicles'
+                ? `${vehicles.length} Kendaraan RFID`
+                : activeSubTab === 'permits'
+                ? `${permits.length} Izin Kerja`
+                : `${utilities.length} Meteran Terdata`}
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-ink-muted mt-1">
-            Manajemen direktori hunian, database sensus kependudukan, akses RFID barrier gate, izin renovasi, dan utilitas mandiri.
+          <p className="text-xs text-ink-muted mt-1 font-medium">
+            {activeSubTab === 'units'
+              ? selectedStatus === 'OWNER_OCCUPIED'
+                ? 'Daftar pemilik sah unit hunian komplek, data kepemilikan, dan riwayat sertifikat rumah.'
+                : 'Direktori hunian komplek, status okupansi pemilik/penyewa, luas kavling, dan spesifikasi teknis rumah.'
+              : activeSubTab === 'residents'
+              ? 'Database sensus kependudukan warga komplek, verifikasi NIK KTP, status domisili, dan kontak darurat.'
+              : activeSubTab === 'vehicles'
+              ? 'Pendaftaran kendaraan warga, nomor plat resmi, dan kendali izin barrier gate otomatis.'
+              : activeSubTab === 'permits'
+              ? 'Penerbitan surat izin kerja renovasi rumah, registrasi pekerja/mandor, dan masa berlaku izin.'
+              : 'Pencatatan angka meteran air PAM & listrik PLN, monitoring konsumsi bulanan, dan audit okupansi.'}
           </p>
         </div>
 
@@ -1819,7 +1854,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 ? handleExportResidentsCSV
                 : handleExportPropertiesCSV
             }
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Ekspor CSV</span>
@@ -1830,7 +1865,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
             <button
               type="button"
               onClick={handleOpenAddUtility}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
               Input Meteran Utilitas
@@ -1839,7 +1874,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
             <button
               type="button"
               onClick={handleOpenAddPermit}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
               Terbitkan Izin Baru
@@ -1848,7 +1883,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
             <button
               type="button"
               onClick={handleOpenAddVehicle}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
               Daftarkan Kendaraan & RFID
@@ -1857,7 +1892,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
             <button
               type="button"
               onClick={handleOpenAddResident}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
             >
               <UserPlus className="w-4 h-4" />
               Tambah Data Penghuni
@@ -1866,7 +1901,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
             <button
               type="button"
               onClick={handleOpenAdd}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
               Tambah Unit Rumah / Kavling
@@ -1875,39 +1910,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         </div>
       </div>
 
-      {/* 5-SubTab Tactile Navigation Bar */}
-      <div className="bg-surface rounded-2xl p-1.5 border border-border flex items-center gap-1.5 overflow-x-auto no-scrollbar shadow-2xs">
-        {[
-          { id: 'units', label: 'Direktori Rumah & Kavling', icon: Home, count: `${properties.length} Unit` },
-          { id: 'residents', label: 'Sensus Kependudukan', icon: Users, count: `${residents.length} Jiwa` },
-          { id: 'vehicles', label: 'Kendaraan & Barrier RFID', icon: Car, count: `${vehicles.length} Unit` },
-          { id: 'permits', label: 'Izin Renovasi & Pekerja', icon: Hammer, count: `${permits.length} Izin` },
-          { id: 'analytics', label: 'Okupansi & Utilitas', icon: Gauge, count: `${utilities.length} Meteran` },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-[0.98] ${
-                isActive
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-canvas'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-primary-400' : 'text-ink-muted'}`} />
-              <span>{tab.label}</span>
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
-                isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border/60'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
 
       {/* ================= SUBTAB 1: DIREKTORI RUMAH & KAVLING ================= */}
       {activeSubTab === 'units' && (

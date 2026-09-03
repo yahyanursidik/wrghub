@@ -33,7 +33,9 @@ import {
   Shield,
   Truck,
   UserCircle2,
-  Lock
+  Lock,
+  Hammer,
+  Gauge
 } from 'lucide-react';
 import { DEMO_USERS, type UserRole, type UserSession } from '../../types/auth';
 
@@ -191,6 +193,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admi
         { name: 'Penghuni', href: '/admin/properties?tab=occupants', icon: Users, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
         { name: 'Pemilik', href: '/admin/properties?tab=owners', icon: UserCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'RESIDENT_ADMIN'] },
         { name: 'Kendaraan', href: '/admin/properties?tab=vehicles', icon: Car, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'RESIDENT_ADMIN'] },
+        { name: 'Izin Renovasi', href: '/admin/properties?tab=permits', icon: Hammer, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'RESIDENT_ADMIN'] },
+        { name: 'Utilitas & Meteran', href: '/admin/properties?tab=analytics', icon: Gauge, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE', 'TREASURER', 'RESIDENT_ADMIN'] },
       ]
     },
     {
