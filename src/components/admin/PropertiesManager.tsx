@@ -1184,6 +1184,19 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     }
   };
 
+  const handleQuickTogglePermitStatus = async (permit: any) => {
+    try {
+      const nextStatus = permit.status === 'PENDING_REVIEW' ? 'APPROVED' : permit.status === 'APPROVED' ? 'COMPLETED' : 'APPROVED';
+      const updated = { ...permit, status: nextStatus };
+      const nextPermits = permits.map(item => item.id === permit.id ? updated : item);
+      setPermits(nextPermits);
+      savePersisted('wargahub_permits', nextPermits);
+      showToast(`Status izin ${permit.id} berhasil diubah ke: ${nextStatus === 'APPROVED' ? 'Disetujui' : nextStatus === 'COMPLETED' ? 'Selesai' : 'Pending'}.`);
+    } catch (e) {
+      showToast('Gagal mengubah status izin.');
+    }
+  };
+
   const handleConfirmDeletePermit = async () => {
     if (!permitToDelete) return;
     try {
@@ -2776,33 +2789,34 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       {activeSubTab === 'permits' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Total Izin Diajukan</span>
-              <p className="text-xl font-black text-ink mt-0.5">{permits.length} Permit</p>
-              <span className="text-[10px] text-emerald-600 font-bold">Tercatat di Sistem</span>
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Izin Diajukan</span>
+              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{permits.length} Permit</p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono">TERCATAT DI SISTEM</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Sedang Berjalan</span>
-              <p className="text-xl font-black text-emerald-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Sedang Berjalan</span>
+              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">
                 {permits.filter(p => p.status === 'APPROVED').length} Unit
               </p>
-              <span className="text-[10px] text-emerald-600 font-bold">Dalam Pengawasan</span>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono">DALAM PENGAWASAN</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Menunggu ACC</span>
-              <p className="text-xl font-black text-amber-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Menunggu ACC</span>
+              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">
                 {permits.filter(p => p.status === 'PENDING_REVIEW').length} Pengajuan
               </p>
-              <span className="text-[10px] text-amber-600 font-bold">Perlu Review</span>
+              <span className="text-[10px] text-amber-600 font-bold font-mono">PERLU REVIEW PENGURUS</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Total Tenaga Kerja</span>
-              <p className="text-xl font-black text-primary-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Tenaga Kerja</span>
+              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
                 {permits.filter(p => p.status === 'APPROVED').reduce((acc, p) => acc + (p.workersCount || 0), 0)} Orang
               </p>
-              <span className="text-[10px] text-primary-600 font-bold">Pekerja Aktif</span>
+              <span className="text-[10px] text-primary-600 font-bold font-mono">PEKERJA AKTIF DI KOMPLEK</span>
             </div>
           </div>
+
 
           {/* Bulk Action Bar (Permits) */}
           {selectedPermitIds.length > 0 && (
@@ -2952,38 +2966,73 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                           />
                         </td>
-                        <td className="py-3.5 px-4 font-mono font-black text-primary-700">{p.id}</td>
-                        <td className="py-3.5 px-4 font-bold">Unit {p.houseCode}</td>
-                        <td className="py-3.5 px-4 font-extrabold">{p.workType}</td>
                         <td className="py-3.5 px-4">
-                          <span className="font-bold text-ink block">{p.contractorName}</span>
-                          <span className="text-[10px] text-ink-muted">{p.workersCount} Tukang • {p.contractorPhone}</span>
+                          <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-950 text-amber-400 font-mono font-black text-xs tracking-wider border border-slate-700 shadow-2xs">
+                            {p.id}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-primary-700">Unit {p.houseCode}</td>
+                        <td className="py-3.5 px-4 font-extrabold text-ink">{p.workType}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="space-y-1">
+                            <span className="font-bold text-ink block">{p.contractorName}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-canvas border border-border text-ink-muted">
+                                {p.workersCount} Tukang
+                              </span>
+                              {p.contractorPhone && (
+                                <a
+                                  href={`https://wa.me/${p.contractorPhone.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200 active:scale-[0.95] transition-all"
+                                  title="Hubungi Mandor via WhatsApp"
+                                >
+                                  <MessageCircle className="w-3 h-3 text-emerald-600" />
+                                  <span>{p.contractorPhone}</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 font-medium text-ink-muted">
-                          <span className="font-bold text-ink block">{p.startDate} s/d {p.endDate}</span>
-                          <span className="text-[10px] text-ink-muted">{p.allowedHours}</span>
+                          <span className="font-mono font-bold text-ink block">{p.startDate} s/d {p.endDate}</span>
+                          <span className="text-[10px] text-ink-muted font-medium">{p.allowedHours}</span>
                         </td>
-                        <td className="py-3.5 px-4">{getPermitStatusBadge(p.status)}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-1 items-start">
+                            {getPermitStatusBadge(p.status)}
+                            {p.status === 'PENDING_REVIEW' && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickTogglePermitStatus(p)}
+                                className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-2xs active:scale-[0.95] transition-all"
+                              >
+                                ✓ Setujui ACC
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
                             <button
                               type="button"
                               onClick={() => setActivePermitView(p)}
-                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Eye className="w-3.5 h-3.5" /> Detail
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenEditPermit(p)}
-                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Edit3 className="w-3.5 h-3.5" /> Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => setPermitToDelete(p)}
-                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Hapus
                             </button>

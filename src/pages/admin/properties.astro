@@ -5,8 +5,19 @@ import { getProperties } from '../../services/property.service';
 
 const properties = await getProperties();
 const tab = Astro.url.searchParams.get('tab') || 'properties';
+
+const pageTitle = tab === 'occupants' ? 'Data Penghuni - WargaHub'
+  : tab === 'owners' ? 'Data Pemilik Rumah - WargaHub'
+  : tab === 'vehicles' ? 'Data Kendaraan & RFID - WargaHub'
+  : tab === 'permits' || tab === 'renovation' ? 'Izin Renovasi & Pekerja - WargaHub'
+  : tab === 'analytics' || tab === 'utilities' ? 'Okupansi & Utilitas - WargaHub'
+  : 'Data Master Rumah - WargaHub';
+
+const currentPath = tab !== 'properties' && tab !== 'units'
+  ? `/admin/properties?tab=${tab}`
+  : '/admin/properties';
 ---
 
-<AdminLayout title="Data Rumah & Warga - WargaHub" currentPath="/admin/properties">
+<AdminLayout title={pageTitle} currentPath={currentPath}>
   <PropertiesManager initialProperties={properties} initialTab={tab} client:load />
 </AdminLayout>
