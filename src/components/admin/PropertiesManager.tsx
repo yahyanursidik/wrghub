@@ -62,13 +62,14 @@ import {
   Check
 } from 'lucide-react';
 import type { PropertyListItem } from '../../services/property.service';
+import { ErrorBoundary } from '../shared/ErrorBoundary';
 
 interface PropertiesManagerProps {
   initialProperties: PropertyListItem[];
   initialTab?: string;
 }
 
-export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
+const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   initialProperties = [],
   initialTab = 'units'
 }) => {
@@ -1874,14 +1875,14 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       </div>
 
-      {/* 5-SubTab Navigation Bar */}
-      <div className="flex border-b border-border gap-1 sm:gap-2 overflow-x-auto">
+      {/* 5-SubTab Tactile Navigation Bar */}
+      <div className="bg-surface rounded-2xl p-1.5 border border-border flex items-center gap-1.5 overflow-x-auto no-scrollbar shadow-2xs">
         {[
-          { id: 'units', label: 'Direktori Rumah & Kavling', icon: Home, count: properties.length },
-          { id: 'residents', label: 'Sensus Kependudukan', icon: Users, count: residents.length },
-          { id: 'vehicles', label: 'Kendaraan & Barrier RFID', icon: Car, count: vehicles.length },
-          { id: 'permits', label: 'Izin Renovasi & Pekerja', icon: Hammer, count: permits.length },
-          { id: 'analytics', label: 'Okupansi & Utilitas', icon: Gauge, count: utilities.length },
+          { id: 'units', label: 'Direktori Rumah & Kavling', icon: Home, count: `${properties.length} Unit` },
+          { id: 'residents', label: 'Sensus Kependudukan', icon: Users, count: `${residents.length} Jiwa` },
+          { id: 'vehicles', label: 'Kendaraan & Barrier RFID', icon: Car, count: `${vehicles.length} Unit` },
+          { id: 'permits', label: 'Izin Renovasi & Pekerja', icon: Hammer, count: `${permits.length} Izin` },
+          { id: 'analytics', label: 'Okupansi & Utilitas', icon: Gauge, count: `${utilities.length} Meteran` },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -1890,16 +1891,16 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center gap-2 py-3 px-3.5 border-b-2 text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+              className={`flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-[0.98] ${
                 isActive
-                  ? 'border-primary-600 text-primary-700'
-                  : 'border-transparent text-ink-muted hover:text-ink hover:border-border'
+                  ? 'bg-slate-900 text-white shadow-2xs'
+                  : 'text-ink-muted hover:text-ink hover:bg-canvas'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-ink-muted'}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-primary-400' : 'text-ink-muted'}`} />
               <span>{tab.label}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                isActive ? 'bg-primary-100 text-primary-800' : 'bg-canvas text-ink-muted'
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border/60'
               }`}>
                 {tab.count}
               </span>
@@ -1911,35 +1912,36 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
       {/* ================= SUBTAB 1: DIREKTORI RUMAH & KAVLING ================= */}
       {activeSubTab === 'units' && (
         <div className="space-y-4 animate-in fade-in duration-150">
-          {/* Summary Cards */}
+          {/* Summary Cards with Monospaced Tabular Figures */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Total Unit Master</span>
-              <p className="text-xl font-black text-ink mt-0.5">{properties.length} Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold">100% Terdata</span>
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Unit Master</span>
+              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{properties.length} Unit</p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono">100% TERDATA LENGKAP</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Dihuni Pemilik</span>
-              <p className="text-xl font-black text-emerald-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Dihuni Pemilik</span>
+              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">
                 {properties.filter(p => p.occupancyStatus === 'OWNER_OCCUPIED').length} Unit
               </p>
-              <span className="text-[10px] text-ink-muted">Pemilik Tetap</span>
+              <span className="text-[10px] text-ink-muted">Pemilik Tetap Aktif</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Disewa / Kontrak</span>
-              <p className="text-xl font-black text-blue-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Disewa / Kontrak</span>
+              <p className="text-2xl font-black font-mono text-blue-700 mt-0.5 tabular-nums">
                 {properties.filter(p => p.occupancyStatus === 'RENTED').length} Unit
               </p>
-              <span className="text-[10px] text-ink-muted">Penyewa Aktif</span>
+              <span className="text-[10px] text-ink-muted">Penyewa Terverifikasi</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Kosong / Renovasi</span>
-              <p className="text-xl font-black text-amber-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Kosong / Renovasi</span>
+              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">
                 {properties.filter(p => p.occupancyStatus === 'VACANT' || p.occupancyStatus === 'RENOVATION').length} Unit
               </p>
-              <span className="text-[10px] text-amber-600 font-bold">Potensi Hunian</span>
+              <span className="text-[10px] text-amber-600 font-bold font-mono">STANDBY / RENOVASI</span>
             </div>
           </div>
+
 
           {/* Bulk Action Bar (Properties) */}
           {selectedPropertyIds.length > 0 && (
@@ -5503,5 +5505,13 @@ export const PropertiesManager: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
     </div>
+  );
+};
+
+export const PropertiesManager: React.FC<PropertiesManagerProps> = (props) => {
+  return (
+    <ErrorBoundary fallbackTitle="Kendala Memuat Data Rumah & Warga">
+      <PropertiesManagerInner {...props} />
+    </ErrorBoundary>
   );
 };
