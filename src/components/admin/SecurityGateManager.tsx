@@ -1150,6 +1150,15 @@ export const SecurityGateManager: React.FC = () => {
     showToast(`Tamu ${newVisitor.visitorName} berhasil dicatat.`);
   };
 
+  const handleMarkVisitorExited = (visitorId: string) => {
+    setVisitors(prev => prev.map(v => v.id === visitorId ? {
+      ...v,
+      status: 'EXITED',
+      exitTime: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB'
+    } : v));
+    showToast('Tamu berhasil ditandai keluar.');
+  };
+
   const handleTriggerGate = (gateNo: 1 | 2) => {
     if (gateNo === 1) {
       setGate1Open(true);

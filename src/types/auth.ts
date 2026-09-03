@@ -16,6 +16,7 @@ export interface UserSession {
   id: string;
   username: string;
   fullName: string;
+  name?: string;
   email: string;
   role: UserRole;
   avatarUrl: string;

@@ -449,7 +449,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
   };
 
   const handleTogglePollStatus = async (poll: PollItem) => {
-    const nextStatus = poll.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE';
+    const nextStatus: 'ACTIVE' | 'CLOSED' = poll.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE';
     try {
       await fetch('/api/voting/polls/update', {
         method: 'POST',

@@ -42,6 +42,9 @@ import {
   BadgeCheck,
   FileCheck,
   Trophy,
+  CreditCard,
+  Vote,
+  Wrench,
 } from 'lucide-react';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
 import { DEMO_USERS, type UserSession } from '../../types/auth';
