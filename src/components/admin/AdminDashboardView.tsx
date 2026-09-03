@@ -52,7 +52,13 @@ import {
   BookOpen,
   FileCheck,
   UserCircle2,
-  ArrowRight
+  ArrowRight,
+  X,
+  FileSpreadsheet,
+  UploadCloud,
+  Search,
+  MessageSquare,
+  SlidersHorizontal
 } from 'lucide-react';
 import { DEMO_USERS, type UserRole, type UserSession } from '../../types/auth';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
@@ -79,10 +85,36 @@ interface AdminDashboardViewProps {
   currentUser?: UserSession;
 }
 
-const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, currentUser }) => {
+interface PendingPayment {
+  id: string;
+  house: string;
+  name: string;
+  amount: number;
+  method: string;
+  time: string;
+  note: string;
+  proofUrl?: string;
+  refNumber: string;
+}
+
+interface VisitorItem {
+  id: string;
+  name: string;
+  unit: string;
+  plate: string;
+  category: string;
+  inTime: string;
+  status: 'Di Dalam' | 'Sudah Keluar';
+}
+
+const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initialStats, currentUser }) => {
+  // Live stats with optimistic mutability
+  const [stats, setStats] = useState(initialStats);
   const [selectedMonth, setSelectedMonth] = useState('Agustus 2026');
   const [activityFilter, setActivityFilter] = useState<'all' | 'finance' | 'complaint' | 'security' | 'facility'>('all');
+  const [activitySearch, setActivitySearch] = useState('');
   const [budgetSearch, setBudgetSearch] = useState('');
+  const [budgetCategoryFilter, setBudgetCategoryFilter] = useState('ALL');
 
   // Active user session state
   const [activeUser, setActiveUser] = useState<UserSession>(() => {
@@ -108,7 +140,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
   const [dashSubheading, setDashSubheading] = useState('Pusat Kendali Operasional, Keuangan Kas & Layanan Warga Komplek.');
   const [communityName, setCommunityName] = useState('Komplek Perumahan Taman Sejahtera');
 
-  // Security gate live state (for Security dashboard widget)
+  // Security gate live state
   const [gate1Open, setGate1Open] = useState(false);
   const [gate2Open, setGate2Open] = useState(false);
   const [sirenActive, setSirenActive] = useState(false);
@@ -119,11 +151,62 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // ================= MODAL STATES =================
+  const [showIssueInvoiceModal, setShowIssueInvoiceModal] = useState(false);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [showAddVisitorModal, setShowAddVisitorModal] = useState(false);
+  const [showPaymentReviewModal, setShowPaymentReviewModal] = useState(false);
+  const [selectedPendingPayment, setSelectedPendingPayment] = useState<PendingPayment | null>(null);
+  const [selectedBlockDrilldown, setSelectedBlockDrilldown] = useState<string | null>(null);
+
+  // Form: Terbitkan Invoice Tagihan IPL
+  const [invPeriod, setInvPeriod] = useState('September 2026');
+  const [invBlockTarget, setInvBlockTarget] = useState('ALL');
+  const [invRate, setInvRate] = useState(750000);
+  const [invDueDate, setInvDueDate] = useState('2026-09-10');
+  const [invSendWa, setInvSendWa] = useState(true);
+  const [invNotes, setInvNotes] = useState('Iuran Pengelolaan Lingkungan (Keamanan, Kebersihan TPS3R & Fasum)');
+
+  // Form: Siaran Pengumuman & WhatsApp Broadcast
+  const [bcTitle, setBcTitle] = useState('');
+  const [bcCategory, setBcCategory] = useState('AGENDA_WARGA');
+  const [bcTarget, setBcTarget] = useState('ALL');
+  const [bcContent, setBcContent] = useState('');
+  const [bcSendWa, setBcSendWa] = useState(true);
+
+  // Form: Catat Pengeluaran Kas Keluar
+  const [expTitle, setExpTitle] = useState('');
+  const [expCategory, setExpCategory] = useState('OPERASIONAL');
+  const [expAmount, setExpAmount] = useState<number>(500000);
+  const [expRecipient, setExpRecipient] = useState('');
+  const [expMethod, setExpMethod] = useState<'TRANSFER' | 'CASH'>('TRANSFER');
+  const [expNotes, setExpNotes] = useState('');
+
+  // Form: Registrasi Tamu Baru Pos Satpam
+  const [visName, setVisName] = useState('');
+  const [visPlate, setVisPlate] = useState('');
+  const [visCategory, setVisCategory] = useState('Keluarga / Tamu');
+  const [visHouse, setVisHouse] = useState('A-04');
+  const [visPurpose, setVisPurpose] = useState('Kunjungan keluarga silaturahmi');
+
+  // Reason for reject payment
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+
   // Treasurer quick verification state
-  const [pendingList, setPendingList] = useState([
-    { id: 'pay-01', house: 'B-12', name: 'Hendra Wijaya', amount: 750000, method: 'Transfer BCA', time: '10 mnt lalu', note: 'Iuran IPL Agt 2026' },
-    { id: 'pay-02', house: 'A-04', name: 'Ridwan Fauzi', amount: 750000, method: 'QRIS Mandiri', time: '25 mnt lalu', note: 'Iuran + Fasum' },
-    { id: 'pay-03', house: 'C-09', name: 'Dewi Lestari', amount: 1500000, method: 'Transfer BCA', time: '1 jam lalu', note: 'Iuran 2 Bulan (Agt-Sep)' },
+  const [pendingList, setPendingList] = useState<PendingPayment[]>([
+    { id: 'pay-01', house: 'B-12', name: 'Hendra Wijaya', amount: 750000, method: 'Transfer Bank BCA', time: '10 mnt lalu', note: 'Iuran IPL Agt 2026', refNumber: 'TRX-BCA-987112', proofUrl: '/proof-bca.jpg' },
+    { id: 'pay-02', house: 'A-04', name: 'Ridwan Fauzi', amount: 750000, method: 'QRIS Mandiri', time: '25 mnt lalu', note: 'Iuran IPL + Fasum', refNumber: 'QRIS-MND-445102', proofUrl: '/proof-qris.jpg' },
+    { id: 'pay-03', house: 'C-09', name: 'Dewi Lestari', amount: 1500000, method: 'Transfer Bank BCA', time: '1 jam lalu', note: 'Iuran 2 Bulan (Agt-Sep)', refNumber: 'TRX-BCA-661908', proofUrl: '/proof-bca2.jpg' },
+  ]);
+
+  // Live Visitors List
+  const [visitors, setVisitors] = useState<VisitorItem[]>([
+    { id: 'v-1', name: 'Ridwan Fauzi (Tamu Keluarga)', unit: 'A-04', plate: 'B 1234 SAK', category: 'Keluarga', inTime: '08:30 WIB', status: 'Di Dalam' },
+    { id: 'v-2', name: 'Kurir J&T Express (Antar Paket)', unit: 'B-07, B-12', plate: 'B 4567 TUV', category: 'Kurir Logistik', inTime: '09:15 WIB', status: 'Di Dalam' },
+    { id: 'v-3', name: 'GrabFood Delivery', unit: 'C-03', plate: 'B 8899 XYZ', category: 'Ojol Makanan', inTime: '09:40 WIB', status: 'Di Dalam' },
+    { id: 'v-4', name: 'Teknisi Servis AC Daikin', unit: 'A-17', plate: 'B 3344 KLM', category: 'Teknisi/Servis', inTime: '07:50 WIB', status: 'Sudah Keluar' },
   ]);
 
   useEffect(() => {
@@ -155,8 +238,10 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
   }, []);
 
   // Budget comparison table data
-  const budgetData = [
+  const [budgetRows, setBudgetRows] = useState([
     {
+      id: 'b-1',
+      category: 'PEMASUKAN',
       keterangan: 'Pemasukan (Iuran Lingkungan & IPL)',
       anggaran: 90000000,
       realisasi: 64500000,
@@ -166,7 +251,9 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
       status: 'On Track',
     },
     {
-      keterangan: 'Pengeluaran Gaji & Operasional Satpam/Kebersihan',
+      id: 'b-2',
+      category: 'OPERASIONAL',
+      keterangan: 'Gaji & Operasional Satpam/Kebersihan',
       anggaran: 45000000,
       realisasi: 28350000,
       selisih: 16650000,
@@ -175,6 +262,8 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
       status: 'Hemat 37%',
     },
     {
+      id: 'b-3',
+      category: 'PEMELIHARAAN',
       keterangan: 'Pemeliharaan Fasum, PJU & Pompa Air',
       anggaran: 20000000,
       realisasi: 12600000,
@@ -184,6 +273,8 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
       status: 'Terkendali',
     },
     {
+      id: 'b-4',
+      category: 'CADANGAN',
       keterangan: 'Kas Cadangan & Pembangunan Fasilitas',
       anggaran: 25000000,
       realisasi: 23550000,
@@ -192,32 +283,76 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
       pct: 94.2,
       status: 'Hampir Penuh',
     },
-    {
-      keterangan: 'TOTAL ANGGARAN & REALISASI KAS',
-      anggaran: 90000000,
-      realisasi: 64500000,
-      selisih: -25500000,
-      isPositive: false,
-      pct: 71.7,
-      isTotal: true,
-      status: 'Audit Sesuai',
-    },
-  ];
+  ]);
 
-  const filteredBudgetData = budgetData.filter(b => 
-    b.keterangan.toLowerCase().includes(budgetSearch.toLowerCase())
-  );
+  const filteredBudgetData = budgetRows.filter(b => {
+    const matchSearch = b.keterangan.toLowerCase().includes(budgetSearch.toLowerCase());
+    const matchCat = budgetCategoryFilter === 'ALL' || b.category === budgetCategoryFilter;
+    return matchSearch && matchCat;
+  });
 
   // Block compliance data
   const blockStats = [
-    { block: 'Blok A (Boulevard Utama)', total: 32, paid: 31, pct: 96.8, color: 'bg-emerald-500', note: '1 unit proses verifikasi' },
-    { block: 'Blok B (Taman Barat)', total: 30, paid: 28, pct: 93.3, color: 'bg-emerald-500', note: '2 unit jatuh tempo 25 Agt' },
-    { block: 'Blok C (Taman Timur)', total: 31, paid: 30, pct: 96.7, color: 'bg-emerald-500', note: '1 unit kosong' },
-    { block: 'Blok D (Taman Selatan)', total: 30, paid: 28, pct: 93.3, color: 'bg-emerald-500', note: '2 unit konfirmasi transfer' },
+    {
+      block: 'Blok A (Boulevard Utama)',
+      code: 'A',
+      total: 32,
+      paid: 31,
+      pct: 96.8,
+      color: 'bg-emerald-500',
+      note: '1 unit proses verifikasi',
+      houses: [
+        { no: 'A-01', name: 'Bpk. Hendrawan', status: 'Lunas', phone: '081234567801' },
+        { no: 'A-04', name: 'Bpk. Ridwan Fauzi', status: 'Verifikasi', phone: '081234567804' },
+        { no: 'A-17', name: 'Bpk. Budi Santoso', status: 'Lunas', phone: '081234567817' },
+        { no: 'A-22', name: 'Ibu Rina Saptari', status: 'Lunas', phone: '081234567822' },
+      ]
+    },
+    {
+      block: 'Blok B (Taman Barat)',
+      code: 'B',
+      total: 30,
+      paid: 28,
+      pct: 93.3,
+      color: 'bg-emerald-500',
+      note: '2 unit jatuh tempo 25 Agt',
+      houses: [
+        { no: 'B-03', name: 'Bpk. Antonius', status: 'Lunas', phone: '081234567903' },
+        { no: 'B-07', name: 'Ibu Siti Khadijah', status: 'Tertunggak', phone: '081234567907' },
+        { no: 'B-12', name: 'Bpk. Hendra Wijaya', status: 'Verifikasi', phone: '081234567912' },
+      ]
+    },
+    {
+      block: 'Blok C (Taman Timur)',
+      code: 'C',
+      total: 31,
+      paid: 30,
+      pct: 96.7,
+      color: 'bg-emerald-500',
+      note: '1 unit kosong',
+      houses: [
+        { no: 'C-01', name: 'Bpk. Gunawan', status: 'Lunas', phone: '081234568101' },
+        { no: 'C-09', name: 'Ibu Dewi Lestari', status: 'Verifikasi', phone: '081234568109' },
+        { no: 'C-15', name: 'Unit Kosong (Pemilik Luar Kota)', status: 'Kosong', phone: '-' },
+      ]
+    },
+    {
+      block: 'Blok D (Taman Selatan)',
+      code: 'D',
+      total: 30,
+      paid: 28,
+      pct: 93.3,
+      color: 'bg-emerald-500',
+      note: '2 unit konfirmasi transfer',
+      houses: [
+        { no: 'D-02', name: 'Bpk. Fajar Ramadhan', status: 'Lunas', phone: '081234568202' },
+        { no: 'D-08', name: 'Ibu Maya Melati', status: 'Tertunggak', phone: '081234568208' },
+      ]
+    },
   ];
 
   // Activities list
-  const allActivities = [
+  const [activities, setActivities] = useState([
     {
       id: 'act-1',
       type: 'finance',
@@ -262,18 +397,132 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
       time: 'Pukul 09:30 WIB',
       link: '/admin/cleaning-staff',
     },
-  ];
+  ]);
 
-  const filteredActivities = allActivities.filter((act) => {
-    if (activityFilter === 'all') return true;
-    return act.category === activityFilter;
+  const filteredActivities = activities.filter((act) => {
+    const matchCat = activityFilter === 'all' || act.category === activityFilter;
+    const matchSearch = act.title.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                        act.detail.toLowerCase().includes(activitySearch.toLowerCase());
+    return matchCat && matchSearch;
   });
 
-  // Handle treasurer approval
+  // ================= ACTION HANDLERS =================
+  // 1. Submit Terbitkan Invoice
+  const handleIssueInvoiceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const count = invBlockTarget === 'ALL' ? stats.totalProperties : 30;
+    showToast(`✓ Berhasil menerbitkan ${count} invoice tagihan IPL untuk periode ${invPeriod}!`);
+    setShowIssueInvoiceModal(false);
+  };
+
+  // 2. Submit Broadcast Pengumuman
+  const handleBroadcastSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bcTitle || !bcContent) return;
+    const newAct = {
+      id: `act-${Date.now()}`,
+      type: 'broadcast',
+      icon: Megaphone,
+      iconBg: 'bg-purple-50 text-purple-700 border border-purple-200',
+      category: 'facility',
+      title: `Siaran Edaran: ${bcTitle}`,
+      detail: bcContent.slice(0, 75) + '...',
+      time: 'Baru saja',
+      link: '/admin/announcements',
+    };
+    setActivities([newAct, ...activities]);
+    showToast(`✓ Pengumuman "${bcTitle}" berhasil disiarkan ke ${bcTarget === 'ALL' ? '342 Jiwa Warga' : 'Blok Terpilih'}!`);
+    setShowBroadcastModal(false);
+    setBcTitle('');
+    setBcContent('');
+  };
+
+  // 3. Submit Kas Keluar
+  const handleAddExpenseSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expTitle || !expAmount) return;
+    setStats(prev => ({
+      ...prev,
+      cashBalance: prev.cashBalance - Number(expAmount),
+    }));
+    // Update budget rows
+    setBudgetRows(prev => prev.map(r => {
+      if (r.category === expCategory) {
+        const newReal = r.realisasi + Number(expAmount);
+        return {
+          ...r,
+          realisasi: newReal,
+          selisih: r.anggaran - newReal,
+          pct: Number(((newReal / r.anggaran) * 100).toFixed(1))
+        };
+      }
+      return r;
+    }));
+    showToast(`✓ Pengeluaran kas senilai ${formatRupiah(expAmount)} berhasil dicatat!`);
+    setShowAddExpenseModal(false);
+    setExpTitle('');
+    setExpAmount(500000);
+    setExpRecipient('');
+    setExpNotes('');
+  };
+
+  // 4. Submit Registrasi Tamu Baru
+  const handleAddVisitorSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!visName || !visPlate) return;
+    const newVis: VisitorItem = {
+      id: `vis-${Date.now()}`,
+      name: visName,
+      unit: visHouse,
+      plate: visPlate.toUpperCase(),
+      category: visCategory,
+      inTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+      status: 'Di Dalam',
+    };
+    setVisitors([newVis, ...visitors]);
+    showToast(`✓ Tamu ${visName} (Tujuan Rumah ${visHouse}) berhasil dicatat di buku tamu pos.`);
+    setShowAddVisitorModal(false);
+    setVisName('');
+    setVisPlate('');
+  };
+
+  // 5. Tandai Tamu Keluar
+  const handleMarkVisitorExited = (id: string) => {
+    setVisitors(prev => prev.map(v => v.id === id ? { ...v, status: 'Sudah Keluar' } : v));
+    showToast('✓ Tamu berhasil ditandai keluar dari komplek.');
+  };
+
+  // 6. Handle Approve / Reject Payment
   const handleApprovePayment = (id: string) => {
     const item = pendingList.find(p => p.id === id);
-    setPendingList(prev => prev.filter(p => p.id !== id));
-    showToast(`✓ Pembayaran ${item?.house} (${item?.name}) senilai ${formatRupiah(item?.amount || 0)} berhasil disetujui.`);
+    if (item) {
+      setPendingList(prev => prev.filter(p => p.id !== id));
+      setStats(prev => ({
+        ...prev,
+        paidCount: prev.paidCount + 1,
+        unpaidCount: Math.max(0, prev.unpaidCount - 1),
+        paidAmount: prev.paidAmount + item.amount,
+        unpaidAmount: Math.max(0, prev.unpaidAmount - item.amount),
+        cashBalance: prev.cashBalance + item.amount,
+        pendingPaymentsCount: Math.max(0, prev.pendingPaymentsCount - 1),
+      }));
+      showToast(`✓ Pembayaran ${item.house} (${item.name}) senilai ${formatRupiah(item.amount)} disetujui & kuitansi terbit.`);
+      setShowPaymentReviewModal(false);
+    }
+  };
+
+  const handleRejectPayment = () => {
+    if (!selectedPendingPayment) return;
+    const item = selectedPendingPayment;
+    setPendingList(prev => prev.filter(p => p.id !== item.id));
+    setStats(prev => ({
+      ...prev,
+      pendingPaymentsCount: Math.max(0, prev.pendingPaymentsCount - 1),
+    }));
+    showToast(`Pembayaran ${item.house} ditolak: "${rejectReason || 'Bukti transfer tidak valid'}".`);
+    setShowPaymentReviewModal(false);
+    setShowRejectInput(false);
+    setRejectReason('');
   };
 
   // Switch gate relay
@@ -289,12 +538,29 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
     }
   };
 
+  // Export APB data to CSV
+  const handleExportBudgetCSV = () => {
+    const header = "Pos Anggaran,Target Pagu (Rp),Realisasi Riil (Rp),Selisih (Rp),Persentase (%),Status\n";
+    const body = filteredBudgetData.map(r => 
+      `"${r.keterangan}",${r.anggaran},${r.realisasi},${r.selisih},${r.pct}%,"${r.status}"`
+    ).join("\n");
+    const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Rekap_APB_${selectedMonth.replace(' ', '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('✓ Laporan APB berhasil di-export ke CSV!');
+  };
+
   return (
     <div className="space-y-6 pb-12 text-xs">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-950 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-950 text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           <span className="font-bold text-xs">{toastMessage}</span>
         </div>
       )}
@@ -305,7 +571,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-black border border-emerald-200 flex items-center gap-1.5 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              SISTEM ONLINE
+              SISTEM AKTIF ONLINE
             </span>
             <span className="text-[11px] text-ink-muted font-medium font-mono">
               RT 02 / RW 05 • {communityName}
@@ -333,9 +599,9 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
         <div className="flex items-center gap-1 p-1 bg-canvas border border-border/80 rounded-2xl overflow-x-auto no-scrollbar text-[11px]">
           {[
             { role: 'CHAIRMAN' as UserRole, label: 'Ketua', count: null },
-            { role: 'TREASURER' as UserRole, label: 'Bendahara', count: pendingList.length > 0 ? pendingList.length : null },
+            { role: 'TREASURER' as UserRole, label: 'Bendahara', count: pendingList.length > 0 ? `${pendingList.length}` : null },
             { role: 'SECRETARY' as UserRole, label: 'Sekretaris', count: null },
-            { role: 'SECURITY' as UserRole, label: 'Satpam', count: '6 Tamu' },
+            { role: 'SECURITY' as UserRole, label: 'Satpam', count: `${visitors.filter(v => v.status === 'Di Dalam').length} Tamu` },
             { role: 'MAINTENANCE' as UserRole, label: 'Kebersihan', count: null },
             { role: 'HOUSEHOLD_HEAD' as UserRole, label: 'Warga', count: null },
           ].map((tab) => {
@@ -370,13 +636,13 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
       {/* ========================================================================= */}
       {(activeRoleView === 'CHAIRMAN' || activeRoleView === 'SUPER_ADMIN' || activeRoleView === 'RESIDENT_ADMIN') && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Executive Header Banner (Dark Architectural Aesthetic) */}
+          {/* Executive Header Banner */}
           <div className="bg-slate-950 text-white border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-card relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="absolute -right-20 -top-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
             <div className="relative z-10 space-y-2 max-w-2xl">
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-md bg-white/10 text-emerald-300 font-mono text-[10px] font-bold tracking-wider uppercase border border-white/10">
-                  EXECUTIVE DASHBOARD
+                  EXECUTIVE SUMMARY
                 </span>
                 <span className="text-[11px] text-slate-400 font-mono">
                   TAHUN ANGGARAN 2026
@@ -390,21 +656,32 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
               </p>
             </div>
 
+            {/* Quick Action Trigger Buttons */}
             <div className="relative z-10 flex flex-wrap items-center gap-2.5">
-              <a
-                href="/admin/billing"
+              <button
+                type="button"
+                onClick={() => setShowIssueInvoiceModal(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition-all"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>Terbitkan Tagihan IPL</span>
-              </a>
-              <a
-                href="/admin/announcements"
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBroadcastModal(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 border border-slate-700 rounded-xl font-bold transition-all"
               >
                 <Megaphone className="w-4 h-4 text-primary-400" />
                 <span>Siaran Edaran Warga</span>
-              </a>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddExpenseModal(true)}
+                className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-slate-300 border border-slate-700 rounded-xl font-bold transition-all"
+              >
+                <DollarSign className="w-4 h-4 text-rose-400" />
+                <span>Catat Beban Kas</span>
+              </button>
             </div>
           </div>
 
@@ -508,11 +785,15 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
               </div>
 
               <div className="pt-4 border-t border-border flex items-center justify-between">
-                <a href="/admin/billing" className="font-bold text-primary-700 hover:text-primary-800 flex items-center gap-1">
-                  <span>Kelola Penagihan IPL</span>
+                <button
+                  type="button"
+                  onClick={() => setShowIssueInvoiceModal(true)}
+                  className="font-bold text-primary-700 hover:text-primary-800 flex items-center gap-1 active:scale-[0.98]"
+                >
+                  <span>+ Terbitkan Tagihan Baru</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </a>
-                <span className="text-[10px] text-ink-muted">Bulan Berjalan</span>
+                </button>
+                <span className="text-[10px] text-ink-muted">{selectedMonth}</span>
               </div>
             </div>
 
@@ -565,7 +846,15 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
           {/* OPERATIONAL STATUS TILES (Tactile 4-Column Strip) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Tile 1: Antrean Verifikasi */}
-            <a href="/admin/payments" className="p-4 bg-surface rounded-2xl border border-border hover:border-amber-400 hover:shadow-xs transition-all flex items-center justify-between group">
+            <div
+              onClick={() => {
+                if (pendingList.length > 0) {
+                  setSelectedPendingPayment(pendingList[0]);
+                  setShowPaymentReviewModal(true);
+                }
+              }}
+              className="p-4 bg-surface rounded-2xl border border-border hover:border-amber-400 hover:shadow-xs transition-all flex items-center justify-between cursor-pointer group active:scale-[0.98]"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
                   <Hourglass className="w-5 h-5" />
@@ -576,10 +865,10 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                 </div>
               </div>
               <span className="text-xs font-bold text-amber-700 group-hover:translate-x-0.5 transition-transform">Review →</span>
-            </a>
+            </div>
 
             {/* Tile 2: Tiket Aduan Warga */}
-            <a href="/admin/complaints" className="p-4 bg-surface rounded-2xl border border-border hover:border-rose-400 hover:shadow-xs transition-all flex items-center justify-between group">
+            <a href="/admin/complaints" className="p-4 bg-surface rounded-2xl border border-border hover:border-rose-400 hover:shadow-xs transition-all flex items-center justify-between group active:scale-[0.98]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-bold">
                   <Headphones className="w-5 h-5" />
@@ -593,7 +882,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
             </a>
 
             {/* Tile 3: Keamanan Pos Gerbang */}
-            <a href="/admin/security-gate" className="p-4 bg-surface rounded-2xl border border-border hover:border-purple-400 hover:shadow-xs transition-all flex items-center justify-between group">
+            <a href="/admin/security-gate" className="p-4 bg-surface rounded-2xl border border-border hover:border-purple-400 hover:shadow-xs transition-all flex items-center justify-between group active:scale-[0.98]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold">
                   <ShieldCheck className="w-5 h-5" />
@@ -607,7 +896,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
             </a>
 
             {/* Tile 4: Armada Kebersihan */}
-            <a href="/admin/cleaning-staff" className="p-4 bg-surface rounded-2xl border border-border hover:border-teal-400 hover:shadow-xs transition-all flex items-center justify-between group">
+            <a href="/admin/cleaning-staff" className="p-4 bg-surface rounded-2xl border border-border hover:border-teal-400 hover:shadow-xs transition-all flex items-center justify-between group active:scale-[0.98]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center font-bold">
                   <Truck className="w-5 h-5" />
@@ -631,17 +920,47 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                   <p className="text-ink-muted text-[11px]">Rencana pagu vs pengeluaran riil per {selectedMonth}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportBudgetCSV}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas hover:bg-surface border border-border rounded-xl text-[11px] font-bold text-ink active:scale-[0.98] transition-all shadow-2xs"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Export CSV</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddExpenseModal(true)}
+                    className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl font-bold text-[11px] active:scale-[0.98] transition-all"
+                  >
+                    + Beban Kas
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter controls */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-ink-muted absolute left-3 top-2.5" />
                   <input
                     type="text"
-                    placeholder="Cari pos anggaran..."
+                    placeholder="Cari pos anggaran APB..."
                     value={budgetSearch}
                     onChange={(e) => setBudgetSearch(e.target.value)}
-                    className="px-2.5 py-1.5 bg-canvas border border-border rounded-xl text-[11px] font-medium text-ink w-36 sm:w-44 focus:outline-none focus:border-primary-500"
+                    className="w-full pl-8 pr-3 py-1.5 bg-canvas border border-border rounded-xl text-[11px] font-medium text-ink focus:outline-none focus:border-primary-500"
                   />
-                  <a href="/admin/budget" className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl font-bold text-[11px] active:scale-[0.98] transition-all">
-                    Detail APB
-                  </a>
                 </div>
+                <select
+                  value={budgetCategoryFilter}
+                  onChange={(e) => setBudgetCategoryFilter(e.target.value)}
+                  className="px-2.5 py-1.5 bg-canvas border border-border rounded-xl text-[11px] font-bold text-ink focus:outline-none"
+                >
+                  <option value="ALL">Semua Kategori</option>
+                  <option value="PEMASUKAN">Pemasukan</option>
+                  <option value="OPERASIONAL">Operasional</option>
+                  <option value="PEMELIHARAAN">Pemeliharaan</option>
+                  <option value="CADANGAN">Kas Cadangan</option>
+                </select>
               </div>
 
               <div className="overflow-x-auto">
@@ -656,10 +975,10 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {filteredBudgetData.map((row) => (
-                      <tr key={row.keterangan} className={row.isTotal ? 'bg-canvas font-black' : 'text-ink'}>
+                      <tr key={row.id} className="text-ink hover:bg-canvas/50 transition-colors">
                         <td className="py-3 pr-2">
                           <p className="font-bold text-xs">{row.keterangan}</p>
-                          <div className="w-32 bg-canvas h-1.5 rounded-full overflow-hidden border border-border/50 mt-1">
+                          <div className="w-36 bg-canvas h-1.5 rounded-full overflow-hidden border border-border/50 mt-1">
                             <div className={`h-full rounded-full ${row.pct > 80 ? 'bg-primary-600' : 'bg-emerald-500'}`} style={{ width: `${Math.min(row.pct, 100)}%` }} />
                           </div>
                         </td>
@@ -684,7 +1003,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div>
                   <h3 className="text-sm font-black text-ink">Kepatuhan Iuran per Blok</h3>
-                  <p className="text-ink-muted text-[11px]">Rekap pembayaran warga tingkat RT</p>
+                  <p className="text-ink-muted text-[11px]">Klik blok untuk melihat rincian unit rumah</p>
                 </div>
                 <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                   {stats.paidPercentage}% LUNAS
@@ -693,7 +1012,11 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
 
               <div className="space-y-3">
                 {blockStats.map((b) => (
-                  <div key={b.block} className="p-3.5 bg-canvas rounded-2xl border border-border/70 space-y-2">
+                  <div
+                    key={b.block}
+                    onClick={() => setSelectedBlockDrilldown(b.code)}
+                    className="p-3.5 bg-canvas hover:bg-surface rounded-2xl border border-border/70 hover:border-primary-400 hover:shadow-xs cursor-pointer transition-all space-y-2 active:scale-[0.99]"
+                  >
                     <div className="flex items-center justify-between text-xs">
                       <div>
                         <span className="font-black text-ink block">{b.block}</span>
@@ -711,18 +1034,81 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
               </div>
 
               <div className="p-3 rounded-xl bg-primary-50/60 border border-primary-100 flex items-center justify-between text-xs">
-                <span className="text-primary-900 font-bold">Kirim pengingat WhatsApp tagihan:</span>
-                <a href="/admin/announcements" className="px-2.5 py-1 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white rounded-lg font-bold text-[11px] transition-colors">
+                <span className="text-primary-900 font-bold">Kirim pesan siaran tagihan:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowBroadcastModal(true)}
+                  className="px-3 py-1 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white rounded-lg font-bold text-[11px] transition-colors"
+                >
                   Kirim Pesan
-                </a>
+                </button>
               </div>
+            </div>
+          </div>
+
+          {/* ACTIVITY STREAM & SYSTEM AUDIT LOG TABLE */}
+          <div className="bg-surface rounded-3xl p-6 border border-border shadow-card space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary-600" />
+                <div>
+                  <h3 className="text-sm font-black text-ink">Log Aktivitas & Jejak Operasional Real-Time</h3>
+                  <p className="text-ink-muted text-[11px]">Rekaman transaksi, gerbang satpam, dan laporan lingkungan</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Cari aktivitas..."
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                  className="px-2.5 py-1.5 bg-canvas border border-border rounded-xl text-[11px] font-medium text-ink w-36 sm:w-44 focus:outline-none"
+                />
+                <select
+                  value={activityFilter}
+                  onChange={(e: any) => setActivityFilter(e.target.value)}
+                  className="px-2.5 py-1.5 bg-canvas border border-border rounded-xl text-[11px] font-bold text-ink focus:outline-none"
+                >
+                  <option value="all">Semua Kategori</option>
+                  <option value="finance">Keuangan</option>
+                  <option value="security">Keamanan</option>
+                  <option value="complaint">Aduan Warga</option>
+                  <option value="facility">Fasilitas</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="divide-y divide-border/60">
+              {filteredActivities.map((act) => {
+                const Icon = act.icon;
+                return (
+                  <div key={act.id} className="py-3 flex items-center justify-between gap-3 hover:bg-canvas/40 px-2 rounded-xl transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-2xl ${act.iconBg} flex items-center justify-center font-bold shrink-0`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-ink text-xs">{act.title}</p>
+                        <p className="text-[11px] text-ink-muted">{act.detail}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[11px] text-ink-muted font-mono block">{act.time}</span>
+                      <a href={act.link} className="text-[10px] font-bold text-primary-700 hover:underline">
+                        Periksa →
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* 2. DASHBOARD BENDAHARA KEAUANGAN (CASHFLOW & VERIFICATION)               */}
+      {/* 2. DASHBOARD BENDAHARA KEAUANGAN                                         */}
       {/* ========================================================================= */}
       {activeRoleView === 'TREASURER' && (
         <div className="space-y-6 animate-in fade-in duration-200">
@@ -731,7 +1117,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
             <div className="relative z-10 space-y-2 max-w-2xl">
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-md bg-white/10 text-blue-300 font-mono text-[10px] font-bold tracking-wider uppercase border border-white/10">
-                  TREASURY LEDGER
+                  TREASURY & AUDIT
                 </span>
                 <span className="text-[11px] text-slate-400 font-mono">
                   BENDAHARA KEUANGAN
@@ -746,258 +1132,105 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
             </div>
 
             <div className="relative z-10 flex flex-wrap items-center gap-2.5">
-              <a
-                href="/admin/payments"
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingList.length > 0) {
+                    setSelectedPendingPayment(pendingList[0]);
+                    setShowPaymentReviewModal(true);
+                  } else {
+                    showToast('Tidak ada antrean verifikasi saat ini.');
+                  }
+                }}
                 className="flex items-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-300 active:scale-[0.98] text-slate-950 rounded-xl font-bold shadow-xs transition-all"
               >
                 <Hourglass className="w-4 h-4" />
                 <span>Antrean Verifikasi ({pendingList.length})</span>
-              </a>
-              <a
-                href="/admin/expenses"
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddExpenseModal(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 border border-slate-700 rounded-xl font-bold transition-all"
               >
                 <DollarSign className="w-4 h-4 text-emerald-400" />
                 <span>Catat Kas Keluar</span>
-              </a>
-            </div>
-          </div>
-
-          {/* 4 Financial KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Perlu Verifikasi</span>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
-                  <CreditCard className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-amber-700 tabular-nums">{pendingList.length} Transaksi</p>
-                <p className="text-[11px] text-ink-muted mt-0.5">Bukti transfer masuk menunggu review</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Iuran Masuk Bulan Ini</span>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-emerald-700 tabular-nums">{formatRupiah(stats.paidAmount)}</p>
-                <p className="text-[11px] text-emerald-600 font-bold mt-0.5">86 dari 120 unit lunas ({stats.paidPercentage}%)</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Tunggakan Tertunda</span>
-                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-bold">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-rose-700 tabular-nums">{formatRupiah(stats.unpaidAmount)}</p>
-                <p className="text-[11px] text-rose-600 font-bold mt-0.5">{stats.unpaidCount} unit belum menyelesaikan tagihan</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Saldo Kas Bank BCA</span>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold">
-                  <Wallet className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-ink tabular-nums">{formatRupiah(stats.cashBalance)}</p>
-                <p className="text-[11px] text-emerald-700 font-bold mt-0.5">Rekonsiliasi digital aktif</p>
-              </div>
+              </button>
             </div>
           </div>
 
           {/* Quick Payment Verification Table */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8 bg-surface rounded-3xl p-6 border border-border shadow-card space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <div className="flex items-center gap-2">
-                  <Hourglass className="w-4 h-4 text-amber-600" />
-                  <h3 className="text-sm font-black text-ink">Antrean Verifikasi Bukti Bayar Warga</h3>
-                </div>
-                <a href="/admin/payments" className="text-xs font-bold text-primary-700 hover:underline">
-                  Buka Menu Verifikasi →
-                </a>
+          <div className="bg-surface rounded-3xl p-6 border border-border shadow-card space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Hourglass className="w-4 h-4 text-amber-600" />
+                <h3 className="text-sm font-black text-ink">Antrean Verifikasi Bukti Bayar Warga ({pendingList.length})</h3>
               </div>
+              <span className="text-xs text-ink-muted">Klik baris transaksi untuk pratinjau bukti transfer</span>
+            </div>
 
-              {pendingList.length === 0 ? (
-                <div className="p-8 text-center text-ink-muted space-y-2">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-                  <p className="text-sm font-bold text-ink">Semua pembayaran telah diverifikasi!</p>
-                  <p className="text-xs">Tidak ada antrean tertunda saat ini.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border/60">
-                  {pendingList.map((item) => (
-                    <div key={item.id} className="py-3 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 flex items-center justify-center font-black font-mono text-xs shrink-0">
-                          {item.house}
-                        </div>
-                        <div>
-                          <p className="font-bold text-ink text-xs">{item.name}</p>
-                          <p className="text-[11px] text-ink-muted">{item.note} • {item.method}</p>
-                        </div>
+            {pendingList.length === 0 ? (
+              <div className="p-10 text-center text-ink-muted space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                <p className="text-sm font-bold text-ink">Semua pembayaran warga telah selesai diverifikasi!</p>
+                <p className="text-xs">Kas telah disesuaikan dan kuitansi digital telah diterbitkan.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {pendingList.map((item) => (
+                  <div key={item.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-canvas/50 p-2 rounded-2xl transition-colors">
+                    <div
+                      onClick={() => {
+                        setSelectedPendingPayment(item);
+                        setShowPaymentReviewModal(true);
+                      }}
+                      className="flex items-center gap-3 cursor-pointer flex-1"
+                    >
+                      <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 flex items-center justify-center font-black font-mono text-xs shrink-0">
+                        {item.house}
                       </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-ink text-xs">{item.name}</p>
+                          <span className="px-1.5 py-0.2 bg-amber-100 text-amber-900 font-mono text-[9px] font-bold rounded">
+                            {item.refNumber}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-ink-muted">{item.note} • {item.method} ({item.time})</p>
+                      </div>
+                    </div>
 
-                      <div className="flex items-center gap-3">
-                        <span className="font-black font-mono text-ink text-xs tabular-nums">{formatRupiah(item.amount)}</span>
+                    <div className="flex items-center gap-3 justify-between sm:justify-end">
+                      <span className="font-black font-mono text-ink text-sm tabular-nums">{formatRupiah(item.amount)}</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPendingPayment(item);
+                            setShowPaymentReviewModal(true);
+                          }}
+                          className="px-3 py-1.5 bg-canvas hover:bg-surface border border-border text-ink rounded-xl text-[11px] font-bold active:scale-[0.98] transition-all"
+                        >
+                          Lihat Bukti
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleApprovePayment(item.id)}
-                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl text-[11px] font-bold shadow-2xs transition-all"
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold active:scale-[0.98] shadow-2xs transition-all"
                         >
                           Setujui
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Quick Actions Bendahara */}
-            <div className="lg:col-span-4 bg-surface rounded-3xl p-6 border border-border shadow-card space-y-4">
-              <h3 className="text-sm font-black text-ink border-b border-border pb-3">Aksi Cepat Finansial</h3>
-              <div className="space-y-2">
-                <a href="/admin/billing" className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border flex items-center gap-3 font-bold text-ink hover:text-primary-700 transition-colors active:scale-[0.98]">
-                  <Receipt className="w-4 h-4 text-emerald-600" />
-                  <span>Terbitkan Invoice Massal IPL</span>
-                </a>
-                <a href="/admin/expenses" className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border flex items-center gap-3 font-bold text-ink hover:text-primary-700 transition-colors active:scale-[0.98]">
-                  <DollarSign className="w-4 h-4 text-rose-600" />
-                  <span>Input Kuitansi Pengeluaran</span>
-                </a>
-                <a href="/admin/staff-loans" className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border flex items-center gap-3 font-bold text-ink hover:text-primary-700 transition-colors active:scale-[0.98]">
-                  <Banknote className="w-4 h-4 text-amber-600" />
-                  <span>Kelola Kasbon Staf</span>
-                </a>
-                <a href="/admin/ledger" className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border flex items-center gap-3 font-bold text-ink hover:text-primary-700 transition-colors active:scale-[0.98]">
-                  <Wallet className="w-4 h-4 text-blue-600" />
-                  <span>Buku Kas & Jurnal Keuangan</span>
-                </a>
-                <a href="/transparency" target="_blank" className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border flex items-center gap-3 font-bold text-ink hover:text-primary-700 transition-colors active:scale-[0.98]">
-                  <FileText className="w-4 h-4 text-purple-600" />
-                  <span>Preview Transparansi Warga</span>
-                </a>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* 3. DASHBOARD SEKRETARIS ADMINISTRASI                                     */}
-      {/* ========================================================================= */}
-      {activeRoleView === 'SECRETARY' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-slate-950 text-white border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-card relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="absolute -right-20 -top-20 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="relative z-10 space-y-2 max-w-2xl">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-md bg-white/10 text-purple-300 font-mono text-[10px] font-bold tracking-wider uppercase border border-white/10">
-                  SECRETARIAT DESK
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">
-                  SEKRETARIS PAGUYUBAN
-                </span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Tata Kelola Kependudukan & Dokumen Warga
-              </h1>
-              <p className="text-xs text-slate-300/90 leading-relaxed">
-                Kelola data kepala keluarga, buat siaran edaran pengumuman ke WhatsApp warga, pantau e-voting musyawarah, dan kearsipan surat.
-              </p>
-            </div>
-
-            <div className="relative z-10 flex flex-wrap items-center gap-2.5">
-              <a
-                href="/admin/announcements"
-                className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition-all"
-              >
-                <Megaphone className="w-4 h-4" />
-                <span>Buat Pengumuman Baru</span>
-              </a>
-              <a
-                href="/admin/voting"
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 border border-slate-700 rounded-xl font-bold transition-all"
-              >
-                <Vote className="w-4 h-4 text-violet-400" />
-                <span>E-Voting Musyawarah</span>
-              </a>
-            </div>
-          </div>
-
-          {/* 4 Administration KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Rumah & KK</span>
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold">
-                  <Home className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-ink">{stats.totalProperties} Unit</p>
-                <p className="text-[11px] text-indigo-700 font-bold mt-0.5">{stats.occupiedProperties} Dihuni • {stats.vacantProperties} Kosong</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Jiwa Warga</span>
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold">
-                  <Users className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-purple-700">342 Jiwa</p>
-                <p className="text-[11px] text-ink-muted mt-0.5">245 Dewasa • 97 Anak-anak</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">E-Voting Musyawarah</span>
-                <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-700 border border-violet-200 flex items-center justify-center font-bold">
-                  <Vote className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-violet-700">1 Pemilihan Aktif</p>
-                <p className="text-[11px] text-emerald-700 font-bold mt-0.5">82 Suara Masuk (68%)</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Dokumen & Arsip</span>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold">
-                  <FileText className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-ink">18 Dokumen</p>
-                <p className="text-[11px] text-blue-700 font-bold mt-0.5">SK, Tata Tertib & Notula</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. DASHBOARD SATPAM / POS GERBANG                                         */}
+      {/* 3. DASHBOARD SATPAM / POS GERBANG                                         */}
       {/* ========================================================================= */}
       {activeRoleView === 'SECURITY' && (
         <div className="space-y-6 animate-in fade-in duration-200">
@@ -1009,11 +1242,11 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                   SECURITY COMMAND
                 </span>
                 <span className="text-[11px] text-slate-400 font-mono">
-                  POS GERBANG 24 JAM
+                  POS GERBANG SATPAM 24 JAM
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Kontrol Gerbang Palang & Buku Tamu Komplek
+                Kontrol Gerbang Palang, Buku Tamu & Sirene
               </h1>
               <p className="text-xs text-slate-300/90 leading-relaxed">
                 Kendali barrier gate utama, pemantauan tamu masuk komplek secara real-time, penerimaan laporan SOS darurat, dan koordinasi keamanan 24 jam.
@@ -1021,13 +1254,14 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
             </div>
 
             <div className="relative z-10 flex flex-wrap items-center gap-2.5">
-              <a
-                href="/admin/security-gate"
-                className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 rounded-xl font-bold shadow-xs transition-all"
+              <button
+                type="button"
+                onClick={() => setShowAddVisitorModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-300 active:scale-[0.98] text-slate-950 rounded-xl font-bold shadow-xs transition-all"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Buka Pos Scanner QR</span>
-              </a>
+                <PlusCircle className="w-4 h-4" />
+                <span>Catat Tamu Baru</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1039,7 +1273,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                 }`}
               >
                 <Volume2 className="w-4 h-4" />
-                <span>{sirenActive ? '🚨 SIRENE AKTIF' : 'Tes Sirene'}</span>
+                <span>{sirenActive ? '🚨 SIRENE AKTIF' : 'Tes Sirene Darurat'}</span>
               </button>
             </div>
           </div>
@@ -1049,7 +1283,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
             <div className="lg:col-span-5 bg-surface rounded-3xl p-6 border border-border shadow-card space-y-4">
               <h3 className="text-sm font-black text-ink border-b border-border pb-3 flex items-center justify-between">
                 <span>⚡ Kontrol Remote Palang Gerbang</span>
-                <span className="text-[10px] font-mono text-emerald-600 font-bold">Relay 8 Detik</span>
+                <span className="text-[10px] font-mono text-emerald-600 font-bold">Relay Otomatis 8 Detik</span>
               </h3>
 
               <div className="space-y-3">
@@ -1059,7 +1293,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                     <h4 className="font-bold text-ink text-xs">Gerbang 1 (Masuk Boulevard)</h4>
                     <p className="text-[11px] text-ink-muted mt-0.5">
                       Status: <span className={gate1Open ? 'text-emerald-700 font-bold font-mono' : 'text-slate-700 font-bold font-mono'}>
-                        {gate1Open ? '🟢 TERBUKA' : '🔴 TERTUTUP'}
+                        {gate1Open ? '🟢 TERBUKA (8s Relay)' : '🔴 TERTUTUP'}
                       </span>
                     </p>
                   </div>
@@ -1078,7 +1312,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                     <h4 className="font-bold text-ink text-xs">Gerbang 2 (Keluar / Timur)</h4>
                     <p className="text-[11px] text-ink-muted mt-0.5">
                       Status: <span className={gate2Open ? 'text-emerald-700 font-bold font-mono' : 'text-slate-700 font-bold font-mono'}>
-                        {gate2Open ? '🟢 TERBUKA' : '🔴 TERTUTUP'}
+                        {gate2Open ? '🟢 TERBUKA (8s Relay)' : '🔴 TERTUTUP'}
                       </span>
                     </p>
                   </div>
@@ -1091,55 +1325,52 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
                   </button>
                 </div>
               </div>
-
-              {/* Emergency Dialers */}
-              <div className="pt-2 border-t border-border">
-                <span className="font-bold text-xs text-ink block mb-2">Panggilan Cepat Darurat Pos Satpam:</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <a href="tel:110" className="p-2.5 bg-canvas hover:bg-surface rounded-xl border border-border text-center font-bold text-xs text-blue-800 active:scale-[0.98] transition-all">
-                    📞 Polsek: 110
-                  </a>
-                  <a href="tel:113" className="p-2.5 bg-canvas hover:bg-surface rounded-xl border border-border text-center font-bold text-xs text-red-800 active:scale-[0.98] transition-all">
-                    🚒 Damkar: 113
-                  </a>
-                </div>
-              </div>
             </div>
 
-            {/* Live Visitor Feed */}
+            {/* Live Visitor Feed Table */}
             <div className="lg:col-span-7 bg-surface rounded-3xl p-6 border border-border shadow-card space-y-4">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2">
                   <Car className="w-4 h-4 text-amber-600" />
                   <h3 className="text-sm font-black text-ink">Buku Tamu Digital Terkini di Komplek</h3>
                 </div>
-                <a href="/admin/security-gate" className="text-xs font-bold text-primary-700 hover:underline">
-                  Lihat Seluruh Tamu →
-                </a>
+                <button
+                  type="button"
+                  onClick={() => setShowAddVisitorModal(true)}
+                  className="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-[11px] rounded-lg active:scale-[0.98] transition-all"
+                >
+                  + Tambah Tamu
+                </button>
               </div>
 
               <div className="divide-y divide-border/60">
-                {[
-                  { name: 'Ridwan Fauzi (Tamu Keluarga)', unit: 'A-04', plate: 'B 1234 SAK', category: 'Keluarga', inTime: '08:30 WIB', status: 'Di Dalam' },
-                  { name: 'Kurir J&T Express (Antar Paket)', unit: 'B-07, B-12', plate: 'B 4567 TUV', category: 'Kurir Paket', inTime: '09:15 WIB', status: 'Di Dalam' },
-                  { name: 'GrabFood Delivery', unit: 'C-03', plate: 'B 8899 XYZ', category: 'Ojol Makanan', inTime: '09:40 WIB', status: 'Di Dalam' },
-                  { name: 'Teknisi Servis AC Daikin', unit: 'A-17', plate: 'B 3344 KLM', category: 'Teknisi/Servis', inTime: '07:50 WIB', status: 'Sudah Keluar' },
-                ].map((guest, idx) => (
-                  <div key={idx} className="py-2.5 flex items-center justify-between gap-3">
+                {visitors.map((guest) => (
+                  <div key={guest.id} className="py-2.5 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center font-bold text-xs">
                         <Car className="w-4 h-4" />
                       </div>
                       <div>
                         <p className="font-bold text-ink text-xs">{guest.name}</p>
-                        <p className="text-[11px] text-ink-muted">Tujuan Rumah {guest.unit} • Plat: {guest.plate} ({guest.category})</p>
+                        <p className="text-[11px] text-ink-muted">Rumah {guest.unit} • Plat: {guest.plate} ({guest.category}) • {guest.inTime}</p>
                       </div>
                     </div>
-                    <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-md ${
-                      guest.status === 'Di Dalam' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                    }`}>
-                      {guest.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-md ${
+                        guest.status === 'Di Dalam' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                        {guest.status}
+                      </span>
+                      {guest.status === 'Di Dalam' && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkVisitorExited(guest.id)}
+                          className="px-2 py-1 bg-canvas hover:bg-surface border border-border text-ink rounded-lg font-bold text-[10px] active:scale-[0.98] transition-all"
+                        >
+                          Keluar
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1148,171 +1379,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 5. DASHBOARD TIM KEBERSIHAN & TEKNISI FASUM                              */}
-      {/* ========================================================================= */}
-      {activeRoleView === 'MAINTENANCE' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-slate-950 text-white border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-card relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="absolute -right-20 -top-20 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="relative z-10 space-y-2 max-w-2xl">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-md bg-white/10 text-teal-300 font-mono text-[10px] font-bold tracking-wider uppercase border border-white/10">
-                  FACILITIES & SANITATION
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">
-                  KOORDINATOR KEBERSIHAN
-                </span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Operasional Armada Sampah & Pemeliharaan Fasum
-              </h1>
-              <p className="text-xs text-slate-300/90 leading-relaxed">
-                Pemantauan rute pengangkutan sampah harian door-to-door, kapasitas TPS3R komplek, pemeliharaan pompa air booster, dan tiket perbaikan fasilitas.
-              </p>
-            </div>
-
-            <div className="relative z-10 flex flex-wrap items-center gap-2.5">
-              <a
-                href="/admin/cleaning-staff"
-                className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-400 active:scale-[0.98] text-slate-950 rounded-xl font-bold shadow-xs transition-all"
-              >
-                <Truck className="w-4 h-4" />
-                <span>Jadwal Armada Viar Tossa</span>
-              </a>
-              <a
-                href="/admin/facilities?tab=maintenance"
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 border border-slate-700 rounded-xl font-bold transition-all"
-              >
-                <Wrench className="w-4 h-4 text-teal-400" />
-                <span>Tiket Maintenance</span>
-              </a>
-            </div>
-          </div>
-
-          {/* 4 Maintenance KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Armada Viar Tossa</span>
-                <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center font-bold">
-                  <Truck className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-teal-700">2 Unit Siap</p>
-                <p className="text-[11px] text-emerald-700 font-bold mt-0.5">Rute Pagi Blok A & B Beres</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Kapasitas TPS3R</span>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold">
-                  <RefreshCw className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-emerald-700">45% (Normal)</p>
-                <p className="text-[11px] text-ink-muted mt-0.5">Jadwal Angkut Truk DLH: Besok</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Tiket Servis Fasum</span>
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
-                  <Wrench className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-amber-700">{stats.needingRepairCount} Tiket Perlu Servis</p>
-                <p className="text-[11px] text-amber-800 font-bold mt-0.5">Pompa Booster & PJU Blok C</p>
-              </div>
-            </div>
-
-            <div className="bg-surface rounded-3xl p-5 border border-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Fasilitas Siap Pakai</span>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold">
-                  <Building2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-ink">8 dari 9 Fasilitas</p>
-                <p className="text-[11px] text-emerald-700 font-bold mt-0.5">Balai Warga, Lapangan, Taman Aktif</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 6. DASHBOARD WARGA KOMPLEK MANDIRI                                        */}
-      {/* ========================================================================= */}
-      {(activeRoleView === 'HOUSEHOLD_HEAD' || activeRoleView === 'HOUSE_OWNER' || activeRoleView === 'RESIDENT') && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-slate-950 text-white border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-card relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="relative z-10 space-y-2 max-w-2xl">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-md bg-white/10 text-indigo-300 font-mono text-[10px] font-bold tracking-wider uppercase border border-white/10">
-                  CITIZEN PORTAL
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">
-                  WARGA MANDIRI
-                </span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Selamat Datang di Portal Layanan Warga
-              </h1>
-              <p className="text-xs text-slate-300/90 leading-relaxed">
-                Akses mandiri untuk memantau iuran bulanan rumah Anda, mengunduh kuitansi digital, membuat QR pas tamu untuk barrier gate, dan menyampaikan aduan lingkungan.
-              </p>
-            </div>
-
-            <a
-              href="/warga"
-              className="relative z-10 flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black rounded-2xl shadow-md transition-all text-sm shrink-0"
-            >
-              <Home className="w-5 h-5" />
-              <span>Buka Portal Mandiri Warga</span>
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </a>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-5 bg-surface rounded-3xl border border-border shadow-xs space-y-2">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold">
-                <Receipt className="w-5 h-5" />
-              </div>
-              <h3 className="font-black text-sm text-ink">Iuran & Pembayaran IPL</h3>
-              <p className="text-ink-muted text-xs">Cek riwayat tagihan dan upload bukti transfer BCA langsung dari ponsel Anda.</p>
-              <a href="/warga" className="font-bold text-primary-700 hover:underline block pt-2 text-xs">Buka Tagihan →</a>
-            </div>
-
-            <div className="p-5 bg-surface rounded-3xl border border-border shadow-xs space-y-2">
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-800 border border-purple-200 flex items-center justify-center font-bold">
-                <QrCode className="w-5 h-5" />
-              </div>
-              <h3 className="font-black text-sm text-ink">Pas Tamu & Barrier Gate</h3>
-              <p className="text-ink-muted text-xs">Generate QR Pass tamu untuk keluarga, kurir, atau delivery agar mudah masuk gerbang.</p>
-              <a href="/warga" className="font-bold text-primary-700 hover:underline block pt-2 text-xs">Buat Pas Tamu →</a>
-            </div>
-
-            <div className="p-5 bg-surface rounded-3xl border border-border shadow-xs space-y-2">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-800 border border-rose-200 flex items-center justify-center font-bold">
-                <Headphones className="w-5 h-5" />
-              </div>
-              <h3 className="font-black text-sm text-ink">Aduan & Layanan Fasum</h3>
-              <p className="text-ink-muted text-xs">Laporkan kendala fasilitas umum atau booking Balai Warga & Lapangan olahraga.</p>
-              <a href="/warga" className="font-bold text-primary-700 hover:underline block pt-2 text-xs">Sampaikan Aduan →</a>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= 7. QUICK ACCESS DIRECTORY ================= */}
+      {/* ================= 4. QUICK ACCESS SHORTCUTS DIRECTORY ================= */}
       <div className="bg-surface rounded-3xl p-6 border border-border shadow-card space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2">
@@ -1365,6 +1432,621 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats, current
           <span className="text-emerald-700 font-mono">Sistem Terintegrasi Online</span>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL 1: FORM TERBITKAN TAGIHAN IPL MASSAL                                */}
+      {/* ========================================================================= */}
+      {showIssueInvoiceModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border shadow-2xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-primary-600" />
+                <h3 className="font-black text-base text-ink">Terbitkan Tagihan IPL Warga</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowIssueInvoiceModal(false)}
+                className="p-1 rounded-lg hover:bg-canvas text-ink-muted hover:text-ink"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleIssueInvoiceSubmit} className="space-y-3.5">
+              <div>
+                <label className="font-bold text-ink block mb-1">Periode Tagihan</label>
+                <input
+                  type="text"
+                  required
+                  value={invPeriod}
+                  onChange={(e) => setInvPeriod(e.target.value)}
+                  placeholder="Misal: September 2026"
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Target Blok Rumah</label>
+                  <select
+                    value={invBlockTarget}
+                    onChange={(e) => setInvBlockTarget(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                  >
+                    <option value="ALL">Semua Blok (123 Unit)</option>
+                    <option value="A">Blok A Saja (32 Unit)</option>
+                    <option value="B">Blok B Saja (30 Unit)</option>
+                    <option value="C">Blok C Saja (31 Unit)</option>
+                    <option value="D">Blok D Saja (30 Unit)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Tarif Iuran per Unit</label>
+                  <input
+                    type="number"
+                    required
+                    value={invRate}
+                    onChange={(e) => setInvRate(Number(e.target.value))}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-mono font-bold text-ink"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Tanggal Jatuh Tempo</label>
+                <input
+                  type="date"
+                  required
+                  value={invDueDate}
+                  onChange={(e) => setInvDueDate(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Keterangan Tagihan</label>
+                <textarea
+                  rows={2}
+                  value={invNotes}
+                  onChange={(e) => setInvNotes(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs text-ink"
+                />
+              </div>
+
+              <div className="p-3 bg-canvas rounded-xl border border-border flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-ink block">Kirim Pengingat WhatsApp</span>
+                  <span className="text-[11px] text-ink-muted">Otomatis kirim tagihan ke nomor WA kepala keluarga</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={invSendWa}
+                  onChange={(e) => setInvSendWa(e.target.checked)}
+                  className="w-4 h-4 rounded text-primary-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowIssueInvoiceModal(false)}
+                  className="px-4 py-2 bg-canvas hover:bg-surface border border-border text-ink rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition-all"
+                >
+                  Terbitkan Tagihan Sekarang
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: FORM SIARAN PENGUMUMAN & BROADCAST WA                            */}
+      {/* ========================================================================= */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border shadow-2xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-purple-600" />
+                <h3 className="font-black text-base text-ink">Siaran Pengumuman & Broadcast Warga</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBroadcastModal(false)}
+                className="p-1 rounded-lg hover:bg-canvas text-ink-muted hover:text-ink"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBroadcastSubmit} className="space-y-3.5">
+              <div>
+                <label className="font-bold text-ink block mb-1">Judul Pengumuman</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: Rapat Warga Koordinasi Keamanan & Kas"
+                  value={bcTitle}
+                  onChange={(e) => setBcTitle(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Kategori</label>
+                  <select
+                    value={bcCategory}
+                    onChange={(e) => setBcCategory(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                  >
+                    <option value="AGENDA_WARGA">Agenda Warga</option>
+                    <option value="KEAMANAN">Keamanan & Pos</option>
+                    <option value="KEBERSIHAN">Kebersihan & TPS3R</option>
+                    <option value="KEUANGAN">Keuangan & Kas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Target Penerima</label>
+                  <select
+                    value={bcTarget}
+                    onChange={(e) => setBcTarget(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                  >
+                    <option value="ALL">Seluruh Warga (342 Jiwa)</option>
+                    <option value="KK">Kepala Keluarga Saja (117 KK)</option>
+                    <option value="A">Khusus Blok A</option>
+                    <option value="B">Khusus Blok B</option>
+                    <option value="C">Khusus Blok C</option>
+                    <option value="D">Khusus Blok D</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Isi Pesan Siaran</label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder="Tuliskan isi pengumuman atau edaran lengkap di sini..."
+                  value={bcContent}
+                  onChange={(e) => setBcContent(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs text-ink leading-relaxed"
+                />
+              </div>
+
+              <div className="p-3 bg-canvas rounded-xl border border-border flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-ink block">Kirim via Simulator WhatsApp Bot</span>
+                  <span className="text-[11px] text-ink-muted">Terdistribusi ke nomor WhatsApp aktif warga</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={bcSendWa}
+                  onChange={(e) => setBcSendWa(e.target.checked)}
+                  className="w-4 h-4 rounded text-primary-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowBroadcastModal(false)}
+                  className="px-4 py-2 bg-canvas hover:bg-surface border border-border text-ink rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition-all"
+                >
+                  Siarkan Sekarang
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: FORM CATAT PENGELUARAN KAS KELUAR                                */}
+      {/* ========================================================================= */}
+      {showAddExpenseModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border shadow-2xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-rose-600" />
+                <h3 className="font-black text-base text-ink">Catat Kas Keluar (Voucher Pengeluaran)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddExpenseModal(false)}
+                className="p-1 rounded-lg hover:bg-canvas text-ink-muted hover:text-ink"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddExpenseSubmit} className="space-y-3.5">
+              <div>
+                <label className="font-bold text-ink block mb-1">Judul / Keperluan Pengeluaran</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: Pembelian Solar Genset Pompa & Bahan Bakar Viar Tossa"
+                  value={expTitle}
+                  onChange={(e) => setExpTitle(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Pos APB</label>
+                  <select
+                    value={expCategory}
+                    onChange={(e) => setExpCategory(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                  >
+                    <option value="OPERASIONAL">Gaji & Operasional Satpam/Kebersihan</option>
+                    <option value="PEMELIHARAAN">Pemeliharaan Fasum, PJU & Pompa Air</option>
+                    <option value="CADANGAN">Kas Cadangan & Pembangunan</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Nominal (Rp)</label>
+                  <input
+                    type="number"
+                    required
+                    value={expAmount}
+                    onChange={(e) => setExpAmount(Number(e.target.value))}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-mono font-bold text-ink"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Penerima Dana / Vendor</label>
+                  <input
+                    type="text"
+                    placeholder="Misal: Koordinator Satpam / Toko Listrik"
+                    value={expRecipient}
+                    onChange={(e) => setExpRecipient(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs text-ink"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Metode Pembayaran</label>
+                  <select
+                    value={expMethod}
+                    onChange={(e: any) => setExpMethod(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                  >
+                    <option value="TRANSFER">Transfer Bank BCA</option>
+                    <option value="CASH">Kas Tunai (Petty Cash)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Catatan Tambahan</label>
+                <textarea
+                  rows={2}
+                  placeholder="Keterangan nota, kuitansi, atau persetujuan pengurus..."
+                  value={expNotes}
+                  onChange={(e) => setExpNotes(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs text-ink"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowAddExpenseModal(false)}
+                  className="px-4 py-2 bg-canvas hover:bg-surface border border-border text-ink rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition-all"
+                >
+                  Simpan Pengeluaran
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: REVIEW & VERIFIKASI BUKTI BAYAR                                   */}
+      {/* ========================================================================= */}
+      {showPaymentReviewModal && selectedPendingPayment && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-amber-600" />
+                <h3 className="font-black text-base text-ink">Verifikasi Bukti Transfer Warga</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPaymentReviewModal(false);
+                  setShowRejectInput(false);
+                }}
+                className="p-1 rounded-lg hover:bg-canvas text-ink-muted hover:text-ink"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {/* Mock Transfer Receipt Visualizer */}
+              <div className="p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 space-y-2.5 font-mono">
+                <div className="flex justify-between border-b border-slate-800 pb-2 text-[10px] text-slate-400">
+                  <span>TRANSFER BERHASIL</span>
+                  <span>{selectedPendingPayment.time}</span>
+                </div>
+                <div className="text-center py-1">
+                  <span className="text-[11px] text-slate-400 block">Jumlah Transfer:</span>
+                  <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                    {formatRupiah(selectedPendingPayment.amount)}
+                  </span>
+                </div>
+                <div className="space-y-1 text-[11px] border-t border-slate-800 pt-2 text-slate-300">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Dari:</span>
+                    <span className="font-bold">{selectedPendingPayment.name} (Rumah {selectedPendingPayment.house})</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Metode:</span>
+                    <span>{selectedPendingPayment.method}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">No. Ref:</span>
+                    <span>{selectedPendingPayment.refNumber}</span>
+                  </div>
+                </div>
+              </div>
+
+              {showRejectInput ? (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <label className="font-bold text-rose-700 block">Alasan Penolakan Pembayaran:</label>
+                  <input
+                    type="text"
+                    placeholder="Misal: Bukti buram atau nominal tidak sesuai tagihan"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    className="w-full p-2 bg-canvas border border-rose-300 rounded-xl text-xs text-ink"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectInput(false)}
+                      className="px-3 py-1 bg-canvas hover:bg-surface border border-border text-ink rounded-lg font-bold"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRejectPayment}
+                      className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold"
+                    >
+                      Konfirmasi Tolak
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-3 flex items-center justify-end gap-2 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectInput(true)}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold active:scale-[0.98]"
+                  >
+                    Tolak Pembayaran
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApprovePayment(selectedPendingPayment.id)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold active:scale-[0.98] shadow-xs"
+                  >
+                    ✓ Setujui & Terbitkan Kuitansi
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: REGISTRASI TAMU BARU POS SATPAM                                   */}
+      {/* ========================================================================= */}
+      {showAddVisitorModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Car className="w-5 h-5 text-amber-600" />
+                <h3 className="font-black text-base text-ink">Catat Tamu Masuk Gerbang</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddVisitorModal(false)}
+                className="p-1 rounded-lg hover:bg-canvas text-ink-muted hover:text-ink"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddVisitorSubmit} className="space-y-3.5">
+              <div>
+                <label className="font-bold text-ink block mb-1">Nama Lengkap Tamu / Driver</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: Kurir SiCepat / Bpk. Yanto"
+                  value={visName}
+                  onChange={(e) => setVisName(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Nomor Plat Kendaraan</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="B 1234 SAK"
+                    value={visPlate}
+                    onChange={(e) => setVisPlate(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-mono font-bold text-ink uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Rumah Tujuan</label>
+                  <select
+                    value={visHouse}
+                    onChange={(e) => setVisHouse(e.target.value)}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                  >
+                    <option value="A-04">Rumah A-04 (Ridwan Fauzi)</option>
+                    <option value="A-17">Rumah A-17 (Budi Santoso)</option>
+                    <option value="B-07">Rumah B-07 (Siti Khadijah)</option>
+                    <option value="B-12">Rumah B-12 (Hendra Wijaya)</option>
+                    <option value="C-03">Rumah C-03 (Bambang)</option>
+                    <option value="C-09">Rumah C-09 (Dewi Lestari)</option>
+                    <option value="D-02">Rumah D-02 (Fajar)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Kategori Kunjungan</label>
+                <select
+                  value={visCategory}
+                  onChange={(e) => setVisCategory(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                >
+                  <option value="Keluarga / Kerabat">Keluarga / Kerabat</option>
+                  <option value="Kurir Logistik / Paket">Kurir Logistik / Paket</option>
+                  <option value="Ojek Online / Makanan">Ojek Online / Makanan</option>
+                  <option value="Teknisi / Renovasi">Teknisi / Servis Rumah</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Keperluan Singkat</label>
+                <input
+                  type="text"
+                  placeholder="Kunjungan keluarga / Antar paket"
+                  value={visPurpose}
+                  onChange={(e) => setVisPurpose(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs text-ink"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowAddVisitorModal(false)}
+                  className="px-4 py-2 bg-canvas hover:bg-surface border border-border text-ink rounded-xl font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-bold active:scale-[0.98] shadow-xs"
+                >
+                  Catat Masuk & Buka Gerbang
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: DRILLDOWN RINCIAN KEPATUHAN BLOK                                  */}
+      {/* ========================================================================= */}
+      {selectedBlockDrilldown && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-3xl border border-border shadow-2xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="font-black text-base text-ink">
+                  Rincian Unit Blok {selectedBlockDrilldown}
+                </h3>
+                <p className="text-xs text-ink-muted">Status pembayaran dan kontak warga</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBlockDrilldown(null)}
+                className="p-1 rounded-lg hover:bg-canvas text-ink-muted hover:text-ink"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {blockStats.find(b => b.code === selectedBlockDrilldown)?.houses.map((h) => (
+                <div key={h.no} className="p-3 bg-canvas rounded-2xl border border-border/80 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-ink text-xs font-mono">{h.no}</span>
+                      <span className="text-xs font-bold text-ink">{h.name}</span>
+                    </div>
+                    <span className="text-[11px] text-ink-muted">Telp: {h.phone}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
+                      h.status === 'Lunas' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                      h.status === 'Verifikasi' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                      h.status === 'Kosong' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+                      'bg-rose-50 text-rose-800 border border-rose-200'
+                    }`}>
+                      {h.status}
+                    </span>
+                    {h.status === 'Tertunggak' && (
+                      <a
+                        href={`https://wa.me/?text=Halo%20${h.name},%20mengingatkan%20iuran%20IPL%20komplek%20untuk%20Rumah%20${h.no}`}
+                        target="_blank"
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold"
+                      >
+                        WA Tagihan
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 flex justify-end border-t border-border">
+              <button
+                type="button"
+                onClick={() => setSelectedBlockDrilldown(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
