@@ -2507,33 +2507,34 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       {activeSubTab === 'vehicles' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Total Kendaraan</span>
-              <p className="text-xl font-black text-ink mt-0.5">{vehicles.length} Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold">Terdata di Gate Barrier</span>
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Kendaraan</span>
+              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{vehicles.length} Unit</p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono">TERDATA DI GATE BARRIER</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Mobil / Roda 4</span>
-              <p className="text-xl font-black text-primary-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Mobil / Roda 4</span>
+              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
                 {vehicles.filter(v => v.type === 'Mobil').length} Unit
               </p>
-              <span className="text-[10px] text-ink-muted">Barrier Gate Mobil</span>
+              <span className="text-[10px] text-ink-muted font-medium">Lane Barrier Mobil</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Motor & Sepeda Listrik</span>
-              <p className="text-xl font-black text-sky-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Motor & Sepeda Listrik</span>
+              <p className="text-2xl font-black font-mono text-sky-700 mt-0.5 tabular-nums">
                 {vehicles.filter(v => v.type === 'Motor' || v.type === 'Sepeda Listrik').length} Unit
               </p>
-              <span className="text-[10px] text-ink-muted">Lane Motor</span>
+              <span className="text-[10px] text-sky-600 font-bold font-mono">LANE MOTOR BARRIER</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Stiker RFID Aktif</span>
-              <p className="text-xl font-black text-emerald-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Stiker RFID Aktif</span>
+              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">
                 {vehicles.filter(v => v.rfidStatus === 'AKTIF').length} RFID
               </p>
-              <span className="text-[10px] text-emerald-600 font-bold">100% Akses Aktif</span>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono">100% AKSES OTOMATIS</span>
             </div>
           </div>
+
 
           {/* Bulk Action Bar (Vehicles) */}
           {selectedVehicleIds.length > 0 && (
@@ -2681,19 +2682,27 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                           />
                         </td>
-                        <td className="py-3.5 px-4 font-mono font-black text-sm text-ink">{v.plateNumber}</td>
-                        <td className="py-3.5 px-4 font-bold text-primary-700">Unit {v.houseCode}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-950 text-white font-mono font-black text-xs tracking-wider border border-slate-700 shadow-2xs">
+                            {v.plateNumber}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-primary-700">Unit {v.houseCode}</td>
                         <td className="py-3.5 px-4 font-bold text-ink">{v.ownerName}</td>
-                        <td className="py-3.5 px-4"><span className="px-2 py-0.5 rounded bg-canvas font-bold border border-border">{v.type}</span></td>
-                        <td className="py-3.5 px-4 font-medium">{v.brand} {v.model}</td>
-                        <td className="py-3.5 px-4 font-mono text-primary-700 font-bold">{v.rfidTag}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="px-2 py-0.5 rounded-md bg-canvas font-bold border border-border text-[11px]">
+                            {v.type}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-ink">{v.brand} {v.model}</td>
+                        <td className="py-3.5 px-4 font-mono text-primary-700 font-bold tracking-tight">{v.rfidTag}</td>
                         <td className="py-3.5 px-4 text-center">
                           <button
                             type="button"
                             onClick={() => handleToggleRfid(v.id)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                            className={`px-3 py-1 rounded-lg text-[10px] font-mono font-black border transition-all active:scale-[0.95] ${
                               v.rfidStatus === 'AKTIF'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
                                 : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
                             }`}
                           >
@@ -2705,21 +2714,21 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             <button
                               type="button"
                               onClick={() => setActiveVehicleView(v)}
-                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Eye className="w-3.5 h-3.5" /> Detail
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenEditVehicle(v)}
-                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Edit3 className="w-3.5 h-3.5" /> Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => setVehicleToDelete(v)}
-                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Hapus
                             </button>
