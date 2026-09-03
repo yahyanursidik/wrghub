@@ -2248,33 +2248,34 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       {activeSubTab === 'residents' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Total Sensus Jiwa</span>
-              <p className="text-xl font-black text-ink mt-0.5">{residents.length} Jiwa</p>
-              <span className="text-[10px] text-emerald-600 font-bold">100% Terverifikasi</span>
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Sensus Jiwa</span>
+              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{residents.length} Jiwa</p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono">100% TERVERIFIKASI</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Kepala Keluarga</span>
-              <p className="text-xl font-black text-primary-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Kepala Keluarga</span>
+              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
                 {residents.filter(r => r.relation === 'KEPALA_KELUARGA').length} Orang
               </p>
-              <span className="text-[10px] text-ink-muted">Penanggung Jawab</span>
+              <span className="text-[10px] text-ink-muted font-medium">Penanggung Jawab KK</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Anak & Pelajar</span>
-              <p className="text-xl font-black text-sky-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Anak & Pelajar</span>
+              <p className="text-2xl font-black font-mono text-sky-700 mt-0.5 tabular-nums">
                 {residents.filter(r => r.relation === 'ANAK').length} Jiwa
               </p>
-              <span className="text-[10px] text-sky-600 font-bold">Usia 0-18 Tahun</span>
+              <span className="text-[10px] text-sky-600 font-bold font-mono">USIA 0-18 TAHUN</span>
             </div>
-            <div className="p-3.5 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] text-ink-muted font-medium">Kontak Darurat</span>
-              <p className="text-xl font-black text-rose-700 mt-0.5">
+            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Kontak Darurat</span>
+              <p className="text-2xl font-black font-mono text-rose-700 mt-0.5 tabular-nums">
                 {residents.filter(r => r.isEmergency).length} Kontak
               </p>
-              <span className="text-[10px] text-rose-600 font-bold">Prioritas Keamanan</span>
+              <span className="text-[10px] text-rose-600 font-bold font-mono">PRIORITAS KEAMANAN</span>
             </div>
           </div>
+
 
           {/* Bulk Action Bar (Residents) */}
           {selectedResidentIds.length > 0 && (
@@ -2423,29 +2424,44 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                           </div>
                         </td>
                         <td className="py-3.5 px-4">{getRelationBadge(r.relation)}</td>
-                        <td className="py-3.5 px-4 font-mono text-ink-muted">{r.idCard}</td>
-                        <td className="py-3.5 px-4 font-medium text-ink">{r.occupation}</td>
-                        <td className="py-3.5 px-4 font-mono">{r.phone}</td>
+                        <td className="py-3.5 px-4 font-mono text-ink-muted">{r.idCard || '-'}</td>
+                        <td className="py-3.5 px-4 font-medium text-ink">{r.occupation || '-'}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5 font-mono text-ink">
+                            <span>{r.phone || '-'}</span>
+                            {r.phone && r.phone !== '-' && (
+                              <a
+                                href={`https://wa.me/${r.phone.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 active:scale-[0.95] transition-all"
+                                title="Kirim Pesan WhatsApp"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
                             <button
                               type="button"
                               onClick={() => setActiveResidentView(r)}
-                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-primary-50 text-primary-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Eye className="w-3.5 h-3.5" /> Detail
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenEditResident(r)}
-                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Edit3 className="w-3.5 h-3.5" /> Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => setResidentToDelete(r)}
-                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1"
+                              className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Hapus
                             </button>
