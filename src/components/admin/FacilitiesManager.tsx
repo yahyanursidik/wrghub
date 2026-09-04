@@ -449,9 +449,25 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     }
   ];
 
-  const [staffList, setStaffList] = useState<FacilityStaff[]>(() =>
-    getPersisted('wargahub_facility_staff', defaultStaff)
-  );
+  const [staffList, setStaffList] = useState<FacilityStaff[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_facility_staff');
+        const deletedStr = localStorage.getItem('wargahub_deleted_facility_staff');
+        const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            return parsed.filter((s: any) => !deletedIds.includes(s.id));
+          }
+        }
+        return defaultStaff.filter((s: any) => !deletedIds.includes(s.id));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    return defaultStaff;
+  });
 
   // Active Subtab matching query parameter
   const validTabs = ['facilities', 'bookings', 'maintenance', 'staff'];
@@ -483,6 +499,8 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   const [editingMaintenanceId, setEditingMaintenanceId] = useState<string | null>(null);
 
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<FacilityStaff | null>(null);
+  const [showClearAllStaffModal, setShowClearAllStaffModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Form State for Add / Edit Facility
@@ -837,6 +855,25 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     setMaintenanceList(updated);
     savePersisted('wargahub_facility_maintenance', updated);
     showToast(`Status maintenance diubah menjadi ${newStatus}.`);
+  };
+
+  // Handlers for Staff / Technicians
+  const handleDeleteStaff = (id: string) => {
+    const target = staffList.find(s => s.id === id);
+    const updated = staffList.filter(s => s.id !== id);
+    setStaffList(updated);
+    savePersisted('wargahub_facility_staff', updated);
+    addDeletedIds('wargahub_deleted_facility_staff', [id]);
+    showToast(`Data teknisi ${target?.name || id} berhasil dihapus.`);
+  };
+
+  const handleClearAllStaff = () => {
+    const allIds = staffList.map(s => s.id);
+    setStaffList([]);
+    savePersisted('wargahub_facility_staff', []);
+    addDeletedIds('wargahub_deleted_facility_staff', allIds);
+    showToast('Seluruh data teknisi mitra fasum berhasil dikosongkan.');
+    setShowClearAllStaffModal(false);
   };
 
   // Export CSV
@@ -1466,61 +1503,108 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowAddStaffModal(true)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Tambah Teknisi Mitra</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {staffList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowClearAllStaffModal(true)}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl shadow-2xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
+                    title="Kosongkan Semua Data Teknisi"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Semua</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAddStaffModal(true)}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Tambah Teknisi Mitra</span>
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {staffList.map((stf) => (
-                <div key={stf.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-bold text-[10px] text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                      {stf.id}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                      stf.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {stf.status === 'AVAILABLE' ? '✓ SIAGA' : 'SEDANG BERTUGAS'}
-                    </span>
-                  </div>
+            {staffList.length === 0 ? (
+              <div className="p-8 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-3">
+                <Users className="w-10 h-10 text-ink-muted mx-auto opacity-40" />
+                <p className="text-sm font-bold text-ink">Belum Ada Data Teknisi Mitra Fasum</p>
+                <p className="text-xs text-ink-muted">Data teknisi telah dikosongkan. Klik tombol "+ Tambah Teknisi Mitra" di atas untuk menambahkan staf baru atau pulihkan data bawaan.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffList(defaultStaff);
+                    savePersisted('wargahub_facility_staff', defaultStaff);
+                    if (typeof window !== 'undefined') localStorage.removeItem('wargahub_deleted_facility_staff');
+                    showToast('Data default teknisi berhasil dipulihkan.');
+                  }}
+                  className="px-3.5 py-2 text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl border border-purple-200 inline-flex items-center gap-1.5 active:scale-[0.98]"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Pulihkan Data Sampel Bawaan</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {staffList.map((stf) => (
+                  <div key={stf.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-3 shadow-xs hover:border-purple-200 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-[10px] text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                          {stf.id}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                          stf.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {stf.status === 'AVAILABLE' ? '✓ SIAGA' : 'SEDANG BERTUGAS'}
+                        </span>
+                      </div>
 
-                  <div>
-                    <h4 className="font-black text-sm text-ink">{stf.name}</h4>
-                    <p className="text-purple-700 font-bold mt-0.5">{stf.role}</p>
-                    <p className="text-ink-muted text-[11px] mt-1 leading-relaxed">
-                      Keahlian: <strong>{stf.specialty}</strong>
-                    </p>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => setStaffToDelete(stf)}
+                        className="p-1.5 text-ink-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-colors active:scale-[0.98]"
+                        title={`Hapus ${stf.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
 
-                  <div className="p-2.5 bg-surface rounded-xl border border-border flex items-center justify-between">
-                    <a
-                      href={`https://wa.me/${stf.phone.replace(/[^0-9]/g, '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-mono text-purple-700 font-bold hover:underline inline-flex items-center gap-1 text-[11px]"
-                    >
-                      <Phone className="w-3.5 h-3.5 text-purple-600" />
-                      <span>{stf.phone}</span>
-                    </a>
+                    <div>
+                      <h4 className="font-black text-sm text-ink">{stf.name}</h4>
+                      <p className="text-purple-700 font-bold mt-0.5">{stf.role}</p>
+                      <p className="text-ink-muted text-[11px] mt-1 leading-relaxed">
+                        Keahlian: <strong>{stf.specialty}</strong>
+                      </p>
+                    </div>
 
-                    <a
-                      href={`https://wa.me/${stf.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo Pak ${stf.name}, mohon bantuan terkait perbaikan fasilitas umum komplek. Terima kasih.`)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg text-[10px]"
-                    >
-                      Hubungi WA
-                    </a>
+                    <div className="p-2.5 bg-surface rounded-xl border border-border flex items-center justify-between gap-2">
+                      <a
+                        href={`https://wa.me/${stf.phone.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-purple-700 font-bold hover:underline inline-flex items-center gap-1 text-[11px] truncate"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span className="truncate">{stf.phone}</span>
+                      </a>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <a
+                          href={`https://wa.me/${stf.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo Pak ${stf.name}, mohon bantuan terkait perbaikan fasilitas umum komplek. Terima kasih.`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg text-[10px] transition-colors"
+                        >
+                          Hubungi WA
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2104,6 +2188,75 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{bulkProcessing ? 'Menghapus...' : `Ya, Hapus (${selectedFacilityIds.length})`}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS TEKNISI ================= */}
+      {staffToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-rose-200 shadow-modal space-y-4 text-xs">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-base text-ink">Hapus Teknisi {staffToDelete.name}?</h3>
+              <p className="text-ink-muted">
+                Data teknisi/mitra <strong>{staffToDelete.name} ({staffToDelete.id})</strong> akan dihapus permanen dari daftar kontak fasilitas komplek.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setStaffToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleDeleteStaff(staffToDelete.id);
+                  setStaffToDelete(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs active:scale-[0.98]"
+              >
+                Ya, Hapus Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS SEMUA TEKNISI ================= */}
+      {showClearAllStaffModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-rose-200 shadow-modal space-y-4 text-xs">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-base text-ink">Kosongkan Semua Data Teknisi?</h3>
+              <p className="text-ink-muted">
+                Seluruh <strong>{staffList.length} data teknisi & mitra pemeliharaan fasum</strong> akan dihapus dari sistem. Anda dapat memulihkan data sampel bawaan kapan saja jika diperlukan.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowClearAllStaffModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAllStaff}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs active:scale-[0.98]"
+              >
+                Ya, Kosongkan Semua
               </button>
             </div>
           </div>
