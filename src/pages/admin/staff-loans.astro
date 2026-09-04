@@ -1,8 +1,10 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { StaffLoansManager } from '../../components/admin/StaffLoansManager';
+
+const tab = Astro.url.searchParams.get('tab') || 'active_loans';
 ---
 
 <AdminLayout title="Buku Kasbon & Gaji di Awal Petugas - WargaHub" currentPath="/admin/staff-loans">
-  <StaffLoansManager client:load />
+  <StaffLoansManager client:load initialTab={tab as any} />
 </AdminLayout>

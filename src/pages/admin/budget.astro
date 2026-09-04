@@ -1,8 +1,23 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { BudgetManager } from '../../components/admin/BudgetManager';
+import { getProperties } from '../../services/property.service';
+import { getCurrentBillingPeriod, getInvoices } from '../../services/billing.service';
+import { getExpenses, getMainAccountBalance } from '../../services/finance.service';
+
+const properties = await getProperties().catch(() => []);
+const currentPeriod = await getCurrentBillingPeriod().catch(() => null);
+const invoices = currentPeriod ? await getInvoices(currentPeriod.id).catch(() => []) : [];
+const expenses = await getExpenses().catch(() => []);
+const mainBalance = await getMainAccountBalance().catch(() => 0);
 ---
 
 <AdminLayout title="Anggaran & Realisasi - WargaHub" currentPath="/admin/budget">
-  <BudgetManager client:load />
+  <BudgetManager
+    initialProperties={properties as any}
+    initialInvoices={invoices as any}
+    initialExpenses={expenses as any}
+    initialBalance={mainBalance}
+    client:load
+  />
 </AdminLayout>

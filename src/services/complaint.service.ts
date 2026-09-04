@@ -56,13 +56,13 @@ export async function getOpenComplaintsCount() {
   if (process.env.DATABASE_URL) {
     try {
       const res = await neonSql`SELECT COUNT(*) as count FROM complaints WHERE status != 'RESOLVED' AND status != 'CLOSED'`;
-      return Number(res[0].count) || 4;
+      return Number(res[0]?.count ?? 0);
     } catch (e) {
       console.warn('Neon open complaints count error:', e);
     }
   }
   const all = await db.select().from(schema.complaints);
-  return all.filter(c => c.status !== 'RESOLVED' && c.status !== 'CLOSED').length || 4;
+  return all.filter(c => c.status !== 'RESOLVED' && c.status !== 'CLOSED').length;
 }
 
 export async function createComplaint(data: {

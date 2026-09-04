@@ -20,7 +20,16 @@ import {
   AlertCircle,
   FolderOpen
 } from 'lucide-react';
-import { DEMO_USERS, type UserSession } from '../../types/auth';
+import type { UserSession } from '../../types/auth';
+
+const DEFAULT_HEADER_USER: UserSession = {
+  id: 'usr-admin',
+  username: 'admin',
+  fullName: 'Pengurus Komplek',
+  email: 'admin@wargahub.id',
+  role: 'CHAIRMAN',
+  avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
+};
 
 interface AdminHeaderProps {
   currentUser?: UserSession;
@@ -41,7 +50,7 @@ interface NotificationItem {
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
-  currentUser = DEMO_USERS.ketua,
+  currentUser,
   searchPlaceholder = 'Cari rumah, warga, invoice, pembayaran...',
   onSearchClick,
 }) => {
@@ -63,56 +72,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         }
       } catch (e) {}
     }
-    return currentUser || DEMO_USERS.ketua;
+    return currentUser || DEFAULT_HEADER_USER;
   });
 
-  // Notifications state
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'notif-1',
-      title: 'Pembayaran Iuran Masuk (B-12)',
-      detail: 'Rp 750.000 via Transfer BCA a.n Hendra Wijaya terverifikasi.',
-      time: '5 menit yang lalu',
-      category: 'finance',
-      unread: true,
-      link: '/admin/payments',
-      icon: CreditCard,
-      iconColor: 'bg-emerald-100 text-emerald-700',
-    },
-    {
-      id: 'notif-2',
-      title: 'Aduan Warga Baru (Blok C-07)',
-      detail: 'Lampu Penerangan Jalan (PJU) padam di pertigaan Blok C.',
-      time: '25 menit yang lalu',
-      category: 'complaint',
-      unread: true,
-      link: '/admin/complaints',
-      icon: MessageCircle,
-      iconColor: 'bg-amber-100 text-amber-700',
-    },
-    {
-      id: 'notif-3',
-      title: 'Kunjungan Tamu di Pos Gerbang 1',
-      detail: 'Tamu Bpk. Ridwan (Tamu Unit A-04) telah discan & check-in.',
-      time: '1 jam yang lalu',
-      category: 'security',
-      unread: true,
-      link: '/admin/security-gate',
-      icon: ShieldCheck,
-      iconColor: 'bg-purple-100 text-purple-700',
-    },
-    {
-      id: 'notif-4',
-      title: 'Jadwal Servis Rutin Pompa Fasum',
-      detail: 'Pemeliharaan pompa air utama Balai Warga dijadwalkan besok 09:00 WIB.',
-      time: '3 jam yang lalu',
-      category: 'facility',
-      unread: false,
-      link: '/admin/facilities?tab=maintenance',
-      icon: Wrench,
-      iconColor: 'bg-blue-100 text-blue-700',
-    },
-  ]);
+  // Notifications state (clean live / empty state)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
@@ -406,54 +370,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     <span>Sesi Login Terverifikasi Aktif</span>
                   </p>
-                </div>
-              </div>
-
-              {/* Role Switcher Section for Testing */}
-              <div className="p-3 border-b border-border bg-canvas/20 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-ink flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                    Simulasi Ganti Peran (Role Switcher)
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {[
-                    { key: 'ketua', name: '👑 Ketua', user: DEMO_USERS.ketua, path: '/admin' },
-                    { key: 'bendahara', name: '💰 Bendahara', user: DEMO_USERS.bendahara, path: '/admin/payments' },
-                    { key: 'sekretaris', name: '📋 Sekretaris', user: DEMO_USERS.sekretaris, path: '/admin/announcements' },
-                    { key: 'satpam', name: '🛡️ Satpam Pos', user: DEMO_USERS.satpam, path: '/admin/security-gate' },
-                    { key: 'teknisi', name: '🧹 Kebersihan', user: DEMO_USERS.teknisi, path: '/admin/cleaning-staff' },
-                    { key: 'warga', name: '🏠 Warga A-17', user: DEMO_USERS.warga, path: '/warga' },
-                  ].map((roleBtn) => {
-                    const isActive = activeUser?.username === roleBtn.user.username;
-                    return (
-                      <button
-                        key={roleBtn.key}
-                        type="button"
-                        onClick={() => {
-                          const newUser = roleBtn.user;
-                          setActiveUser(newUser);
-                          if (typeof window !== 'undefined') {
-                            localStorage.setItem('wargahub_user', JSON.stringify(newUser));
-                            window.dispatchEvent(new CustomEvent('wargahub_user_changed', { detail: newUser }));
-                          }
-                          setProfileDropdownOpen(false);
-                          setTimeout(() => {
-                            window.location.href = roleBtn.path;
-                          }, 150);
-                        }}
-                        className={`px-2.5 py-1.5 rounded-xl font-bold text-[10px] text-left transition-all flex items-center justify-between ${
-                          isActive
-                            ? 'bg-primary-600 text-white shadow-2xs'
-                            : 'bg-surface hover:bg-primary-50 text-ink border border-border'
-                        }`}
-                      >
-                        <span className="truncate">{roleBtn.name}</span>
-                        {isActive && <Check className="w-3 h-3 shrink-0" />}
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
 

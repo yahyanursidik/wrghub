@@ -9,7 +9,7 @@ const batchSchema = z.object({
   month: z.number().int().min(1).max(12),
   name: z.string(),
   dueDate: z.string(),
-  feeAmount: z.number().positive().default(750000),
+  feeAmount: z.number().positive().default(250000),
   createdBy: z.string().default('user-ketua'),
 });
 

@@ -72,9 +72,15 @@ export interface BankStatementFeed {
 
 interface PaymentsManagerProps {
   initialPayments: PaymentListItem[];
+  initialAccounts?: any[];
+  initialProperties?: any[];
 }
 
-export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayments }) => {
+export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
+  initialPayments,
+  initialAccounts = [],
+  initialProperties = [],
+}) => {
   // Helper storage persistence
   const getPersisted = <T,>(key: string, fallback: T): T => {
     if (typeof window === 'undefined') return fallback;
@@ -107,24 +113,22 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
     }
   };
 
-  // 1. PAYMENTS STATE (with persistent deleted filter)
+  // 1. PAYMENTS STATE
   const [payments, setPayments] = useState<PaymentListItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('wargahub_payments');
-        const deletedPaymentsStr = localStorage.getItem('wargahub_deleted_payments');
-        const deletedResidentsStr = localStorage.getItem('wargahub_deleted_residents');
-        const deletedPropsStr = localStorage.getItem('wargahub_deleted_properties');
-
-        const deletedPayments: string[] = deletedPaymentsStr ? JSON.parse(deletedPaymentsStr) : [];
-        const deletedResidents: string[] = deletedResidentsStr ? JSON.parse(deletedResidentsStr) : [];
-        const deletedProps: string[] = deletedPropsStr ? JSON.parse(deletedPropsStr) : [];
-
-        const allDeleted = new Set([...deletedPayments, ...deletedResidents, ...deletedProps]);
-
+        if (!initialPayments || initialPayments.length === 0) {
+          localStorage.removeItem('wargahub_payments_data');
+          localStorage.removeItem('wargahub_payments');
+          localStorage.removeItem('wargahub_deleted_payments');
+          return [];
+        }
+        const saved = localStorage.getItem('wargahub_payments_data');
+        const deletedStr = localStorage.getItem('wargahub_deleted_payments');
+        const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
         const sourceList = saved !== null ? JSON.parse(saved) : initialPayments;
         if (Array.isArray(sourceList)) {
-          return sourceList.filter((p: any) => !allDeleted.has(p.id) && !allDeleted.has(p.propertyCode));
+          return sourceList.filter((p: any) => !deletedIds.includes(p.id));
         }
       } catch (e) {
         console.warn(e);
@@ -133,57 +137,54 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
     return initialPayments;
   });
 
-  // 2. BANK ACCOUNTS & REKENING KAS STATE
-  const initialBankAccounts: BankAccount[] = [
-    {
-      id: 'acc-bca-01',
-      bankName: 'Bank Central Asia (BCA)',
-      accountNumber: '8830-1928-33',
-      accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
-      balance: 128450000,
-      isPrimary: true,
-      accountType: 'BANK_OPERASIONAL',
-      notes: 'Rekening penerimaan utama iuran IPL, sampah & keamanan.',
-    },
-    {
-      id: 'acc-qris-01',
-      bankName: 'Gateway QRIS Dinamis Paguyuban',
-      accountNumber: 'NMID: ID102008891230',
-      accountHolder: 'WARGAHUB KOMPLEK QRIS',
-      balance: 14250000,
-      isPrimary: false,
-      accountType: 'QRIS_DINAMIS',
-      qrisNmid: 'ID102008891230',
-      qrisFee: '0% (Non-Profit Komunitas)',
-      notes: 'Real-time settlement H+0 otomatis masuk kas.',
-    },
-    {
-      id: 'acc-cash-01',
-      bankName: 'Kas Tunai Bendahara (Petty Cash)',
-      accountNumber: 'BRK-KAS-01',
-      accountHolder: 'Hendra Wijaya (Bendahara)',
-      balance: 8750000,
-      isPrimary: false,
-      accountType: 'KAS_TUNAI',
-      notes: 'Penyimpanan uang tunai untuk operasional darurat dan iuran cash.',
+  useEffect(() => {
+    if (!initialPayments || initialPayments.length === 0) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wargahub_payments_data');
+        localStorage.removeItem('wargahub_payments');
+        localStorage.removeItem('wargahub_deleted_payments');
+      }
+      setPayments([]);
+    } else {
+      setPayments(initialPayments);
     }
-  ];
+  }, [initialPayments]);
 
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(() =>
-    getPersisted('wargahub_bank_accounts', initialBankAccounts)
-  );
+  // 2. BANK ACCOUNTS & REKENING KAS STATE (From Database or LocalStorage)
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(() => {
+    const persisted = getPersisted<BankAccount[] | null>('wargahub_bank_accounts', null);
+    if (persisted && Array.isArray(persisted) && persisted.length > 0) {
+      return persisted;
+    }
+    if (initialAccounts && initialAccounts.length > 0) {
+      return initialAccounts.map((acc: any) => ({
+        id: acc.id,
+        bankName: acc.name || 'Rekening Operasional',
+        accountNumber: acc.accountNumber || acc.code || '-',
+        accountHolder: acc.accountHolder || 'PENGURUS KOMPLEK WARGAHUB',
+        balance: Number(acc.balance) || 0,
+        isPrimary: Boolean(acc.code === 'BCA-UTAMA' || acc.id === 'acc-main'),
+        accountType: acc.type === 'BANK' ? 'BANK_OPERASIONAL' : (acc.type === 'QRIS' ? 'QRIS_DINAMIS' : 'KAS_TUNAI'),
+        notes: acc.notes || '',
+      }));
+    }
+    return [
+      {
+        id: 'acc-bca-01',
+        bankName: 'Bank Central Asia (BCA)',
+        accountNumber: '8830-1928-33',
+        accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
+        balance: 0,
+        isPrimary: true,
+        accountType: 'BANK_OPERASIONAL',
+        notes: 'Rekening penerimaan utama iuran IPL, sampah & keamanan.',
+      }
+    ];
+  });
 
-  // Bank Statement Feed (Auto-Recon Feed)
-  const initialStatements: BankStatementFeed[] = [
-    { id: 'stmt-1', date: '28 Agu 2026, 14:15 WIB', description: 'TRF BPK BUDI SANTOSO IPL A17', type: 'CR', amount: 750000, matchedHouse: 'A-17', isReconciled: true },
-    { id: 'stmt-2', date: '28 Agu 2026, 15:30 WIB', description: 'QRIS SETTLEMENT ID102008891230', type: 'CR', amount: 750000, matchedHouse: 'B-04', isReconciled: true },
-    { id: 'stmt-3', date: '28 Agu 2026, 16:45 WIB', description: 'TRF IBU RATNA IPL AGUSTUS C08', type: 'CR', amount: 750000, matchedHouse: 'C-08', isReconciled: true },
-    { id: 'stmt-4', date: '29 Agu 2026, 09:10 WIB', description: 'BIAYA ADM REK KORAN BULANAN BCA', type: 'DB', amount: 25000, isReconciled: true },
-    { id: 'stmt-5', date: '29 Agu 2026, 11:20 WIB', description: 'TRF HENDRA GUNAWAN IPL A01', type: 'CR', amount: 750000, matchedHouse: 'A-01', isReconciled: true },
-  ];
-
+  // Bank Statement Feed (Auto-Recon Feed from storage or live)
   const [statementFeeds, setStatementFeeds] = useState<BankStatementFeed[]>(() =>
-    getPersisted('wargahub_statement_feeds', initialStatements)
+    getPersisted('wargahub_statement_feeds', [])
   );
 
   // Navigation & SubTabs
@@ -214,22 +215,22 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
 
   // Bank Account Edit Modal
   const [showBankEditModal, setShowBankEditModal] = useState(false);
-  const [editingBankId, setEditingBankId] = useState<string>('acc-bca-01');
-  const [bBankName, setBBankName] = useState('Bank Central Asia (BCA)');
-  const [bAccountNumber, setBAccountNumber] = useState('8830-1928-33');
-  const [bAccountHolder, setBAccountHolder] = useState('PENGURUS KOMPLEK WARGAHUB');
-  const [bBalance, setBBalance] = useState(128450000);
-  const [bQrisNmid, setBQrisNmid] = useState('ID102008891230');
+  const [editingBankId, setEditingBankId] = useState<string>('');
+  const [bBankName, setBBankName] = useState('');
+  const [bAccountNumber, setBAccountNumber] = useState('');
+  const [bAccountHolder, setBAccountHolder] = useState('');
+  const [bBalance, setBBalance] = useState(0);
+  const [bQrisNmid, setBQrisNmid] = useState('');
   const [bNotes, setBNotes] = useState('');
 
   // Manual Payment Form State
-  const [formHouseCode, setFormHouseCode] = useState('A-17');
-  const [formOwnerName, setFormOwnerName] = useState('Budi Santoso');
-  const [formPeriod, setFormPeriod] = useState('Agustus 2026');
-  const [formAmount, setFormAmount] = useState(750000);
+  const [formHouseCode, setFormHouseCode] = useState(initialProperties[0]?.code || '');
+  const [formOwnerName, setFormOwnerName] = useState(initialProperties[0]?.ownerName || '');
+  const [formPeriod, setFormPeriod] = useState(new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }));
+  const [formAmount, setFormAmount] = useState(250000);
   const [formMethod, setFormMethod] = useState<'BCA_TRANSFER' | 'QRIS' | 'CASH' | 'MANDIRI_TRANSFER' | 'BRI_TRANSFER'>('BCA_TRANSFER');
   const [formRef, setFormRef] = useState('');
-  const [formPaidDate, setFormPaidDate] = useState('2026-08-28');
+  const [formPaidDate, setFormPaidDate] = useState(new Date().toISOString().slice(0, 10));
   const [formStatus, setFormStatus] = useState<'VERIFIED' | 'PENDING'>('VERIFIED');
   const [formNotes, setFormNotes] = useState('');
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
@@ -237,7 +238,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
 
   // Rejection Form State
   const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectionReasonInput, setRejectionReasonInput] = useState('Nominal bukti transfer tidak sesuai tagihan (Rp 750.000)');
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('Nominal bukti transfer tidak sesuai tagihan');
 
   // Show Toast
   const showToast = (msg: string) => {
@@ -356,7 +357,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
     setFormHouseCode(prefillHouse || 'A-17');
     setFormOwnerName(prefillHouse ? `Warga Rumah ${prefillHouse}` : 'Budi Santoso');
     setFormPeriod('Agustus 2026');
-    setFormAmount(750000);
+    setFormAmount(250000);
     setFormMethod('BCA_TRANSFER');
     setFormRef(`TRX-${(prefillHouse || 'A17').replace(/[^A-Z0-9]/g, '')}-${Date.now().toString().slice(-4)}`);
     setFormPaidDate(new Date().toISOString().slice(0, 10));
@@ -405,7 +406,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
         communityName: 'Komplek Taman Sejahtera',
         rtRw: 'RT 04 / RW 09',
         address: 'Jl. Graha Raya No. 88',
-        monthlyRate: 750000,
+        monthlyRate: 250000,
         bankName: bBankName,
         bankAccount: bAccountNumber,
         accountHolder: bAccountHolder,
@@ -683,18 +684,18 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
           <button
             type="button"
             onClick={handleExportPaymentsCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
-            <Download className="w-4 h-4 text-ink-muted" />
-            Ekspor Mutasi (CSV)
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>Ekspor Mutasi (CSV)</span>
           </button>
           <button
             type="button"
             onClick={() => handleOpenCreatePayment()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
             <PlusCircle className="w-4 h-4" />
-            Catat Pembayaran Manual
+            <span>Catat Pembayaran Manual</span>
           </button>
         </div>
       </div>
@@ -717,29 +718,29 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
           <button
             type="button"
             onClick={handleCopyPublicLink}
-            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-            Salin Link Publik
+            <span>Salin Link Publik</span>
           </button>
           <a
             href={publicTransparencyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             <ExternalLink className="w-4 h-4" />
-            Buka Halaman Publik
+            <span>Buka Halaman Publik</span>
           </a>
         </div>
       </div>
 
       {/* 4 Sub-Tabs Navigation */}
-      <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'verification', label: 'Verifikasi Pembayaran Masuk', icon: Hourglass, count: pendingCount },
-          { id: 'public_transparency', label: 'Rekapitulasi Transparansi Warga (Lunas vs Belum)', icon: Eye, count: verifiedCount },
-          { id: 'bank_recon', label: 'Rekonsiliasi Bank & Pengaturan Rekening Kas', icon: Building },
+          { id: 'verification', label: 'Verifikasi Pembayaran Masuk', icon: Hourglass, count: `${pendingCount} Menunggu` },
+          { id: 'public_transparency', label: 'Rekapitulasi Transparansi Warga (Lunas vs Belum)', icon: Eye, count: `${verifiedCount} Lunas` },
+          { id: 'bank_recon', label: 'Rekonsiliasi Bank & Rekening Kas', icon: Building },
           { id: 'manual_entry', label: 'Catat Setoran Manual / Tunai', icon: PlusCircle },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -748,17 +749,17 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
             <button
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-[0.98] ${
                 isActive
-                  ? 'bg-emerald-600 text-white shadow-xs'
+                  ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-ink-muted hover:text-ink hover:bg-canvas'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-ink-muted'}`} />
               <span>{tab.label}</span>
               {tab.count !== undefined && (
-                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border'
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border/60'
                 }`}>
                   {tab.count}
                 </span>
@@ -774,36 +775,36 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Setoran Terverifikasi</span>
-              <p className="text-xl font-black text-emerald-700 mt-1 tabular-nums">{formatRupiah(totalVerifiedAmount)}</p>
-              <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">{verifiedCount} Transaksi Lunas</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Setoran Terverifikasi</span>
+              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">{formatRupiah(totalVerifiedAmount)}</p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">{verifiedCount} TRANSAKSI LUNAS</span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Menunggu Verifikasi</span>
-              <p className="text-xl font-black text-amber-700 mt-1 tabular-nums">{pendingCount} Bukti</p>
-              <span className="text-[10px] text-amber-700 font-bold mt-0.5 block">Perlu dicek bendahara</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Menunggu Verifikasi</span>
+              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">{pendingCount} Bukti</p>
+              <span className="text-[10px] text-amber-600 font-bold font-mono mt-0.5 block">PERLU DICEK BENDAHARA</span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Bukti Ditolak</span>
-              <p className="text-xl font-black text-rose-700 mt-1 tabular-nums">{rejectedCount} Transaksi</p>
-              <span className="text-[10px] text-rose-700 font-bold mt-0.5 block">Tidak sesuai nominal</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Bukti Ditolak</span>
+              <p className="text-2xl font-black font-mono text-rose-700 mt-0.5 tabular-nums">{rejectedCount} Transaksi</p>
+              <span className="text-[10px] text-rose-600 font-bold font-mono mt-0.5 block">TIDAK SESUAI NOMINAL</span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-ink-muted">Saldo Kas Paguyuban</span>
+                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Saldo Kas Paguyuban</span>
                 <button
                   type="button"
                   onClick={() => handleOpenEditBank(primaryAccount)}
                   className="text-[10px] text-primary-600 font-bold hover:underline"
                 >
-                  Edit Rekening
+                  Edit
                 </button>
               </div>
-              <p className="text-xl font-black text-primary-700 mt-1 tabular-nums">{formatRupiah(totalAllKas)}</p>
-              <span className="text-[10px] text-emerald-600 font-bold mt-0.5 block truncate">{primaryAccount.bankName} {primaryAccount.accountNumber}</span>
+              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">{formatRupiah(totalAllKas)}</p>
+              <span className="text-[10px] text-primary-600 font-bold font-mono mt-0.5 block truncate">{primaryAccount.bankName} {primaryAccount.accountNumber}</span>
             </div>
           </div>
 
@@ -951,8 +952,20 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                 <tbody className="divide-y divide-border/60">
                   {paginatedPayments.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-ink-muted font-medium">
-                        Tidak ada transaksi pembayaran yang cocok dengan filter.
+                      <td colSpan={7} className="py-12 text-center text-ink-muted">
+                        <div className="max-w-sm mx-auto flex flex-col items-center justify-center gap-2">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+                            <CreditCard className="w-5 h-5" />
+                          </div>
+                          <p className="font-bold text-ink text-sm">
+                            {payments.length === 0 ? 'Belum Ada Transaksi Pembayaran' : 'Tidak ada transaksi yang cocok dengan filter'}
+                          </p>
+                          <p className="text-xs text-ink-muted">
+                            {payments.length === 0
+                              ? 'Data pembayaran masih kosong. Klik tombol "Catat Pembayaran Manual" di atas untuk merekam transaksi warga.'
+                              : 'Coba ubah kata kunci pencarian atau filter status untuk menemukan transaksi.'}
+                          </p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -961,41 +974,43 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                       const isPending = pay.status === 'PENDING';
                       const isSelected = selectedPaymentIds.includes(pay.id);
                       return (
-                        <tr key={pay.id} className={`hover:bg-canvas/50 text-ink transition-colors ${isSelected ? 'bg-emerald-50/40' : ''}`}>
+                        <tr key={pay.id} className={`hover:bg-canvas/60 text-ink transition-colors ${isSelected ? 'bg-emerald-50/40' : ''}`}>
                           <td className="py-3.5 px-4">
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleToggleSelectOne(pay.id)}
-                              className="rounded border-border text-emerald-600"
+                              className="rounded border-border text-emerald-600 cursor-pointer"
                             />
                           </td>
-                          <td className="py-3.5 px-4 font-black text-primary-700 text-sm">
+                          <td className="py-3.5 px-4 font-mono font-black text-primary-700 text-sm">
                             Rumah {pay.propertyCode}
                           </td>
-                          <td className="py-3.5 px-4 font-black tabular-nums text-ink text-sm">
+                          <td className="py-3.5 px-4 font-mono font-black tabular-nums text-ink text-sm">
                             {formatRupiah(pay.amount)}
                           </td>
                           <td className="py-3.5 px-4">
                             <span className="font-bold text-ink block">{pay.method.replace('_', ' ')}</span>
-                            <span className="font-mono text-[10px] text-ink-muted">{pay.reference || '-'}</span>
+                            <span className="font-mono text-[10px] text-ink-muted bg-canvas px-1.5 py-0.5 rounded border border-border/80 inline-block mt-0.5">
+                              {pay.reference || '-'}
+                            </span>
                           </td>
-                          <td className="py-3.5 px-4 text-ink-muted font-mono">
+                          <td className="py-3.5 px-4 text-ink-muted font-mono font-medium">
                             {pay.paidAt}
                           </td>
                           <td className="py-3.5 px-4 text-center">
                             {isVerified && (
-                              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black text-[10px] border border-emerald-300">
+                              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-mono font-black text-[10px] border border-emerald-300 shadow-2xs">
                                 ✓ TERVERIFIKASI
                               </span>
                             )}
                             {isPending && (
-                              <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-black text-[10px] border border-amber-300 animate-pulse">
+                              <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-mono font-black text-[10px] border border-amber-300 animate-pulse">
                                 ⏳ MENUNGGU
                               </span>
                             )}
                             {pay.status === 'REJECTED' && (
-                              <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 font-black text-[10px] border border-rose-300">
+                              <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 font-mono font-black text-[10px] border border-rose-300">
                                 ✕ DITOLAK
                               </span>
                             )}
@@ -1006,11 +1021,11 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                               <button
                                 type="button"
                                 onClick={() => setViewingProof(pay)}
-                                className="px-2.5 py-1 bg-surface hover:bg-canvas border border-border text-ink rounded-lg font-bold inline-flex items-center gap-1 text-[11px] shadow-2xs"
+                                className="px-2.5 py-1.5 bg-surface hover:bg-canvas border border-border text-ink rounded-lg font-bold inline-flex items-center gap-1 text-[11px] shadow-2xs active:scale-[0.98] transition-all"
                                 title="Lihat Bukti Transfer"
                               >
                                 <Eye className="w-3.5 h-3.5 text-primary-600" />
-                                {isPending ? 'Verifikasi' : 'Bukti'}
+                                <span>{isPending ? 'Verifikasi' : 'Bukti'}</span>
                               </button>
 
                               {/* Kuitansi Resmi */}
@@ -1029,7 +1044,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                                       referenceNumber: pay.reference || `TRX-${pay.propertyCode}`,
                                     })
                                   }
-                                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold inline-flex items-center gap-1 text-[11px]"
+                                  className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
                                   title="Lihat / Cetak Kuitansi Resmi"
                                 >
                                   <Printer className="w-3.5 h-3.5" /> Kuitansi
@@ -1039,7 +1054,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditPayment(pay)}
-                                className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg font-bold"
+                                className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg font-bold active:scale-[0.98] transition-all"
                                 title="Edit Pembayaran"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -1047,7 +1062,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                               <button
                                 type="button"
                                 onClick={() => setPaymentToDelete(pay)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg font-bold"
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg font-bold active:scale-[0.98] transition-all"
                                 title="Hapus Catatan Pembayaran"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1184,18 +1199,18 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                     URL.revokeObjectURL(url);
                     showToast('Laporan transparansi berhasil diunduh.');
                   }}
-                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-xs"
+                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
                 >
                   <Download className="w-3.5 h-3.5 text-primary-600" />
-                  Unduh Laporan (.txt)
+                  <span>Unduh Laporan (.txt)</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleCopyPublicLink}
-                  className="px-3.5 py-2 bg-emerald-50 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5 shadow-xs"
+                  className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  Salin Tautan Publik
+                  <span>Salin Tautan Publik</span>
                 </button>
               </div>
             </div>
@@ -1208,7 +1223,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     Unit Sudah Lunas ({verifiedCount} Unit)
                   </h4>
-                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-black">
+                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-black">
                     TERVERIFIKASI
                   </span>
                 </div>
@@ -1216,12 +1231,12 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                   {payments.filter((p) => p.status === 'VERIFIED').map((p) => (
                     <div key={p.id} className="p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between shadow-2xs">
                       <div>
-                        <span className="font-black text-ink text-sm">Rumah {p.propertyCode}</span>
+                        <span className="font-mono font-black text-ink text-sm block">Rumah {p.propertyCode}</span>
                         <span className="text-[10px] text-ink-muted block">{p.method.replace('_', ' ')} • {p.reference || 'BCA Auto'}</span>
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
-                          <span className="font-black text-emerald-700 block">{formatRupiah(p.amount)}</span>
+                          <span className="font-mono font-black text-emerald-700 block">{formatRupiah(p.amount)}</span>
                           <span className="text-[9px] font-mono text-emerald-600">Lunas {p.paidAt}</span>
                         </div>
                         <button
@@ -1238,7 +1253,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                               referenceNumber: p.reference || `TRX-${p.propertyCode}`,
                             })
                           }
-                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg"
+                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg active:scale-[0.95] transition-all"
                           title="Cetak Kuitansi"
                         >
                           <Printer className="w-3.5 h-3.5" />
@@ -1256,7 +1271,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                     <Clock className="w-4 h-4 text-rose-600" />
                     Unit Menunggu Verifikasi / Belum Bayar
                   </h4>
-                  <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-black">
+                  <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-mono font-black">
                     DALAM PROSES
                   </span>
                 </div>
@@ -1264,16 +1279,16 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                   {payments.filter((p) => p.status !== 'VERIFIED').map((p) => (
                     <div key={p.id} className="p-3 bg-white rounded-xl border border-rose-200 flex items-center justify-between shadow-2xs">
                       <div>
-                        <span className="font-black text-ink text-sm">Rumah {p.propertyCode}</span>
-                        <span className="text-[10px] text-ink-muted block">Status: <strong>{p.status}</strong></span>
+                        <span className="font-mono font-black text-ink text-sm block">Rumah {p.propertyCode}</span>
+                        <span className="text-[10px] text-ink-muted font-mono block">Status: <strong>{p.status}</strong></span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-black text-rose-700 tabular-nums">{formatRupiah(p.amount)}</span>
+                        <span className="font-mono font-black text-rose-700 tabular-nums">{formatRupiah(p.amount)}</span>
                         <a
                           href={`https://wa.me/?text=${encodeURIComponent(`Yth. Bpk/Ibu Warga Rumah ${p.propertyCode}, menginfokan bahwa tagihan iuran IPL komplek periode Agustus 2026 sebesar ${formatRupiah(p.amount)} siap dibayarkan ke Rekening Kas BCA 8830-1928-33 a.n PENGURUS KOMPLEK. Terima kasih!`)}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-1 text-[10px] font-bold"
+                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-1 text-[10px] font-bold active:scale-[0.95] transition-all"
                           title="Kirim Pengingat WhatsApp"
                         >
                           <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
@@ -1282,7 +1297,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                         <button
                           type="button"
                           onClick={() => handleOpenCreatePayment(p.propertyCode)}
-                          className="px-2 py-1 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg text-[10px]"
+                          className="px-2.5 py-1 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg text-[10px] active:scale-[0.95] transition-all"
                         >
                           Bayar
                         </button>
@@ -1388,24 +1403,34 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {statementFeeds.map(feed => (
-                    <tr key={feed.id} className="hover:bg-canvas/50">
-                      <td className="py-3 px-4 font-mono text-ink-muted">{feed.date}</td>
-                      <td className="py-3 px-4 font-bold text-ink">{feed.description}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded font-black font-mono text-[10px] ${feed.type === 'CR' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                          {feed.type === 'CR' ? '+ KREDIT (MASUK)' : '- DEBIT (KELUAR)'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-black font-mono text-ink">{formatRupiah(feed.amount)}</td>
-                      <td className="py-3 px-4 font-bold text-primary-700">{feed.matchedHouse ? `Rumah ${feed.matchedHouse}` : '-'}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-bold text-[10px]">
-                          ✓ MATCHED
-                        </span>
+                  {statementFeeds.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-ink-muted">
+                        <Building className="w-8 h-8 mx-auto mb-2 text-ink-muted/50" />
+                        <p className="font-bold text-sm text-ink">Belum ada mutasi rekening bank terdeteksi</p>
+                        <p className="text-[11px] mt-1">Mutasi dari bank atau settlement QRIS akan otomatis muncul di sini untuk rekonsiliasi.</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    statementFeeds.map(feed => (
+                      <tr key={feed.id} className="hover:bg-canvas/50">
+                        <td className="py-3 px-4 font-mono text-ink-muted">{feed.date}</td>
+                        <td className="py-3 px-4 font-bold text-ink">{feed.description}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded font-black font-mono text-[10px] ${feed.type === 'CR' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                            {feed.type === 'CR' ? '+ KREDIT (MASUK)' : '- DEBIT (KELUAR)'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-black font-mono text-ink">{formatRupiah(feed.amount)}</td>
+                        <td className="py-3 px-4 font-bold text-primary-700">{feed.matchedHouse ? `Rumah ${feed.matchedHouse}` : '-'}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-bold text-[10px]">
+                            ✓ MATCHED
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1514,10 +1539,10 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
               <button
                 type="submit"
                 disabled={savingPayment}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-xs transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 <Check className="w-4 h-4" />
-                {savingPayment ? 'Menyimpan...' : 'Simpan Pembayaran & Terbitkan Kuitansi'}
+                <span>{savingPayment ? 'Menyimpan...' : 'Simpan Pembayaran & Terbitkan Kuitansi'}</span>
               </button>
             </form>
           </div>
@@ -1636,13 +1661,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                 <button
                   type="button"
                   onClick={() => setShowBankEditModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
                   Simpan Perubahan Rekening
                 </button>
@@ -1704,14 +1729,14 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                   <button
                     type="button"
                     onClick={() => setRejectingId(viewingProof.id)}
-                    className="flex-1 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl"
+                    className="flex-1 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl active:scale-[0.98] transition-all"
                   >
                     Tolak Pembayaran
                   </button>
                   <button
                     type="button"
                     onClick={() => handleVerify(viewingProof.id)}
-                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs"
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
                   >
                     ✓ Verifikasi & Terbitkan Kuitansi
                   </button>
@@ -1729,7 +1754,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                     <button
                       type="button"
                       onClick={() => handleReject(viewingProof.id)}
-                      className="w-full py-1.5 bg-rose-600 text-white font-bold rounded-lg text-xs"
+                      className="w-full py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs active:scale-[0.98] transition-all"
                     >
                       Kirim Notifikasi Penolakan ke Warga
                     </button>
@@ -1741,7 +1766,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                 <button
                   type="button"
                   onClick={() => setViewingProof(null)}
-                  className="px-4 py-2 bg-surface border border-border text-ink font-bold rounded-xl"
+                  className="px-4 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold rounded-xl active:scale-[0.98] transition-all"
                 >
                   Tutup
                 </button>
@@ -1839,14 +1864,14 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                 <button
                   type="button"
                   onClick={() => setShowManualModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={savingPayment}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs disabled:opacity-50 active:scale-[0.98] transition-all"
                 >
                   {savingPayment ? 'Menyimpan...' : 'Simpan Pembayaran'}
                 </button>
@@ -1888,14 +1913,14 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
               <button
                 type="button"
                 onClick={() => setPaymentToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeletePayment}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
               >
                 Ya, Hapus Pembayaran
               </button>
@@ -1933,7 +1958,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                 type="button"
                 disabled={bulkProcessing}
                 onClick={() => setShowBulkDeleteModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
               >
                 Batal
               </button>
@@ -1941,7 +1966,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({ initialPayment
                 type="button"
                 disabled={bulkProcessing}
                 onClick={handleConfirmBulkDelete}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>{bulkProcessing ? 'Menghapus...' : `Ya, Hapus (${selectedPaymentIds.length})`}</span>

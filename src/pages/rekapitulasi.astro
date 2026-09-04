@@ -1,8 +1,14 @@
 ---
 import PublicLayout from '../layouts/PublicLayout.astro';
 import { PublicDuesLedger } from '../components/public/PublicDuesLedger';
+import { getProperties } from '../services/property.service';
+import { getInvoices, getCurrentBillingPeriod } from '../services/billing.service';
+
+const properties = await getProperties();
+const currentPeriod = await getCurrentBillingPeriod();
+const invoices = currentPeriod ? await getInvoices(currentPeriod.id) : [];
 ---
 
 <PublicLayout title="Rekapitulasi Iuran Warga - WargaHub" currentPath="/rekap-iuran">
-  <PublicDuesLedger client:load />
+  <PublicDuesLedger initialProperties={properties} initialInvoices={invoices} client:load />
 </PublicLayout>

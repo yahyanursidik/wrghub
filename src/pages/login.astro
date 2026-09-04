@@ -2,21 +2,46 @@
 import { UnifiedLoginView } from '../components/auth/UnifiedLoginView';
 import '../styles/global.css';
 
-const portal = Astro.url.searchParams.get('portal') === 'admin' ? 'admin' : 'resident';
+const rawPortal = Astro.url.searchParams.get('portal');
+const portal = rawPortal === 'admin' ? 'admin' : rawPortal === 'security' ? 'security' : 'resident';
+const tab = (Astro.url.searchParams.get('tab') as any) || 'portal_login';
 ---
 
 <!doctype html>
-<html lang="id">
+<html lang="id" class="h-full bg-canvas text-ink antialiased">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Masuk - WargaHub Taman Sejahtera</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Masuk & Akses Layanan - WargaHub Komplek Taman Sejahtera</title>
+    <meta name="description" content="Gerbang Masuk Terpadu WargaHub: Portal Warga Mandiri, Dashboard Backoffice Pengurus RT/RW, dan Terminal Pos Satpam 24 Jam." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#059669" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <script is:inline>
+      try {
+        const CLEAN_VERSION = 'wargahub_demo_cleaned_v4';
+        if (!localStorage.getItem(CLEAN_VERSION)) {
+          const demoKeys = [
+            'wargahub_announcements', 'wargahub_deleted_announcements', 'wargahub_announcement_agenda',
+            'wargahub_facilities', 'wargahub_facility_bookings', 'wargahub_facility_maintenance',
+            'wargahub_security_guards', 'wargahub_patrol_logs', 'wargahub_cleaning_staff',
+            'wargahub_cleaning_routes', 'wargahub_staff_loans', 'wargahub_deleted_loans',
+            'wargahub_polls_data', 'wargahub_deleted_polls', 'wargahub_payments',
+            'wargahub_deleted_payments', 'wargahub_properties', 'wargahub_deleted_properties',
+            'wargahub_residents', 'wargahub_deleted_residents', 'wargahub_vehicles',
+            'wargahub_deleted_vehicles', 'wargahub_permits', 'wargahub_deleted_permits',
+            'wargahub_utilities', 'wargahub_deleted_utilities',
+          ];
+          demoKeys.forEach(function(k) { localStorage.removeItem(k); });
+          localStorage.setItem(CLEAN_VERSION, 'true');
+        }
+      } catch (e) {}
+    </script>
   </head>
-  <body class="bg-canvas text-ink font-sans min-h-screen antialiased selection:bg-primary-100 selection:text-primary-900">
-    <UnifiedLoginView initialPortal={portal} client:load />
+  <body class="min-h-full bg-canvas text-ink font-sans antialiased selection:bg-primary-100 selection:text-primary-900">
+    <UnifiedLoginView initialPortal={portal} initialTab={tab} client:load />
   </body>
 </html>

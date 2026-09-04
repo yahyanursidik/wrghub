@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
   QrCode,
@@ -124,7 +124,15 @@ export interface DailyDutyItem {
   completedAt?: string;
 }
 
-export const SecurityGateManager: React.FC = () => {
+export interface SecurityGateManagerProps {
+  initialProperties?: any[];
+  initialVehicles?: any[];
+}
+
+export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
+  initialProperties = [],
+  initialVehicles = [],
+}) => {
   // Main Subtab State
   const [activeTab, setActiveTab] = useState<'guards' | 'roster' | 'patrol' | 'gate' | 'inventory' | 'emergency'>('guards');
 
@@ -168,180 +176,6 @@ export const SecurityGateManager: React.FC = () => {
   };
 
   // ================= 1. SECURITY GUARDS STATE =================
-  const initialGuards: SecurityGuard[] = [
-    {
-      id: 'SEC-001',
-      nip: 'SEC.2024.1001',
-      fullName: 'Bambang Sudiro',
-      role: 'Komandan Regu (Danru)',
-      dutyCategory: 'KEAMANAN_MURNI',
-      team: 'Regu A - Garuda',
-      phone: '0812-3456-7801',
-      emergencyContact: '0813-9988-1122 (Istri)',
-      certification: 'GADA_MADYA',
-      regNumber: 'POL-REG-882910',
-      assignedPost: 'Pos Gerbang Utama (Main Gate)',
-      shift: 'SHIFT_PAGI',
-      salary: 5200000,
-      nightAllowance: 450000,
-      status: 'AKTIF_BERTUGAS',
-      joinDate: '2024-01-15',
-      notes: 'Sertifikasi bela diri dan instruktur tanggap darurat APAR.',
-    },
-    {
-      id: 'SEC-002',
-      nip: 'SEC.2024.1002',
-      fullName: 'Agus Setiawan',
-      role: 'Anggota Jaga Pos Utama & Gerbang',
-      dutyCategory: 'KEAMANAN_MURNI',
-      team: 'Regu A - Garuda',
-      phone: '0812-3456-7802',
-      emergencyContact: '0857-1122-3344 (Keluarga)',
-      certification: 'GADA_PRATAMA',
-      regNumber: 'POL-REG-882911',
-      assignedPost: 'Pos Gerbang Utama (Main Gate)',
-      shift: 'SHIFT_PAGI',
-      salary: 4300000,
-      nightAllowance: 350000,
-      status: 'AKTIF_BERTUGAS',
-      joinDate: '2024-03-01',
-      notes: 'Operator scanner QR kuitansi dan barrier gate.',
-    },
-    {
-      id: 'SEC-003',
-      nip: 'SEC.2024.1003',
-      fullName: 'Dedi Kurniawan',
-      role: 'Satpam Merangkap Kebersihan & Sampah',
-      dutyCategory: 'KEAMANAN_KEBERSIHAN',
-      team: 'Regu A - Garuda',
-      phone: '0812-3456-7803',
-      emergencyContact: '0878-3344-5566 (Adik)',
-      certification: 'GADA_PRATAMA',
-      regNumber: 'POL-REG-882912',
-      assignedPost: 'Patroli Blok A-B & Jalur Utama',
-      shift: 'SHIFT_PAGI',
-      salary: 4500000,
-      nightAllowance: 350000,
-      status: 'AKTIF_BERTUGAS',
-      joinDate: '2024-04-10',
-      notes: 'Patroli sepeda listrik dan kontrol pengangkutan sampah Blok A-B.',
-    },
-    {
-      id: 'SEC-004',
-      nip: 'SEC.2024.1004',
-      fullName: 'Slamet Riyadi',
-      role: 'Komandan Regu (Danru)',
-      dutyCategory: 'KEAMANAN_MURNI',
-      team: 'Regu B - Rajawali',
-      phone: '0812-3456-7804',
-      emergencyContact: '0812-4455-6677 (Istri)',
-      certification: 'GADA_MADYA',
-      regNumber: 'POL-REG-882913',
-      assignedPost: 'Pos Gerbang Utama (Main Gate)',
-      shift: 'SHIFT_SIANG',
-      salary: 5200000,
-      nightAllowance: 450000,
-      status: 'AKTIF_BERTUGAS',
-      joinDate: '2024-01-15',
-      notes: 'Pemeriksaan rutin pintu darurat dan pagar keliling barat.',
-    },
-    {
-      id: 'SEC-005',
-      nip: 'SEC.2024.1005',
-      fullName: 'Hendro Siswanto',
-      role: 'Operator CCTV & Teknisi Fasum',
-      dutyCategory: 'TEKNISI_FASUM',
-      team: 'Regu B - Rajawali',
-      phone: '0812-3456-7805',
-      emergencyContact: '0852-7788-9900 (Istri)',
-      certification: 'GADA_PRATAMA',
-      regNumber: 'POL-REG-882914',
-      assignedPost: 'Ruang Monitor CCTV & Gardu PLN',
-      shift: 'SHIFT_SIANG',
-      salary: 4500000,
-      nightAllowance: 350000,
-      status: 'AKTIF_BERTUGAS',
-      joinDate: '2024-05-12',
-      notes: 'Monitoring 16 CCTV dan cek rutin meteran listrik fasum.',
-    },
-    {
-      id: 'SEC-006',
-      nip: 'SEC.2024.1006',
-      fullName: 'Rudi Hartono',
-      role: 'Satpam & Pemeliharaan Taman / TPS',
-      dutyCategory: 'KEBERSIHAN_TAMAN',
-      team: 'Regu B - Rajawali',
-      phone: '0812-3456-7806',
-      emergencyContact: '0819-2233-4455 (Istri)',
-      certification: 'GADA_PRATAMA',
-      regNumber: 'POL-REG-882915',
-      assignedPost: 'Patroli Blok C-D & Area TPS Sampah',
-      shift: 'SHIFT_SIANG',
-      salary: 4400000,
-      nightAllowance: 350000,
-      status: 'AKTIF_BERTUGAS',
-      joinDate: '2024-06-01',
-      notes: 'Penertiban parkir tamu dan cek kebersihan area TPS sampah Blok C.',
-    },
-    {
-      id: 'SEC-007',
-      nip: 'SEC.2024.1007',
-      fullName: 'Wawan Gunawan',
-      role: 'Komandan Regu (Danru)',
-      dutyCategory: 'KEAMANAN_MURNI',
-      team: 'Regu C - Elang',
-      phone: '0812-3456-7807',
-      emergencyContact: '0813-1133-5577 (Istri)',
-      certification: 'GADA_MADYA',
-      regNumber: 'POL-REG-882916',
-      assignedPost: 'Pos Gerbang Utama (Main Gate)',
-      shift: 'SHIFT_MALAM',
-      salary: 5200000,
-      nightAllowance: 500000,
-      status: 'LEPAS_PIKET',
-      joinDate: '2024-02-01',
-      notes: 'Piket malam & koordinasi dengan patroli Polsek setempat.',
-    },
-    {
-      id: 'SEC-008',
-      nip: 'SEC.2024.1008',
-      fullName: 'Tri Handoko',
-      role: 'Anggota Jaga Pos Utama & Portal Malam',
-      dutyCategory: 'KEAMANAN_MURNI',
-      team: 'Regu C - Elang',
-      phone: '0812-3456-7808',
-      emergencyContact: '0877-6655-4433 (Orang Tua)',
-      certification: 'GADA_PRATAMA',
-      regNumber: 'POL-REG-882917',
-      assignedPost: 'Pos Gerbang Utama (Main Gate)',
-      shift: 'SHIFT_MALAM',
-      salary: 4300000,
-      nightAllowance: 400000,
-      status: 'LEPAS_PIKET',
-      joinDate: '2024-07-15',
-      notes: 'Tutup portal malam pukul 23:00 WIB dan filter tamu malam.',
-    },
-    {
-      id: 'SEC-009',
-      nip: 'SEC.2024.1009',
-      fullName: 'Pak Ujang Suhendra',
-      role: 'Tim Serbaguna (Kebersihan & Taman Komplek)',
-      dutyCategory: 'KEBERSIHAN_TAMAN',
-      team: 'Tim Kebersihan & Fasum',
-      phone: '0813-7766-5544',
-      emergencyContact: '0858-1122-3344 (Istri)',
-      certification: 'NON_SERTIFIKASI',
-      regNumber: 'STAFF-ENV-01',
-      assignedPost: 'Area Taman Utama & TPS Komposter',
-      shift: 'SHIFT_FULL_DAY',
-      salary: 3800000,
-      nightAllowance: 0,
-      status: 'AKTIF_BERTUGAS',
-      joinDate: '2024-05-01',
-      notes: 'Pengangkutan sampah rutin pagi dan penyiraman tanaman fasum.',
-    },
-  ];
-
   const [guards, setGuards] = useState<SecurityGuard[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -358,7 +192,7 @@ export const SecurityGateManager: React.FC = () => {
         console.warn(e);
       }
     }
-    return initialGuards;
+    return [];
   });
 
   // Teams List (Customizable)
@@ -410,68 +244,8 @@ export const SecurityGateManager: React.FC = () => {
   const [gNotes, setGNotes] = useState('');
 
   // ================= 2. ROSTER & SHIFT MANAGEMENT STATE =================
-  const initialRosters: RosterSchedule[] = [
-    {
-      id: 'ROSTER-01',
-      teamName: 'Regu A — Garuda',
-      shiftType: 'SHIFT_PAGI',
-      shiftLabel: 'Shift Pagi',
-      shiftHours: '07:00 - 15:00 WIB',
-      dutyCategory: 'KEAMANAN_MURNI',
-      status: 'SEDANG_DINAS',
-      notes: 'Serah terima kunci gerbang dan cek buku tamu pagi.',
-      assignedGuards: [
-        { guardId: 'SEC-001', guardName: 'Bambang Sudiro', role: 'Danru', assignedArea: 'Pos Gerbang Utama (Main Gate)', specialDuty: 'Instruktur & Komando Pos' },
-        { guardId: 'SEC-002', guardName: 'Agus Setiawan', role: 'Petugas Gerbang', assignedArea: 'Pos Gerbang Utama', specialDuty: 'Operator Scanner QR & Portal' },
-        { guardId: 'SEC-003', guardName: 'Dedi Kurniawan', role: 'Patroli & Bersih', assignedArea: 'Patroli Blok A & Blok B', specialDuty: 'Kontrol Kebersihan Jalur Utama' },
-      ]
-    },
-    {
-      id: 'ROSTER-02',
-      teamName: 'Regu B — Rajawali',
-      shiftType: 'SHIFT_SIANG',
-      shiftLabel: 'Shift Siang',
-      shiftHours: '15:00 - 23:00 WIB',
-      dutyCategory: 'KEAMANAN_KEBERSIHAN',
-      status: 'SIAGA_SIANG',
-      notes: 'Penertiban parkir mobil sore dan patroli jam kepulangan warga.',
-      assignedGuards: [
-        { guardId: 'SEC-004', guardName: 'Slamet Riyadi', role: 'Danru', assignedArea: 'Pos Gerbang Utama (Main Gate)', specialDuty: 'Supervisi Lapangan' },
-        { guardId: 'SEC-005', guardName: 'Hendro Siswanto', role: 'Operator CCTV', assignedArea: 'Ruang CCTV Pos Induk', specialDuty: 'Cek PJU & Meteran Listrik' },
-        { guardId: 'SEC-006', guardName: 'Rudi Hartono', role: 'Patroli & TPS', assignedArea: 'Patroli Blok C & Blok D', specialDuty: 'Cek Area TPS Sampah Blok C' },
-      ]
-    },
-    {
-      id: 'ROSTER-03',
-      teamName: 'Regu C — Elang',
-      shiftType: 'SHIFT_MALAM',
-      shiftLabel: 'Shift Malam',
-      shiftHours: '23:00 - 07:00 WIB',
-      dutyCategory: 'KEAMANAN_MURNI',
-      status: 'LEPAS_PIKET',
-      notes: 'Kunci portal utama tepat pukul 23:00 WIB. Koordinasi Polsek.',
-      assignedGuards: [
-        { guardId: 'SEC-007', guardName: 'Wawan Gunawan', role: 'Danru Malam', assignedArea: 'Pos Gerbang Utama (Main Gate)', specialDuty: 'Piket Malam & Hotline Darurat' },
-        { guardId: 'SEC-008', guardName: 'Tri Handoko', role: 'Petugas Jaga', assignedArea: 'Pos Gerbang Utama', specialDuty: 'Kunci Portal & Filter Tamu Malam' },
-      ]
-    },
-    {
-      id: 'ROSTER-04',
-      teamName: 'Tim Kebersihan & Fasum',
-      shiftType: 'SHIFT_FULL_DAY',
-      shiftLabel: 'Shift Harian Lingkungan',
-      shiftHours: '08:00 - 17:00 WIB (Senin - Sabtu)',
-      dutyCategory: 'KEBERSIHAN_TAMAN',
-      status: 'SEDANG_DINAS',
-      notes: 'Pengangkutan sampah rumah warga, penyiraman taman & kebersihan drainase.',
-      assignedGuards: [
-        { guardId: 'SEC-009', guardName: 'Pak Ujang Suhendra', role: 'Petugas Kebersihan', assignedArea: 'Area TPS Sampah & Taman Utama', specialDuty: 'Angkut Sampah Blok A s/d D' },
-      ]
-    }
-  ];
-
   const [rosters, setRosters] = useState<RosterSchedule[]>(() =>
-    getPersisted('wargahub_security_rosters', initialRosters)
+    getPersisted('wargahub_security_rosters', [])
   );
 
   // Roster Modals State
@@ -484,7 +258,7 @@ export const SecurityGateManager: React.FC = () => {
   const [rDutyCategory, setRDutyCategory] = useState<RosterSchedule['dutyCategory']>('KEAMANAN_MURNI');
   const [rStatus, setRStatus] = useState<RosterSchedule['status']>('SEDANG_DINAS');
   const [rNotes, setRNotes] = useState('');
-  const [rSelectedGuardIds, setRSelectedGuardIds] = useState<string[]>(['SEC-001', 'SEC-002', 'SEC-003']);
+  const [rSelectedGuardIds, setRSelectedGuardIds] = useState<string[]>([]);
 
   // Swap Shift Modal State
   const [showSwapModal, setShowSwapModal] = useState(false);
@@ -493,17 +267,8 @@ export const SecurityGateManager: React.FC = () => {
   const [swapReason, setSwapReason] = useState('Izin Keperluan Keluarga / Sakit');
 
   // Daily Duty Checklist State
-  const initialDailyDuties: DailyDutyItem[] = [
-    { id: 'DUTY-01', title: 'Tutup & Gembok Portal Utama Pukul 23:00 WIB', category: 'KEAMANAN', timeSchedule: '23:00 WIB', assignedTo: 'Regu Malam (Danru)', isCompleted: true, completedAt: '23:02 WIB' },
-    { id: 'DUTY-02', title: 'Cek Seluruh Lampu PJU Blok A s/d D Menyala Normal', category: 'FASUM', timeSchedule: '18:30 WIB', assignedTo: 'Petugas Patroli', isCompleted: true, completedAt: '18:40 WIB' },
-    { id: 'DUTY-03', title: 'Monitoring & Pengangkutan Sampah Warga ke TPS', category: 'KEBERSIHAN', timeSchedule: '08:30 WIB', assignedTo: 'Tim Kebersihan / Satpam Pagi', isCompleted: true, completedAt: '09:15 WIB' },
-    { id: 'DUTY-04', title: 'Penyiraman Tanaman Taman & Area Hijau Fasum', category: 'KEBERSIHAN', timeSchedule: '16:00 WIB', assignedTo: 'Petugas Taman / Fasum', isCompleted: false },
-    { id: 'DUTY-05', title: 'Pemeriksaan Rumah Kosong (Warga Cuti Luar Kota)', category: 'KEAMANAN', timeSchedule: '14:00 & 02:00 WIB', assignedTo: 'Petugas Patroli Mobile', isCompleted: true, completedAt: '14:10 WIB' },
-    { id: 'DUTY-06', title: 'Cek Tekanan Pompa PAM & Gembok Gardu PLN', category: 'FASUM', timeSchedule: '10:00 WIB', assignedTo: 'Teknisi Fasum / Danru', isCompleted: true, completedAt: '10:05 WIB' },
-  ];
-
   const [dailyDuties, setDailyDuties] = useState<DailyDutyItem[]>(() =>
-    getPersisted('wargahub_security_duties', initialDailyDuties)
+    getPersisted('wargahub_security_duties', [])
   );
 
   const toggleDutyCompleted = (id: string) => {
@@ -524,90 +289,21 @@ export const SecurityGateManager: React.FC = () => {
   };
 
   // ================= 3. PATROL LOGS STATE =================
-  const initialPatrolLogs: PatrolLog[] = [
-    {
-      id: 'PATROL-101',
-      checkpointName: 'Pos Gerbang Utama (Main Gate)',
-      checkpointCode: 'CP-01',
-      guardName: 'Bambang Sudiro',
-      guardId: 'SEC-001',
-      condition: 'AMAN_KONDUSIF',
-      notes: 'Barrier gate berfungsi normal, 2 CCTV aktif, situasi kondusif.',
-      displayTime: '14:30 WIB',
-      displayDate: '01 Sep 2026',
-    },
-    {
-      id: 'PATROL-102',
-      checkpointName: 'Taman Utama & Jogging Track Blok A',
-      checkpointCode: 'CP-02',
-      guardName: 'Dedi Kurniawan',
-      guardId: 'SEC-003',
-      condition: 'AMAN_KONDUSIF',
-      notes: 'Taman bersih, penerangan PJU menyala, tidak ada sampah berserakan.',
-      displayTime: '14:45 WIB',
-      displayDate: '01 Sep 2026',
-    },
-    {
-      id: 'PATROL-103',
-      checkpointName: 'Clubhouse & Kolam Renang Blok B',
-      checkpointCode: 'CP-03',
-      guardName: 'Dedi Kurniawan',
-      guardId: 'SEC-003',
-      condition: 'AMAN_KONDUSIF',
-      notes: 'Pintu kolam terkunci, pompa air berfungsi normal.',
-      displayTime: '15:10 WIB',
-      displayDate: '01 Sep 2026',
-    },
-    {
-      id: 'PATROL-104',
-      checkpointName: 'Gerbang Timur & Pintu Darurat Blok C',
-      checkpointCode: 'CP-04',
-      guardName: 'Rudi Hartono',
-      guardId: 'SEC-006',
-      condition: 'LAMPU_PJU_MATI',
-      notes: 'Lampu PJU tiang C-12 mati/berkedip, sudah dilaporkan ke bagian fasilitas.',
-      displayTime: '15:35 WIB',
-      displayDate: '01 Sep 2026',
-    },
-    {
-      id: 'PATROL-105',
-      checkpointName: 'Rumah Pompa PAM & Gardu Induk PLN',
-      checkpointCode: 'CP-06',
-      guardName: 'Hendro Siswanto',
-      guardId: 'SEC-005',
-      condition: 'AMAN_KONDUSIF',
-      notes: 'Gembok gardu terkunci rapat, meteran listrik dan tekanan air stabil.',
-      displayTime: '16:00 WIB',
-      displayDate: '01 Sep 2026',
-    },
-  ];
-
   const [patrolLogs, setPatrolLogs] = useState<PatrolLog[]>(() =>
-    getPersisted('wargahub_patrol_logs', initialPatrolLogs)
+    getPersisted('wargahub_patrol_logs', [])
   );
 
   // Patrol Form Modal
   const [showAddPatrolModal, setShowAddPatrolModal] = useState(false);
   const [patCheckpoint, setPatCheckpoint] = useState('CP-01');
-  const [patGuard, setPatGuard] = useState('Bambang Sudiro');
+  const [patGuard, setPatGuard] = useState('');
   const [patCondition, setPatCondition] = useState<PatrolLog['condition']>('AMAN_KONDUSIF');
   const [patNotes, setPatNotes] = useState('');
   const [patrolSaving, setPatrolSaving] = useState(false);
 
   // ================= 4. SECURITY EQUIPMENT INVENTORY STATE =================
-  const initialEquipment: SecurityEquipment[] = [
-    { id: 'EQ-01', name: 'Handie Talkie (HT) Motorola GP328 Plus', category: 'KOMUNIKASI', quantity: 12, condition: 'BAIK', location: 'Pos Gerbang Utama', lastChecked: '2026-08-30', personInCharge: 'Danru Bambang Sudiro', notes: 'Baterai cadangan 6 unit standby di charger dock.' },
-    { id: 'EQ-02', name: 'Senter Patroli Rechargeable 2000 Lumens', category: 'PENERANGAN', quantity: 6, condition: 'BAIK', location: 'Pos Gerbang Utama & Timur', lastChecked: '2026-08-30', personInCharge: 'Danru Slamet Riyadi', notes: '4 unit di pos utama, 2 unit di pos timur.' },
-    { id: 'EQ-03', name: 'Rompi Reflektor Hijau & Jas Hujan Satpam', category: 'PERLENGKAPAN_DIRI', quantity: 12, condition: 'BAIK', location: 'Loker Satpam Pos Utama', lastChecked: '2026-08-25', personInCharge: 'Danru Bambang Sudiro', notes: 'Lengkap dan siap pakai patroli hujan malam.' },
-    { id: 'EQ-04', name: 'Tongkat T (Tonfa) & Borgol Standar POLRI', category: 'PERTAHANAN', quantity: 8, condition: 'BAIK', location: 'Lemari Taktis Pos Utama', lastChecked: '2026-08-20', personInCharge: 'Danru Bambang Sudiro', notes: 'Nomor seri tercatat dalam buku inventaris pos.' },
-    { id: 'EQ-05', name: 'Handheld Metal Detector & Mirror Inspection', category: 'PEMERIKSAAN_GERBANG', quantity: 2, condition: 'BAIK', location: 'Meja Jaga Pos Utama', lastChecked: '2026-08-28', personInCharge: 'Agus Setiawan', notes: 'Digunakan untuk skrining mobil box & kargo.' },
-    { id: 'EQ-06', name: 'APAR Powder 6 Kg Pos Keamanan', category: 'TANGGAP_DARURAT', quantity: 4, condition: 'BAIK', location: 'Pos Utama, Timur, & Ruang CCTV', lastChecked: '2026-08-15', personInCharge: 'Danru Slamet Riyadi', notes: 'Jadwal isi ulang berkala Januari 2027.' },
-    { id: 'EQ-07', name: 'Sepeda Listrik Patroli Komplek', category: 'KENDARAAN_PATROLI', quantity: 2, condition: 'BAIK', location: 'Garasi Sepeda Pos Utama', lastChecked: '2026-08-31', personInCharge: 'Dedi Kurniawan', notes: 'Jarak tempuh baterai 45 km, charging tiap malam.' },
-    { id: 'EQ-08', name: 'Gerobak Sampah Roda 3 & Alat Kebersihan Fasum', category: 'KEBERSIHAN_LINGKUNGAN', quantity: 3, condition: 'BAIK', location: 'Gudang Kebersihan Belakang Pos', lastChecked: '2026-08-31', personInCharge: 'Pak Ujang Suhendra', notes: 'Sapu lidi, sekop, pemotong rumput, & karung sampah.' }
-  ];
-
   const [equipmentList, setEquipmentList] = useState<SecurityEquipment[]>(() =>
-    getPersisted('wargahub_security_equipment', initialEquipment)
+    getPersisted('wargahub_security_equipment', [])
   );
 
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -629,7 +325,21 @@ export const SecurityGateManager: React.FC = () => {
   // Barrier Gate Relay Control State
   const [gate1Open, setGate1Open] = useState(false);
   const [gate2Open, setGate2Open] = useState(false);
+  const [gate1Countdown, setGate1Countdown] = useState<number | null>(null);
+  const [gate2Countdown, setGate2Countdown] = useState<number | null>(null);
   const [sirenActive, setSirenActive] = useState(false);
+
+  // Tactical Cockpit Clock (WIB)
+  const [currentWibTime, setCurrentWibTime] = useState<string>('');
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentWibTime(now.toLocaleTimeString('id-ID', { hour12: false }) + ' WIB');
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Visitor Filter & Search
   const [visitorFilterStatus, setVisitorFilterStatus] = useState<'ALL' | 'INSIDE' | 'EXITED'>('ALL');
@@ -639,37 +349,15 @@ export const SecurityGateManager: React.FC = () => {
   // New Visitor Form State
   const [visName, setVisName] = useState('');
   const [visPlate, setVisPlate] = useState('');
-  const [visHouse, setVisHouse] = useState('A-17');
+  const [visHouse, setVisHouse] = useState((initialProperties && initialProperties[0]?.code) || 'Kav A');
   const [visPurpose, setVisPurpose] = useState('Kunjungan Keluarga');
-  const [visitors, setVisitors] = useState<VisitorLog[]>([
-    {
-      id: 'vis-1',
-      visitorName: 'Agus Pratama (Kurir J&T Express)',
-      vehiclePlate: 'B 4432 ZZZ',
-      destinationHouse: 'Rumah A-17',
-      purpose: 'Pengantaran Paket Logistik',
-      entryTime: '01 Sep 2026, 14:15 WIB',
-      status: 'EXITED',
-    },
-    {
-      id: 'vis-2',
-      visitorName: 'Keluarga Bapak Rahmat (Tamu)',
-      vehiclePlate: 'B 8899 KLL',
-      destinationHouse: 'Rumah B-07',
-      purpose: 'Silaturahmi Keluarga',
-      entryTime: '01 Sep 2026, 15:30 WIB',
-      status: 'INSIDE',
-    },
-    {
-      id: 'vis-3',
-      visitorName: 'Truk Pasir CV Bangun Prima',
-      vehiclePlate: 'B 9102 TYY',
-      destinationHouse: 'Rumah B-04 (Izin Renovasi SIK)',
-      purpose: 'Bongkar Muat Material Bangunan',
-      entryTime: '01 Sep 2026, 16:00 WIB',
-      status: 'EXITED',
-    },
-  ]);
+  const [visitors, setVisitors] = useState<VisitorLog[]>(() =>
+    getPersisted('wargahub_live_visitors', [])
+  );
+
+  useEffect(() => {
+    savePersisted('wargahub_live_visitors', visitors);
+  }, [visitors]);
 
   // ================= FILTERED GUARDS =================
   const filteredAndSortedGuards = useMemo(() => {
@@ -1102,31 +790,30 @@ export const SecurityGateManager: React.FC = () => {
   const handlePlateSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchingPlate) return;
-    const plate = searchingPlate.toUpperCase().trim();
-    if (plate.includes('1234') || plate.includes('ABC')) {
+    const rawPlate = searchingPlate.trim();
+    const cleanPlate = rawPlate.toUpperCase().replace(/[\s\-\.]/g, '');
+
+    // Search in initialVehicles from real database
+    const matched = (initialVehicles || []).find((v: any) => {
+      const p = (v.plateNumber || v.plate_number || '').toUpperCase().replace(/[\s\-\.]/g, '');
+      return p === cleanPlate || p.includes(cleanPlate) || cleanPlate.includes(p);
+    });
+
+    if (matched) {
       setPlateResult({
         found: true,
-        plateNumber: plate,
-        vehicle: 'Toyota Avanza (Hitam Metalik)',
-        owner: 'Budi Santoso',
-        house: 'Rumah A-17 (Blok A)',
-        status: 'WARGA RESMI (IPL LUNAS)',
-        rfidTag: 'RFID-TAG-882910',
-      });
-    } else if (plate.includes('5678') || plate.includes('DEF')) {
-      setPlateResult({
-        found: true,
-        plateNumber: plate,
-        vehicle: 'Honda HR-V (Putih)',
-        owner: 'Hendra Gunawan',
-        house: 'Rumah A-01 (Blok A)',
-        status: 'WARGA RESMI (IPL LUNAS)',
-        rfidTag: 'RFID-TAG-882912',
+        plateNumber: matched.plateNumber || matched.plate_number || rawPlate.toUpperCase(),
+        vehicle: `${matched.brand || ''} ${matched.model || ''} (${matched.color || '-'})`.trim(),
+        owner: matched.ownerName || 'Warga Terdaftar',
+        house: matched.propertyCode ? `Unit ${matched.propertyCode}` : 'Unit Terdaftar',
+        status: 'WARGA RESMI (TERVERIFIKASI)',
+        type: matched.type || 'Mobil',
+        rfidTag: matched.rfidTag || `RFID-WH-${matched.id ? String(matched.id).replace(/\D/g, '').slice(-6) || '882910' : '882910'}`,
       });
     } else {
       setPlateResult({
         found: false,
-        plateNumber: plate,
+        plateNumber: rawPlate.toUpperCase(),
         message: 'Plat nomor tidak terdaftar dalam database kendaraan tetap warga. Catat ke Buku Tamu.',
       });
     }
@@ -1139,7 +826,7 @@ export const SecurityGateManager: React.FC = () => {
       id: `vis-${Date.now()}`,
       visitorName: visName,
       vehiclePlate: visPlate.toUpperCase(),
-      destinationHouse: `Rumah ${visHouse}`,
+      destinationHouse: visHouse.startsWith('Unit') || visHouse.startsWith('Rumah') ? visHouse : `Unit ${visHouse}`,
       purpose: visPurpose,
       entryTime: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB',
       status: 'INSIDE',
@@ -1162,16 +849,34 @@ export const SecurityGateManager: React.FC = () => {
   const handleTriggerGate = (gateNo: 1 | 2) => {
     if (gateNo === 1) {
       setGate1Open(true);
+      setGate1Countdown(5);
       showToast('⚡ Palang Gerbang 1 (Pintu Masuk) DIBUKA secara manual.');
-      setTimeout(() => {
-        setGate1Open(false);
-      }, 8000);
+      let c1 = 5;
+      const t1 = setInterval(() => {
+        c1 -= 1;
+        if (c1 <= 0) {
+          clearInterval(t1);
+          setGate1Open(false);
+          setGate1Countdown(null);
+        } else {
+          setGate1Countdown(c1);
+        }
+      }, 1000);
     } else {
       setGate2Open(true);
+      setGate2Countdown(5);
       showToast('⚡ Palang Gerbang 2 (Pintu Keluar) DIBUKA secara manual.');
-      setTimeout(() => {
-        setGate2Open(false);
-      }, 8000);
+      let c2 = 5;
+      const t2 = setInterval(() => {
+        c2 -= 1;
+        if (c2 <= 0) {
+          clearInterval(t2);
+          setGate2Open(false);
+          setGate2Countdown(null);
+        } else {
+          setGate2Countdown(c2);
+        }
+      }, 1000);
     }
   };
 
@@ -1300,7 +1005,7 @@ export const SecurityGateManager: React.FC = () => {
           <button
             type="button"
             onClick={handleExportGuardsCSV}
-            className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
+            className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-all active:scale-[0.98]"
           >
             <Download className="w-3.5 h-3.5 text-primary-600" />
             <span>Export CSV</span>
@@ -1308,10 +1013,71 @@ export const SecurityGateManager: React.FC = () => {
           <button
             type="button"
             onClick={handleOpenAddGuard}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
             <span>+ Personel Baru</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Tactical Telemetry Cockpit Bar (Industrial Precision) */}
+      <div className="p-3.5 bg-surface rounded-2xl border border-border/80 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Real-time WIB Clock */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-canvas rounded-xl border border-border font-mono">
+            <Clock className="w-3.5 h-3.5 text-primary-600" />
+            <span className="font-bold text-ink tracking-tight">{currentWibTime || '00:00:00 WIB'}</span>
+          </div>
+
+          {/* Post Telemetry Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-[11px]">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>POS UTAMA: SIAGA</span>
+          </div>
+
+          {/* Gate 1 & 2 Fast Status */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-canvas rounded-xl border border-border text-[11px]">
+            <span className="text-ink-muted">G1 (Masuk):</span>
+            <span className={`font-mono font-black ${gate1Open ? 'text-emerald-600' : 'text-slate-700'}`}>
+              {gate1Open ? `OPEN (${gate1Countdown ?? 5}s)` : 'LOCKED'}
+            </span>
+            <span className="text-border mx-1">|</span>
+            <span className="text-ink-muted">G2 (Keluar):</span>
+            <span className={`font-mono font-black ${gate2Open ? 'text-emerald-600' : 'text-slate-700'}`}>
+              {gate2Open ? `OPEN (${gate2Countdown ?? 5}s)` : 'LOCKED'}
+            </span>
+          </div>
+
+          {/* Registered Vehicles Count */}
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-canvas rounded-xl border border-border text-[11px]">
+            <Car className="w-3.5 h-3.5 text-sky-600" />
+            <span className="font-bold text-ink">{initialVehicles.length} Kendaraan Terdata</span>
+          </div>
+
+          {/* Visitors Inside */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-[11px] font-bold">
+            <UserCheck className="w-3.5 h-3.5 text-amber-600" />
+            <span>{visitors.filter(v => v.status === 'INSIDE').length} Tamu di Dalam</span>
+          </div>
+        </div>
+
+        {/* Tactical Emergency Siren Action */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleToggleSiren}
+            className={`px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all active:scale-[0.98] shadow-xs border ${
+              sirenActive
+                ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
+                : 'bg-canvas hover:bg-rose-50 border-rose-200 text-rose-700'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>{sirenActive ? '🚨 MATIKAN SIRINE' : '🚨 TOMBOL SIAGA'}</span>
           </button>
         </div>
       </div>
@@ -1321,7 +1087,7 @@ export const SecurityGateManager: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('guards')}
-          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shrink-0 ${
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] shrink-0 ${
             activeTab === 'guards'
               ? 'bg-primary-600 text-white shadow-xs'
               : 'text-ink-muted hover:text-ink hover:bg-canvas'
@@ -1719,47 +1485,67 @@ export const SecurityGateManager: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <span className="px-2.5 py-1 bg-teal-50 border border-teal-200 text-teal-800 font-black rounded-lg">
-                  {completedDutiesCount} / {dailyDuties.length} Tugas Selesai ({Math.round((completedDutiesCount / dailyDuties.length) * 100)}%)
+                  {completedDutiesCount} / {dailyDuties.length} Tugas Selesai ({dailyDuties.length > 0 ? Math.round((completedDutiesCount / dailyDuties.length) * 100) : 0}%)
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-              {dailyDuties.map(duty => (
-                <div
-                  key={duty.id}
-                  onClick={() => toggleDutyCompleted(duty.id)}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
-                    duty.isCompleted ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950' : 'bg-canvas border-border text-ink hover:border-primary-300'
-                  }`}
-                >
-                  <button type="button" className="mt-0.5 text-primary-600">
-                    {duty.isCompleted ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4 text-ink-muted" />}
-                  </button>
-                  <div className="space-y-0.5 flex-1">
-                    <span className={`font-bold text-xs block ${duty.isCompleted ? 'line-through opacity-75' : ''}`}>{duty.title}</span>
-                    <div className="flex items-center justify-between text-[10px] text-ink-muted">
-                      <span>Jadwal: <strong>{duty.timeSchedule}</strong></span>
-                      {duty.completedAt && <span className="text-emerald-700 font-bold">✓ {duty.completedAt}</span>}
+            <div className="space-y-2">
+              {dailyDuties.length === 0 ? (
+                <div className="py-6 text-center text-ink-muted text-xs">
+                  Belum ada checklist tugas harian pos jaga.
+                </div>
+              ) : (
+                dailyDuties.map((duty) => (
+                  <div
+                    key={duty.id}
+                    className={`p-3 rounded-xl border flex items-center gap-3 transition-colors ${
+                      duty.isCompleted
+                        ? 'bg-emerald-50/40 border-emerald-200 text-emerald-900'
+                        : 'bg-canvas border-border/80 text-ink'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleDutyCompleted(duty.id)}
+                      className={`p-1 rounded-lg border transition-all ${
+                        duty.isCompleted
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'bg-surface border-border text-ink-muted hover:border-primary-400'
+                      }`}
+                    >
+                      {duty.isCompleted ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    </button>
+                    <div className="space-y-0.5 flex-1">
+                      <span className={`font-bold text-xs block ${duty.isCompleted ? 'line-through opacity-75' : ''}`}>{duty.title}</span>
+                      <div className="flex items-center justify-between text-[10px] text-ink-muted">
+                        <span>Jadwal: <strong>{duty.timeSchedule}</strong></span>
+                        {duty.completedAt && <span className="text-emerald-700 font-bold">✓ {duty.completedAt}</span>}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
           {/* Roster Shift Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-            {rosters.map((r) => (
-              <div key={r.id} className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3.5 text-xs">
-                <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-primary-700 uppercase tracking-wider block">{r.shiftHours}</span>
-                      {getDutyCategoryBadge(r.dutyCategory)}
+            {rosters.length === 0 ? (
+              <div className="col-span-full p-8 text-center text-ink-muted text-xs bg-surface rounded-2xl border border-border">
+                Belum ada jadwal shift jaga regu satpam. Klik <strong>"+ Plotting Shift Baru"</strong> di atas untuk menambahkan.
+              </div>
+            ) : (
+              rosters.map((r) => (
+                <div key={r.id} className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3.5 text-xs">
+                  <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-primary-700 uppercase tracking-wider block">{r.shiftHours}</span>
+                        {getDutyCategoryBadge(r.dutyCategory)}
+                      </div>
+                      <h4 className="text-sm font-black text-ink mt-0.5">{r.teamName}</h4>
                     </div>
-                    <h4 className="text-sm font-black text-ink mt-0.5">{r.teamName}</h4>
-                  </div>
                   <div className="flex items-center gap-1.5">
                     <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
                       r.status === 'SEDANG_DINAS' ? 'bg-emerald-600 text-white' :
@@ -1818,7 +1604,8 @@ export const SecurityGateManager: React.FC = () => {
                   </div>
                 )}
               </div>
-            ))}
+            ))
+          )}
           </div>
         </div>
       )}
@@ -1884,7 +1671,15 @@ export const SecurityGateManager: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {patrolLogs.map((p) => (
+                  {patrolLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-ink-muted">
+                        <Shield className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
+                        Belum ada catatan patroli pos satpam yang terekam.
+                      </td>
+                    </tr>
+                  ) : (
+                    patrolLogs.map((p) => (
                     <tr key={p.id} className="hover:bg-canvas/50">
                       <td className="py-3.5 px-4 font-bold text-ink">
                         <span className="font-mono text-primary-700 font-black mr-1.5">{p.checkpointCode}</span>
@@ -1903,7 +1698,7 @@ export const SecurityGateManager: React.FC = () => {
                         {p.notes}
                       </td>
                     </tr>
-                  ))}
+                  )))}
                 </tbody>
               </table>
             </div>
@@ -1929,30 +1724,31 @@ export const SecurityGateManager: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-bold text-xs text-ink">Palang Gerbang 1 — Pintu Masuk Utama</h4>
-                    <p className="text-[10px] text-ink-muted">Barrier Gate Otomatis RFID & Pos Satpam</p>
+                    <p className="text-[10px] text-ink-muted font-mono">Loop Sensor #1 • Relay Kontrol G1</p>
                   </div>
                 </div>
 
                 <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
                   gate1Open
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 animate-pulse'
                     : 'bg-slate-100 text-slate-700 border-slate-200'
                 }`}>
-                  {gate1Open ? '🟢 PALANG TERBUKA' : '🔴 PALANG TERTUTUP'}
+                  {gate1Open ? `🟢 PALANG TERBUKA (${gate1Countdown ?? 5}s)` : '🔴 PALANG TERTUTUP'}
                 </span>
               </div>
 
               <div className="mt-3.5 pt-3 border-t border-border/70 flex items-center justify-between gap-2">
                 <span className="text-[10px] text-ink-muted">
-                  {gate1Open ? 'Relay terbuka aktif (Auto-close 8 dtk)' : 'Mode operasional: Otomatis RFID / Manual Satpam'}
+                  {gate1Open ? `Relay aktif • Menutup otomatis dalam ${gate1Countdown ?? 5} detik` : 'Mode operasional: Otomatis RFID / Manual Satpam'}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleTriggerGate(1)}
                   disabled={gate1Open}
-                  className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-emerald-600 text-white font-bold rounded-xl text-xs shadow-xs transition-colors shrink-0"
+                  className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-emerald-600 text-white font-bold rounded-xl text-xs shadow-xs transition-all active:scale-[0.98] shrink-0 flex items-center gap-1.5"
                 >
-                  {gate1Open ? 'Membuka...' : '⚡ Buka Palang Masuk'}
+                  <Zap className="w-3.5 h-3.5" />
+                  {gate1Open ? `Membuka (${gate1Countdown ?? 5}s)...` : '⚡ Buka Palang Masuk'}
                 </button>
               </div>
             </div>
@@ -1970,30 +1766,31 @@ export const SecurityGateManager: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-bold text-xs text-ink">Palang Gerbang 2 — Pintu Keluar / Blok C</h4>
-                    <p className="text-[10px] text-ink-muted">Sensor Loop Induksi & Akses Keluar Kendaraan</p>
+                    <p className="text-[10px] text-ink-muted font-mono">Loop Sensor #2 • Relay Kontrol G2</p>
                   </div>
                 </div>
 
                 <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
                   gate2Open
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 animate-pulse'
                     : 'bg-slate-100 text-slate-700 border-slate-200'
                 }`}>
-                  {gate2Open ? '🟢 PALANG TERBUKA' : '🔴 PALANG TERTUTUP'}
+                  {gate2Open ? `🟢 PALANG TERBUKA (${gate2Countdown ?? 5}s)` : '🔴 PALANG TERTUTUP'}
                 </span>
               </div>
 
               <div className="mt-3.5 pt-3 border-t border-border/70 flex items-center justify-between gap-2">
                 <span className="text-[10px] text-ink-muted">
-                  {gate2Open ? 'Relay terbuka aktif (Auto-close 8 dtk)' : 'Mode operasional: Loop Sensor / Manual Satpam'}
+                  {gate2Open ? `Relay aktif • Menutup otomatis dalam ${gate2Countdown ?? 5} detik` : 'Mode operasional: Loop Sensor / Manual Satpam'}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleTriggerGate(2)}
                   disabled={gate2Open}
-                  className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-emerald-600 text-white font-bold rounded-xl text-xs shadow-xs transition-colors shrink-0"
+                  className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-emerald-600 text-white font-bold rounded-xl text-xs shadow-xs transition-all active:scale-[0.98] shrink-0 flex items-center gap-1.5"
                 >
-                  {gate2Open ? 'Membuka...' : '⚡ Buka Palang Keluar'}
+                  <Zap className="w-3.5 h-3.5" />
+                  {gate2Open ? `Membuka (${gate2Countdown ?? 5}s)...` : '⚡ Buka Palang Keluar'}
                 </button>
               </div>
             </div>
@@ -2020,12 +1817,12 @@ export const SecurityGateManager: React.FC = () => {
                     value={qrInput}
                     onChange={(e) => setQrInput(e.target.value)}
                     required
-                    className="flex-1 p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink text-xs"
+                    className="flex-1 p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink text-xs focus:ring-1 focus:ring-primary-500 outline-none"
                   />
                   <button
                     type="submit"
                     disabled={scanLoading}
-                    className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs disabled:opacity-50 transition-colors shrink-0"
+                    className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs disabled:opacity-50 transition-all active:scale-[0.98] shrink-0"
                   >
                     {scanLoading ? 'Memeriksa...' : 'Validasi QR'}
                   </button>
@@ -2053,7 +1850,7 @@ export const SecurityGateManager: React.FC = () => {
                   Cek Plat Nomor Kendaraan & Akses RFID
                 </h4>
                 <p className="text-ink-muted text-[11px] mt-0.5">
-                  Cek apakah plat nomor mobil/motor terdaftar resmi sebagai warga komplek.
+                  Cek apakah plat nomor mobil/motor terdaftar resmi dalam database kendaraan warga komplek.
                 </p>
               </div>
 
@@ -2061,15 +1858,15 @@ export const SecurityGateManager: React.FC = () => {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Ketik Plat Nomor, contoh: B 1234 ABC"
+                    placeholder="Ketik Plat Nomor, contoh: D 1234 VRL"
                     value={searchingPlate}
                     onChange={(e) => setSearchingPlate(e.target.value)}
                     required
-                    className="flex-1 p-2.5 bg-canvas border border-border rounded-xl font-mono uppercase text-ink text-xs font-bold"
+                    className="flex-1 p-2.5 bg-canvas border border-border rounded-xl font-mono uppercase text-ink text-xs font-bold focus:ring-1 focus:ring-sky-500 outline-none"
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-xs transition-colors shrink-0"
+                    className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-[0.98] shrink-0"
                   >
                     Cek Plat
                   </button>
@@ -2085,12 +1882,63 @@ export const SecurityGateManager: React.FC = () => {
                     </span>
                   </div>
                   {plateResult.found ? (
-                    <div className="space-y-0.5 text-[11px]">
-                      <p>Pemilik: <strong>{plateResult.owner}</strong> ({plateResult.house})</p>
-                      <p>Kendaraan: <strong>{plateResult.vehicle}</strong></p>
+                    <div className="space-y-2 text-[11px] pt-1">
+                      <div className="grid grid-cols-2 gap-2 p-2.5 bg-emerald-100/60 rounded-xl border border-emerald-200/50">
+                        <div>
+                          <span className="text-[10px] text-emerald-800 font-semibold block">Pemilik / Penghuni:</span>
+                          <strong className="text-emerald-950 font-bold">{plateResult.owner}</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-800 font-semibold block">Kavling / Unit:</span>
+                          <strong className="text-emerald-950 font-bold">{plateResult.house}</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-800 font-semibold block">Kendaraan & Tipe:</span>
+                          <strong className="text-emerald-950 font-bold">{plateResult.vehicle} ({plateResult.type})</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-800 font-semibold block">Akses RFID:</span>
+                          <strong className="font-mono text-emerald-900">{plateResult.rfidTag}</strong>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerGate(1)}
+                          disabled={gate1Open}
+                          className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold rounded-xl text-xs transition-all active:scale-[0.98] shadow-xs flex items-center justify-center gap-1.5"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          {gate1Open ? `Palang 1 Terbuka (${gate1Countdown ?? 5}s)` : 'Buka Palang Masuk (G1)'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerGate(2)}
+                          disabled={gate2Open}
+                          className="flex-1 py-2 px-3 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-400 text-white font-bold rounded-xl text-xs transition-all active:scale-[0.98] shadow-xs flex items-center justify-center gap-1.5"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          {gate2Open ? `Palang 2 Terbuka (${gate2Countdown ?? 5}s)` : 'Buka Palang Keluar (G2)'}
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-[11px] font-medium">{plateResult.message}</p>
+                    <div className="space-y-2 pt-1">
+                      <p className="text-[11px] font-medium text-amber-900">{plateResult.message}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVisPlate(plateResult.plateNumber);
+                          showToast(`Plat ${plateResult.plateNumber} disalin ke formulir Buku Tamu.`);
+                          const el = document.getElementById('visitor-name-input');
+                          if (el) el.focus();
+                        }}
+                        className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-all active:scale-[0.98] shadow-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        + Salin ke Buku Tamu Digital
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -2098,7 +1946,7 @@ export const SecurityGateManager: React.FC = () => {
           </div>
 
           {/* Visitor Logbook */}
-          <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-4 text-xs">
+          <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-4 text-xs" id="visitor-form-section">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h4 className="font-bold text-sm text-ink flex items-center gap-2">
@@ -2115,7 +1963,7 @@ export const SecurityGateManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setVisitorFilterStatus('ALL')}
-                  className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-colors ${
+                  className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all active:scale-[0.98] ${
                     visitorFilterStatus === 'ALL' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'
                   }`}
                 >
@@ -2124,7 +1972,7 @@ export const SecurityGateManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setVisitorFilterStatus('INSIDE')}
-                  className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-colors ${
+                  className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all active:scale-[0.98] ${
                     visitorFilterStatus === 'INSIDE' ? 'bg-amber-100 text-amber-900 shadow-xs' : 'text-ink-muted hover:text-ink'
                   }`}
                 >
@@ -2133,7 +1981,7 @@ export const SecurityGateManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setVisitorFilterStatus('EXITED')}
-                  className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-colors ${
+                  className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all active:scale-[0.98] ${
                     visitorFilterStatus === 'EXITED' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'
                   }`}
                 >
@@ -2147,12 +1995,13 @@ export const SecurityGateManager: React.FC = () => {
               <div>
                 <label className="font-bold text-ink block mb-1">Nama Tamu / Kurir *</label>
                 <input
+                  id="visitor-name-input"
                   type="text"
                   placeholder="Contoh: Bpk. Ahmad"
                   value={visName}
                   onChange={(e) => setVisName(e.target.value)}
                   required
-                  className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                  className="w-full p-2 bg-surface border border-border rounded-xl text-ink focus:ring-1 focus:ring-primary-500 outline-none"
                 />
               </div>
               <div>
@@ -2163,26 +2012,34 @@ export const SecurityGateManager: React.FC = () => {
                   value={visPlate}
                   onChange={(e) => setVisPlate(e.target.value)}
                   required
-                  className="w-full p-2 bg-surface border border-border rounded-xl font-mono uppercase text-ink"
+                  className="w-full p-2 bg-surface border border-border rounded-xl font-mono uppercase text-ink focus:ring-1 focus:ring-primary-500 outline-none"
                 />
               </div>
               <div>
-                <label className="font-bold text-ink block mb-1">Tujuan Rumah *</label>
+                <label className="font-bold text-ink block mb-1">Tujuan Kavling / Unit *</label>
                 <input
+                  list="registered-properties-list"
                   type="text"
-                  placeholder="Contoh: A-17"
+                  placeholder="Pilih atau ketik Kavling..."
                   value={visHouse}
                   onChange={(e) => setVisHouse(e.target.value)}
                   required
-                  className="w-full p-2 bg-surface border border-border rounded-xl text-ink"
+                  className="w-full p-2 bg-surface border border-border rounded-xl text-ink font-semibold focus:ring-1 focus:ring-primary-500 outline-none"
                 />
+                <datalist id="registered-properties-list">
+                  {initialProperties.map((p: any) => (
+                    <option key={p.id} value={p.code}>
+                      {p.code} {p.ownerName ? `(${p.ownerName})` : ''}
+                    </option>
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="font-bold text-ink block mb-1">Keperluan / Kategori</label>
                 <select
                   value={visPurpose}
                   onChange={(e) => setVisPurpose(e.target.value)}
-                  className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                  className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink focus:ring-1 focus:ring-primary-500 outline-none"
                 >
                   <option value="Kunjungan Keluarga">Keluarga / Tamu Warga</option>
                   <option value="Pengantaran Paket Logistik">Kurir Paket (J&T, Shopee, dll)</option>
@@ -2195,7 +2052,7 @@ export const SecurityGateManager: React.FC = () => {
               <div>
                 <button
                   type="submit"
-                  className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs transition-colors"
+                  className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-[0.98]"
                 >
                   + Catat Masuk Tamu
                 </button>

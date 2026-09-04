@@ -131,179 +131,47 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
   const [copiedLink, setCopiedLink] = useState(false);
 
   // ================= 1. KASBON & PINJAMAN PETUGAS STATE =================
-  const [staffLoans, setStaffLoans] = useState<StaffLoanItem[]>([
-    {
-      id: 'LOAN-001',
-      staffName: 'Pak Joko Sutrisno',
-      staffRole: 'Komandan Regu Satpam',
-      staffPhone: '0812-3344-5566',
-      totalLoanAmount: 1500000,
-      remainingBalance: 500000,
-      paidAmount: 1000000,
-      monthlyDeduction: 500000,
-      tenorMonths: 3,
-      loanDate: '2026-06-10',
-      purpose: 'Biaya Masuk Sekolah Anak (SMP)',
-      approvedBy: 'Ketua RW 05 & Bendahara',
-      status: 'ACTIVE_INSTALLMENT',
-    },
-    {
-      id: 'LOAN-002',
-      staffName: 'Pak Slamet Riyadi',
-      staffRole: 'Petugas Kebersihan & Sampah',
-      staffPhone: '0813-7788-9900',
-      totalLoanAmount: 1000000,
-      remainingBalance: 1000000,
-      paidAmount: 0,
-      monthlyDeduction: 250000,
-      tenorMonths: 4,
-      loanDate: '2026-08-05',
-      purpose: 'Perbaikan Motor Operasional Sampah',
-      approvedBy: 'Bendahara Paguyuban',
-      status: 'ACTIVE_INSTALLMENT',
-    },
-    {
-      id: 'LOAN-003',
-      staffName: 'Pak Dedi Supriyadi',
-      staffRole: 'Petugas Keamanan (Satpam)',
-      staffPhone: '0819-2233-4455',
-      totalLoanAmount: 800000,
-      remainingBalance: 0,
-      paidAmount: 800000,
-      monthlyDeduction: 400000,
-      tenorMonths: 2,
-      loanDate: '2026-05-15',
-      purpose: 'Penggantian Kacamata & Cek Mata',
-      approvedBy: 'Bendahara Paguyuban',
-      status: 'PAID_OFF',
-    },
-  ]);
+  const [staffLoans, setStaffLoans] = useState<StaffLoanItem[]>([]);
 
   const [showLoanModal, setShowLoanModal] = useState(false);
-  const [loanStaffName, setLoanStaffName] = useState('Pak Joko Sutrisno');
+  const [loanStaffName, setLoanStaffName] = useState('');
   const [loanStaffRole, setLoanStaffRole] = useState<'SATPAM' | 'PETUGAS_KEBERSIHAN' | 'PETUGAS_TAMAN' | 'TEKNISI'>('SATPAM');
-  const [loanAmount, setLoanAmount] = useState(1500000);
-  const [loanMonthlyDeduction, setLoanMonthlyDeduction] = useState(500000);
-  const [loanTenor, setLoanTenor] = useState(3);
-  const [loanPurpose, setLoanPurpose] = useState('Keperluan Mendesak Keluarga');
+  const [loanAmount, setLoanAmount] = useState(500000);
+  const [loanMonthlyDeduction, setLoanMonthlyDeduction] = useState(250000);
+  const [loanTenor, setLoanTenor] = useState(2);
+  const [loanPurpose, setLoanPurpose] = useState('');
   const [selectedLoanForInstallment, setSelectedLoanForInstallment] = useState<StaffLoanItem | null>(null);
-  const [installmentAmountInput, setInstallmentAmountInput] = useState(500000);
+  const [installmentAmountInput, setInstallmentAmountInput] = useState(250000);
 
   // ================= 2. DANA SOSIAL & KESEHATAN SATPAM STATE =================
-  const [socialAids, setSocialAids] = useState<SocialAidItem[]>([
-    {
-      id: 'AID-001',
-      recipientName: 'Pak Agus Suparman (Satpam)',
-      recipientRole: 'SATPAM',
-      aidType: 'SANTUNAN_KESEHATAN',
-      amount: 1250000,
-      aidDate: '2026-08-14',
-      description: 'Bantuan Biaya Rawat Inap Istri di RSUD',
-      hospitalOrDetails: 'RSUD Al-Ihsan Bandung • Kamar 304',
-      voucherNo: 'BSOS-0814',
-    },
-    {
-      id: 'AID-002',
-      recipientName: 'Pak Yanto Hermawan (Satpam)',
-      recipientRole: 'SATPAM',
-      aidType: 'SANTUNAN_DUKA_CITA',
-      amount: 1000000,
-      aidDate: '2026-07-20',
-      description: 'Tali Asih & Santunan Duka Cita Wafatnya Orang Tua',
-      hospitalOrDetails: 'Rumah Duka Sumedang',
-      voucherNo: 'BSOS-0720',
-    },
-    {
-      id: 'AID-003',
-      recipientName: 'Seluruh 6 Petugas Satpam & 2 Petugas Kebersihan',
-      recipientRole: 'SATPAM',
-      aidType: 'BINGKISAN_THR',
-      amount: 4000000,
-      aidDate: '2026-04-10',
-      description: 'Bingkisan Sembako & Tunjangan Hari Raya Paguyuban Warga',
-      voucherNo: 'BSOS-0410',
-    },
-  ]);
+  const [socialAids, setSocialAids] = useState<SocialAidItem[]>([]);
 
   const [showSocialModal, setShowSocialModal] = useState(false);
-  const [socRecipient, setSocRecipient] = useState('Pak Agus Suparman (Satpam)');
+  const [socRecipient, setSocRecipient] = useState('');
   const [socType, setSocType] = useState<'SANTUNAN_KESEHATAN' | 'SANTUNAN_DUKA_CITA' | 'SANTUNAN_MUSIBAH_BENCANA' | 'BINGKISAN_THR' | 'BEASISWA_ANAK'>('SANTUNAN_KESEHATAN');
-  const [socAmount, setSocAmount] = useState(1000000);
-  const [socDesc, setSocDesc] = useState('Bantuan biaya pengobatan & santunan kesehatan keluarga satpam');
-  const [socDetails, setSocDetails] = useState('Kwitansi RS & Resep Dokter');
+  const [socAmount, setSocAmount] = useState(500000);
+  const [socDesc, setSocDesc] = useState('');
+  const [socDetails, setSocDetails] = useState('');
 
   // ================= 3. DANA PEMELIHARAAN FASUM (CAT & PERALATAN) STATE =================
-  const [maintenanceProjects, setMaintenanceProjects] = useState<MaintenanceProjectItem[]>([
-    {
-      id: 'PRJ-001',
-      projectName: 'Pengecatan Ulang Gapura Utama & Tembok Keliling Komplek',
-      projectType: 'PENGECATAN_KOMPLEK',
-      budgetAmount: 6500000,
-      actualSpent: 6500000,
-      vendorOrContractor: 'Mandor Wawan & Tim Cat Dulux Weathershield',
-      startDate: '2026-08-01',
-      targetCompletionDate: '2026-08-20',
-      status: 'COMPLETED',
-      description: 'Pengecatan 400 meter tembok keliling komplek dan gapura pos satpam depan.',
-      location: 'Gerbang Utama & Tembok Batas Luar',
-    },
-    {
-      id: 'PRJ-002',
-      projectName: 'Servis Besar & Penggantian Pisau Mesin Rumput Dorong',
-      projectType: 'PERBAIKAN_PERALATAN',
-      budgetAmount: 850000,
-      actualSpent: 850000,
-      vendorOrContractor: 'Bengkel Mesin Teknik Cimahi',
-      startDate: '2026-08-10',
-      targetCompletionDate: '2026-08-12',
-      status: 'COMPLETED',
-      description: 'Servis karburator, ganti oli mesin Honda 4-tak, dan 2 bilah pisau baja potong rumput.',
-      location: 'Gudang Sarana Balai Warga',
-    },
-    {
-      id: 'PRJ-003',
-      projectName: 'Penggantian Motor Dinamo Barrier Gate RFID Palang 1',
-      projectType: 'BARRIER_GATE_RFID',
-      budgetAmount: 2400000,
-      actualSpent: 1200000,
-      vendorOrContractor: 'CV Prima Access Security Bandung',
-      startDate: '2026-08-25',
-      targetCompletionDate: '2026-09-05',
-      status: 'IN_PROGRESS',
-      description: 'Penggantian modul gear motorik palang masuk otomatis gerbang 1 (Garansi 1 Tahun).',
-      location: 'Pos Satpam Gerbang 1',
-    },
-    {
-      id: 'PRJ-004',
-      projectName: 'Pengadaan Lampu LED PJU Solar Cell Tenaga Surya (4 Titik Gelap)',
-      projectType: 'LAMPU_PJU',
-      budgetAmount: 3200000,
-      actualSpent: 3200000,
-      vendorOrContractor: 'PT Solar Panel Jaya Abadi',
-      startDate: '2026-07-15',
-      targetCompletionDate: '2026-07-22',
-      status: 'COMPLETED',
-      description: 'Pemasangan tiang dan lampu PJU otomatis sensor gerak di area tikungan Blok D & Kavling.',
-      location: 'Jl. Sariwangi Indah 2 & Area Kavling',
-    },
-  ]);
+  const [maintenanceProjects, setMaintenanceProjects] = useState<MaintenanceProjectItem[]>([]);
 
   const [showProjectModal, setShowProjectModal] = useState(false);
-  const [prjName, setPrjName] = useState('Pengecatan Pos Satpam & Pagar Pembatas');
+  const [prjName, setPrjName] = useState('');
   const [prjType, setPrjType] = useState<'PENGECATAN_KOMPLEK' | 'PERBAIKAN_PERALATAN' | 'LAMPU_PJU' | 'BARRIER_GATE_RFID' | 'CCTV_KEAMANAN' | 'TAMAN_RESAPAN'>('PENGECATAN_KOMPLEK');
-  const [prjBudget, setPrjBudget] = useState(3500000);
-  const [prjVendor, setPrjVendor] = useState('Mandor Wawan');
-  const [prjLocation, setPrjLocation] = useState('Pos Satpam & Balai Warga');
-  const [prjDesc, setPrjDesc] = useState('Pengecatan ulang dan perbaikan peralatan umum komplek');
+  const [prjBudget, setPrjBudget] = useState(1000000);
+  const [prjVendor, setPrjVendor] = useState('');
+  const [prjLocation, setPrjLocation] = useState('');
+  const [prjDesc, setPrjDesc] = useState('');
 
   // Form State for General Expense
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState('');
   const [formCategory, setFormCategory] = useState('Keamanan');
-  const [formAmount, setFormAmount] = useState('750000');
-  const [formVendor, setFormVendor] = useState('PT Guard Nusantara / Toko Material');
+  const [formAmount, setFormAmount] = useState('');
+  const [formVendor, setFormVendor] = useState('');
   const [formExpenseDate, setFormExpenseDate] = useState(new Date().toISOString().substring(0, 10));
-  const [formDescription, setFormDescription] = useState('Pengeluaran operasional paguyuban');
+  const [formDescription, setFormDescription] = useState('');
   const [savingExpense, setSavingExpense] = useState(false);
 
   // Show Toast
@@ -317,6 +185,152 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
   const totalActiveLoans = staffLoans.filter((l) => l.status === 'ACTIVE_INSTALLMENT').reduce((sum, l) => sum + l.remainingBalance, 0);
   const totalSocialGranted = socialAids.reduce((sum, s) => sum + s.amount, 0);
   const totalProjectsBudget = maintenanceProjects.reduce((sum, p) => sum + p.actualSpent, 0);
+
+  // Export Expenses CSV
+  const handleExportExpensesCSV = () => {
+    const headers = ['ID Pengeluaran', 'No. Voucher', 'Tanggal', 'Kategori', 'Uraian Pengeluaran', 'Vendor', 'Nominal (Rp)', 'Status'];
+    const rows = expenses.map((e) => [
+      e.id,
+      `"${e.voucherNo || `BKK-${e.id.slice(-4)}`}"`,
+      `"${e.expenseDate}"`,
+      `"${e.categoryName || 'Operasional'}"`,
+      `"${e.title.replace(/"/g, '""')}"`,
+      `"${(e.vendor || '-').replace(/"/g, '""')}"`,
+      e.amount,
+      `"${e.status}"`,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `REKAPITULASI_PENGELUARAN_KAS_WARGA_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Daftar pengeluaran kas berhasil diekspor ke CSV.');
+  };
+
+  const handleOpenAddExpense = () => {
+    setEditingExpenseId(null);
+    setFormTitle('');
+    setFormCategory('Keamanan');
+    setFormAmount('');
+    setFormVendor('');
+    setFormExpenseDate(new Date().toISOString().substring(0, 10));
+    setFormDescription('');
+    setShowAddModal(true);
+  };
+
+  const handleOpenEditExpense = (exp: ExpenseItem) => {
+    setEditingExpenseId(exp.id);
+    setFormTitle(exp.title);
+    setFormCategory(exp.categoryName || 'Operasional');
+    setFormAmount(String(exp.amount));
+    setFormVendor(exp.vendor || '');
+    setFormExpenseDate(exp.expenseDate);
+    setFormDescription(exp.description || '');
+    setShowAddModal(true);
+  };
+
+  const handleSaveGeneralExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingExpense(true);
+    try {
+      if (editingExpenseId) {
+        const res = await fetch('/api/expenses/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingExpenseId,
+            title: formTitle,
+            categoryName: formCategory,
+            amount: Number(formAmount),
+            vendor: formVendor,
+            expenseDate: formExpenseDate,
+            description: formDescription,
+          }),
+        });
+        if (res.ok) {
+          setExpenses(
+            expenses.map((exp) =>
+              exp.id === editingExpenseId
+                ? {
+                    ...exp,
+                    title: formTitle,
+                    categoryName: formCategory,
+                    amount: Number(formAmount),
+                    vendor: formVendor,
+                    expenseDate: formExpenseDate,
+                    description: formDescription,
+                  }
+                : exp
+            )
+          );
+          showToast(`Pengeluaran "${formTitle}" berhasil diperbarui.`);
+          setShowAddModal(false);
+        }
+      } else {
+        const res = await fetch('/api/expenses/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: formTitle,
+            categoryName: formCategory,
+            amount: Number(formAmount),
+            vendor: formVendor,
+            expenseDate: formExpenseDate,
+            description: formDescription,
+          }),
+        });
+        if (res.ok) {
+          const newExp: ExpenseItem = {
+            id: `exp-${Date.now()}`,
+            title: formTitle,
+            description: formDescription,
+            amount: Number(formAmount),
+            expenseDate: formExpenseDate,
+            categoryName: formCategory,
+            vendor: formVendor,
+            voucherNo: `BKK-${Date.now().toString().slice(-4)}`,
+            status: 'APPROVED',
+          };
+          setExpenses([newExp, ...expenses]);
+          showToast(`Pengeluaran baru "${formTitle}" berhasil dicatat.`);
+          setShowAddModal(false);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menyimpan pengeluaran.');
+    } finally {
+      setSavingExpense(false);
+    }
+  };
+
+  const handleConfirmDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    try {
+      const res = await fetch('/api/expenses/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: expenseToDelete.id,
+          expenseId: expenseToDelete.id,
+          title: expenseToDelete.title,
+          amount: expenseToDelete.amount,
+          reason: deleteReason,
+        }),
+      });
+      if (res.ok) {
+        setExpenses(expenses.filter((e) => e.id !== expenseToDelete.id));
+        showToast(`Pengeluaran "${expenseToDelete.title}" berhasil dihapus.`);
+        setExpenseToDelete(null);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus pengeluaran.');
+    }
+  };
 
   // Handle Save Staff Loan
   const handleSaveLoan = async (e: React.FormEvent) => {
@@ -548,34 +562,50 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportExpensesCSV}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+          >
+            <Download className="w-4 h-4 text-rose-600" />
+            <span>Ekspor Mutasi (CSV)</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenAddExpense}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Catat Pengeluaran Baru</span>
+          </button>
           {activeSubTab === 'staff_loans' && (
             <button
               type="button"
               onClick={() => setShowLoanModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
             >
               <PlusCircle className="w-4 h-4" />
-              Tambah Kasbon / Pinjaman
+              <span>Tambah Kasbon</span>
             </button>
           )}
           {activeSubTab === 'social_aid' && (
             <button
               type="button"
               onClick={() => setShowSocialModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
             >
               <HeartHandshake className="w-4 h-4" />
-              Cairkan Santunan Sosial
+              <span>Cairkan Santunan</span>
             </button>
           )}
           {activeSubTab === 'fasum_projects' && (
             <button
               type="button"
               onClick={() => setShowProjectModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
             >
               <Paintbrush className="w-4 h-4" />
-              Catat Proyek Cat & Alat
+              <span>Catat Proyek Cat & Alat</span>
             </button>
           )}
         </div>
@@ -590,7 +620,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
           <div>
             <h4 className="font-bold text-emerald-950 text-sm">Tautan Publik Laporan Transparansi Kas & Iuran Warga</h4>
             <p className="text-emerald-800 text-[11px] mt-0.5">
-              Warga dapat melihat laporan kas masuk-keluar, nota belanja, serta daftar unit yang sudah lunas secara terbuka di [transparency](http://localhost:4321/transparency).
+              Warga dapat melihat laporan kas masuk-keluar, nota belanja, serta daftar unit yang sudah lunas secara terbuka di portal transparansi.
             </p>
           </div>
         </div>
@@ -599,30 +629,30 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
           <button
             type="button"
             onClick={handleCopyPublicLink}
-            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-            Salin Link Publik
+            <span>Salin Link Publik</span>
           </button>
           <a
             href={publicTransparencyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             <ExternalLink className="w-4 h-4" />
-            Buka Transparansi
+            <span>Buka Transparansi</span>
           </a>
         </div>
       </div>
 
       {/* 5 Sub-Tabs Navigation Bar */}
-      <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'expenses_list', label: 'Buku Pengeluaran & Nota Belanja', icon: FileText, count: expenses.length },
-          { id: 'staff_loans', label: 'Kasbon & Pinjaman Petugas (Satpam)', icon: Banknote, count: staffLoans.length },
-          { id: 'social_aid', label: 'Dana Santunan & Kesehatan Petugas', icon: HeartHandshake, count: socialAids.length },
-          { id: 'fasum_projects', label: 'Dana Cat Komplek & Perbaikan Alat', icon: Paintbrush, count: maintenanceProjects.length },
+          { id: 'expenses_list', label: 'Buku Pengeluaran & Nota Belanja', icon: FileText, count: `${expenses.length} Pos` },
+          { id: 'staff_loans', label: 'Kasbon & Pinjaman Petugas (Satpam)', icon: Banknote, count: `${staffLoans.length} Petugas` },
+          { id: 'social_aid', label: 'Dana Santunan & Kesehatan Petugas', icon: HeartHandshake, count: `${socialAids.length} Agenda` },
+          { id: 'fasum_projects', label: 'Dana Cat Komplek & Perbaikan Alat', icon: Paintbrush, count: `${maintenanceProjects.length} Proyek` },
           { id: 'public_transparency', label: 'Rekapitulasi Iuran Warga (Lunas vs Belum)', icon: Eye },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -631,17 +661,17 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
             <button
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-[0.98] ${
                 isActive
-                  ? 'bg-rose-600 text-white shadow-xs'
+                  ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-ink-muted hover:text-ink hover:bg-canvas'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-rose-400' : 'text-ink-muted'}`} />
               <span>{tab.label}</span>
               {tab.count !== undefined && (
-                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border'
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border/60'
                 }`}>
                   {tab.count}
                 </span>
@@ -654,29 +684,86 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
       {/* ================= SUBTAB 1: BUKU PENGELUARAN & NOTA BELANJA ================= */}
       {activeSubTab === 'expenses_list' && (
         <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Summary Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Total Pengeluaran Rutin</span>
-              <p className="text-xl font-black text-rose-700 mt-1 tabular-nums">{formatRupiah(totalExpense)}</p>
-              <span className="text-[10px] text-ink-muted mt-0.5 block">{expenses.length} Pos Pembelanjaan</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Pengeluaran Rutin</span>
+              <p className="text-2xl font-black font-mono text-rose-700 mt-0.5 tabular-nums">{formatRupiah(totalExpense)}</p>
+              <span className="text-[10px] text-rose-600 font-bold font-mono mt-0.5 block">{expenses.length} POS PEMBELANJAAN</span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Piutang Kasbon Petugas</span>
-              <p className="text-xl font-black text-indigo-700 mt-1 tabular-nums">{formatRupiah(totalActiveLoans)}</p>
-              <span className="text-[10px] text-indigo-800 font-bold mt-0.5 block">Dicicil potong gaji bulanan</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Piutang Kasbon Petugas</span>
+              <p className="text-2xl font-black font-mono text-indigo-700 mt-0.5 tabular-nums">{formatRupiah(totalActiveLoans)}</p>
+              <span className="text-[10px] text-indigo-600 font-bold font-mono mt-0.5 block">DICICIL POTONG GAJI</span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Realisasi Dana Santunan Sosial</span>
-              <p className="text-xl font-black text-emerald-700 mt-1 tabular-nums">{formatRupiah(totalSocialGranted)}</p>
-              <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">Kesehatan & Musibah</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Realisasi Dana Santunan</span>
+              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">{formatRupiah(totalSocialGranted)}</p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">KESEHATAN & MUSIBAH</span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Proyek Cat & Peralatan Fasum</span>
-              <p className="text-xl font-black text-amber-700 mt-1 tabular-nums">{formatRupiah(totalProjectsBudget)}</p>
-              <span className="text-[10px] text-amber-800 font-bold mt-0.5 block">Tembok, Barrier Gate & PJU</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Proyek Cat & Alat Fasum</span>
+              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">{formatRupiah(totalProjectsBudget)}</p>
+              <span className="text-[10px] text-amber-600 font-bold font-mono mt-0.5 block">TEMBOK, GATE & PJU</span>
+            </div>
+          </div>
+
+          {/* Search, Filter & Sort Bar */}
+          <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="w-full sm:w-72 relative">
+              <Search className="w-4 h-4 text-ink-muted absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Cari uraian, vendor, voucher..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="ALL">Semua Kategori</option>
+                <option value="Keamanan">Keamanan & Pos Satpam</option>
+                <option value="Kebersihan">Kebersihan & Sampah</option>
+                <option value="Operasional">Operasional Paguyuban</option>
+                <option value="Listrik">Listrik & Utilitas</option>
+                <option value="Pemeliharaan">Pemeliharaan Fasum</option>
+                <option value="Sosial">Santunan Sosial</option>
+              </select>
+
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="date">Urut Tanggal</option>
+                <option value="title">Urut Uraian</option>
+                <option value="amount">Urut Nominal</option>
+                <option value="category">Urut Kategori</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink active:scale-[0.98] transition-all"
+                title={`Urutan: ${sortOrder === 'asc' ? 'Menaik' : 'Menurun'}`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
@@ -691,48 +778,143 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
                     <th className="py-3.5 px-4">Uraian Pengeluaran & Vendor</th>
                     <th className="py-3.5 px-4 text-right">Nominal Realisasi</th>
                     <th className="py-3.5 px-4 text-center">Status</th>
-                    <th className="py-3.5 px-4 text-right">Aksi</th>
+                    <th className="py-3.5 px-4 text-right">Aksi & Dokumen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {paginatedExpenses.map((exp) => (
-                    <tr key={exp.id} className="hover:bg-canvas/50 text-ink transition-colors">
-                      <td className="py-3.5 px-4">
-                        <span className="font-mono text-ink font-bold block">{exp.expenseDate}</span>
-                        <span className="text-[10px] text-ink-muted font-mono">{exp.voucherNo || `BKK-${exp.id.slice(-4)}`}</span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="px-2.5 py-1 rounded-lg bg-canvas border border-border font-bold text-[11px] text-ink">
-                          {exp.categoryName || 'Operasional'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="font-black text-ink block text-xs">{exp.title}</span>
-                        <span className="text-[10px] text-ink-muted">{exp.vendor || 'Pengadaan Mandiri'}</span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-black text-rose-700 text-sm tabular-nums">
-                        - {formatRupiah(exp.amount)}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black text-[10px] border border-emerald-300">
-                          ✓ {exp.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedVoucher(exp)}
-                            className="px-2 py-1 bg-primary-50 hover:bg-primary-100 text-primary-800 rounded-lg font-bold inline-flex items-center gap-1 text-[11px]"
-                          >
-                            <Receipt className="w-3.5 h-3.5" /> Voucher BKK
-                          </button>
-                        </div>
+                  {paginatedExpenses.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-ink-muted font-medium">
+                        Tidak ada catatan pengeluaran kas yang sesuai dengan filter.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    paginatedExpenses.map((exp) => (
+                      <tr key={exp.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono text-ink font-bold block">{exp.expenseDate}</span>
+                          <span className="text-[10px] text-ink-muted font-mono bg-canvas px-1.5 py-0.5 rounded border border-border/80 inline-block mt-0.5">
+                            {exp.voucherNo || `BKK-${exp.id.slice(-4)}`}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="px-2.5 py-1 rounded-lg bg-canvas border border-border font-bold text-[11px] text-ink">
+                            {exp.categoryName || 'Operasional'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-black text-ink block text-xs">{exp.title}</span>
+                          <span className="text-[10px] text-primary-700 font-semibold">{exp.vendor || 'Pengadaan Mandiri'}</span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-black text-rose-700 text-sm tabular-nums">
+                          - {formatRupiah(exp.amount)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-mono font-black text-[10px] border border-emerald-300 shadow-2xs">
+                            ✓ {exp.status}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedVoucher(exp)}
+                              className="px-2.5 py-1.5 bg-primary-50 hover:bg-primary-100 text-primary-800 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all shadow-2xs"
+                              title="Lihat / Cetak Voucher Kas Keluar (BKK)"
+                            >
+                              <Receipt className="w-3.5 h-3.5" />
+                              <span>Voucher BKK</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditExpense(exp)}
+                              className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg font-bold active:scale-[0.98] transition-all"
+                              title="Edit Pengeluaran"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExpenseToDelete(exp)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg font-bold active:scale-[0.98] transition-all"
+                              title="Hapus Pengeluaran"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* PAGINATION CONTROLS */}
+            <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-ink-muted">
+                  Menampilkan <strong className="text-ink">{totalFiltered === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalFiltered}</strong> pengeluaran
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-ink-muted">Tampilkan:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-surface border border-border rounded-lg font-bold text-ink"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safeCurrentPage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
+                  title="Halaman Pertama"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
+                  disabled={safeCurrentPage === 1}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="px-3 py-1 font-mono font-bold text-ink bg-surface border border-border rounded-lg">
+                  {safeCurrentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
+                  disabled={safeCurrentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
+                  title="Halaman Berikutnya"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safeCurrentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
+                  title="Halaman Terakhir"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -770,33 +952,43 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {socialAids.map((aid) => (
-                <div key={aid.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded text-[10px] font-black">
-                      {aid.aidType.replace(/_/g, ' ')}
-                    </span>
-                    <span className="font-mono text-xs text-ink-muted">{aid.aidDate}</span>
-                  </div>
-
-                  <div>
-                    <h4 className="font-black text-ink text-sm">{aid.recipientName}</h4>
-                    <p className="text-xs text-ink-muted mt-0.5">{aid.description}</p>
-                    {aid.hospitalOrDetails && (
-                      <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
-                        📍 {aid.hospitalOrDetails}
+            {socialAids.length === 0 ? (
+              <div className="py-12 px-4 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-2">
+                <HeartHandshake className="w-10 h-10 text-ink-muted/40 mx-auto" />
+                <p className="text-sm font-bold text-ink">Belum Ada Catatan Dana Santunan Riil</p>
+                <p className="text-xs text-ink-muted max-w-md mx-auto">
+                  Catatan bantuan santunan kesehatan, musibah, atau tali asih petugas akan tampil di sini saat bendahara mencairkan dana.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {socialAids.map((aid) => (
+                  <div key={aid.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded text-[10px] font-black">
+                        {aid.aidType.replace(/_/g, ' ')}
                       </span>
-                    )}
-                  </div>
+                      <span className="font-mono text-xs text-ink-muted">{aid.aidDate}</span>
+                    </div>
 
-                  <div className="p-2.5 bg-surface rounded-xl border border-border flex justify-between items-center text-xs">
-                    <span className="text-ink-muted font-medium">Nominal Santunan:</span>
-                    <span className="font-black text-emerald-700 font-mono text-sm">{formatRupiah(aid.amount)}</span>
+                    <div>
+                      <h4 className="font-black text-ink text-sm">{aid.recipientName}</h4>
+                      <p className="text-xs text-ink-muted mt-0.5">{aid.description}</p>
+                      {aid.hospitalOrDetails && (
+                        <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                          📍 {aid.hospitalOrDetails}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-2.5 bg-surface rounded-xl border border-border flex justify-between items-center text-xs">
+                      <span className="text-ink-muted font-medium">Nominal Santunan:</span>
+                      <span className="font-black text-emerald-700 font-mono text-sm">{formatRupiah(aid.amount)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -826,35 +1018,45 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {maintenanceProjects.map((prj) => (
-                <div key={prj.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-black">
-                      {prj.projectType.replace(/_/g, ' ')}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                      prj.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'
-                    }`}>
-                      {prj.status === 'COMPLETED' ? '✓ SELESAI' : 'SEDANG BERJALAN'}
-                    </span>
-                  </div>
+            {maintenanceProjects.length === 0 ? (
+              <div className="py-12 px-4 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-2">
+                <Paintbrush className="w-10 h-10 text-ink-muted/40 mx-auto" />
+                <p className="text-sm font-bold text-ink">Belum Ada Proyek Pemeliharaan Fasum</p>
+                <p className="text-xs text-ink-muted max-w-md mx-auto">
+                  Catatan proyek pengecatan lingkungan, servis peralatan fasum, dan pengadaan lampu akan tampil di sini saat didaftarkan.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {maintenanceProjects.map((prj) => (
+                  <div key={prj.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-black">
+                        {prj.projectType.replace(/_/g, ' ')}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                        prj.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'
+                      }`}>
+                        {prj.status === 'COMPLETED' ? '✓ SELESAI' : 'SEDANG BERJALAN'}
+                      </span>
+                    </div>
 
-                  <div>
-                    <h4 className="font-black text-ink text-sm">{prj.projectName}</h4>
-                    <p className="text-xs text-ink-muted mt-1 leading-relaxed">{prj.description}</p>
-                    <p className="text-[11px] text-primary-700 font-semibold mt-1">
-                      Pelaksana: {prj.vendorOrContractor} • Lokasi: {prj.location}
-                    </p>
-                  </div>
+                    <div>
+                      <h4 className="font-black text-ink text-sm">{prj.projectName}</h4>
+                      <p className="text-xs text-ink-muted mt-1 leading-relaxed">{prj.description}</p>
+                      <p className="text-[11px] text-primary-700 font-semibold mt-1">
+                        Pelaksana: {prj.vendorOrContractor} • Lokasi: {prj.location}
+                      </p>
+                    </div>
 
-                  <div className="p-2.5 bg-surface rounded-xl border border-border flex justify-between items-center text-xs">
-                    <span className="text-ink-muted font-medium">Realisasi Anggaran:</span>
-                    <span className="font-black text-rose-700 font-mono text-sm">{formatRupiah(prj.actualSpent)}</span>
+                    <div className="p-2.5 bg-surface rounded-xl border border-border flex justify-between items-center text-xs">
+                      <span className="text-ink-muted font-medium">Realisasi Anggaran:</span>
+                      <span className="font-black text-rose-700 font-mono text-sm">{formatRupiah(prj.actualSpent)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -863,22 +1065,226 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
       {activeSubTab === 'public_transparency' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4 text-xs">
-            <h3 className="font-black text-base text-ink flex items-center gap-2">
-              <Eye className="w-5 h-5 text-emerald-600" />
-              Rekapitulasi Iuran Transparansi Warga Terbuka (Agustus 2026)
-            </h3>
-            <p className="text-ink-muted">
-              Laporan ringkas status setoran warga komplek yang disinkronisasi ke portal [transparency](http://localhost:4321/transparency).
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
-                <span className="font-black text-emerald-950 block">86 Unit LUNAS</span>
-                <span className="text-emerald-800 text-[11px]">Terkumpul: Rp 64.500.000 (72%)</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+              <div>
+                <h3 className="font-black text-base text-ink flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-emerald-600" />
+                  <span>Rekapitulasi Iuran Transparansi Warga Terbuka (Agustus 2026)</span>
+                </h3>
+                <p className="text-ink-muted mt-0.5">
+                  Laporan ringkas status setoran kas warga komplek yang disinkronisasi ke portal publik transparansi.
+                </p>
               </div>
-              <div className="p-4 bg-rose-50 rounded-2xl border border-rose-200">
-                <span className="font-black text-rose-950 block">34 Unit BELUM BAYAR</span>
-                <span className="text-rose-800 text-[11px]">Piutang: Rp 25.500.000</span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const content = `LAPORAN PENGELUARAN DAN TRANSPARANSI KAS - AGUSTUS 2026\n================================================\nTotal Pengeluaran Rutin: ${formatRupiah(totalExpense)}\nTotal Piutang Kasbon Petugas: ${formatRupiah(totalActiveLoans)}\nTotal Realisasi Dana Santunan: ${formatRupiah(totalSocialGranted)}\nTotal Proyek Fasum: ${formatRupiah(totalProjectsBudget)}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}`;
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `REKAP_PENGELUARAN_KAS_${new Date().toISOString().slice(0, 10)}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast('Laporan transparansi kas berhasil diunduh.');
+                  }}
+                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Unduh Rekap (.txt)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyPublicLink}
+                  className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Salin Tautan Publik</span>
+                </button>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-black text-emerald-950 text-sm">SETORAN IURAN TERVERIFIKASI</span>
+                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-black">
+                    TERKUMPUL
+                  </span>
+                </div>
+                <p className="font-mono font-black text-emerald-800 text-xl tabular-nums">Rp 0</p>
+                <p className="text-[11px] text-emerald-700">Total penerimaan iuran yang telah diverifikasi dan masuk rekening kas resmi.</p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-2xl border border-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-black text-slate-900 text-sm">TAGIHAN BELUM TERBIT / TERTUNDA</span>
+                  <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded text-[10px] font-mono font-black">
+                    STATUS RIIL
+                  </span>
+                </div>
+                <p className="font-mono font-black text-slate-800 text-xl tabular-nums">Rp 0</p>
+                <p className="text-[11px] text-slate-600">Belum ada tagihan tertunggak yang tercatat untuk periode ini.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: CATAT / EDIT PENGELUARAN KAS BARU ================= */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-black text-sm text-ink">
+                {editingExpenseId ? 'Edit Catatan Pengeluaran Kas' : 'Catat Pengeluaran Kas Baru'}
+              </h3>
+              <button onClick={() => setShowAddModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveGeneralExpense} className="space-y-3">
+              <div>
+                <label className="font-bold text-ink block mb-1">Uraian Pengeluaran *</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Honor 6 Petugas Satpam Agustus"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  required
+                  className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Kategori Pos</label>
+                  <select
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
+                  >
+                    <option value="Keamanan">Keamanan</option>
+                    <option value="Kebersihan">Kebersihan</option>
+                    <option value="Operasional">Operasional</option>
+                    <option value="Listrik & Utilitas">Listrik & Utilitas</option>
+                    <option value="Pemeliharaan">Pemeliharaan Fasum</option>
+                    <option value="Sosial">Santunan Sosial</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Nominal (Rp) *</label>
+                  <input
+                    type="number"
+                    value={formAmount}
+                    onChange={(e) => setFormAmount(e.target.value)}
+                    required
+                    className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Penerima Dana / Vendor</label>
+                  <input
+                    type="text"
+                    placeholder="PT Guard / Toko Bangunan"
+                    value={formVendor}
+                    onChange={(e) => setFormVendor(e.target.value)}
+                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Tanggal Pengeluaran *</label>
+                  <input
+                    type="date"
+                    value={formExpenseDate}
+                    onChange={(e) => setFormExpenseDate(e.target.value)}
+                    required
+                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Catatan Tambahan</label>
+                <input
+                  type="text"
+                  placeholder="Keterangan transaksi atau no nota toko"
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingExpense}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {savingExpense ? 'Menyimpan...' : 'Simpan Pengeluaran'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS PENGELUARAN ================= */}
+      {expenseToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4 text-xs">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-base text-ink">Hapus Pengeluaran "{expenseToDelete.title}"?</h3>
+              <p className="text-ink-muted">
+                Catatan kas keluar sebesar <strong>{formatRupiah(expenseToDelete.amount)}</strong> akan dihapus permanen dari buku kas paguyuban.
+              </p>
+            </div>
+
+            <div>
+              <label className="font-bold text-ink block mb-1">Alasan Pembatalan / Penghapusan:</label>
+              <select
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                className="w-full p-2 bg-canvas border border-border rounded-xl text-ink font-semibold"
+              >
+                <option value="Koreksi Input / Pembelian Dibatalkan">Koreksi Input / Pembelian Dibatalkan</option>
+                <option value="Duplikasi Catatan Kas Keluar">Duplikasi Catatan Kas Keluar</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setExpenseToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteExpense}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
+              >
+                Ya, Hapus Pengeluaran
+              </button>
             </div>
           </div>
         </div>
@@ -971,13 +1377,13 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
                 <button
                   type="button"
                   onClick={() => setShowLoanModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
                   Setujui Kasbon
                 </button>
@@ -1023,14 +1429,14 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
               <button
                 type="button"
                 onClick={() => setSelectedLoanForInstallment(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handlePayInstallment}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
               >
                 Konfirmasi Potong Gaji
               </button>
@@ -1114,13 +1520,13 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
                 <button
                   type="button"
                   onClick={() => setShowSocialModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
                   Cairkan Dana Santunan
                 </button>
@@ -1216,13 +1622,13 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
                 <button
                   type="button"
                   onClick={() => setShowProjectModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
                   Simpan Proyek Fasum
                 </button>
@@ -1279,14 +1685,15 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
               >
-                <Printer className="w-4 h-4" /> Cetak PDF
+                <Printer className="w-4 h-4" />
+                <span>Cetak PDF</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedVoucher(null)}
-                className="flex-1 py-2.5 border border-border text-ink font-bold rounded-xl hover:bg-canvas"
+                className="flex-1 py-2.5 border border-border text-ink font-bold rounded-xl hover:bg-canvas active:scale-[0.98] transition-all"
               >
                 Tutup
               </button>

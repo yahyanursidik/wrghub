@@ -40,7 +40,7 @@ export async function getPayments(billingPeriodId?: string, status?: string): Pr
       }).map((p: any) => ({
         id: p.id,
         propertyCode: p.property_code || 'N/A',
-        amount: Number(p.amount) || 750000,
+        amount: Number(p.amount) || 250000,
         method: p.method,
         reference: p.reference,
         proofFileUrl: p.proof_file_url,
@@ -100,13 +100,13 @@ export async function getPendingPaymentsCount(): Promise<number> {
   if (process.env.DATABASE_URL) {
     try {
       const res = await neonSql`SELECT COUNT(*) as count FROM payments WHERE status = 'PENDING'`;
-      return Number(res[0].count) || 3;
+      return Number(res[0]?.count ?? 0);
     } catch (e) {
       console.warn('Neon pending count error:', e);
     }
   }
   const pending = await db.select().from(schema.payments).where(eq(schema.payments.status, 'PENDING'));
-  return pending.length || 3;
+  return pending.length;
 }
 
 export async function submitPayment(data: {

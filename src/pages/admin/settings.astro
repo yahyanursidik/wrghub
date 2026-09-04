@@ -1,8 +1,15 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { SettingsManager } from '../../components/admin/SettingsManager';
+
+const tab = Astro.url.searchParams.get('tab') || 'branding';
+const pageTitle = tab === 'passwords' || tab === 'users'
+  ? 'Manajemen Akun & Password - WargaHub'
+  : 'Pengaturan Komplek - WargaHub';
+const currentPath = tab === 'passwords' ? '/admin/settings?tab=passwords' : '/admin/settings';
 ---
 
-<AdminLayout title="Pengaturan Komplek - WargaHub" currentPath="/admin/settings">
-  <SettingsManager client:load />
+<AdminLayout title={pageTitle} currentPath={currentPath}>
+  <SettingsManager initialTab={tab} client:load />
 </AdminLayout>
+

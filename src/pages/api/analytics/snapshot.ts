@@ -5,10 +5,10 @@ import { recordAuditLog } from '../../../services/audit.service';
 const analyticsSnapshotSchema = z.object({
   period: z.string().default('Agustus 2026'),
   complianceRate: z.number().min(0).max(100).default(94.2),
-  totalIncome: z.number().positive(),
-  totalExpense: z.number().positive(),
-  netSurplus: z.number(),
-  complaintsResolvedPct: z.number().min(0).max(100).default(96.5),
+  totalIncome: z.number().min(0).default(0),
+  totalExpense: z.number().min(0).default(0),
+  netSurplus: z.number().default(0),
+  complaintsResolvedPct: z.number().min(0).max(100).default(0),
   notes: z.string().optional(),
   recordedBy: z.string().default('Ketua Komplek & Pengurus'),
 });

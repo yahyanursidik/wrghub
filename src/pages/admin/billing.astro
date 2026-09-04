@@ -1,19 +1,25 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { BillingManager } from '../../components/admin/BillingManager';
-import { getCurrentBillingPeriod, getInvoices, getBillingProgress } from '../../services/billing.service';
+import { getCurrentBillingPeriod, getInvoices, getBillingProgress, getBillingPeriods } from '../../services/billing.service';
 
-const currentPeriod = await getCurrentBillingPeriod();
+const periodParam = Astro.url.searchParams.get('period');
+const allPeriods = await getBillingPeriods();
+
+const currentPeriod = periodParam
+  ? allPeriods.find((p: any) => p.id === periodParam || p.name === periodParam)
+  : (allPeriods.find((p: any) => p.id === 'period-2026-08') || await getCurrentBillingPeriod());
+
 const invoices = currentPeriod ? await getInvoices(currentPeriod.id) : [];
 const progress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
-  total: 120,
-  paidCount: 86,
-  unpaidCount: 34,
-  percentage: 72,
-  totalAmount: 90000000,
-  paidAmount: 64500000,
-  unpaidAmount: 25500000,
-  monthlyRatePerHouse: 750000,
+  total: 0,
+  paidCount: 0,
+  unpaidCount: 0,
+  percentage: 0,
+  totalAmount: 0,
+  paidAmount: 0,
+  unpaidAmount: 0,
+  monthlyRatePerHouse: 250000,
 };
 ---
 

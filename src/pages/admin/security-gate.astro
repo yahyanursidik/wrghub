@@ -1,8 +1,16 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { SecurityGateManager } from '../../components/admin/SecurityGateManager';
+import { getProperties, getAllVehicles } from '../../services/property.service';
+
+const properties = await getProperties().catch(() => []);
+const vehicles = await getAllVehicles().catch(() => []);
 ---
 
 <AdminLayout title="Pos Satpam & Kontrol Gerbang - WargaHub" currentPath="/admin/security-gate">
-  <SecurityGateManager client:load />
+  <SecurityGateManager
+    initialProperties={properties as any}
+    initialVehicles={vehicles as any}
+    client:load
+  />
 </AdminLayout>

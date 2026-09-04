@@ -1,8 +1,16 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { CleaningStaffManager } from '../../components/admin/CleaningStaffManager';
+import { getProperties } from '../../services/property.service';
+
+const properties = await getProperties().catch(() => []);
 ---
 
 <AdminLayout title="Pengelolaan Tim Kebersihan & Sampah - WargaHub" currentPath="/admin/cleaning-staff">
-  <CleaningStaffManager client:load />
+  <CleaningStaffManager
+    totalProperties={properties.length}
+    properties={properties as any}
+    client:load
+  />
 </AdminLayout>
+

@@ -5,8 +5,9 @@ import { getLedgerEntries, getAccounts } from '../../services/finance.service';
 
 const entries = await getLedgerEntries(100);
 const accounts = await getAccounts();
+const tab = Astro.url.searchParams.get('tab') || 'ledger_list';
 ---
 
 <AdminLayout title="Buku Kas & Ledger - WargaHub" currentPath="/admin/ledger">
-  <LedgerManager accounts={accounts as any} entries={entries as any} client:load />
+  <LedgerManager accounts={accounts as any} entries={entries as any} initialTab={tab as any} client:load />
 </AdminLayout>

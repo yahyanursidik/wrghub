@@ -1,5 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, MessageSquare, X, Send, Bot, User, ArrowRight, ShieldCheck, CreditCard, Building2, PhoneCall } from 'lucide-react';
+import {
+  Sparkles,
+  MessageSquare,
+  X,
+  Send,
+  Bot,
+  User,
+  ArrowRight,
+  ShieldCheck,
+  CreditCard,
+  Building2,
+  PhoneCall,
+  GripVertical,
+  Minimize2,
+  Maximize2,
+  ArrowLeftRight,
+} from 'lucide-react';
 
 interface ChatMessage {
   id: string;
@@ -17,6 +33,95 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const [dockSide, setDockSide] = useState<'right' | 'left'>('right');
+  const [bottomPos, setBottomPos] = useState<number>(100);
+
+  // Load preferences from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedMin = localStorage.getItem('wargahub_ai_minimized');
+      if (savedMin !== null) setIsMinimized(savedMin === 'true');
+
+      const savedSide = localStorage.getItem('wargahub_ai_dock_side');
+      if (savedSide === 'right' || savedSide === 'left') setDockSide(savedSide);
+
+      const savedBottom = localStorage.getItem('wargahub_ai_bottom_pos');
+      if (savedBottom) {
+        const parsed = parseInt(savedBottom, 10);
+        if (!isNaN(parsed) && parsed >= 70 && parsed <= window.innerHeight - 90) {
+          setBottomPos(parsed);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const toggleMinimized = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setIsMinimized((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('wargahub_ai_minimized', String(next));
+      } catch (_) {}
+      return next;
+    });
+  };
+
+  const toggleDockSide = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDockSide((prev) => {
+      const next = prev === 'right' ? 'left' : 'right';
+      try {
+        localStorage.setItem('wargahub_ai_dock_side', next);
+      } catch (_) {}
+      return next;
+    });
+  };
+
+  // Dragging support
+  const isDraggingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startBottomRef = useRef(100);
+  const hasMovedRef = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    isDraggingRef.current = true;
+    startYRef.current = e.clientY;
+    startBottomRef.current = bottomPos;
+    hasMovedRef.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    const deltaY = startYRef.current - e.clientY;
+    if (Math.abs(deltaY) > 5) {
+      hasMovedRef.current = true;
+    }
+    const maxBottom = typeof window !== 'undefined' ? window.innerHeight - 90 : 600;
+    const minBottom = 75;
+    const newBottom = Math.max(minBottom, Math.min(maxBottom, startBottomRef.current + deltaY));
+    setBottomPos(newBottom);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (_) {}
+
+    if (hasMovedRef.current) {
+      try {
+        localStorage.setItem('wargahub_ai_bottom_pos', bottomPos.toString());
+      } catch (_) {}
+    } else {
+      // Normal click -> Open widget
+      setIsOpen(true);
+    }
+  };
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'msg-1',
@@ -88,26 +193,96 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
 
   return (
     <>
-      {/* Floating Action Button */}
-      <div className="fixed bottom-5 right-5 z-40">
-        {!isOpen && (
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
-            className="flex items-center gap-2.5 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-2xl shadow-xl hover:scale-105 transition-all duration-200 group border border-primary-500"
-          >
-            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-surface animate-pulse" />
+      {/* Floating Action Button / Launcher */}
+      {!isOpen && (
+        <div
+          style={{ bottom: `${bottomPos}px` }}
+          className={`fixed z-40 transition-[left,right] duration-200 select-none ${
+            dockSide === 'right' ? 'right-4 sm:right-6' : 'left-4 sm:left-6'
+          }`}
+        >
+          {isMinimized ? (
+            /* Minimized Mode: Compact circular icon */
+            <div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              title="Tanya Warga AI (Klik untuk buka, seret vertikal untuk pindah posisi)"
+              className="relative group cursor-grab active:cursor-grabbing p-3 bg-primary-600 hover:bg-primary-700 active:scale-95 text-surface rounded-2xl shadow-xl border border-primary-500 flex items-center justify-center transition-transform touch-none"
+            >
+              <Sparkles className="w-5 h-5 text-surface animate-pulse" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-primary-600 animate-ping" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-primary-600" />
+
+              {/* Expand Toggle */}
+              <button
+                type="button"
+                onClick={toggleMinimized}
+                title="Buka Tampilan Penuh"
+                className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-surface text-ink border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-xs"
+              >
+                <Maximize2 className="w-2.5 h-2.5" />
+              </button>
             </div>
-            <span>Tanya Warga AI</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
-          </button>
-        )}
-      </div>
+          ) : (
+            /* Full Pill Mode */
+            <div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className="flex items-center gap-2 px-3 py-2.5 bg-primary-600 hover:bg-primary-700 text-surface rounded-2xl shadow-xl border border-primary-500 cursor-grab active:cursor-grabbing transition-all touch-none group"
+            >
+              {/* Drag Handle */}
+              <div
+                title="Seret ke atas/bawah untuk memindahkan posisi tombol"
+                className="text-white/60 group-hover:text-white p-0.5 cursor-grab active:cursor-grabbing"
+              >
+                <GripVertical className="w-3.5 h-3.5" />
+              </div>
+
+              {/* Icon & Label */}
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                  <Sparkles className="w-3.5 h-3.5 text-surface animate-pulse" />
+                </div>
+                <span className="font-bold text-xs whitespace-nowrap">Tanya Warga AI</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+              </div>
+
+              {/* Quick Controls: Switch Dock Side & Minimize */}
+              <div
+                className="flex items-center gap-0.5 pl-1.5 border-l border-white/20"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={toggleDockSide}
+                  title={dockSide === 'right' ? 'Pindah ke Sisi Kiri' : 'Pindah ke Sisi Kanan'}
+                  className="p-1 text-white/70 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <ArrowLeftRight className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleMinimized}
+                  title="Kecilkan Tombol (Mode Ringkas)"
+                  className="p-1 text-white/70 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <Minimize2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Floating Chat Modal */}
       {isOpen && (
-        <div className="fixed bottom-5 right-5 z-50 w-[92vw] sm:w-[380px] h-[520px] bg-surface rounded-3xl border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div
+          className={`fixed bottom-5 z-50 w-[92vw] sm:w-[380px] h-[520px] bg-surface rounded-3xl border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 ${
+            dockSide === 'right' ? 'right-4 sm:right-6' : 'left-4 sm:left-6'
+          }`}
+        >
           {/* Chat Header */}
           <div className="p-4 bg-primary-600 text-surface flex items-center justify-between shadow-xs shrink-0">
             <div className="flex items-center gap-3">
@@ -123,13 +298,23 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="p-1.5 hover:bg-white/20 rounded-xl transition-colors text-surface"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={toggleDockSide}
+                title={dockSide === 'right' ? 'Pindah Tampilan ke Kiri' : 'Pindah Tampilan ke Kanan'}
+                className="p-1.5 hover:bg-white/20 rounded-xl transition-colors text-surface"
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 hover:bg-white/20 rounded-xl transition-colors text-surface"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Messages Container */}

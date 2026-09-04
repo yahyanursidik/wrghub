@@ -10,16 +10,14 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Sparkles,
   BarChart3,
   Receipt,
   FileText
 } from 'lucide-react';
-import { PORTAL_ACCOUNTS, type DemoAccountInfo } from '../../types/auth';
 
 export const ResidentWelcomeLoginGate: React.FC = () => {
-  const [identifier, setIdentifier] = useState('warga_a17');
-  const [password, setPassword] = useState('warga123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -41,7 +39,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password, portal: 'resident' }),
+        body: JSON.stringify({ identifier: identifier.trim(), password: password.trim(), portal: 'resident' }),
       });
       const data = await res.json();
 
@@ -64,38 +62,6 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
       setLoading(false);
     }
   };
-
-  const handleQuickLogin = async (acc: DemoAccountInfo) => {
-    setIdentifier(acc.username);
-    setPassword(acc.defaultPassword);
-    setLoading(true);
-    setErrorMsg('');
-
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: acc.username, password: acc.defaultPassword, portal: 'resident' }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        if (typeof window !== 'undefined' && data.data?.user) {
-          localStorage.setItem('wargahub_user', JSON.stringify(data.data.user));
-          window.dispatchEvent(new CustomEvent('wargahub_user_changed', { detail: data.data.user }));
-        }
-        window.location.href = data.data?.redirectUrl || '/warga';
-      } else {
-        setErrorMsg(data.error?.message || 'Gagal masuk.');
-        setLoading(false);
-      }
-    } catch (e) {
-      setErrorMsg('Koneksi gagal.');
-      setLoading(false);
-    }
-  };
-
-  const accountsList = Object.values(PORTAL_ACCOUNTS);
-  const residentAccounts = accountsList.filter((a) => a.targetPortal === 'resident');
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col justify-center py-8 px-4 sm:px-6 lg:px-8">
@@ -178,7 +144,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Masukkan password atau PIN (default: warga123)"
+                  placeholder="Masukkan password atau PIN akun Anda"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -204,7 +170,10 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
                 />
                 <span className="text-ink-muted font-medium">Ingat Saya</span>
               </label>
-              <span className="text-[11px] text-ink-muted">PIN Default: <strong className="text-ink">warga123</strong></span>
+              <span className="text-[11px] text-ink-muted flex items-center gap-1">
+                <Lock className="w-3 h-3 text-emerald-600" />
+                SSL 256-Bit
+              </span>
             </div>
 
             <button
@@ -223,43 +192,18 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Demo Accounts */}
-          <div className="pt-3 border-t border-border space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-ink flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                Akses Cepat Warga (1-Klik Masuk):
-              </span>
-              <span className="text-[10px] text-ink-muted">Langsung Masuk</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {residentAccounts.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => handleQuickLogin(acc)}
-                  className="p-2.5 bg-canvas hover:bg-primary-50 border border-border hover:border-primary-300 rounded-xl text-left transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={acc.avatarUrl}
-                      alt={acc.name}
-                      className="w-7 h-7 rounded-lg object-cover ring-1 ring-border"
-                    />
-                    <div>
-                      <p className="text-xs font-bold text-ink group-hover:text-primary-700 leading-tight">
-                        {acc.name}
-                      </p>
-                      <p className="text-[10px] text-ink-muted">{acc.roleTitle}</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-surface border border-border text-ink-muted group-hover:bg-primary-600 group-hover:text-white">
-                    {acc.badge}
-                  </span>
-                </button>
-              ))}
-            </div>
+          {/* Registration & Assistance Note */}
+          <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-ink-muted">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-primary-600" />
+              Warga Baru Belum Terdaftar?
+            </span>
+            <a
+              href="/login?tab=resident_register"
+              className="font-bold text-primary-700 hover:text-primary-800 hover:underline"
+            >
+              Registrasi Hunian →
+            </a>
           </div>
 
           {/* Public Transparency & Dues Links */}
@@ -295,6 +239,19 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
             >
               <ShieldCheck className="w-3.5 h-3.5 text-ink-muted" />
               Anda Pengurus / Pengelola Komplek? Masuk ke Portal Admin
+            </a>
+          </div>
+
+          {/* Footer note */}
+          <div className="pt-3 border-t border-border/80 text-center text-[11px] text-ink-muted">
+            <span>Dikembangkan oleh </span>
+            <a
+              href="https://yahyanursidik.my.id/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-primary-700 hover:text-primary-800 hover:underline"
+            >
+              Yahya Nursidik
             </a>
           </div>
         </div>

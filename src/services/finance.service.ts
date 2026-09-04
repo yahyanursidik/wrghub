@@ -21,14 +21,14 @@ export async function getAccounts() {
 export async function getMainAccountBalance() {
   if (process.env.DATABASE_URL) {
     try {
-      const rows = await neonSql`SELECT balance FROM accounts WHERE id = 'acc-main' LIMIT 1`;
-      if (rows.length) return Number(rows[0].balance) || 128450000;
+      const rows = await neonSql`SELECT balance FROM accounts WHERE code = 'BCA-UTAMA' OR id = 'acc-main' OR type = 'BANK' LIMIT 1`;
+      if (rows.length) return Number(rows[0].balance ?? 0);
     } catch (e) {
       console.warn('Neon balance error:', e);
     }
   }
   const accs = await db.select().from(schema.accounts).where(eq(schema.accounts.id, 'acc-main')).limit(1);
-  return accs[0]?.balance || 128450000;
+  return Number(accs[0]?.balance ?? 0);
 }
 
 export async function getLedgerEntries(limit = 30) {
@@ -99,31 +99,31 @@ export async function getBudgetComparison() {
   return [
     {
       keterangan: 'Pemasukan (Iuran)',
-      anggaran: 90000000,
-      realisasi: 64500000,
-      selisih: -25500000,
-      isPositive: false,
+      anggaran: 0,
+      realisasi: 0,
+      selisih: 0,
+      isPositive: true,
     },
     {
       keterangan: 'Pengeluaran Operasional',
-      anggaran: 45000000,
-      realisasi: 28350000,
-      selisih: 16650000,
+      anggaran: 0,
+      realisasi: 0,
+      selisih: 0,
       isPositive: true,
     },
     {
       keterangan: 'Pengeluaran Pemeliharaan',
-      anggaran: 20000000,
-      realisasi: 12600000,
-      selisih: 7400000,
+      anggaran: 0,
+      realisasi: 0,
+      selisih: 0,
       isPositive: true,
     },
     {
       keterangan: 'Saldo Akhir',
-      anggaran: 25000000,
-      realisasi: 23550000,
-      selisih: -1450000,
-      isPositive: false,
+      anggaran: 0,
+      realisasi: 0,
+      selisih: 0,
+      isPositive: true,
       isTotal: true,
     }
   ];
@@ -195,3 +195,76 @@ export async function recordExpense(data: {
 
   return expenseId;
 }
+
+export async function deleteExpense(expenseId: string) {
+  if (process.env.DATABASE_URL) {
+    try {
+      const rows = await neonSql`SELECT id, account_id, amount, title FROM expenses WHERE id = ${expenseId} LIMIT 1`;
+      if (rows.length) {
+        const exp = rows[0];
+        const amount = Number(exp.amount) || 0;
+        const accountId = exp.account_id || 'acc-main';
+
+        // 1. Delete matching ledger entry
+        await neonSql`DELETE FROM ledger_entries WHERE source_id = ${expenseId} OR id = ${'ledg-' + expenseId}`;
+
+        // 2. Refund / restore account balance
+        if (amount > 0 && accountId) {
+          await neonSql`UPDATE accounts SET balance = balance + ${amount} WHERE id = ${accountId}`;
+        }
+
+        // 3. Delete expense record
+        await neonSql`DELETE FROM expenses WHERE id = ${expenseId}`;
+
+        return { success: true, id: expenseId };
+      }
+    } catch (e) {
+      console.warn('Neon delete expense error:', e);
+    }
+  }
+
+  try {
+    await db.delete(schema.ledgerEntries).where(eq(schema.ledgerEntries.sourceId, expenseId));
+    await db.delete(schema.expenses).where(eq(schema.expenses.id, expenseId));
+    return { success: true, id: expenseId };
+  } catch (e) {
+    console.warn('SQLite delete expense error:', e);
+    return { success: false, error: e };
+  }
+}
+
+export async function deleteLedgerEntry(ledgerId: string) {
+  if (process.env.DATABASE_URL) {
+    try {
+      const rows = await neonSql`SELECT id, account_id, direction, amount FROM ledger_entries WHERE id = ${ledgerId} LIMIT 1`;
+      if (rows.length) {
+        const entry = rows[0];
+        const amount = Number(entry.amount) || 0;
+        const accountId = entry.account_id;
+
+        // Reverse balance
+        if (accountId && amount > 0) {
+          if (entry.direction === 'OUT') {
+            await neonSql`UPDATE accounts SET balance = balance + ${amount} WHERE id = ${accountId}`;
+          } else if (entry.direction === 'IN') {
+            await neonSql`UPDATE accounts SET balance = balance - ${amount} WHERE id = ${accountId}`;
+          }
+        }
+
+        await neonSql`DELETE FROM ledger_entries WHERE id = ${ledgerId}`;
+        return { success: true, id: ledgerId };
+      }
+    } catch (e) {
+      console.warn('Neon delete ledger error:', e);
+    }
+  }
+
+  try {
+    await db.delete(schema.ledgerEntries).where(eq(schema.ledgerEntries.id, ledgerId));
+    return { success: true, id: ledgerId };
+  } catch (e) {
+    console.warn('SQLite delete ledger error:', e);
+    return { success: false, error: e };
+  }
+}
+

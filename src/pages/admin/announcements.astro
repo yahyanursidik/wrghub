@@ -2,11 +2,14 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { AnnouncementsManager } from '../../components/admin/AnnouncementsManager';
 import { getAnnouncements } from '../../services/announcement.service';
+import { getProperties } from '../../services/property.service';
 
-const announcements = await getAnnouncements();
+const announcements = await getAnnouncements().catch(() => []);
+const properties = await getProperties().catch(() => []);
 const tab = Astro.url.searchParams.get('tab') || 'announcements';
 ---
 
 <AdminLayout title="Pengumuman & Agenda - WargaHub" currentPath="/admin/announcements">
-  <AnnouncementsManager initialAnnouncements={announcements} initialTab={tab} client:load />
+  <AnnouncementsManager initialAnnouncements={announcements} initialTab={tab} totalProperties={properties.length} client:load />
 </AdminLayout>
+

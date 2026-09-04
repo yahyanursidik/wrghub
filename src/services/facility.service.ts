@@ -26,13 +26,13 @@ export async function getNeedingRepairCount() {
   if (process.env.DATABASE_URL) {
     try {
       const res = await neonSql`SELECT COUNT(*) as count FROM facilities WHERE condition != 'GOOD'`;
-      return Number(res[0].count) || 2;
+      return Number(res[0]?.count ?? 0);
     } catch (e) {
       console.warn('Neon repair count error:', e);
     }
   }
   const all = await db.select().from(schema.facilities);
-  return all.filter(f => f.condition !== 'GOOD').length || 2;
+  return all.filter(f => f.condition !== 'GOOD').length;
 }
 
 export async function getMaintenanceRequests() {

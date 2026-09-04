@@ -2,10 +2,15 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { PaymentsManager } from '../../components/admin/PaymentsManager';
 import { getPayments } from '../../services/payment.service';
+import { getAccounts } from '../../services/finance.service';
+import { getProperties } from '../../services/property.service';
 
-const payments = await getPayments();
+const payments = await getPayments().catch(() => []);
+const accounts = await getAccounts().catch(() => []);
+const properties = await getProperties().catch(() => []);
 ---
 
 <AdminLayout title="Pembayaran & Verifikasi - WargaHub" currentPath="/admin/payments">
-  <PaymentsManager initialPayments={payments} client:load />
+  <PaymentsManager initialPayments={payments} initialAccounts={accounts} initialProperties={properties} client:load />
 </AdminLayout>
+

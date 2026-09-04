@@ -35,9 +35,19 @@ import {
   UserCircle2,
   Lock,
   Hammer,
-  Gauge
+  Gauge,
+  KeyRound
 } from 'lucide-react';
-import { DEMO_USERS, type UserRole, type UserSession } from '../../types/auth';
+import type { UserRole, UserSession } from '../../types/auth';
+
+const DEFAULT_SIDEBAR_USER: UserSession = {
+  id: 'usr-admin',
+  username: 'admin',
+  fullName: 'Pengurus Komplek',
+  email: 'admin@wargahub.id',
+  role: 'CHAIRMAN',
+  avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
+};
 
 interface AdminSidebarProps {
   currentPath?: string;
@@ -73,7 +83,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admi
         }
       } catch (e) {}
     }
-    return currentUser || DEMO_USERS.ketua;
+    return currentUser || DEFAULT_SIDEBAR_USER;
   });
 
   useEffect(() => {
@@ -192,6 +202,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admi
         { name: 'Rumah', href: '/admin/properties', icon: Home, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
         { name: 'Penghuni', href: '/admin/properties?tab=occupants', icon: Users, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
         { name: 'Pemilik', href: '/admin/properties?tab=owners', icon: UserCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'RESIDENT_ADMIN'] },
+        { name: 'Akun & Password', href: '/admin/settings?tab=passwords', icon: KeyRound, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
         { name: 'Kendaraan', href: '/admin/properties?tab=vehicles', icon: Car, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'RESIDENT_ADMIN'] },
         { name: 'Izin Renovasi', href: '/admin/properties?tab=permits', icon: Hammer, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'RESIDENT_ADMIN'] },
         { name: 'Utilitas & Meteran', href: '/admin/properties?tab=analytics', icon: Gauge, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE', 'TREASURER', 'RESIDENT_ADMIN'] },
@@ -238,6 +249,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admi
 
   // Master bottom items with RBAC
   const masterBottomItems = [
+    { name: 'Akun & Password', href: '/admin/settings?tab=passwords', icon: KeyRound, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY'] },
     { name: 'Dokumen', href: '/admin/documents', icon: FolderOpen, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'AUDITOR'] },
     { name: 'Jejak Audit', href: '/admin/audit', icon: ShieldCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'SECRETARY', 'AUDITOR'] },
     { name: 'Pencadangan & Backup', href: '/admin/backup', icon: FolderOpen, roles: ['SUPER_ADMIN', 'CHAIRMAN'] },

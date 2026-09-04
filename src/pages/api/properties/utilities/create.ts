@@ -12,7 +12,7 @@ const utilitySchema = z.object({
   pamMeterNo: z.string().default('PAM-88301'),
   pamReadingLastMonth: z.number().default(120),
   pamReadingThisMonth: z.number().default(138),
-  monthlyIplFee: z.number().default(750000),
+  monthlyIplFee: z.number().default(250000),
   wasteSchedule: z.string().default('SENIN_RABU_JUMAT'),
   hasBiopori: z.boolean().default(true),
   hasSolarPanel: z.boolean().default(false),

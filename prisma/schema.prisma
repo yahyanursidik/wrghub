@@ -1,0 +1,518 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model accounts {
+  id             String           @id @db.VarChar(64)
+  community_id   String?          @db.VarChar(64)
+  code           String           @unique @db.VarChar(50)
+  name           String           @db.VarChar(255)
+  type           String           @default("BANK") @db.VarChar(50)
+  account_number String?          @db.VarChar(100)
+  bank_name      String?          @db.VarChar(100)
+  balance        Decimal          @default(0) @db.Decimal(14, 2)
+  is_active      Boolean          @default(true)
+  created_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  communities    communities?     @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  expenses       expenses[]
+  ledger_entries ledger_entries[]
+}
+
+model announcements {
+  id              String       @id @db.VarChar(64)
+  community_id    String?      @db.VarChar(64)
+  title           String       @db.VarChar(255)
+  content         String
+  category        String       @default("INFO") @db.VarChar(50)
+  audience        String       @default("ALL") @db.VarChar(50)
+  target_block_id String?      @db.VarChar(64)
+  scheduled_at    String?      @db.VarChar(100)
+  location        String?      @db.VarChar(255)
+  is_pinned       Boolean      @default(false)
+  is_published    Boolean      @default(true)
+  published_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  created_by      String?      @db.VarChar(64)
+  created_at      DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?    @default(now()) @db.Timestamptz(6)
+  communities     communities? @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users           users?       @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  blocks          blocks?      @relation(fields: [target_block_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model audit_logs {
+  id             String    @id @db.VarChar(64)
+  actor_user_id  String?   @db.VarChar(64)
+  actor_name     String    @db.VarChar(255)
+  action         String    @db.VarChar(100)
+  entity_type    String    @db.VarChar(100)
+  entity_id      String    @db.VarChar(100)
+  old_value_json String?
+  new_value_json String?
+  ip_address     String?   @db.VarChar(100)
+  user_agent     String?
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  users          users?    @relation(fields: [actor_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model billing_periods {
+  id                String             @id @db.VarChar(64)
+  community_id      String?            @db.VarChar(64)
+  year              Int
+  month             Int
+  name              String             @db.VarChar(100)
+  due_date          String             @db.VarChar(30)
+  status            String             @default("OPEN") @db.VarChar(30)
+  created_at        DateTime?          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?          @default(now()) @db.Timestamptz(6)
+  communities       communities?       @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoices          invoices[]
+  monthly_snapshots monthly_snapshots?
+  payments          payments[]
+}
+
+model blocks {
+  id            String          @id @db.VarChar(64)
+  community_id  String?         @db.VarChar(64)
+  name          String          @db.VarChar(100)
+  code          String          @db.VarChar(20)
+  created_at    DateTime?       @default(now()) @db.Timestamptz(6)
+  announcements announcements[]
+  communities   communities?    @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  properties    properties[]
+}
+
+model budget_items {
+  id                 String              @id @db.VarChar(64)
+  budget_id          String?             @db.VarChar(64)
+  category_id        String?             @db.VarChar(64)
+  name               String              @db.VarChar(255)
+  monthly_budget     Decimal             @db.Decimal(14, 2)
+  created_at         DateTime?           @default(now()) @db.Timestamptz(6)
+  budgets            budgets?            @relation(fields: [budget_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  expense_categories expense_categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model budgets {
+  id           String         @id @db.VarChar(64)
+  community_id String?        @db.VarChar(64)
+  year         Int
+  name         String         @db.VarChar(255)
+  total_amount Decimal        @db.Decimal(14, 2)
+  created_at   DateTime?      @default(now()) @db.Timestamptz(6)
+  budget_items budget_items[]
+  communities  communities?   @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model communities {
+  id                 String               @id @db.VarChar(64)
+  name               String               @db.VarChar(255)
+  code               String               @unique @db.VarChar(64)
+  address            String
+  city               String               @db.VarChar(100)
+  postal_code        String?              @db.VarChar(20)
+  settings_json      String?
+  created_at         DateTime?            @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?            @default(now()) @db.Timestamptz(6)
+  accounts           accounts[]
+  announcements      announcements[]
+  billing_periods    billing_periods[]
+  blocks             blocks[]
+  budgets            budgets[]
+  documents          documents[]
+  expense_categories expense_categories[]
+  expenses           expenses[]
+  facilities         facilities[]
+  fee_types          fee_types[]
+  properties         properties[]
+  settings           settings[]
+}
+
+model complaints {
+  id                     String      @id @db.VarChar(64)
+  property_id            String?     @db.VarChar(64)
+  submitted_by_person_id String?     @db.VarChar(64)
+  title                  String      @db.VarChar(255)
+  description            String
+  category               String      @default("FASILITAS") @db.VarChar(50)
+  location               String?     @db.VarChar(255)
+  status                 String      @default("REPORTED") @db.VarChar(30)
+  priority               String      @default("MEDIUM") @db.VarChar(30)
+  photo_url              String?
+  resolution_notes       String?
+  resolved_at            DateTime?   @db.Timestamptz(6)
+  created_at             DateTime?   @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime?   @default(now()) @db.Timestamptz(6)
+  properties             properties? @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  persons                persons?    @relation(fields: [submitted_by_person_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model documents {
+  id           String       @id @db.VarChar(64)
+  community_id String?      @db.VarChar(64)
+  title        String       @db.VarChar(255)
+  category     String       @db.VarChar(100)
+  file_url     String
+  file_size    String?      @db.VarChar(50)
+  visibility   String       @default("RESIDENT") @db.VarChar(50)
+  uploaded_by  String?      @db.VarChar(64)
+  created_at   DateTime?    @default(now()) @db.Timestamptz(6)
+  communities  communities? @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users        users?       @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model expense_categories {
+  id                String         @id @db.VarChar(64)
+  community_id      String?        @db.VarChar(64)
+  name              String         @db.VarChar(100)
+  code              String         @db.VarChar(50)
+  budget_percentage Decimal?       @db.Decimal(5, 2)
+  icon              String?        @db.VarChar(50)
+  created_at        DateTime?      @default(now()) @db.Timestamptz(6)
+  budget_items      budget_items[]
+  communities       communities?   @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  expenses          expenses[]
+}
+
+model expenses {
+  id                                String              @id @db.VarChar(64)
+  community_id                      String?             @db.VarChar(64)
+  category_id                       String?             @db.VarChar(64)
+  account_id                        String?             @db.VarChar(64)
+  title                             String              @db.VarChar(255)
+  description                       String?
+  amount                            Decimal             @db.Decimal(14, 2)
+  expense_date                      String              @db.VarChar(30)
+  receipt_file_url                  String?
+  recorded_by                       String?             @db.VarChar(64)
+  approved_by                       String?             @db.VarChar(64)
+  status                            String              @default("APPROVED") @db.VarChar(30)
+  created_at                        DateTime?           @default(now()) @db.Timestamptz(6)
+  accounts                          accounts?           @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_expenses_approved_byTousers users?              @relation("expenses_approved_byTousers", fields: [approved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  expense_categories                expense_categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  communities                       communities?        @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_expenses_recorded_byTousers users?              @relation("expenses_recorded_byTousers", fields: [recorded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model facilities {
+  id                   String                 @id @db.VarChar(64)
+  community_id         String?                @db.VarChar(64)
+  name                 String                 @db.VarChar(255)
+  code                 String                 @unique @db.VarChar(50)
+  category             String                 @db.VarChar(100)
+  location             String                 @db.VarChar(255)
+  condition            String                 @default("GOOD") @db.VarChar(50)
+  notes                String?
+  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  communities          communities?           @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  maintenance_requests maintenance_requests[]
+}
+
+model fee_rules {
+  id              String     @id @db.VarChar(64)
+  fee_type_id     String?    @db.VarChar(64)
+  amount          Decimal    @db.Decimal(14, 2)
+  frequency       String     @default("MONTHLY") @db.VarChar(30)
+  due_day         Int        @default(10)
+  effective_from  String     @db.VarChar(30)
+  effective_until String?    @db.VarChar(30)
+  scope           String     @default("ALL") @db.VarChar(50)
+  is_active       Boolean    @default(true)
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
+  fee_types       fee_types? @relation(fields: [fee_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model fee_types {
+  id             String          @id @db.VarChar(64)
+  community_id   String?         @db.VarChar(64)
+  code           String          @db.VarChar(50)
+  name           String          @db.VarChar(255)
+  description    String?
+  default_amount Decimal         @db.Decimal(14, 2)
+  is_active      Boolean         @default(true)
+  created_at     DateTime?       @default(now()) @db.Timestamptz(6)
+  fee_rules      fee_rules[]
+  communities    communities?    @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoice_items  invoice_items[]
+}
+
+model household_members {
+  id           String      @id @db.VarChar(64)
+  household_id String?     @db.VarChar(64)
+  person_id    String?     @db.VarChar(64)
+  relationship String      @db.VarChar(50)
+  birth_date   String?     @db.VarChar(30)
+  is_active    Boolean     @default(true)
+  started_at   String?     @db.VarChar(30)
+  ended_at     String?     @db.VarChar(30)
+  created_at   DateTime?   @default(now()) @db.Timestamptz(6)
+  households   households? @relation(fields: [household_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  persons      persons?    @relation(fields: [person_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model households {
+  id                String              @id @db.VarChar(64)
+  name              String              @db.VarChar(255)
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  household_members household_members[]
+  occupancies       occupancies[]
+}
+
+model invoice_items {
+  id          String     @id @db.VarChar(64)
+  invoice_id  String?    @db.VarChar(64)
+  fee_type_id String?    @db.VarChar(64)
+  description String
+  amount      Decimal    @db.Decimal(14, 2)
+  created_at  DateTime?  @default(now()) @db.Timestamptz(6)
+  fee_types   fee_types? @relation(fields: [fee_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoices    invoices?  @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model invoices {
+  id                  String                @id @db.VarChar(64)
+  property_id         String?               @db.VarChar(64)
+  billing_period_id   String?               @db.VarChar(64)
+  invoice_number      String                @unique @db.VarChar(100)
+  status              String                @default("UNPAID") @db.VarChar(30)
+  subtotal            Decimal               @db.Decimal(14, 2)
+  total               Decimal               @db.Decimal(14, 2)
+  paid_amount         Decimal               @default(0) @db.Decimal(14, 2)
+  due_date            String                @db.VarChar(30)
+  issued_at           String                @db.VarChar(30)
+  paid_at             String?               @db.VarChar(30)
+  notes               String?
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  invoice_items       invoice_items[]
+  billing_periods     billing_periods?      @relation(fields: [billing_period_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  properties          properties?           @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payment_allocations payment_allocations[]
+  payments            payments[]
+
+  @@index([property_id], map: "idx_invoices_prop_pg")
+}
+
+model ledger_entries {
+  id          String    @id @db.VarChar(64)
+  account_id  String?   @db.VarChar(64)
+  entry_date  String    @db.VarChar(30)
+  direction   String    @db.VarChar(10)
+  amount      Decimal   @db.Decimal(14, 2)
+  source_type String    @db.VarChar(50)
+  source_id   String?   @db.VarChar(64)
+  description String
+  created_by  String?   @db.VarChar(64)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  accounts    accounts? @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users       users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([entry_date], map: "idx_ledger_date_pg")
+}
+
+model maintenance_requests {
+  id             String      @id @db.VarChar(64)
+  facility_id    String?     @db.VarChar(64)
+  title          String      @db.VarChar(255)
+  description    String
+  cost_estimate  Decimal     @default(0) @db.Decimal(14, 2)
+  actual_cost    Decimal     @default(0) @db.Decimal(14, 2)
+  status         String      @default("PLANNED") @db.VarChar(50)
+  scheduled_date String?     @db.VarChar(50)
+  completed_date String?     @db.VarChar(50)
+  performed_by   String?     @db.VarChar(255)
+  created_at     DateTime?   @default(now()) @db.Timestamptz(6)
+  facilities     facilities? @relation(fields: [facility_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model monthly_snapshots {
+  id                          String           @id @db.VarChar(64)
+  billing_period_id           String?          @unique @db.VarChar(64)
+  total_properties            Int
+  paid_properties             Int
+  unpaid_properties           Int
+  opening_balance             Decimal          @db.Decimal(14, 2)
+  income                      Decimal          @db.Decimal(14, 2)
+  expense                     Decimal          @db.Decimal(14, 2)
+  closing_balance             Decimal          @db.Decimal(14, 2)
+  breakdown_json              String?
+  unpaid_properties_list_json String?
+  generated_at                DateTime?        @default(now()) @db.Timestamptz(6)
+  billing_periods             billing_periods? @relation(fields: [billing_period_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model occupancies {
+  id           String      @id @db.VarChar(64)
+  property_id  String?     @db.VarChar(64)
+  household_id String?     @db.VarChar(64)
+  type         String      @default("OWNER") @db.VarChar(50)
+  is_active    Boolean     @default(true)
+  started_at   String      @db.VarChar(30)
+  ended_at     String?     @db.VarChar(30)
+  created_at   DateTime?   @default(now()) @db.Timestamptz(6)
+  households   households? @relation(fields: [household_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  properties   properties? @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model payment_allocations {
+  id           String    @id @db.VarChar(64)
+  payment_id   String?   @db.VarChar(64)
+  invoice_id   String?   @db.VarChar(64)
+  amount       Decimal   @db.Decimal(14, 2)
+  allocated_at DateTime? @default(now()) @db.Timestamptz(6)
+  invoices     invoices? @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments     payments? @relation(fields: [payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model payments {
+  id                                 String                @id @db.VarChar(64)
+  property_id                        String?               @db.VarChar(64)
+  billing_period_id                  String?               @db.VarChar(64)
+  invoice_id                         String?               @db.VarChar(64)
+  amount                             Decimal               @db.Decimal(14, 2)
+  method                             String                @default("TRANSFER") @db.VarChar(50)
+  reference                          String?               @db.VarChar(100)
+  proof_file_url                     String?
+  status                             String                @default("PENDING") @db.VarChar(30)
+  notes                              String?
+  paid_at                            String                @db.VarChar(30)
+  submitted_by                       String?               @db.VarChar(64)
+  verified_by                        String?               @db.VarChar(64)
+  verified_at                        String?               @db.VarChar(30)
+  rejection_reason                   String?
+  created_at                         DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at                         DateTime?             @default(now()) @db.Timestamptz(6)
+  payment_allocations                payment_allocations[]
+  billing_periods                    billing_periods?      @relation(fields: [billing_period_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoices                           invoices?             @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  properties                         properties?           @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_payments_submitted_byTousers users?                @relation("payments_submitted_byTousers", fields: [submitted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_payments_verified_byTousers  users?                @relation("payments_verified_byTousers", fields: [verified_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([property_id], map: "idx_payments_prop_pg")
+}
+
+model persons {
+  id                  String                @id @db.VarChar(64)
+  name                String                @db.VarChar(255)
+  phone               String?               @db.VarChar(50)
+  email               String?               @db.VarChar(100)
+  is_active           Boolean               @default(true)
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  complaints          complaints[]
+  household_members   household_members[]
+  property_ownerships property_ownerships[]
+  users               users[]
+  vehicles            vehicles[]
+}
+
+model properties {
+  id                   String                 @id @db.VarChar(64)
+  community_id         String?                @db.VarChar(64)
+  block_id             String?                @db.VarChar(64)
+  code                 String                 @unique @db.VarChar(30)
+  number               String                 @db.VarChar(20)
+  address              String
+  occupancy_status     String                 @default("OWNER_OCCUPIED") @db.VarChar(50)
+  is_active            Boolean                @default(true)
+  notes                String?
+  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  complaints           complaints[]
+  invoices             invoices[]
+  occupancies          occupancies[]
+  payments             payments[]
+  blocks               blocks?                @relation(fields: [block_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  communities          communities?           @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  property_ownerships  property_ownerships[]
+  user_property_access user_property_access[]
+  vehicles             vehicles[]
+
+  @@index([code], map: "idx_properties_code_pg")
+}
+
+model property_ownerships {
+  id          String      @id @db.VarChar(64)
+  property_id String?     @db.VarChar(64)
+  person_id   String?     @db.VarChar(64)
+  is_active   Boolean     @default(true)
+  started_at  String      @db.VarChar(30)
+  ended_at    String?     @db.VarChar(30)
+  created_at  DateTime?   @default(now()) @db.Timestamptz(6)
+  persons     persons?    @relation(fields: [person_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  properties  properties? @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model settings {
+  id           String       @id @db.VarChar(64)
+  community_id String?      @db.VarChar(64)
+  key          String       @unique @db.VarChar(100)
+  value        String
+  description  String?
+  updated_at   DateTime?    @default(now()) @db.Timestamptz(6)
+  communities  communities? @relation(fields: [community_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model user_property_access {
+  id                 String      @id @db.VarChar(64)
+  user_id            String?     @db.VarChar(64)
+  property_id        String?     @db.VarChar(64)
+  relationship       String      @db.VarChar(50)
+  can_view_billing   Boolean     @default(true)
+  can_pay            Boolean     @default(true)
+  can_edit_occupants Boolean     @default(false)
+  can_view_property  Boolean     @default(true)
+  started_at         String      @db.VarChar(30)
+  ended_at           String?     @db.VarChar(30)
+  properties         properties? @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users              users?      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model users {
+  id                                    String                 @id @db.VarChar(64)
+  username                              String                 @unique @db.VarChar(100)
+  email                                 String                 @unique @db.VarChar(100)
+  full_name                             String                 @db.VarChar(255)
+  role                                  String                 @db.VarChar(50)
+  avatar_url                            String?
+  person_id                             String?                @db.VarChar(64)
+  is_active                             Boolean                @default(true)
+  created_at                            DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at                            DateTime?              @default(now()) @db.Timestamptz(6)
+  password_hash                         String?                @db.VarChar(255)
+  property_id                           String?                @db.VarChar(64)
+  property_code                         String?                @db.VarChar(30)
+  announcements                         announcements[]
+  audit_logs                            audit_logs[]
+  documents                             documents[]
+  expenses_expenses_approved_byTousers  expenses[]             @relation("expenses_approved_byTousers")
+  expenses_expenses_recorded_byTousers  expenses[]             @relation("expenses_recorded_byTousers")
+  ledger_entries                        ledger_entries[]
+  payments_payments_submitted_byTousers payments[]             @relation("payments_submitted_byTousers")
+  payments_payments_verified_byTousers  payments[]             @relation("payments_verified_byTousers")
+  user_property_access                  user_property_access[]
+  persons                               persons?               @relation(fields: [person_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model vehicles {
+  id              String      @id @db.VarChar(64)
+  property_id     String?     @db.VarChar(64)
+  owner_person_id String?     @db.VarChar(64)
+  plate_number    String      @db.VarChar(30)
+  type            String      @db.VarChar(30)
+  brand           String      @db.VarChar(50)
+  model           String      @db.VarChar(50)
+  color           String      @db.VarChar(50)
+  year            String?     @db.VarChar(10)
+  is_active       Boolean     @default(true)
+  created_at      DateTime?   @default(now()) @db.Timestamptz(6)
+  persons         persons?    @relation(fields: [owner_person_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  properties      properties? @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}

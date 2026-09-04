@@ -38,6 +38,41 @@ if (cookieUser && cookieUser.value) {
           navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
+      try {
+        const CLEAN_VERSION = 'wargahub_demo_cleaned_v4';
+        if (!localStorage.getItem(CLEAN_VERSION)) {
+          const demoKeys = [
+            'wargahub_announcements',
+            'wargahub_deleted_announcements',
+            'wargahub_announcement_agenda',
+            'wargahub_facilities',
+            'wargahub_facility_bookings',
+            'wargahub_facility_maintenance',
+            'wargahub_security_guards',
+            'wargahub_patrol_logs',
+            'wargahub_cleaning_staff',
+            'wargahub_cleaning_routes',
+            'wargahub_staff_loans',
+            'wargahub_deleted_loans',
+            'wargahub_polls_data',
+            'wargahub_deleted_polls',
+            'wargahub_payments',
+            'wargahub_deleted_payments',
+            'wargahub_properties',
+            'wargahub_deleted_properties',
+            'wargahub_residents',
+            'wargahub_deleted_residents',
+            'wargahub_vehicles',
+            'wargahub_deleted_vehicles',
+            'wargahub_permits',
+            'wargahub_deleted_permits',
+            'wargahub_utilities',
+            'wargahub_deleted_utilities',
+          ];
+          demoKeys.forEach(function(k) { localStorage.removeItem(k); });
+          localStorage.setItem(CLEAN_VERSION, 'true');
+        }
+      } catch (e) {}
     </script>
   </head>
   <body class="bg-canvas text-ink font-sans min-h-screen flex antialiased selection:bg-primary-100 selection:text-primary-900 relative">
@@ -45,9 +80,21 @@ if (cookieUser && cookieUser.value) {
 
     <div class="flex-1 flex flex-col min-w-0">
       <AdminHeader currentUser={currentUser} client:load />
-      <main class="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto pb-20">
+      <main class="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto pb-28 sm:pb-36">
         <slot />
       </main>
+      <footer class="border-t border-border bg-surface/80 py-4 px-6 sm:px-8 mt-auto text-xs text-ink-muted">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-ink">WargaHub</span>
+            <span>•</span>
+            <span>Tata Kelola Komplek & Hunian Terpadu</span>
+          </div>
+          <div>
+            <span>Dikembangkan oleh <a href="https://yahyanursidik.my.id/" target="_blank" rel="noopener noreferrer" class="font-bold text-primary-700 hover:text-primary-800 hover:underline">Yahya Nursidik</a></span>
+          </div>
+        </div>
+      </footer>
     </div>
 
     <!-- Floating Warga AI Assistant -->

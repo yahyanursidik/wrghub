@@ -1,8 +1,26 @@
 ---
 import PublicLayout from '../layouts/PublicLayout.astro';
 import { PublicDuesLedger } from '../components/public/PublicDuesLedger';
+import { getProperties } from '../services/property.service';
+import { getInvoices, getCurrentBillingPeriod, getBillingPeriods } from '../services/billing.service';
+
+const periodParam = Astro.url.searchParams.get('period');
+const allPeriods = await getBillingPeriods();
+
+// Default to Agustus 2026 (periode pembayaran lengkap terkini) atau periode yang diminta
+const targetPeriod = periodParam 
+  ? allPeriods.find((p: any) => p.id === periodParam || p.name === periodParam)
+  : (allPeriods.find((p: any) => p.id === 'period-2026-08') || await getCurrentBillingPeriod());
+
+const properties = await getProperties();
+const invoices = targetPeriod ? await getInvoices(targetPeriod.id) : [];
 ---
 
-<PublicLayout title="Rekapitulasi Iuran Warga (Bulan Aktif) - WargaHub" currentPath="/rekap-iuran">
-  <PublicDuesLedger client:load />
+<PublicLayout title={`Rekapitulasi Iuran Warga (${targetPeriod?.name || 'Agustus 2026'}) - WargaHub`} currentPath="/rekap-iuran">
+  <PublicDuesLedger 
+    initialProperties={properties} 
+    initialInvoices={invoices} 
+    initialPeriodName={targetPeriod?.name || 'Agustus 2026'}
+    client:load 
+  />
 </PublicLayout>

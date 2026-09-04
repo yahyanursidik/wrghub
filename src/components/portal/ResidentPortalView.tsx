@@ -1,14 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   Receipt,
   Megaphone,
   User,
-  Bell,
   ChevronRight,
   CheckCircle2,
-  Wallet,
-  Hourglass,
   Headphones,
   Calendar,
   Download,
@@ -16,15 +13,12 @@ import {
   Bike,
   Users,
   ShieldCheck,
-  Smartphone,
-  Monitor,
   ArrowLeft,
   Upload,
   Check,
   FileText,
   Clock,
   Sparkles,
-  Info,
   PhoneCall,
   ExternalLink,
   Plus,
@@ -45,27 +39,50 @@ import {
   CreditCard,
   Vote,
   Wrench,
+  AlertCircle,
+  Copy,
+  MapPin,
+  CheckCheck,
 } from 'lucide-react';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
-import { DEMO_USERS, type UserSession } from '../../types/auth';
+import type { UserSession } from '../../types/auth';
 import { ReceiptModal } from '../shared/ReceiptModal';
 import { WargaAIChatWidget } from '../shared/WargaAIChatWidget';
 import { VotingSectionModal } from './VotingSectionModal';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 
+/**
+ * TASTE-SKILL V2 DESIGN STANDARD
+ * Reading this as: Resident Portal & Public Mobile for Warga Komplek & Pengurus RT/RW,
+ * with a clean, warm, high-trust, and accessible residential vernacular language,
+ * leaning toward tactile utilities + Swiss typographic grid + responsive micro-interactions
+ * (VARIANCE: 6, MOTION: 4, DENSITY: 4).
+ */
+
 interface ResidentPortalViewProps {
   initialUser?: UserSession;
+  initialAnnouncements?: any[];
 }
 
 const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
-  initialUser = DEMO_USERS.warga,
+  initialUser,
+  initialAnnouncements = [],
 }) => {
   const [activeTab, setActiveTab] = useState<'beranda' | 'iuran' | 'info' | 'rumah' | 'akun'>('beranda');
   const [rumahSubTab, setRumahSubTab] = useState<'specs' | 'occupants' | 'vehicles' | 'permits' | 'pass'>('specs');
+  const [infoSubTab, setInfoSubTab] = useState<'announcements' | 'facilities' | 'sanitation' | 'complaints'>('announcements');
+  const [selectedMonth, setSelectedMonth] = useState('Agu');
+
+  // Modals state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState('Agu');
-  const [currentUser, setCurrentUser] = useState<UserSession>(() => {
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
+  const [showVotingModal, setShowVotingModal] = useState(false);
+  const [copiedAcc, setCopiedAcc] = useState(false);
+  const [copiedPass, setCopiedPass] = useState(false);
+
+  // Current resident user session
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     if (typeof window !== 'undefined') {
       try {
         const savedUser = localStorage.getItem('wargahub_user');
@@ -75,10 +92,17 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         }
       } catch (e) {}
     }
-    return initialUser || DEMO_USERS.warga;
+    return initialUser || null;
   });
-  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
-  const [showVotingModal, setShowVotingModal] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser && typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('wargahub_user');
+      if (!savedUser) {
+        window.location.href = '/login?portal=resident';
+      }
+    }
+  }, [currentUser]);
 
   const isAdminUser = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY', 'MAINTENANCE'].includes(currentUser?.role || '');
 
@@ -92,11 +116,28 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
     return (parts[0][0] + (parts[parts.length - 1][0] || '')).toUpperCase();
   };
 
-  // Dynamic Settings from Master Settings
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 4 && hour < 11) return 'Selamat Pagi';
+    if (hour >= 11 && hour < 15) return 'Selamat Siang';
+    if (hour >= 15 && hour < 18) return 'Selamat Sore';
+    return 'Selamat Malam';
+  };
+
+  const getFormattedDate = () => {
+    return new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
+  // Master Settings Dynamic State
   const [residentTitle, setResidentTitle] = useState('Portal Warga Komplek');
   const [residentSubtitle, setResidentSubtitle] = useState('Layanan Iuran, Keamanan, Fasilitas & Aduan Warga 24 Jam');
   const [communityName, setCommunityName] = useState('Komplek Perumahan Taman Sejahtera');
-  const [monthlyFeeRate, setMonthlyFeeRate] = useState(750000);
+  const [monthlyFeeRate, setMonthlyFeeRate] = useState(250000);
   const [bankKasName, setBankKasName] = useState('BCA (Bank Central Asia)');
   const [bankKasAcc, setBankKasAcc] = useState('8830-1928-33');
   const [bankKasHolder, setBankKasHolder] = useState('PENGURUS KOMPLEK WARGAHUB');
@@ -107,12 +148,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [wasteOrgDays, setWasteOrgDays] = useState('Senin, Rabu, Jumat');
   const [wasteInorgDays, setWasteInorgDays] = useState('Rabu & Sabtu');
   const [wasteHours, setWasteHours] = useState('06:30 - 10:30 WIB');
-  const [copiedAcc, setCopiedAcc] = useState(false);
 
-  // Info Tab Sub-Navigation
-  const [infoSubTab, setInfoSubTab] = useState<'announcements' | 'facilities' | 'sanitation' | 'complaints'>('announcements');
-
-  React.useEffect(() => {
+  useEffect(() => {
     try {
       const savedUser = localStorage.getItem('wargahub_user');
       if (savedUser) {
@@ -157,6 +194,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
     return () => window.removeEventListener('wargahub_user_changed', handleUserChanged);
   }, []);
 
+  const userKey = currentUser?.propertyCode || currentUser?.username || 'resident';
+
   // Property Specs State
   const [buildingType, setBuildingType] = useState('Tipe 72/120');
   const [landArea, setLandArea] = useState(120);
@@ -166,13 +205,49 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [occupancyStatus, setOccupancyStatus] = useState('Dihuni Pemilik');
   const [showEditSpecsModal, setShowEditSpecsModal] = useState(false);
 
-  // Occupants Management State
-  const [occupants, setOccupants] = useState([
-    { id: 'occ-1', fullName: 'Budi Santoso', relation: 'Kepala Keluarga', idCardNumber: '3171091203850001', phone: '0812-3456-7890', isEmergencyContact: true, birthDate: '12 Mar 1985' },
-    { id: 'occ-2', fullName: 'Siti Lestari', relation: 'Istri', idCardNumber: '3171092507870002', phone: '0813-9876-5432', isEmergencyContact: true, birthDate: '25 Jul 1987' },
-    { id: 'occ-3', fullName: 'Alya Santoso', relation: 'Anak', idCardNumber: '3171091405130003', phone: '-', isEmergencyContact: false, birthDate: '14 Mei 2013' },
-    { id: 'occ-4', fullName: 'Daffa Santoso', relation: 'Anak', idCardNumber: '3171090309170004', phone: '-', isEmergencyContact: false, birthDate: '03 Sep 2017' },
-  ]);
+  // Occupants State
+  const [occupants, setOccupants] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`wargahub_occupants_${userKey}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return currentUser?.fullName
+      ? [
+          {
+            id: 'occ-1',
+            fullName: currentUser.fullName,
+            relation: 'Kepala Keluarga',
+            idCardNumber: '3171091203850001',
+            phone: currentUser.email || '0812-3456-7890',
+            isEmergencyContact: true,
+            birthDate: '12 Maret 1985',
+          },
+          {
+            id: 'occ-2',
+            fullName: 'Ibu Hj. Siti Nurjanah',
+            relation: 'Istri',
+            idCardNumber: '3171095508880002',
+            phone: '0813-8899-7711',
+            isEmergencyContact: true,
+            birthDate: '15 Agustus 1988',
+          },
+          {
+            id: 'occ-3',
+            fullName: 'Muhammad Raihan Sutrisno',
+            relation: 'Anak',
+            idCardNumber: '3171092004120003',
+            phone: '0812-9900-1122',
+            isEmergencyContact: false,
+            birthDate: '20 April 2012',
+          },
+        ]
+      : [];
+  });
   const [showAddOccupantModal, setShowAddOccupantModal] = useState(false);
   const [newOccName, setNewOccName] = useState('');
   const [newOccRelation, setNewOccRelation] = useState('ANAK');
@@ -180,20 +255,62 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [newOccPhone, setNewOccPhone] = useState('');
   const [newOccEmergency, setNewOccEmergency] = useState(false);
 
-  // Permits (Izin Renovasi / Tukang) State
-  const [permits, setPermits] = useState([
-    { id: 'PERMIT-101', workType: 'Pengecatan & Kanopi', contractorName: 'Bpk. Sugeng (Mandor CV Berkah)', workersCount: 3, startDate: '2026-08-25', endDate: '2026-09-05', status: 'APPROVED', description: 'Pengecatan fasad luar dan perbaikan talang air kanopi garasi.' },
-  ]);
+  // Permits (SIK Renovasi) State
+  const [permits, setPermits] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`wargahub_permits_${userKey}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [
+      {
+        id: 'SIK-2026-0811',
+        workType: 'Pengecatan & Kanopi Depan',
+        contractorName: 'Bpk. Sugeng (CV Berkah Abadi)',
+        workersCount: 3,
+        startDate: '2026-08-15',
+        endDate: '2026-08-30',
+        status: 'SELESAI',
+        description: 'Pengecatan fasad luar dan pergantian atap kanopi carport alderon.',
+      },
+    ];
+  });
   const [showAddPermitModal, setShowAddPermitModal] = useState(false);
   const [permitWorkType, setPermitWorkType] = useState('Pengecatan & Kanopi');
   const [permitContractor, setPermitContractor] = useState('');
   const [permitWorkers, setPermitWorkers] = useState(2);
-  const [permitStart, setPermitStart] = useState('2026-09-01');
-  const [permitEnd, setPermitEnd] = useState('2026-09-10');
+  const [permitStart, setPermitStart] = useState('2026-09-05');
+  const [permitEnd, setPermitEnd] = useState('2026-09-15');
   const [permitDesc, setPermitDesc] = useState('');
   const [permitSuccess, setPermitSuccess] = useState(false);
 
-  // Complaint State
+  // Complaints State
+  const [complaints, setComplaints] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`wargahub_complaints_${userKey}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [
+      {
+        id: 'COMP-8821',
+        title: 'Lampu Penerangan Jalan (PJU) Depan Rumah Berkedip',
+        description: 'Lampu tiang PJU no. 14 di seberang rumah padam saat malam hari mulai pukul 22:00.',
+        category: 'FASILITAS',
+        location: 'Depan Rumah A-17',
+        status: 'SEDANG_DITANGANI',
+        createdAt: '2 September 2026, 19:30 WIB',
+      },
+    ];
+  });
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [compTitle, setCompTitle] = useState('');
   const [compDesc, setCompDesc] = useState('');
@@ -201,28 +318,107 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [compLocation, setCompLocation] = useState('');
   const [compSuccess, setCompSuccess] = useState(false);
 
-  // Vehicle State
+  // Vehicle State (RFID Gate)
+  const [vehicles, setVehicles] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`wargahub_vehicles_${userKey}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [
+      {
+        id: 'veh-1',
+        plateNumber: 'B 1988 WHB',
+        type: 'Mobil',
+        brand: 'Toyota',
+        model: 'Innova Zenix',
+        color: 'Hitam Metalik',
+        year: '2024',
+        rfidStatus: 'AKTIF',
+      },
+      {
+        id: 'veh-2',
+        plateNumber: 'B 4421 SJE',
+        type: 'Motor',
+        brand: 'Honda',
+        model: 'PCX 160',
+        color: 'Putih Mutiara',
+        year: '2023',
+        rfidStatus: 'AKTIF',
+      },
+    ];
+  });
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [vehPlate, setVehPlate] = useState('');
   const [vehType, setVehType] = useState('Mobil');
   const [vehBrand, setVehBrand] = useState('');
   const [vehModel, setVehModel] = useState('');
   const [vehColor, setVehColor] = useState('');
-  const [vehicles, setVehicles] = useState([
-    { id: '1', plateNumber: 'B 1234 ABC', type: 'Mobil', brand: 'Toyota', model: 'Avanza Veloz', color: 'Hitam Metalik', year: '2022', rfidStatus: 'AKTIF' },
-    { id: '2', plateNumber: 'B 5678 DEF', type: 'Motor', brand: 'Honda', model: 'Vario 160', color: 'Putih Mutiara', year: '2023', rfidStatus: 'AKTIF' },
-  ]);
 
   // Facility Booking State
   const [showFacilityModal, setShowFacilityModal] = useState(false);
   const [facId, setFacId] = useState('fac-balai');
   const [facName, setFacName] = useState('Balai Warga Serbaguna');
-  const [facDate, setFacDate] = useState('2026-08-30');
+  const [facDate, setFacDate] = useState('2026-09-12');
   const [facStart, setFacStart] = useState('09:00');
-  const [facEnd, setFacEnd] = useState('12:00');
+  const [facEnd, setFacEnd] = useState('13:00');
   const [facPurpose, setFacPurpose] = useState('');
   const [facPhone, setFacPhone] = useState('0812-3456-7890');
   const [facSuccess, setFacSuccess] = useState(false);
+
+  // 12 Months Billing Record
+  const monthsBilling = [
+    { code: 'Jan', name: 'Januari 2026', status: 'paid', paidAt: '12 Jan 2026, 09:14 WIB', inv: 'INV-202601-A17' },
+    { code: 'Feb', name: 'Februari 2026', status: 'paid', paidAt: '10 Feb 2026, 11:02 WIB', inv: 'INV-202602-A17' },
+    { code: 'Mar', name: 'Maret 2026', status: 'paid', paidAt: '08 Mar 2026, 14:20 WIB', inv: 'INV-202603-A17' },
+    { code: 'Apr', name: 'April 2026', status: 'paid', paidAt: '10 Apr 2026, 08:45 WIB', inv: 'INV-202604-A17' },
+    { code: 'Mei', name: 'Mei 2026', status: 'paid', paidAt: '09 Mei 2026, 10:15 WIB', inv: 'INV-202605-A17' },
+    { code: 'Jun', name: 'Juni 2026', status: 'paid', paidAt: '10 Jun 2026, 13:30 WIB', inv: 'INV-202606-A17' },
+    { code: 'Jul', name: 'Juli 2026', status: 'paid', paidAt: '08 Jul 2026, 09:40 WIB', inv: 'INV-202607-A17' },
+    { code: 'Agu', name: 'Agustus 2026', status: 'paid', paidAt: '20 Agu 2026, 10:21 WIB', inv: 'INV-202608-A17' },
+    { code: 'Sep', name: 'September 2026', status: 'pending', paidAt: null, inv: 'INV-202609-A17' },
+    { code: 'Okt', name: 'Oktober 2026', status: 'upcoming', paidAt: null, inv: 'INV-202610-A17' },
+    { code: 'Nov', name: 'November 2026', status: 'upcoming', paidAt: null, inv: 'INV-202611-A17' },
+    { code: 'Des', name: 'Desember 2026', status: 'upcoming', paidAt: null, inv: 'INV-202612-A17' },
+  ];
+
+  const currentSelectedMonthData = monthsBilling.find((m) => m.code === selectedMonth) || monthsBilling[7];
+
+  // Component breakdown calculation
+  const feeSecurity = Math.round(monthlyFeeRate * 0.46);
+  const feeSanitation = Math.round(monthlyFeeRate * 0.27);
+  const feeMaintenance = Math.round(monthlyFeeRate * 0.17);
+  const feeSocial = monthlyFeeRate - feeSecurity - feeSanitation - feeMaintenance;
+
+  // Handlers
+  const handleConfirmPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await fetch('/api/payments/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: currentUser?.propertyId || 'prop-user',
+          billingPeriodId: `period-2026-${selectedMonth.toLowerCase()}`,
+          amount: monthlyFeeRate,
+          method: 'TRANSFER',
+          reference: `TRX-${Date.now().toString().slice(-6)}`,
+          notes: `Konfirmasi pembayaran via Portal Warga Mobile (${currentSelectedMonthData.name})`,
+        }),
+      });
+      setPaymentSuccess(true);
+      setTimeout(() => {
+        setPaymentSuccess(false);
+        setShowPaymentModal(false);
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleBookFacility = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,7 +437,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           endTime: facEnd,
           purpose: facPurpose,
           contactPhone: facPhone,
-        })
+        }),
       });
       setFacSuccess(true);
       setTimeout(() => {
@@ -254,61 +450,37 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
     }
   };
 
-  const months = [
-    { code: 'Jan', name: 'Januari', status: 'paid' },
-    { code: 'Feb', name: 'Februari', status: 'paid' },
-    { code: 'Mar', name: 'Maret', status: 'paid' },
-    { code: 'Apr', name: 'April', status: 'paid' },
-    { code: 'Mei', name: 'Mei', status: 'paid' },
-    { code: 'Jun', name: 'Juni', status: 'paid' },
-    { code: 'Jul', name: 'Juli', status: 'paid' },
-    { code: 'Agu', name: 'Agustus', status: currentUser?.username === 'warga_b07' ? 'unpaid' : 'paid' },
-    { code: 'Sep', name: 'September', status: 'pending' },
-    { code: 'Okt', name: 'Oktober', status: 'pending' },
-    { code: 'Nov', name: 'November', status: 'pending' },
-    { code: 'Des', name: 'Desember', status: 'pending' },
-  ];
-
-  const handleConfirmPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await fetch('/api/payments/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-a-17',
-          billingPeriodId: 'period-2026-08',
-          amount: 750000,
-          method: 'TRANSFER',
-          reference: `TRX-${Date.now().toString().slice(-6)}`,
-          notes: 'Konfirmasi pembayaran via Portal Warga Mobile',
-        })
-      });
-      setPaymentSuccess(true);
-      setTimeout(() => {
-        setPaymentSuccess(false);
-        setShowPaymentModal(false);
-      }, 1500);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleCreateComplaint = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!compTitle || !compDesc) return;
+    const newComp = {
+      id: `COMP-${Date.now().toString().slice(-4)}`,
+      title: compTitle,
+      description: compDesc,
+      category: compCategory,
+      location: compLocation || `Depan Rumah ${currentUser?.propertyCode || 'A-17'}`,
+      status: 'MENUNGGU_VERIFIKASI',
+      createdAt: 'Baru saja',
+    };
+    const updated = [newComp, ...complaints];
+    setComplaints(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`wargahub_complaints_${userKey}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
     try {
       await fetch('/api/complaints/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-a-17',
+          propertyId: currentUser?.propertyId || 'prop-user',
           title: compTitle,
           description: compDesc,
           category: compCategory,
-          location: compLocation || 'Sekitar Rumah',
+          location: compLocation || `Depan Rumah ${currentUser?.propertyCode || 'A-17'}`,
           priority: 'MEDIUM',
-        })
+        }),
       });
       setCompSuccess(true);
       setTimeout(() => {
@@ -326,29 +498,36 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const handleCreateVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vehPlate || !vehBrand || !vehModel) return;
+    const newVeh = {
+      id: `veh-${Date.now()}`,
+      plateNumber: vehPlate.toUpperCase().trim(),
+      type: vehType,
+      brand: vehBrand,
+      model: vehModel,
+      color: vehColor || 'Hitam',
+      year: new Date().getFullYear().toString(),
+      rfidStatus: 'AKTIF',
+    };
+    const updated = [...vehicles, newVeh];
+    setVehicles(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`wargahub_vehicles_${userKey}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
     try {
       await fetch('/api/vehicles/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-a-17',
-          plateNumber: vehPlate,
+          propertyId: currentUser?.propertyId || 'prop-user',
+          plateNumber: vehPlate.toUpperCase().trim(),
           type: vehType,
           brand: vehBrand,
           model: vehModel,
           color: vehColor || 'Hitam',
-        })
+        }),
       });
-      setVehicles([...vehicles, {
-        id: `veh-${Date.now()}`,
-        plateNumber: vehPlate.toUpperCase(),
-        type: vehType,
-        brand: vehBrand,
-        model: vehModel,
-        color: vehColor || 'Hitam',
-        year: '2023',
-        rfidStatus: 'AKTIF',
-      }]);
       setShowVehicleModal(false);
       setVehPlate('');
       setVehBrand('');
@@ -362,28 +541,48 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const handleAddOccupant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOccName) return;
+    const relText =
+      newOccRelation === 'KEPALA_KELUARGA'
+        ? 'Kepala Keluarga'
+        : newOccRelation === 'ISTRI'
+        ? 'Istri'
+        : newOccRelation === 'ANAK'
+        ? 'Anak'
+        : newOccRelation === 'ORANG_TUA'
+        ? 'Orang Tua'
+        : newOccRelation === 'ART_SUPIR'
+        ? 'ART / Supir'
+        : 'Anggota Keluarga';
+
+    const newOcc = {
+      id: `occ-${Date.now()}`,
+      fullName: newOccName,
+      relation: relText,
+      idCardNumber: newOccIdCard || '-',
+      phone: newOccPhone || '-',
+      isEmergencyContact: newOccEmergency,
+      birthDate: '-',
+    };
+    const updated = [...occupants, newOcc];
+    setOccupants(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`wargahub_occupants_${userKey}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
     try {
       await fetch('/api/properties/occupants/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-a-17',
+          propertyId: currentUser?.propertyId || 'prop-user',
           fullName: newOccName,
           relation: newOccRelation,
           idCardNumber: newOccIdCard,
           phone: newOccPhone,
           isEmergencyContact: newOccEmergency,
-        })
+        }),
       });
-      setOccupants([...occupants, {
-        id: `occ-${Date.now()}`,
-        fullName: newOccName,
-        relation: newOccRelation === 'KEPALA_KELUARGA' ? 'Kepala Keluarga' : newOccRelation === 'ISTRI' ? 'Istri' : newOccRelation === 'ANAK' ? 'Anak' : newOccRelation === 'ART_SUPIR' ? 'ART / Supir' : 'Anggota Keluarga',
-        idCardNumber: newOccIdCard || '3171xxxxxxxx0005',
-        phone: newOccPhone || '-',
-        isEmergencyContact: newOccEmergency,
-        birthDate: '01 Jan 2000',
-      }]);
       setShowAddOccupantModal(false);
       setNewOccName('');
       setNewOccIdCard('');
@@ -395,12 +594,35 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   };
 
   const handleDeleteOccupant = (id: string) => {
-    setOccupants(occupants.filter(o => o.id !== id));
+    const updated = occupants.filter((o) => o.id !== id);
+    setOccupants(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`wargahub_occupants_${userKey}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
   };
 
   const handleAddPermit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!permitContractor || !permitDesc) return;
+    const newPermit = {
+      id: `SIK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+      workType: permitWorkType,
+      contractorName: permitContractor,
+      workersCount: Number(permitWorkers),
+      startDate: permitStart,
+      endDate: permitEnd,
+      status: 'DISETUJUI',
+      description: permitDesc,
+    };
+    const updated = [newPermit, ...permits];
+    setPermits(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`wargahub_permits_${userKey}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
     try {
       await fetch('/api/properties/permits/create', {
         method: 'POST',
@@ -413,21 +635,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           startDate: permitStart,
           endDate: permitEnd,
           description: permitDesc,
-        })
+        }),
       });
-      setPermits([
-        {
-          id: `PERMIT-${Date.now().toString().slice(-4)}`,
-          workType: permitWorkType,
-          contractorName: permitContractor,
-          workersCount: Number(permitWorkers),
-          startDate: permitStart,
-          endDate: permitEnd,
-          status: 'APPROVED',
-          description: permitDesc,
-        },
-        ...permits,
-      ]);
       setPermitSuccess(true);
       setTimeout(() => {
         setPermitSuccess(false);
@@ -454,7 +663,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           plnCapacity,
           pamMeterNo,
           occupancyStatus,
-        })
+        }),
       });
       setShowEditSpecsModal(false);
     } catch (err) {
@@ -463,49 +672,54 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-canvas flex flex-col items-center justify-start antialiased">
-      {/* Real Production Web Application Top Bar */}
-      <header className="w-full bg-surface border-b border-border sticky top-0 z-30 shadow-xs backdrop-blur-md bg-surface/90">
+    <div className="min-h-screen bg-canvas flex flex-col items-center justify-start antialiased selection:bg-primary-100 selection:text-primary-900">
+      {/* Top Application Bar - Clean Architectural Header */}
+      <header className="w-full bg-surface/95 backdrop-blur-md border-b border-border sticky top-0 z-30 shadow-2xs">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center text-primary-600 shadow-xs">
-              <Sparkles className="w-4 h-4 text-primary-600" />
+            <div className="w-8 h-8 rounded-xl bg-primary-50 border border-primary-200 flex items-center justify-center text-primary-700 shadow-2xs">
+              <Building2 className="w-4 h-4 text-primary-700 stroke-[2.2]" />
             </div>
-            <div>
+            <div className="leading-tight">
               <span className="font-extrabold text-base tracking-tight text-ink flex items-center gap-1.5">
                 Warga<span className="text-primary-600">Hub</span>
-                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-md border border-emerald-200 uppercase">
+                <span className="px-1.5 py-0.5 bg-primary-50 text-primary-800 text-[10px] font-bold rounded border border-primary-200 uppercase tracking-wide">
                   Portal Warga
                 </span>
               </span>
+              <p className="text-[10px] text-ink-muted hidden sm:block">
+                Taman Sejahtera • RT 02 / RW 05
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <a
               href="/rekap-iuran"
-              className="text-xs font-semibold text-ink-muted hover:text-ink px-2.5 py-1 rounded-lg hover:bg-canvas transition-colors hidden sm:inline-flex items-center gap-1"
+              className="text-xs font-semibold text-ink-muted hover:text-ink px-2.5 py-1.5 rounded-lg hover:bg-canvas transition-all hidden sm:inline-flex items-center gap-1 active:scale-[0.98]"
             >
               Rekap Iuran
             </a>
             <a
               href="/transparency"
-              className="text-xs font-semibold text-ink-muted hover:text-ink px-2.5 py-1 rounded-lg hover:bg-canvas transition-colors hidden sm:inline-flex items-center gap-1"
+              className="text-xs font-semibold text-ink-muted hover:text-ink px-2.5 py-1.5 rounded-lg hover:bg-canvas transition-all hidden sm:inline-flex items-center gap-1 active:scale-[0.98]"
             >
               Transparansi Kas
             </a>
             {isAdminUser && (
               <a
                 href="/admin"
-                className="text-xs font-bold text-primary-700 hover:text-primary-800 px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-colors flex items-center gap-1 border border-primary-200"
+                className="text-xs font-bold text-primary-800 hover:text-primary-900 px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-all flex items-center gap-1 border border-primary-200 active:scale-[0.98]"
               >
-                Admin Dashboard
-                <ExternalLink className="w-3 h-3" />
+                Dashboard Pengurus
+                <ExternalLink className="w-3 h-3 text-primary-700" />
               </a>
             )}
             <button
+              type="button"
               onClick={() => setActiveTab('akun')}
-              className="w-8 h-8 rounded-full overflow-hidden bg-primary-600 text-white font-extrabold text-xs flex items-center justify-center border border-primary-400 shrink-0 hover:ring-2 hover:ring-primary-500 transition-all ml-1 uppercase"
+              className="w-8 h-8 rounded-full bg-primary-600 text-surface font-extrabold text-xs flex items-center justify-center border border-primary-400 shrink-0 hover:ring-2 hover:ring-primary-500/40 active:scale-95 transition-all ml-1 uppercase shadow-2xs"
+              title="Profil Pengguna"
             >
               {getInitials(currentUser?.fullName || currentUser?.name)}
             </button>
@@ -513,100 +727,140 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       </header>
 
-      {/* Main Production Application Body */}
+      {/* Main Application Container */}
       <main className="w-full max-w-2xl mx-auto bg-surface sm:border-x border-border shadow-xs pb-24 min-h-[calc(100vh-3.5rem)] flex flex-col justify-between">
         <div className="flex-1">
-          {/* ================= TAB 1: BERANDA ================= */}
+          {/* ========================================================================= */}
+          {/* TAB 1: BERANDA                                                            */}
+          {/* ========================================================================= */}
           {activeTab === 'beranda' && (
-            <div className="p-5 sm:p-6 space-y-5 animate-in fade-in duration-150">
-              {/* Greeting & Dynamic Title */}
-              <div>
-                <div className="flex items-center gap-1.5 text-primary-700 font-bold text-[11px] mb-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{communityName}</span>
+            <div className="p-4 sm:p-6 space-y-5 animate-in fade-in duration-150">
+              {/* Header Greeting & Date */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 text-primary-700 font-bold text-[11px] mb-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>{communityName}</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight text-ink">
+                    {getGreeting()}, {currentUser?.fullName?.split(' ')[0] || currentUser?.name?.split(' ')[0] || 'Warga'} 👋
+                  </h2>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    {getFormattedDate()} • {residentSubtitle}
+                  </p>
                 </div>
-                <h2 className="text-2xl font-black tracking-tight text-ink">
-                  Halo, {currentUser?.fullName || currentUser?.name || 'Warga'} 👋
-                </h2>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  {residentSubtitle}
-                </p>
+                <span className="px-2 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-lg border border-emerald-200 shrink-0 flex items-center gap-1">
+                  <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Warga Terverifikasi
+                </span>
               </div>
 
-              {/* Quick House Card */}
-              <button
-                onClick={() => setActiveTab('rumah')}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-primary-900 to-slate-900 text-white shadow-card hover:shadow-md transition-all text-left group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-xs border border-white/20 flex items-center justify-center text-primary-300 font-bold">
-                    <Home className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-extrabold text-primary-300 tracking-wider">Unit Hunian Saya</span>
-                    <p className="text-base font-black tracking-tight">Rumah {currentUser?.propertyCode || 'A-17'}</p>
-                    <span className="text-[10px] text-white/70">{buildingType} • {occupants.length} Jiwa</span>
-                  </div>
+              {/* Unit Residence Tactile Card (Anti-Slop: No generic dark purple gradient) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-ink text-surface border border-ink/80 shadow-xs relative overflow-hidden space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 bg-surface/15 text-surface font-mono text-[10px] font-bold rounded-md uppercase tracking-wider">
+                    {(currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('KAV')
+                      ? 'Area Kavling'
+                      : (currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('SW')
+                      ? 'Jl. Sariwangi'
+                      : `Blok ${(currentUser?.propertyCode || 'A-17').split('-')[0] || 'A'}`} • RT 02 / RW 05
+                  </span>
+                  <span className="text-[10px] text-surface/70 font-medium">Status: {occupancyStatus}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-primary-200 font-bold group-hover:translate-x-1 transition-transform">
-                  <span>Detail Rumah</span>
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </button>
 
-              {/* Status Iuran Aktif Card */}
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 font-bold border border-emerald-200">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  </div>
+                <div className="flex items-end justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-ink">Iuran Agustus 2026</p>
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] border border-emerald-200">
-                        Lunas
-                      </span>
-                    </div>
-                    <p className="text-xs font-black text-primary-700 mt-0.5 tabular-nums">
-                      {formatRupiah(monthlyFeeRate)}
-                    </p>
-                    <p className="text-[10px] text-ink-muted mt-0.5">
-                      Terverifikasi otomatis via Transfer Bank BCA
+                    <span className="text-[11px] text-surface/70 block uppercase tracking-wide">Unit Hunian Saya</span>
+                    <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
+                      Rumah {currentUser?.propertyCode || 'A-17'}
+                    </h3>
+                    <p className="text-xs text-surface/80 mt-0.5">
+                      {buildingType} • {occupants.length} Penghuni • {vehicles.length} Kendaraan RFID
                     </p>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('rumah')}
+                    className="px-3 py-1.5 bg-surface text-ink hover:bg-surface/90 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 active:scale-[0.98] transition-all shrink-0"
+                  >
+                    <span>Detail Rumah</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-ink-muted" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedReceipt({
-                    invoiceNumber: 'INV-202608-A17',
-                    periodName: 'Agustus 2026',
-                    propertyCode: currentUser?.propertyCode || 'A-17',
-                    residentName: currentUser?.fullName || currentUser?.name || 'Warga',
-                    amount: monthlyFeeRate,
-                    paidAt: '20 Agustus 2026, 10:21 WIB',
-                    paymentMethod: 'Transfer Bank BCA',
-                    referenceNumber: 'TRX-BCA-A17',
-                  })}
-                  className="px-3 py-1.5 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink hover:text-primary-700 transition-colors shrink-0 shadow-2xs flex items-center gap-1"
-                >
-                  <Printer className="w-3.5 h-3.5 text-primary-600" />
-                  <span>Kuitansi</span>
-                </button>
               </div>
 
-              {/* 6 Quick Service Shortcuts Grid */}
+              {/* Status Iuran Terkini - Struk Style Invoice Card */}
+              <div className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Tagihan Iuran IPL Bulan Ini</h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200">
+                    Lunas Terverifikasi
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-dashed border-border/80">
+                  <div>
+                    <span className="text-[10px] text-ink-muted block">Periode Agustus 2026</span>
+                    <p className="text-xl font-black text-ink tabular-nums">{formatRupiah(monthlyFeeRate)}</p>
+                    <span className="text-[10px] text-ink-muted">Terverifikasi otomatis via Transfer BCA</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedReceipt({
+                          invoiceNumber: `INV-202608-${currentUser?.propertyCode || 'A17'}`.replace('-', ''),
+                          periodName: 'Agustus 2026',
+                          propertyCode: currentUser?.propertyCode || 'A-17',
+                          residentName: currentUser?.fullName || currentUser?.name || 'Warga Komplek',
+                          amount: monthlyFeeRate,
+                          paidAt: '20 Agustus 2026, 10:21 WIB',
+                          paymentMethod: 'Transfer Bank BCA',
+                          referenceNumber: 'TRX-BCA-A17-882',
+                        })
+                      }
+                      className="px-3 py-2 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink hover:text-primary-700 transition-all shadow-2xs flex items-center gap-1.5 active:scale-[0.98]"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-primary-600" />
+                      <span>Kuitansi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('iuran')}
+                      className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-surface rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 active:scale-[0.98] transition-all"
+                    >
+                      <span>Rincian IPL</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6 Quick Action Pads - Anti Slop Tactile Buttons */}
               <div className="space-y-2">
-                <h3 className="text-xs font-bold text-ink">Layanan Warga Cepat</h3>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Layanan Warga Cepat</h3>
+                  <span className="text-[10px] text-ink-muted">Akses Langsung 24 Jam</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
                   <button
                     type="button"
                     onClick={() => setActiveTab('iuran')}
-                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-                      <CreditCard className="w-4 h-4" />
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold shadow-2xs">
+                      <CreditCard className="w-4 h-4 text-emerald-700" />
                     </div>
-                    <span className="text-[11px] font-bold text-ink">Bayar Iuran</span>
+                    <div>
+                      <span className="text-xs font-bold text-ink block leading-tight">Bayar Iuran</span>
+                      <span className="text-[9px] text-ink-muted">Tagihan IPL & Kas</span>
+                    </div>
                   </button>
 
                   <button
@@ -615,12 +869,15 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       setActiveTab('info');
                       setInfoSubTab('facilities');
                     }}
-                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center font-bold">
-                      <Building2 className="w-4 h-4" />
+                    <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center font-bold shadow-2xs">
+                      <Building2 className="w-4 h-4 text-sky-700" />
                     </div>
-                    <span className="text-[11px] font-bold text-ink">Pesan Sarana</span>
+                    <div>
+                      <span className="text-xs font-bold text-ink block leading-tight">Pesan Sarana</span>
+                      <span className="text-[9px] text-ink-muted">Balai & Lapangan</span>
+                    </div>
                   </button>
 
                   <button
@@ -629,12 +886,15 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       setActiveTab('rumah');
                       setRumahSubTab('pass');
                     }}
-                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-                      <QrCode className="w-4 h-4" />
+                    <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold shadow-2xs">
+                      <QrCode className="w-4 h-4 text-purple-700" />
                     </div>
-                    <span className="text-[11px] font-bold text-ink">Pas Tamu QR</span>
+                    <div>
+                      <span className="text-xs font-bold text-ink block leading-tight">Pas Tamu QR</span>
+                      <span className="text-[9px] text-ink-muted">Akses Pos Satpam</span>
+                    </div>
                   </button>
 
                   <button
@@ -643,34 +903,43 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       setActiveTab('info');
                       setInfoSubTab('sanitation');
                     }}
-                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
-                      <Trash2 className="w-4 h-4" />
+                    <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center font-bold shadow-2xs">
+                      <Trash2 className="w-4 h-4 text-teal-700" />
                     </div>
-                    <span className="text-[11px] font-bold text-ink">Jadwal Sampah</span>
+                    <div>
+                      <span className="text-xs font-bold text-ink block leading-tight">Jadwal Sampah</span>
+                      <span className="text-[9px] text-ink-muted">Viar Tossa TPS3R</span>
+                    </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowVotingModal(true)}
-                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
-                      <Vote className="w-4 h-4" />
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold shadow-2xs">
+                      <Vote className="w-4 h-4 text-indigo-700" />
                     </div>
-                    <span className="text-[11px] font-bold text-ink">E-Voting Warga</span>
+                    <div>
+                      <span className="text-xs font-bold text-ink block leading-tight">E-Voting Warga</span>
+                      <span className="text-[9px] text-ink-muted">Musyawarah RT</span>
+                    </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowComplaintModal(true)}
-                    className="p-3 bg-canvas hover:bg-surface rounded-2xl border border-border/80 hover:border-primary-400 hover:shadow-xs transition-all flex flex-col items-center text-center gap-1.5"
+                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center font-bold">
-                      <Headphones className="w-4 h-4" />
+                    <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-bold shadow-2xs">
+                      <Headphones className="w-4 h-4 text-rose-700" />
                     </div>
-                    <span className="text-[11px] font-bold text-ink">Aduan Warga</span>
+                    <div>
+                      <span className="text-xs font-bold text-ink block leading-tight">Aduan & Keluhan</span>
+                      <span className="text-[9px] text-ink-muted">Respon Cepat</span>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -678,38 +947,40 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               {/* Status Operasional Komplek Hari Ini */}
               <div className="p-4 rounded-2xl bg-canvas border border-border space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5 uppercase tracking-wide">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     Status Operasional Komplek Hari Ini
                   </h4>
-                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
                     Normal 24 Jam
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {/* Satpam */}
-                  <div className="p-2.5 bg-surface rounded-xl border border-border/70 flex items-center justify-between">
+                  <div className="p-3 bg-surface rounded-xl border border-border/80 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-ink-muted font-bold block">Pos Satpam Utama</span>
-                      <p className="font-bold text-ink">Regu A Siaga</p>
-                      <span className="text-[10px] text-ink-muted">{securityPhone}</span>
+                      <span className="text-[10px] text-ink-muted font-bold block">Pos Satpam Gerbang 1</span>
+                      <p className="font-bold text-ink">Regu A Siaga (Barrier Gate Aktif)</p>
+                      <span className="text-[10px] text-ink-muted font-mono">{securityPhone}</span>
                     </div>
-                    <a
-                      href={`tel:${securityPhone.replace(/[^0-9]/g, '')}`}
-                      className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200 transition-colors"
-                      title="Hubungi Satpam"
-                    >
-                      <PhoneCall className="w-3.5 h-3.5" />
-                    </a>
+                    <div className="flex items-center gap-1">
+                      <a
+                        href={`tel:${securityPhone.replace(/[^0-9]/g, '')}`}
+                        className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200 transition-all active:scale-95"
+                        title="Telepon Pos Satpam"
+                      >
+                        <PhoneCall className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
                   </div>
 
-                  {/* Sampah */}
-                  <div className="p-2.5 bg-surface rounded-xl border border-border/70 flex items-center justify-between">
+                  {/* Kebersihan */}
+                  <div className="p-3 bg-surface rounded-xl border border-border/80 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-ink-muted font-bold block">Tim Kebersihan</span>
-                      <p className="font-bold text-ink">Viar Tossa 01 & 02</p>
-                      <span className="text-[10px] text-teal-700 font-bold">{wasteOrgDays} ({wasteHours})</span>
+                      <span className="text-[10px] text-ink-muted font-bold block">Armada Viar Tossa TPS3R</span>
+                      <p className="font-bold text-ink">Jadwal: {wasteOrgDays}</p>
+                      <span className="text-[10px] text-teal-700 font-bold">{wasteHours}</span>
                     </div>
                     <button
                       type="button"
@@ -717,8 +988,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                         setActiveTab('info');
                         setInfoSubTab('sanitation');
                       }}
-                      className="p-2 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-xl border border-teal-200 transition-colors"
-                      title="Detail Jadwal"
+                      className="p-2 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-xl border border-teal-200 transition-all active:scale-95"
+                      title="Lihat Rute Sampah"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -726,112 +997,156 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 </div>
               </div>
 
-              {/* Ringkasan Kas & Pengumuman */}
+              {/* Pengumuman & Agenda Terkini */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink">Pengumuman & Agenda Terkini</h3>
-                  <button onClick={() => setActiveTab('info')} className="text-[11px] font-semibold text-primary-600 hover:underline">
+                  <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Pengumuman & Agenda Terkini</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('info');
+                      setInfoSubTab('announcements');
+                    }}
+                    className="text-[11px] font-bold text-primary-700 hover:underline flex items-center gap-0.5"
+                  >
                     Lihat Semua
+                    <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
-                        <Megaphone className="w-4 h-4" />
+                  {initialAnnouncements && initialAnnouncements.length > 0 ? (
+                    initialAnnouncements.slice(0, 2).map((ann: any) => (
+                      <div
+                        key={ann.id}
+                        className="p-3.5 rounded-2xl bg-surface border border-border shadow-2xs flex items-center justify-between gap-3 hover:border-primary-200 transition-all cursor-pointer"
+                        onClick={() => {
+                          setActiveTab('info');
+                          setInfoSubTab('announcements');
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary-700 border border-primary-200 flex items-center justify-center shrink-0 mt-0.5">
+                            <Megaphone className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="px-1.5 py-0.5 bg-primary-100 text-primary-800 text-[9px] font-bold rounded uppercase">
+                              {ann.category || 'KEGIATAN'}
+                            </span>
+                            <p className="text-xs font-bold text-ink mt-0.5 leading-tight">{ann.title}</p>
+                            <p className="text-[10px] text-ink-muted mt-0.5 line-clamp-1">{ann.content}</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-ink leading-tight">Kerja Bakti Lingkungan & Taman</p>
-                        <p className="text-[10px] text-ink-muted mt-0.5">Minggu, 24 Agustus 2026 • 07:00 WIB</p>
-                        <p className="text-[10px] text-primary-700 font-bold">Lapangan Blok A</p>
+                    ))
+                  ) : (
+                    <div className="p-3.5 rounded-2xl bg-surface border border-border shadow-2xs flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary-700 border border-primary-200 flex items-center justify-center shrink-0">
+                          <Megaphone className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-ink">Kerja Bakti Lingkungan & Taman Warga</p>
+                          <p className="text-[10px] text-ink-muted mt-0.5">Minggu Pagi • Lapangan Blok A</p>
+                        </div>
                       </div>
+                      <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
-                  </div>
-
-                  <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                        <Wrench className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-ink leading-tight">Perbaikan Pompa Air & Tandon</p>
-                        <p className="text-[10px] text-ink-muted mt-0.5">Rabu, 27 Agustus 2026 • 09:00 WIB</p>
-                        <p className="text-[10px] text-amber-800 font-bold">Area Rumah Pompa Utama</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* ================= TAB 2: IURAN SAYA ================= */}
+          {/* ========================================================================= */}
+          {/* TAB 2: IURAN & KEUANGAN RUMAH (DUES & BILLING)                            */}
+          {/* ========================================================================= */}
           {activeTab === 'iuran' && (
-            <div className="p-5 space-y-5 flex-1 animate-in fade-in duration-150">
-              {/* Header */}
-              <div className="flex items-center justify-between pt-2">
+            <div className="p-4 sm:p-6 space-y-5 flex-1 animate-in fade-in duration-150">
+              {/* Header Navigation */}
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setActiveTab('beranda')} className="p-1 -ml-1 text-ink hover:bg-canvas rounded-full">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('beranda')}
+                    className="p-1.5 -ml-1 text-ink hover:bg-canvas rounded-full active:scale-95 transition-all"
+                  >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                  <h2 className="font-bold text-base text-ink">Iuran & Keuangan Rumah</h2>
+                  <div>
+                    <h2 className="font-extrabold text-lg text-ink">Iuran & Keuangan Rumah</h2>
+                    <p className="text-[11px] text-ink-muted">Rekapitulasi iuran bulanan dan kuitansi pembayaran resmi</p>
+                  </div>
                 </div>
+
                 <button
                   type="button"
-                  onClick={() => setSelectedReceipt({
-                    invoiceNumber: 'INV-202608-A17',
-                    periodName: 'Agustus 2026',
-                    propertyCode: currentUser?.propertyCode || 'A-17',
-                    residentName: currentUser?.fullName || currentUser?.name || 'Warga',
-                    amount: monthlyFeeRate,
-                    paidAt: '20 Agustus 2026, 10:21 WIB',
-                    paymentMethod: 'Transfer Bank BCA',
-                    referenceNumber: 'TRX-BCA-A17',
-                  })}
-                  className="px-2.5 py-1 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-lg flex items-center gap-1 shadow-xs"
+                  onClick={() =>
+                    setSelectedReceipt({
+                      invoiceNumber: currentSelectedMonthData.inv,
+                      periodName: currentSelectedMonthData.name,
+                      propertyCode: currentUser?.propertyCode || 'A-17',
+                      residentName: currentUser?.fullName || currentUser?.name || 'Warga Komplek',
+                      amount: monthlyFeeRate,
+                      paidAt: currentSelectedMonthData.paidAt || '20 Agustus 2026, 10:21 WIB',
+                      paymentMethod: 'Transfer Bank BCA',
+                      referenceNumber: `TRX-${currentSelectedMonthData.code.toUpperCase()}-A17`,
+                    })
+                  }
+                  className="px-3 py-1.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs active:scale-[0.98] transition-all"
                 >
                   <Printer className="w-3.5 h-3.5 text-primary-600" />
                   <span>Kuitansi</span>
                 </button>
               </div>
 
-              {/* Status Iuran 2026 */}
-              <div className="space-y-3">
+              {/* 12 Months Interactive Matrix Bar */}
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink">Status Iuran Tahun 2026</h3>
-                  <div className="flex items-center gap-2.5 text-[10px] text-ink-muted">
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Lunas</span>
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-border-dark" /> Belum</span>
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Terlambat</span>
+                  <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Status Iuran Tahun 2026</h3>
+                  <div className="flex items-center gap-3 text-[10px] text-ink-muted">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" /> Lunas
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Berjalan
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-border-dark" /> Mendatang
+                    </span>
                   </div>
                 </div>
 
-                {/* 12 Months Grid Pills */}
                 <div className="grid grid-cols-6 gap-2">
-                  {months.map((m) => {
+                  {monthsBilling.map((m) => {
                     const isCurrent = m.code === selectedMonth;
                     const isPaid = m.status === 'paid';
+                    const isPending = m.status === 'pending';
                     return (
                       <button
                         key={m.code}
                         type="button"
                         onClick={() => setSelectedMonth(m.code)}
-                        className={`p-2 rounded-xl text-center flex flex-col items-center justify-between border transition-all ${
+                        className={`p-2.5 rounded-xl text-center flex flex-col items-center justify-between border transition-all active:scale-95 ${
                           isCurrent
-                            ? 'bg-surface border-primary-500 ring-2 ring-primary-500/20 shadow-xs'
-                            : 'bg-canvas border-border/70 hover:bg-surface'
+                            ? 'bg-surface border-primary-600 ring-2 ring-primary-600/20 shadow-xs'
+                            : 'bg-canvas border-border/80 hover:bg-surface'
                         }`}
                       >
-                        <span className="text-[11px] font-semibold text-ink">{m.code}</span>
+                        <span className={`text-[11px] font-bold ${isCurrent ? 'text-primary-700' : 'text-ink'}`}>
+                          {m.code}
+                        </span>
                         {isPaid ? (
                           <div className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-1">
                             <Check className="w-2.5 h-2.5 stroke-[3]" />
                           </div>
+                        ) : isPending ? (
+                          <div className="w-4 h-4 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mt-1">
+                            <Clock className="w-2.5 h-2.5" />
+                          </div>
                         ) : (
-                          <div className="w-4 h-4 rounded-full bg-border/60 mt-1" />
+                          <div className="w-4 h-4 rounded-full bg-border/80 mt-1" />
                         )}
                       </button>
                     );
@@ -839,41 +1154,99 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 </div>
               </div>
 
-              {/* Main Card: Iuran Agustus 2026 */}
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-4">
-                <div className="flex items-center justify-between">
+              {/* Rincian Komponen IPL Struk Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-card space-y-4">
+                <div className="flex items-center justify-between border-b border-dashed border-border pb-3">
                   <div>
-                    <span className="text-sm font-bold text-ink">Iuran {selectedMonth === 'Agu' ? 'Agustus 2026' : `${selectedMonth} 2026`}</span>
-                    <p className="text-[10px] text-ink-muted mt-0.5">Komponen: Sampah, Satpam, Pemeliharaan Fasum</p>
+                    <span className="text-[10px] text-ink-muted font-mono uppercase tracking-wider block">
+                      NO. INVOICE: {currentSelectedMonthData.inv}
+                    </span>
+                    <h3 className="text-base font-bold text-ink">Tagihan Iuran {currentSelectedMonthData.name}</h3>
+                    <p className="text-[11px] text-ink-muted">Jatuh Tempo: Tanggal 10 {currentSelectedMonthData.name}</p>
                   </div>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-semibold text-xs border border-emerald-200">
-                    Lunas
+
+                  <span
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold border ${
+                      currentSelectedMonthData.status === 'paid'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : currentSelectedMonthData.status === 'pending'
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-canvas text-ink-muted border-border'
+                    }`}
+                  >
+                    {currentSelectedMonthData.status === 'paid'
+                      ? 'Lunas'
+                      : currentSelectedMonthData.status === 'pending'
+                      ? 'Menunggu Pembayaran'
+                      : 'Akan Datang'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-1">
-                  <div>
-                    <span className="text-[11px] text-ink-muted">Nominal Tagihan</span>
-                    <p className="text-lg font-black text-ink tabular-nums">{formatRupiah(monthlyFeeRate)}</p>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-ink-muted">Jatuh Tempo</span>
-                    <p className="text-xs font-semibold text-ink mt-0.5">10 Setiap Bulan</p>
+                {/* Breakdown Items */}
+                <div className="space-y-2 text-xs">
+                  <span className="text-[10px] uppercase font-bold text-ink-muted tracking-wide block">
+                    Rincian Alokasi Komponen IPL:
+                  </span>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-ink-muted">
+                      <span>1. Jasa Keamanan 24 Jam & Pos Satpam</span>
+                      <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeSecurity)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-ink-muted">
+                      <span>2. Kebersihan Lingkungan & TPS3R Viar Tossa</span>
+                      <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeSanitation)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-ink-muted">
+                      <span>3. Pemeliharaan Fasum, Taman & PJU Listrik</span>
+                      <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeMaintenance)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-ink-muted">
+                      <span>4. Dana Kas Sosial & Musyawarah Paguyuban</span>
+                      <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeSocial)}</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Bank Official Kas Paguyuban Card */}
-                <div className="p-3.5 rounded-xl bg-gradient-to-br from-slate-900 to-primary-950 text-white space-y-2.5">
+                {/* Total Billing */}
+                <div className="pt-3 border-t border-dashed border-border flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-ink-muted">Total Tagihan Bulanan:</span>
+                    <p className="text-xl font-black text-primary-800 tabular-nums">{formatRupiah(monthlyFeeRate)}</p>
+                  </div>
+
+                  {currentSelectedMonthData.status === 'paid' ? (
+                    <div className="text-right">
+                      <span className="text-[10px] text-emerald-700 font-bold block">Lunas Terverifikasi</span>
+                      <span className="text-[10px] text-ink-muted">{currentSelectedMonthData.paidAt}</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentModal(true)}
+                      className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-xl shadow-xs active:scale-[0.98] transition-all flex items-center gap-1.5"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Bayar Sekarang
+                    </button>
+                  )}
+                </div>
+
+                {/* Official Bank Account Card (Anti-Slop: clean, structured, high-contrast) */}
+                <div className="p-4 rounded-xl bg-canvas border border-border text-ink space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-primary-200 font-bold uppercase tracking-wider">Rekening Kas Resmi Paguyuban</span>
-                    <span className="px-2 py-0.5 bg-white/20 text-white rounded text-[10px] font-mono font-bold">QRIS Ready</span>
+                    <span className="text-[10px] text-primary-800 font-bold uppercase tracking-wider">
+                      Rekening Resmi Kas Paguyuban
+                    </span>
+                    <span className="px-2 py-0.5 bg-primary-100 text-primary-900 rounded text-[10px] font-mono font-bold">
+                      QRIS Ready
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-bold text-slate-300">{bankKasName}</p>
-                      <p className="text-base font-black font-mono tracking-wider text-emerald-300">{bankKasAcc}</p>
-                      <p className="text-[10px] text-slate-300">{bankKasHolder}</p>
+                      <p className="text-xs font-bold text-ink-muted">{bankKasName}</p>
+                      <p className="text-lg font-black font-mono tracking-wider text-primary-800">{bankKasAcc}</p>
+                      <p className="text-[10px] text-ink-muted">a.n {bankKasHolder}</p>
                     </div>
 
                     <button
@@ -883,53 +1256,63 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                         setCopiedAcc(true);
                         setTimeout(() => setCopiedAcc(false), 2000);
                       }}
-                      className="px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-xs font-bold text-white transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-surface hover:bg-canvas border border-border rounded-xl text-xs font-bold text-ink transition-all flex items-center gap-1.5 active:scale-[0.98] shadow-2xs"
                     >
                       {copiedAcc ? (
                         <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Tersalin!</span>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Tersalin!</span>
                         </>
                       ) : (
-                        <span>Salin No. Rek</span>
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-ink-muted" />
+                          <span>Salin No. Rek</span>
+                        </>
                       )}
                     </button>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 pt-1">
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(true)}
-                    className="flex-1 py-2.5 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-surface font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-surface font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                   >
                     <Upload className="w-4 h-4" />
-                    Konfirmasi / Unggah Bukti
+                    Konfirmasi / Unggah Bukti Transfer
                   </button>
                 </div>
               </div>
 
-              {/* Riwayat Pembayaran */}
+              {/* Riwayat Pembayaran Sebelumnya */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink">Riwayat Pembayaran Sebelumnya</h3>
-                  <span className="text-[11px] text-ink-muted">Tercatat di Buku Kas</span>
+                  <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Riwayat Kuitansi Pembayaran</h3>
+                  <span className="text-[11px] text-ink-muted">Tercatat di Buku Kas RT</span>
                 </div>
 
                 <div className="space-y-2">
                   {[
-                    { month: 'Juli 2026', date: '18 Jul 2026, 09:14 WIB', amount: monthlyFeeRate },
-                    { month: 'Juni 2026', date: '20 Jun 2026, 10:02 WIB', amount: monthlyFeeRate },
-                    { month: 'Mei 2026', date: '20 Mei 2026, 09:47 WIB', amount: monthlyFeeRate },
+                    { month: 'Juli 2026', date: '18 Jul 2026, 09:14 WIB', amount: monthlyFeeRate, method: 'Transfer BCA' },
+                    { month: 'Juni 2026', date: '20 Jun 2026, 10:02 WIB', amount: monthlyFeeRate, method: 'Transfer BCA' },
+                    { month: 'Mei 2026', date: '20 Mei 2026, 09:47 WIB', amount: monthlyFeeRate, method: 'Transfer Mandiri' },
                   ].map((row, idx) => (
-                    <div key={idx} className="p-3 rounded-2xl bg-canvas border border-border flex items-center justify-between">
+                    <div
+                      key={idx}
+                      className="p-3 rounded-2xl bg-surface border border-border shadow-2xs flex items-center justify-between hover:border-primary-200 transition-all"
+                    >
                       <div>
                         <p className="text-xs font-bold text-ink">{row.month}</p>
-                        <p className="text-[10px] text-ink-muted">{row.date}</p>
+                        <p className="text-[10px] text-ink-muted">
+                          {row.date} • {row.method}
+                        </p>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        <span className="text-xs font-semibold text-ink tabular-nums">{formatRupiah(row.amount)}</span>
-                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold rounded">Lunas</span>
+                        <span className="text-xs font-bold text-ink tabular-nums">{formatRupiah(row.amount)}</span>
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded border border-emerald-200">
+                          Lunas
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -938,39 +1321,52 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
             </div>
           )}
 
-          {/* ================= TAB 3: INFO & LAYANAN WARGA ================= */}
+          {/* ========================================================================= */}
+          {/* TAB 3: INFO & LAYANAN WARGA (AGENDA, FASUM, SAMPAH, ADUAN)                 */}
+          {/* ========================================================================= */}
           {activeTab === 'info' && (
-            <div className="p-5 space-y-5 flex-1 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between pt-2">
+            <div className="p-4 sm:p-6 space-y-5 flex-1 animate-in fade-in duration-150">
+              {/* Header Navigation */}
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setActiveTab('beranda')} className="p-1 -ml-1 text-ink hover:bg-canvas rounded-full">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('beranda')}
+                    className="p-1.5 -ml-1 text-ink hover:bg-canvas rounded-full active:scale-95 transition-all"
+                  >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                  <h2 className="font-bold text-base text-ink">Layanan & Agenda Warga</h2>
+                  <div>
+                    <h2 className="font-extrabold text-lg text-ink">Layanan & Agenda Warga</h2>
+                    <p className="text-[11px] text-ink-muted">Pengumuman resmi, katalog fasilitas, armada kebersihan & aduan</p>
+                  </div>
                 </div>
+
                 <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => setShowFacilityModal(true)}
-                    className="px-2 py-1 bg-surface hover:bg-canvas border border-border text-ink text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-xs"
+                    className="px-2.5 py-1.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl flex items-center gap-1 shadow-2xs active:scale-[0.98] transition-all"
                   >
                     <Building2 className="w-3.5 h-3.5 text-primary-700" />
-                    Pesan Sarana
+                    <span>Pesan Sarana</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => setShowComplaintModal(true)}
-                    className="px-2.5 py-1 bg-primary-600 hover:bg-primary-700 text-surface text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-xs"
+                    className="px-2.5 py-1.5 bg-primary-600 hover:bg-primary-700 text-surface text-xs font-bold rounded-xl flex items-center gap-1 shadow-xs active:scale-[0.98] transition-all"
                   >
                     <MessageSquarePlus className="w-3.5 h-3.5" />
-                    Aduan
+                    <span>Aduan</span>
                   </button>
                 </div>
               </div>
 
-              {/* Sub-Navigation Pills for Info Tab */}
+              {/* Sub-Navigation Pills (4 Sub-Menus) */}
               <div className="flex items-center gap-1.5 p-1 bg-canvas rounded-2xl border border-border overflow-x-auto no-scrollbar">
                 {[
                   { id: 'announcements', label: 'Pengumuman', icon: Megaphone },
-                  { id: 'facilities', label: 'Sarana & Fasum', icon: Building2 },
+                  { id: 'facilities', label: 'Sarana Fasum', icon: Building2 },
                   { id: 'sanitation', label: 'Kebersihan', icon: Trash2 },
                   { id: 'complaints', label: 'Aduan & SOS', icon: Headphones },
                 ].map((st) => {
@@ -981,9 +1377,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       key={st.id}
                       type="button"
                       onClick={() => setInfoSubTab(st.id as any)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
                         isActive
-                          ? 'bg-surface text-primary-700 shadow-xs border border-border'
+                          ? 'bg-surface text-primary-800 shadow-xs border border-border'
                           : 'text-ink-muted hover:text-ink hover:bg-surface/50'
                       }`}
                     >
@@ -996,55 +1392,61 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
 
               {/* SUBTAB 1: PENGUMUMAN & AGENDA */}
               {infoSubTab === 'announcements' && (
-                <div className="space-y-3 animate-in fade-in duration-100">
-                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-primary-100 text-primary-800 text-[10px] font-bold rounded-md">KEGIATAN</span>
-                      <span className="text-[10px] text-ink-muted">20 Agustus 2026</span>
+                <div className="space-y-4 animate-in fade-in duration-100">
+                  {initialAnnouncements && initialAnnouncements.length > 0 ? (
+                    initialAnnouncements.map((ann: any) => (
+                      <div key={ann.id} className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-xs space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-0.5 bg-primary-50 text-primary-800 text-[10px] font-bold rounded-md border border-primary-200 uppercase">
+                            {ann.category || 'KEGIATAN'}
+                          </span>
+                          <span className="text-[10px] text-ink-muted font-mono">{ann.createdAt || 'Terbaru'}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-ink">{ann.title}</h4>
+                        <p className="text-xs text-ink-muted leading-relaxed">{ann.content}</p>
+                        {ann.location && (
+                          <div className="pt-2 border-t border-border/80 flex items-center justify-between text-xs text-primary-800 font-semibold">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-primary-600" />
+                              {ann.scheduledAt || 'Sesuai Jadwal'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-primary-600" />
+                              {ann.location}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-ink-muted bg-surface rounded-2xl border border-border space-y-1">
+                      <Megaphone className="w-7 h-7 text-ink-muted mx-auto" />
+                      <p className="text-xs font-bold text-ink">Belum ada pengumuman terbaru</p>
+                      <p className="text-[11px]">Siaran informasi resmi dari pengurus komplek akan tampil di sini.</p>
                     </div>
-                    <h4 className="text-sm font-bold text-ink">Kerja Bakti Lingkungan & Taman</h4>
-                    <p className="text-xs text-ink-muted leading-relaxed">
-                      Mengundang seluruh warga untuk hadir dalam kegiatan kerja bakti pembersihan saluran air dan taman bersama. Diharapkan membawa peralatan masing-masing.
-                    </p>
-                    <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-primary-700 font-medium">
-                      <span>Minggu, 24 Agu 2026 • 07:00 WIB</span>
-                      <span>Lapangan Blok A</span>
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md">MAINTENANCE</span>
-                      <span className="text-[10px] text-ink-muted">22 Agustus 2026</span>
-                    </div>
-                    <h4 className="text-sm font-bold text-ink">Perbaikan Pompa Air & Tandon Utama</h4>
-                    <p className="text-xs text-ink-muted leading-relaxed">
-                      Akan dilakukan perbaikan dan pengurasan tandon pompa air utama komplek. Pasokan air fasum akan dimatikan sementara.
-                    </p>
-                    <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-primary-700 font-medium">
-                      <span>Rabu, 27 Agu 2026 • 09:00 WIB</span>
-                      <span>Area Rumah Pompa</span>
-                    </div>
-                  </div>
-
-                  {/* E-Voting Banner */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-surface shadow-card space-y-2.5">
+                  {/* E-Voting Musyawarah Banner Card (Anti-Slop civic card) */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-primary-300 shadow-xs space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 rounded-md bg-white/20 text-[10px] font-bold uppercase tracking-wider">
+                      <span className="px-2.5 py-0.5 rounded-md bg-primary-100 text-primary-900 text-[10px] font-bold uppercase tracking-wider">
                         Musyawarah Digital
                       </span>
-                      <span className="text-[10px] text-emerald-200">1 Rumah = 1 Suara</span>
+                      <span className="text-[10px] text-primary-800 font-bold">1 Rumah = 1 Suara</span>
                     </div>
-                    <h4 className="font-bold text-sm">Pemilihan Ketua RW 05 / RT 02 (2026-2029)</h4>
-                    <p className="text-[11px] text-surface/80 leading-relaxed">
-                      Bilik suara digital telah dibuka. Gunakan hak suara keluarga Anda untuk menentukan kemajuan komplek perumahan.
+                    <h4 className="font-bold text-sm text-ink">Pemilihan Ketua RW 05 / RT 02 (Periode 2026-2029)</h4>
+                    <p className="text-xs text-ink-muted leading-relaxed">
+                      Bilik suara digital resmi telah dibuka. Salurkan aspirasi dan gunakan hak suara keluarga Anda untuk
+                      kemajuan lingkungan komplek.
                     </p>
                     <button
                       type="button"
                       onClick={() => setShowVotingModal(true)}
-                      className="w-full py-2 bg-surface text-primary-700 hover:bg-canvas font-bold text-xs rounded-xl shadow-xs transition-colors"
+                      className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-xl shadow-xs transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
-                      Buka Bilik Suara & Berikan Pilihan ➔
+                      <Vote className="w-4 h-4" />
+                      <span>Buka Bilik Suara & Berikan Pilihan</span>
+                      <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -1055,13 +1457,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div className="space-y-3 animate-in fade-in duration-100">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-ink">Katalog Sarana & Fasilitas Komplek</h4>
-                      <p className="text-[10px] text-ink-muted">Peminjaman fasilitas untuk keperluan warga</p>
+                      <h4 className="text-xs font-bold text-ink uppercase tracking-wide">Katalog Fasilitas Bersama</h4>
+                      <p className="text-[10px] text-ink-muted">Peminjaman sarana untuk kebutuhan kegiatan warga</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowFacilityModal(true)}
-                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-surface rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all active:scale-[0.98]"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Ajukan Sewa</span>
@@ -1070,22 +1472,55 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
 
                   <div className="space-y-2.5">
                     {[
-                      { id: 'fac-balai', name: 'Balai Warga Serbaguna', capacity: '150 Orang', fee: 'Gratis untuk Acara Warga', icon: Building2, status: 'Tersedia' },
-                      { id: 'fac-tennis', name: 'Lapangan Tenis & Badminton', capacity: '2 Lapangan', fee: 'Gratis (Wajib Booking)', icon: Trophy, status: 'Tersedia' },
-                      { id: 'fac-pool', name: 'Kolam Renang Komplek', capacity: '30 Orang', fee: 'Khusus Penghuni', icon: Droplets, status: 'Operasional' },
-                      { id: 'fac-mosque', name: 'Masjid Al-Ikhlas', capacity: '200 Jamaah', fee: 'Kegiatan Keagamaan', icon: Home, status: 'Buka' },
+                      {
+                        id: 'fac-balai',
+                        name: 'Balai Warga Serbaguna',
+                        capacity: '150 Orang',
+                        fee: 'Gratis untuk Acara Warga',
+                        icon: Building2,
+                        status: 'Tersedia',
+                      },
+                      {
+                        id: 'fac-tennis',
+                        name: 'Lapangan Tenis & Badminton',
+                        capacity: '2 Lapangan',
+                        fee: 'Gratis (Wajib Reservasi)',
+                        icon: Trophy,
+                        status: 'Tersedia',
+                      },
+                      {
+                        id: 'fac-pool',
+                        name: 'Kolam Renang Anak Komplek',
+                        capacity: '30 Orang',
+                        fee: 'Khusus Penghuni Terdaftar',
+                        icon: Droplets,
+                        status: 'Operasional',
+                      },
+                      {
+                        id: 'fac-mosque',
+                        name: 'Masjid Al-Ikhlas Komplek',
+                        capacity: '200 Jamaah',
+                        fee: 'Kegiatan Ibadah & Sosial',
+                        icon: Home,
+                        status: 'Buka',
+                      },
                     ].map((fac) => {
                       const Icon = fac.icon || Building2;
                       return (
-                        <div key={fac.id} className="p-3.5 rounded-2xl bg-surface border border-border shadow-xs flex items-center justify-between">
+                        <div
+                          key={fac.id}
+                          className="p-3.5 rounded-2xl bg-surface border border-border shadow-2xs flex items-center justify-between hover:border-primary-200 transition-all"
+                        >
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center font-bold">
+                            <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center font-bold">
                               <Icon className="w-5 h-5" />
                             </div>
                             <div>
                               <p className="text-xs font-bold text-ink">{fac.name}</p>
-                              <p className="text-[10px] text-ink-muted">Kapasitas: {fac.capacity} • {fac.fee}</p>
-                              <span className="inline-block mt-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-bold rounded">
+                              <p className="text-[10px] text-ink-muted">
+                                Kapasitas: {fac.capacity} • {fac.fee}
+                              </p>
+                              <span className="inline-block mt-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-bold rounded border border-emerald-200">
                                 {fac.status}
                               </span>
                             </div>
@@ -1098,7 +1533,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                               setFacName(fac.name);
                               setShowFacilityModal(true);
                             }}
-                            className="px-3 py-1.5 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink hover:text-primary-700 transition-colors"
+                            className="px-3 py-1.5 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink hover:text-primary-700 transition-all active:scale-[0.98] shadow-2xs"
                           >
                             Pesan
                           </button>
@@ -1112,25 +1547,25 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               {/* SUBTAB 3: JADWAL KEBERSIHAN & SAMPAH */}
               {infoSubTab === 'sanitation' && (
                 <div className="space-y-3 animate-in fade-in duration-100">
-                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
+                  <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-ink flex items-center gap-1.5 uppercase tracking-wide">
                         <Trash2 className="w-4 h-4 text-teal-600" />
                         Jadwal & Rute Armada Kebersihan Viar Tossa
                       </h4>
-                      <span className="px-2 py-0.5 bg-teal-100 text-teal-800 text-[10px] font-bold rounded-full">
+                      <span className="px-2.5 py-0.5 bg-teal-50 text-teal-800 text-[10px] font-bold rounded-full border border-teal-200">
                         TPS3R Aktif
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs pt-1">
-                      <div className="p-3 bg-canvas rounded-xl border border-border/70 space-y-1">
-                        <span className="text-[10px] text-ink-muted font-bold block">Sampah Organik / Basah (Dapur)</span>
+                      <div className="p-3 bg-canvas rounded-xl border border-border/80 space-y-1">
+                        <span className="text-[10px] text-ink-muted font-bold block">Sampah Organik / Dapur</span>
                         <p className="font-bold text-ink">{wasteOrgDays}</p>
                         <p className="text-[10px] text-teal-700 font-bold">{wasteHours}</p>
                       </div>
 
-                      <div className="p-3 bg-canvas rounded-xl border border-border/70 space-y-1">
+                      <div className="p-3 bg-canvas rounded-xl border border-border/80 space-y-1">
                         <span className="text-[10px] text-ink-muted font-bold block">Sampah Anorganik (Kardus/Plastik)</span>
                         <p className="font-bold text-ink">{wasteInorgDays}</p>
                         <p className="text-[10px] text-teal-700 font-bold">{wasteHours}</p>
@@ -1141,12 +1576,14 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <div className="p-4 rounded-2xl bg-canvas border border-border space-y-2 text-xs">
                     <h4 className="font-bold text-ink">Permintaan Angkut Khusus (Puing / Dahan Pohon)</h4>
                     <p className="text-ink-muted text-[11px]">
-                      Untuk sampah dalam volume besar (potongan pohon, sisa renovasi), hubungi Koordinator Kebersihan komplek.
+                      Untuk volume sampah besar dari pemangkasan pohon atau sisa renovasi, hubungi Koordinator Kebersihan
+                      komplek terlebih dahulu.
                     </p>
                     <a
                       href={`https://wa.me/6281277778888?text=Halo%20Koordinator%20Kebersihan,%20saya%20warga%20${currentUser?.propertyCode || 'A-17'}%20ingin%20request%20angkut%20sampah%20khusus`}
                       target="_blank"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xs text-xs mt-1"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-surface rounded-xl font-bold shadow-xs text-xs mt-1 active:scale-[0.98] transition-all"
                     >
                       <PhoneCall className="w-3.5 h-3.5" />
                       <span>Chat WhatsApp Koordinator Kebersihan</span>
@@ -1160,13 +1597,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div className="space-y-3 animate-in fade-in duration-100">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-ink">Layanan Aduan & Keluhan Warga</h4>
-                      <p className="text-[10px] text-ink-muted">Sampaikan aduan fasilitas, kebersihan, atau keamanan</p>
+                      <h4 className="text-xs font-bold text-ink uppercase tracking-wide">Layanan Aduan & Keluhan Warga</h4>
+                      <p className="text-[10px] text-ink-muted">Sampaikan aduan fasilitas, kebersihan, atau ketertiban</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowComplaintModal(true)}
-                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-surface rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all active:scale-[0.98]"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Buat Aduan</span>
@@ -1174,34 +1611,58 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   </div>
 
                   <div className="space-y-2">
-                    <div className="p-3.5 rounded-2xl bg-surface border border-border shadow-xs flex items-center justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                          <Headphones className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-ink">Lampu PJU Padam Depan Rumah C-07</p>
-                          <p className="text-[10px] text-ink-muted">Kategori: Fasilitas • Dilaporkan Kemarin</p>
-                          <span className="inline-block mt-1 px-2 py-0.5 bg-amber-50 text-amber-800 text-[9px] font-bold rounded">
-                            Sedang Dikerjakan Teknisi
-                          </span>
-                        </div>
+                    {complaints.length === 0 ? (
+                      <div className="p-6 text-center text-ink-muted bg-surface rounded-2xl border border-border space-y-1">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto opacity-80" />
+                        <p className="text-xs font-bold text-ink">Tidak ada laporan aduan aktif</p>
+                        <p className="text-[11px]">Lingkungan dan fasilitas komplek berjalan normal tanpa keluhan.</p>
                       </div>
-                    </div>
+                    ) : (
+                      complaints.map((comp: any) => (
+                        <div
+                          key={comp.id}
+                          className="p-3.5 rounded-2xl bg-surface border border-border shadow-2xs flex items-start justify-between gap-3"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                              <Headphones className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-ink">{comp.title}</p>
+                              <p className="text-[10px] text-ink-muted mt-0.5">
+                                Kategori: {comp.category} • Lokasi: {comp.location}
+                              </p>
+                              <p className="text-[11px] text-ink-muted mt-1">{comp.description}</p>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[9px] font-bold rounded border border-amber-200">
+                                  {comp.status === 'MENUNGGU_VERIFIKASI'
+                                    ? 'Menunggu Disposisi'
+                                    : comp.status === 'SEDANG_DITANGANI'
+                                    ? 'Sedang Ditangani Teknisi'
+                                    : 'Selesai'}
+                                </span>
+                                <span className="text-[10px] text-ink-muted">{comp.createdAt}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
 
-                  {/* Emergency Satpam Hotline */}
+                  {/* Emergency Satpam Hotline Banner */}
                   <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2 text-xs">
                     <h4 className="font-bold text-rose-900 flex items-center gap-1.5">
                       <PhoneCall className="w-4 h-4 text-rose-700" />
-                      Panggilan Darurat Satpam 24 Jam
+                      Panggilan Darurat Satpam 24 Jam (Hotline SOS)
                     </h4>
                     <p className="text-rose-800 text-[11px]">
-                      Jika terjadi keadaan darurat keamanan atau medis di lingkungan komplek, segera hubungi Pos Satpam.
+                      Jika terjadi keadaan darurat keamanan, kebakaran, atau medis di lingkungan komplek, segera hubungi
+                      Pos Satpam Gerbang 1.
                     </p>
                     <a
                       href={`tel:${securityPhone.replace(/[^0-9]/g, '')}`}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs text-xs mt-1"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-surface rounded-xl font-bold shadow-xs text-xs mt-1 active:scale-[0.98] transition-all"
                     >
                       <PhoneCall className="w-3.5 h-3.5" />
                       <span>Telepon Pos Satpam ({securityPhone})</span>
@@ -1212,64 +1673,69 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
             </div>
           )}
 
-          {/* ================= TAB 4: RUMAH & PENGELOLAAN PROPERTI ================= */}
+          {/* ========================================================================= */}
+          {/* TAB 4: MANAJEMEN RUMAH (SPECS, OCCUPANTS, VEHICLES, PERMITS, PASS)       */}
+          {/* ========================================================================= */}
           {activeTab === 'rumah' && (
-            <div className="p-5 sm:p-6 space-y-5 flex-1 animate-in fade-in duration-150">
-              {/* Header */}
+            <div className="p-4 sm:p-6 space-y-5 flex-1 animate-in fade-in duration-150">
+              {/* Header Navigation */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setActiveTab('beranda')} className="p-1 -ml-1 text-ink hover:bg-canvas rounded-full">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('beranda')}
+                    className="p-1.5 -ml-1 text-ink hover:bg-canvas rounded-full active:scale-95 transition-all"
+                  >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
                   <div>
                     <h2 className="font-extrabold text-lg text-ink">Manajemen Rumah</h2>
-                    <p className="text-[11px] text-ink-muted">Kelola data hunian, penghuni, kendaraan & izin renovasi</p>
+                    <p className="text-[11px] text-ink-muted">Data teknis hunian, penghuni, kendaraan & izin renovasi</p>
                   </div>
                 </div>
                 <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-200 flex items-center gap-1">
                   <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Terverifikasi
+                  Terverifikasi RT
                 </span>
               </div>
 
-              {/* Main Property Card Banner */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-primary-900 to-slate-900 text-white shadow-md relative overflow-hidden">
-                <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
-                  <Building2 className="w-36 h-36" />
+              {/* Main Unit Card (Anti-Slop: Structured Architectural Surface) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-ink text-surface border border-ink/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 bg-surface/15 text-surface font-mono text-[10px] font-bold rounded-md uppercase tracking-wider">
+                    {(currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('KAV')
+                      ? 'Area Kavling'
+                      : (currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('SW')
+                      ? 'Jl. Sariwangi Indah'
+                      : `Blok ${(currentUser?.propertyCode || 'A-17').split('-')[0] || 'A'}`} • RT 02 / RW 05
+                  </span>
+                  <span className="text-[10px] text-surface/70">Komplek Taman Sejahtera</span>
                 </div>
-                <div className="relative z-10 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-md rounded-md text-[10px] font-bold tracking-wide uppercase">
-                      {(currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('KAV')
-                        ? 'Area Kavling'
-                        : (currentUser?.propertyCode || 'A-17').toUpperCase().startsWith('SW')
-                        ? 'Jl. Sariwangi Indah'
-                        : `Blok ${(currentUser?.propertyCode || 'A-17').split('-')[0] || 'A'}`} • RT 02 / RW 05
-                    </span>
-                    <span className="text-[11px] text-primary-200 font-medium">Komplek Taman Sejahtera</span>
+
+                <div>
+                  <span className="text-xs text-surface/70 block uppercase tracking-wide">Nomor Unit Hunian Resmi</span>
+                  <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
+                    Rumah {currentUser?.propertyCode || 'A-17'}
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-surface/15 text-xs">
+                  <div>
+                    <span className="text-[10px] text-surface/70">Tipe:</span>
+                    <p className="font-bold">{buildingType}</p>
                   </div>
                   <div>
-                    <span className="text-xs text-primary-200">Nomor Unit Hunian:</span>
-                    <h3 className="text-2xl font-black tracking-tight">Rumah {currentUser?.propertyCode || 'A-17'}</h3>
+                    <span className="text-[10px] text-surface/70">Penghuni:</span>
+                    <p className="font-bold">{occupants.length} Jiwa</p>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/15 text-xs">
-                    <div>
-                      <span className="text-[10px] text-primary-200">Tipe:</span>
-                      <p className="font-bold">{buildingType}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-primary-200">Penghuni:</span>
-                      <p className="font-bold">{occupants.length} Jiwa</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-primary-200">Kendaraan:</span>
-                      <p className="font-bold">{vehicles.length} Unit</p>
-                    </div>
+                  <div>
+                    <span className="text-[10px] text-surface/70">Kendaraan:</span>
+                    <p className="font-bold">{vehicles.length} Unit</p>
                   </div>
                 </div>
               </div>
 
-              {/* 5-SubTab Navigation Pill */}
+              {/* 5-SubTab Navigation Bar */}
               <div className="flex items-center gap-1.5 p-1 bg-canvas rounded-2xl border border-border overflow-x-auto no-scrollbar">
                 {[
                   { id: 'specs', label: 'Spesifikasi', icon: Home },
@@ -1285,9 +1751,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       key={st.id}
                       type="button"
                       onClick={() => setRumahSubTab(st.id as any)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
                         isActive
-                          ? 'bg-surface text-primary-700 shadow-xs border border-border'
+                          ? 'bg-surface text-primary-800 shadow-xs border border-border'
                           : 'text-ink-muted hover:text-ink hover:bg-surface/50'
                       }`}
                     >
@@ -1301,66 +1767,69 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               {/* SUBTAB 1: SPESIFIKASI & INFO HUNIAN */}
               {rumahSubTab === 'specs' && (
                 <div className="space-y-4 animate-in fade-in duration-100">
-                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
+                  <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-ink flex items-center gap-1.5 uppercase tracking-wide">
                         <Home className="w-4 h-4 text-primary-600" />
                         Data Teknis & Utilitas Rumah
                       </h4>
                       <button
                         type="button"
                         onClick={() => setShowEditSpecsModal(true)}
-                        className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                        className="text-xs font-bold text-primary-700 hover:text-primary-800 flex items-center gap-1 active:scale-95 transition-all"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         Edit Data
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
-                      <div className="p-3 rounded-xl bg-canvas border border-border/70 space-y-1">
+                    <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs">
+                      <div className="p-3 rounded-xl bg-canvas border border-border/80 space-y-1">
                         <span className="text-[10px] text-ink-muted flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-primary-600" /> Luas Tanah & Bangunan
+                          <Building2 className="w-3.5 h-3.5 text-primary-600" /> Luas Tanah & Bangunan
                         </span>
                         <p className="font-bold text-ink">{landArea} m² / {buildingArea} m²</p>
                       </div>
 
-                      <div className="p-3 rounded-xl bg-canvas border border-border/70 space-y-1">
+                      <div className="p-3 rounded-xl bg-canvas border border-border/80 space-y-1">
                         <span className="text-[10px] text-ink-muted flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-amber-600" /> Daya Listrik PLN
+                          <Zap className="w-3.5 h-3.5 text-amber-600" /> Daya Listrik PLN
                         </span>
                         <p className="font-bold text-ink">{plnCapacity}</p>
                       </div>
 
-                      <div className="p-3 rounded-xl bg-canvas border border-border/70 space-y-1">
+                      <div className="p-3 rounded-xl bg-canvas border border-border/80 space-y-1">
                         <span className="text-[10px] text-ink-muted flex items-center gap-1">
-                          <Droplets className="w-3 h-3 text-sky-600" /> No. Meter Air PAM
+                          <Droplets className="w-3.5 h-3.5 text-sky-600" /> No. Meter Air PAM
                         </span>
                         <p className="font-bold text-ink font-mono">{pamMeterNo}</p>
                       </div>
 
-                      <div className="p-3 rounded-xl bg-canvas border border-border/70 space-y-1">
+                      <div className="p-3 rounded-xl bg-canvas border border-border/80 space-y-1">
                         <span className="text-[10px] text-ink-muted flex items-center gap-1">
-                          <BadgeCheck className="w-3 h-3 text-emerald-600" /> Status Kepemilikan
+                          <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" /> Status Kepemilikan
                         </span>
                         <p className="font-bold text-emerald-700">{occupancyStatus}</p>
                       </div>
                     </div>
                   </div>
 
+                  {/* Penanggung Jawab Unit */}
                   <div className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-2">
-                    <h4 className="text-xs font-bold text-ink">Kepala Rumah Tangga</h4>
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-canvas border border-border/70">
+                    <h4 className="text-xs font-bold text-ink uppercase tracking-wide">Kepala Rumah Tangga</h4>
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-canvas border border-border/80">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-800 font-extrabold flex items-center justify-center text-sm uppercase">
+                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-800 font-extrabold flex items-center justify-center text-sm uppercase border border-primary-200">
                           {getInitials(currentUser?.fullName || currentUser?.name)}
                         </div>
                         <div>
                           <p className="text-xs font-bold text-ink">{currentUser?.fullName || currentUser?.name || 'Kepala Keluarga'}</p>
-                          <p className="text-[10px] text-ink-muted font-mono">NIK: 3171091203850001 • HP: 0812-3456-7890</p>
+                          <p className="text-[10px] text-ink-muted font-mono">
+                            NIK: 3171091203850001 • Kontak: {currentUser?.email || '0812-3456-7890'}
+                          </p>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-[10px] font-bold rounded-md">
+                      <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-[10px] font-bold rounded border border-primary-200">
                         Penanggung Jawab
                       </span>
                     </div>
@@ -1373,48 +1842,53 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div className="space-y-4 animate-in fade-in duration-100">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-ink">Daftar Penghuni & Keluarga ({occupants.length} Jiwa)</h4>
-                      <p className="text-[10px] text-ink-muted">Terdaftar di database RT 02 / RW 05</p>
+                      <h4 className="text-xs font-bold text-ink uppercase tracking-wide">
+                        Daftar Penghuni & Keluarga ({occupants.length} Jiwa)
+                      </h4>
+                      <p className="text-[10px] text-ink-muted">Terdata resmi di buku warga RT 02 / RW 05</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowAddOccupantModal(true)}
-                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 active:scale-[0.98] transition-all"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Tambah Anggota
+                      <span>Tambah Anggota</span>
                     </button>
                   </div>
 
                   <div className="space-y-2.5">
                     {occupants.map((occ) => (
-                      <div key={occ.id} className="p-3.5 rounded-2xl bg-surface border border-border shadow-xs flex items-center justify-between">
+                      <div
+                        key={occ.id}
+                        className="p-3.5 rounded-2xl bg-surface border border-border shadow-2xs flex items-center justify-between hover:border-primary-200 transition-all"
+                      >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-primary-50 text-primary-700 font-bold text-xs flex items-center justify-center border border-primary-200 uppercase">
+                          <div className="w-9 h-9 rounded-full bg-primary-50 text-primary-800 font-bold text-xs flex items-center justify-center border border-primary-200 uppercase">
                             {getInitials(occ.fullName)}
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
                               <p className="text-xs font-bold text-ink">{occ.fullName}</p>
                               {occ.isEmergencyContact && (
-                                <span className="px-1.5 py-0.5 bg-rose-50 text-rose-700 text-[9px] font-bold rounded-md border border-rose-200">
+                                <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 text-[9px] font-bold border border-rose-200">
                                   Kontak Darurat
                                 </span>
                               )}
                             </div>
-                            <p className="text-[10px] text-ink-muted">{occ.relation} • {occ.phone}</p>
+                            <p className="text-[10px] text-ink-muted">
+                              {occ.relation} • {occ.phone}
+                            </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono text-ink-muted hidden sm:inline">
-                            {occ.idCardNumber}
-                          </span>
+                          <span className="text-[10px] font-mono text-ink-muted hidden sm:inline">{occ.idCardNumber}</span>
                           {occ.relation !== 'Kepala Keluarga' && (
                             <button
                               type="button"
                               onClick={() => handleDeleteOccupant(occ.id)}
-                              className="p-1.5 text-ink-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-1.5 text-ink-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-95"
                               title="Hapus Anggota"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1427,39 +1901,46 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 </div>
               )}
 
-              {/* SUBTAB 3: KENDARAAN & STIKER PAS GERBANG */}
+              {/* SUBTAB 3: KENDARAAN & RFID ACCESS */}
               {rumahSubTab === 'vehicles' && (
                 <div className="space-y-4 animate-in fade-in duration-100">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-ink">Kendaraan Terdaftar ({vehicles.length} Unit)</h4>
-                      <p className="text-[10px] text-ink-muted">Akses palang otomatis RFID & CCTV Pos Satpam</p>
+                      <h4 className="text-xs font-bold text-ink uppercase tracking-wide">
+                        Kendaraan Terdaftar ({vehicles.length} Unit)
+                      </h4>
+                      <p className="text-[10px] text-ink-muted">Akses palang barrier gate RFID pos satpam otomatis</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowVehicleModal(true)}
-                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 active:scale-[0.98] transition-all"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Tambah Kendaraan
+                      <span>Tambah Kendaraan</span>
                     </button>
                   </div>
 
                   <div className="space-y-2.5">
                     {vehicles.map((v) => (
-                      <div key={v.id} className="p-3.5 rounded-2xl bg-surface border border-border shadow-xs flex items-center justify-between">
+                      <div
+                        key={v.id}
+                        className="p-3.5 rounded-2xl bg-surface border border-border shadow-2xs flex items-center justify-between hover:border-primary-200 transition-all"
+                      >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary-50 border border-primary-200 flex items-center justify-center text-primary-600">
+                          <div className="w-10 h-10 rounded-xl bg-primary-50 border border-primary-200 flex items-center justify-center text-primary-700">
                             {v.type === 'Mobil' ? <Car className="w-5 h-5" /> : <Bike className="w-5 h-5" />}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-mono text-sm font-black text-ink">{v.plateNumber}</p>
-                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-md border border-emerald-200">
+                              <p className="font-mono text-sm font-black text-ink tracking-wide">{v.plateNumber}</p>
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-bold rounded border border-emerald-200">
                                 RFID AKTIF
                               </span>
                             </div>
-                            <p className="text-[11px] text-ink-muted">{v.type} • {v.brand} {v.model} • {v.color}</p>
+                            <p className="text-[11px] text-ink-muted">
+                              {v.type} • {v.brand} {v.model} • Warna {v.color}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -1469,10 +1950,11 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
                     <p className="font-bold flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-amber-700" />
-                      Ketentuan Parkir & Stiker RFID
+                      Ketentuan Parkir & Stiker Barrier Gate RFID
                     </p>
                     <p className="text-[11px] text-amber-800">
-                      Maksimal 2 mobil dan 3 motor per hunian. Kendaraan terdaftar otomatis membuka barrier gate pos 1 tanpa perlu berhenti membuka kaca.
+                      Maksimal 2 mobil dan 3 motor terdaftar per unit hunian. Kendaraan terverifikasi akan otomatis membuka
+                      palang pintu gerbang utama tanpa perlu tapping manual.
                     </p>
                   </div>
                 </div>
@@ -1483,55 +1965,58 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div className="space-y-4 animate-in fade-in duration-100">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-ink">Izin Renovasi & Pekerja Bangunan</h4>
-                      <p className="text-[10px] text-ink-muted">Wajib diajukan sebelum memulai aktivitas tukang</p>
+                      <h4 className="text-xs font-bold text-ink uppercase tracking-wide">Surat Izin Kerja (SIK) & Tukang</h4>
+                      <p className="text-[10px] text-ink-muted">Wajib diajukan sebelum memulai renovasi atau mendatangkan pekerja</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowAddPermitModal(true)}
-                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 active:scale-[0.98] transition-all"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Ajukan Izin
+                      <span>Ajukan Izin</span>
                     </button>
                   </div>
 
                   <div className="space-y-3">
                     {permits.map((p) => (
-                      <div key={p.id} className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-2.5">
+                      <div key={p.id} className="p-4 rounded-2xl bg-surface border border-border shadow-2xs space-y-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="font-mono text-xs font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-200">
+                          <span className="font-mono text-xs font-bold text-primary-800 bg-primary-50 px-2 py-0.5 rounded border border-primary-200">
                             {p.id}
                           </span>
-                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-md border border-emerald-200">
-                            DISETUJUI / AKTIF
+                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded border border-emerald-200">
+                            {p.status || 'DISETUJUI'}
                           </span>
                         </div>
                         <div>
                           <h5 className="text-sm font-bold text-ink">{p.workType}</h5>
-                          <p className="text-xs text-ink-muted mt-0.5">{p.description}</p>
+                          <p className="text-xs text-ink-muted mt-0.5 leading-relaxed">{p.description}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border text-[11px]">
                           <div>
-                            <span className="text-ink-muted">Mandor / Pelaksana:</span>
+                            <span className="text-ink-muted">Mandor Pelaksana:</span>
                             <p className="font-semibold text-ink">{p.contractorName}</p>
                           </div>
                           <div>
                             <span className="text-ink-muted">Masa Pengerjaan:</span>
-                            <p className="font-semibold text-ink">{p.startDate} s/d {p.endDate} ({p.workersCount} Tukang)</p>
+                            <p className="font-semibold text-ink">
+                              {p.startDate} s/d {p.endDate} ({p.workersCount} Tukang)
+                            </p>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
-                    <p className="font-bold flex items-center gap-1.5 text-slate-900">
-                      <Hammer className="w-4 h-4 text-slate-700" />
-                      Aturan Jam Kerja Renovasi
+                  <div className="p-3.5 rounded-2xl bg-canvas border border-border text-xs text-ink-muted space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-ink">
+                      <Hammer className="w-4 h-4 text-primary-700" />
+                      Aturan Jam Kerja Renovasi Bising Lingkungan
                     </p>
-                    <p className="text-[11px] text-slate-600">
-                      Senin – Sabtu: 08:00 – 17:00 WIB. Hari Minggu dan Libur Nasional dilarang melakukan pekerjaan yang menimbulkan kebisingan.
+                    <p className="text-[11px] leading-relaxed">
+                      Senin – Sabtu: 08:00 – 17:00 WIB. Hari Minggu dan Libur Nasional dilarang melakukan aktivitas konstruksi
+                      yang menimbulkan kebisingan demi kenyamanan tetangga.
                     </p>
                   </div>
                 </div>
@@ -1541,22 +2026,46 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               {rumahSubTab === 'pass' && (
                 <div className="space-y-4 animate-in fade-in duration-100">
                   <div className="p-6 rounded-3xl bg-surface border border-border shadow-card text-center space-y-4">
-                    <div className="inline-block p-3 rounded-2xl bg-primary-50 border border-primary-200 text-primary-700">
-                      <QrCode className="w-32 h-32 mx-auto" />
+                    <div className="inline-block p-4 rounded-2xl bg-canvas border border-border shadow-inner text-primary-800">
+                      <QrCode className="w-36 h-36 mx-auto" />
                     </div>
                     <div>
                       <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-md border border-emerald-200">
-                        STATUS: TERVERIFIKASI
+                        STATUS: TERVERIFIKASI AKTIF
                       </span>
-                      <h3 className="text-xl font-black text-ink mt-2">Rumah {currentUser?.propertyCode || 'A-17'}</h3>
+                      <h3 className="text-2xl font-black text-ink mt-2">Rumah {currentUser?.propertyCode || 'A-17'}</h3>
                       <p className="text-xs text-ink-muted">Komplek Taman Sejahtera • RT 02 / RW 05</p>
-                      <p className="text-[11px] font-mono text-ink-muted mt-1">ID: PROP-A17-2026-BCA88</p>
+                      <p className="text-[11px] font-mono text-ink-muted mt-1">ID PAS: PROP-A17-2026-BCA88</p>
+                    </div>
+
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`WARGAHUB-PASS: Rumah ${currentUser?.propertyCode || 'A-17'} - Komplek Taman Sejahtera RT 02/RW 05`);
+                          setCopiedPass(true);
+                          setTimeout(() => setCopiedPass(false), 2000);
+                        }}
+                        className="px-4 py-2 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink transition-all active:scale-95 shadow-2xs flex items-center gap-1.5"
+                      >
+                        {copiedPass ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Tersalin!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-ink-muted" />
+                            <span>Salin Teks Pas</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     <div className="p-3 rounded-xl bg-canvas border border-border text-xs text-left space-y-1.5">
-                      <p className="font-bold text-ink">Kegunaan Pas Digital:</p>
-                      <p className="text-[11px] text-ink-muted">1. Tunjukkan ke satpam pos gerbang saat verifikasi tamu keluarga.</p>
-                      <p className="text-[11px] text-ink-muted">2. Konfirmasi penerimaan paket kiriman logistik/kurir.</p>
+                      <p className="font-bold text-ink">Kegunaan Pas Digital Tamu:</p>
+                      <p className="text-[11px] text-ink-muted">1. Tunjukkan ke satpam pos gerbang saat verifikasi tamu keluarga atau kurir logistik.</p>
+                      <p className="text-[11px] text-ink-muted">2. Konfirmasi pengambilan paket kiriman pos satpam.</p>
                     </div>
                   </div>
                 </div>
@@ -1564,76 +2073,82 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
             </div>
           )}
 
-          {/* ================= TAB 5: AKUN ================= */}
+          {/* ========================================================================= */}
+          {/* TAB 5: AKUN & DIREKTORI PENGURUS                                          */}
+          {/* ========================================================================= */}
           {activeTab === 'akun' && (
-            <div className="p-5 space-y-5 flex-1 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between pt-2">
-                <h2 className="font-bold text-base text-ink">Profil & Layanan Pengurus</h2>
-                <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 font-bold px-2 py-0.5 rounded-full">
+            <div className="p-4 sm:p-6 space-y-5 flex-1 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-extrabold text-lg text-ink">Profil & Layanan Pengurus</h2>
+                  <p className="text-[11px] text-ink-muted">Pengaturan akun, susunan kontak pengurus RT/RW & dokumen</p>
+                </div>
+                <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 font-bold px-2 py-0.5 rounded-full">
                   Akun Warga Terdaftar
                 </span>
               </div>
 
               {/* User Profile Card */}
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-white font-black text-lg flex items-center justify-center border-2 border-primary-200 uppercase tracking-wider shrink-0 shadow-sm">
+              <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-xs flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-primary-600 text-surface font-black text-xl flex items-center justify-center border border-primary-400 uppercase tracking-wider shrink-0 shadow-2xs">
                   {getInitials(currentUser?.fullName || currentUser?.name)}
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-ink">{currentUser?.fullName || currentUser?.name || 'Warga Komplek'}</h3>
                   <p className="text-xs text-ink-muted">{currentUser?.email || 'warga@wargahub.id'}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="px-2 py-0.5 bg-primary-100 text-primary-800 text-[10px] font-bold rounded">
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className="px-2 py-0.5 bg-primary-50 text-primary-800 text-[10px] font-bold rounded border border-primary-200">
                       Rumah {currentUser?.propertyCode || 'A-17'}
                     </span>
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded border border-emerald-200">
                       Kepala Keluarga
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Susunan Pengurus & Kontak Hotline */}
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-3">
+              {/* Susunan Pengurus & Kontak Penting */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-border/80 pb-2">
-                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5 uppercase tracking-wide">
                     <PhoneCall className="w-4 h-4 text-emerald-600" />
                     Susunan Pengurus & Kontak Penting
                   </h4>
-                  <span className="text-[10px] text-ink-muted">Komplek Taman Sejahtera</span>
+                  <span className="text-[10px] text-ink-muted">Taman Sejahtera</span>
                 </div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="p-2.5 bg-canvas rounded-xl flex items-center justify-between">
+                  <div className="p-3 bg-canvas rounded-xl flex items-center justify-between border border-border/70">
                     <div>
                       <span className="text-[10px] text-ink-muted font-bold block">Ketua RW 05 / RT 02</span>
                       <p className="font-bold text-ink">{rwHeadName}</p>
-                      <span className="text-[10px] text-ink-muted">{rwHeadPhone}</span>
+                      <span className="text-[10px] text-ink-muted font-mono">{rwHeadPhone}</span>
                     </div>
                     <a
                       href={`https://wa.me/${rwHeadPhone.replace(/[^0-9]/g, '')}`}
                       target="_blank"
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10px] transition-colors"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-surface rounded-xl font-bold text-[10px] shadow-2xs active:scale-95 transition-all"
                     >
                       WhatsApp
                     </a>
                   </div>
 
-                  <div className="p-2.5 bg-canvas rounded-xl flex items-center justify-between">
+                  <div className="p-3 bg-canvas rounded-xl flex items-center justify-between border border-border/70">
                     <div>
                       <span className="text-[10px] text-ink-muted font-bold block">Pos Satpam 24 Jam (Gerbang 1)</span>
                       <p className="font-bold text-ink">Regu Jaga Satpam Utama</p>
-                      <span className="text-[10px] text-ink-muted">{securityPhone}</span>
+                      <span className="text-[10px] text-ink-muted font-mono">{securityPhone}</span>
                     </div>
                     <a
                       href={`tel:${securityPhone.replace(/[^0-9]/g, '')}`}
-                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[10px] transition-colors"
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-surface rounded-xl font-bold text-[10px] shadow-2xs active:scale-95 transition-all"
                     >
                       Telepon
                     </a>
                   </div>
 
-                  <div className="p-2.5 bg-canvas rounded-xl flex items-center justify-between">
+                  <div className="p-3 bg-canvas rounded-xl flex items-center justify-between border border-border/70">
                     <div>
                       <span className="text-[10px] text-ink-muted font-bold block">Koordinator Kebersihan & Viar Tossa</span>
                       <p className="font-bold text-ink">Bpk. Sugeng (Tim TPS3R)</p>
@@ -1642,7 +2157,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     <a
                       href="https://wa.me/6281277778888"
                       target="_blank"
-                      className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-[10px] transition-colors"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-surface rounded-xl font-bold text-[10px] shadow-2xs active:scale-95 transition-all"
                     >
                       WhatsApp
                     </a>
@@ -1651,25 +2167,27 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               </div>
 
               {/* Dokumen Resmi Lingkungan */}
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-card space-y-3">
+              <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-border/80 pb-2">
-                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-ink flex items-center gap-1.5 uppercase tracking-wide">
                     <FileText className="w-4 h-4 text-primary-600" />
                     Arsip & Dokumen Resmi Lingkungan
                   </h4>
-                  <span className="text-[10px] text-primary-700 font-bold">3 Dokumen</span>
+                  <span className="text-[10px] text-primary-800 font-bold">3 Dokumen</span>
                 </div>
 
                 <div className="space-y-2">
                   {[
-                    { title: 'Tata Tertib Komplek & Parkir 2026', size: '1.2 MB', cat: 'TATA TERTIB' },
+                    { title: 'Tata Tertib Komplek & Parkir Warga 2026', size: '1.2 MB', cat: 'TATA TERTIB' },
                     { title: 'Surat Edaran Jadwal Ronda & Iuran IPL', size: '450 KB', cat: 'SURAT EDARAN' },
                     { title: 'Laporan Keuangan Kas Semester 1 2026', size: '3.4 MB', cat: 'LAPORAN' },
                   ].map((doc, idx) => (
-                    <div key={idx} className="p-2.5 bg-canvas rounded-xl flex items-center justify-between gap-2">
+                    <div key={idx} className="p-3 bg-canvas rounded-xl flex items-center justify-between gap-2 border border-border/70">
                       <div>
                         <p className="text-xs font-bold text-ink">{doc.title}</p>
-                        <span className="text-[10px] text-ink-muted">{doc.cat} • {doc.size}</span>
+                        <span className="text-[10px] text-ink-muted">
+                          {doc.cat} • {doc.size}
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -1685,8 +2203,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                           document.body.removeChild(a);
                           URL.revokeObjectURL(url);
                         }}
-                        className="p-1.5 bg-surface hover:bg-primary-50 text-primary-700 rounded-lg border border-border"
-                        title="Unduh Berkas"
+                        className="p-2 bg-surface hover:bg-primary-50 text-primary-700 rounded-xl border border-border active:scale-95 transition-all shadow-2xs"
+                        title="Unduh Dokumen"
                       >
                         <Download className="w-3.5 h-3.5" />
                       </button>
@@ -1695,29 +2213,29 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 </div>
               </div>
 
-              {/* Tautan Tambahan */}
+              {/* Tautan Cepat & Logout */}
               <div className="space-y-2">
                 {isAdminUser && (
                   <a
                     href="/admin"
-                    className="w-full py-2.5 px-4 bg-primary-50 hover:bg-primary-100 border border-primary-200 text-primary-800 font-bold text-xs rounded-xl flex items-center justify-between transition-colors"
+                    className="w-full py-2.5 px-4 bg-primary-50 hover:bg-primary-100 border border-primary-200 text-primary-900 font-bold text-xs rounded-xl flex items-center justify-between transition-all active:scale-[0.98]"
                   >
                     <span>Buka Dashboard Pengurus Komplek</span>
-                    <ChevronRight className="w-4 h-4 text-primary-600" />
+                    <ChevronRight className="w-4 h-4 text-primary-700" />
                   </a>
                 )}
                 <a
                   href="/rekap-iuran"
-                  className="w-full py-2.5 px-4 bg-surface hover:bg-canvas border border-border text-ink font-semibold text-xs rounded-xl flex items-center justify-between transition-colors"
+                  className="w-full py-2.5 px-4 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl flex items-center justify-between transition-all active:scale-[0.98]"
                 >
                   <span>Rekapitulasi Iuran Warga (Bulan Aktif)</span>
                   <ChevronRight className="w-4 h-4 text-ink-muted" />
                 </a>
                 <a
                   href="/transparency"
-                  className="w-full py-2.5 px-4 bg-surface hover:bg-canvas border border-border text-ink font-semibold text-xs rounded-xl flex items-center justify-between transition-colors"
+                  className="w-full py-2.5 px-4 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl flex items-center justify-between transition-all active:scale-[0.98]"
                 >
-                  <span>Buka Laporan Transparansi Kas Paguyuban</span>
+                  <span>Laporan Transparansi Kas Paguyuban</span>
                   <ChevronRight className="w-4 h-4 text-ink-muted" />
                 </a>
                 <button
@@ -1726,22 +2244,27 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     await fetch('/api/auth/logout', { method: 'POST' });
                     window.location.href = '/';
                   }}
-                  className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-semibold text-xs rounded-xl flex items-center justify-between transition-colors mt-2"
+                  className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl flex items-center justify-between transition-all active:scale-[0.98] mt-2"
                 >
                   <span>Keluar dari Akun (Logout)</span>
-                  <ChevronRight className="w-4 h-4 text-red-500" />
+                  <ChevronRight className="w-4 h-4 text-rose-600" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* ================= BOTTOM NAVIGATION BAR ================= */}
+          {/* ========================================================================= */}
+          {/* BOTTOM APPLICATION NAVIGATION BAR (Ergonomic, Tactile Touch)              */}
+          {/* ========================================================================= */}
           <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface/95 backdrop-blur-md border-t border-border shadow-lg">
             <div className="max-w-2xl mx-auto h-16 flex items-center justify-around px-2 select-none">
               <button
+                type="button"
                 onClick={() => setActiveTab('beranda')}
-                className={`flex flex-col items-center gap-1 transition-colors ${
-                  activeTab === 'beranda' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
+                  activeTab === 'beranda'
+                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 <Home className="w-5 h-5" />
@@ -1749,9 +2272,12 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab('iuran')}
-                className={`flex flex-col items-center gap-1 transition-colors ${
-                  activeTab === 'iuran' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
+                  activeTab === 'iuran'
+                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 <Receipt className="w-5 h-5" />
@@ -1759,9 +2285,12 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab('info')}
-                className={`flex flex-col items-center gap-1 transition-colors ${
-                  activeTab === 'info' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
+                  activeTab === 'info'
+                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 <Megaphone className="w-5 h-5" />
@@ -1769,19 +2298,25 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab('rumah')}
-                className={`flex flex-col items-center gap-1 transition-colors ${
-                  activeTab === 'rumah' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
+                  activeTab === 'rumah'
+                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
-                <Home className="w-5 h-5" />
+                <Building2 className="w-5 h-5" />
                 <span className="text-[10px]">Rumah</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab('akun')}
-                className={`flex flex-col items-center gap-1 transition-colors ${
-                  activeTab === 'akun' ? 'text-primary-600 font-bold' : 'text-ink-muted hover:text-ink'
+                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
+                  activeTab === 'akun'
+                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 <User className="w-5 h-5" />
@@ -1792,13 +2327,26 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       </main>
 
-      {/* Payment Confirmation Modal */}
+      {/* ========================================================================= */}
+      {/* ALL MODAL DIALOGS (Zero Truncation, Tactile Feedback)                     */}
+      {/* ========================================================================= */}
+
+      {/* 1. Payment Confirmation Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-2xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-ink">Konfirmasi Pembayaran Iuran</h3>
-              <button onClick={() => setShowPaymentModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <div>
+                <h3 className="font-bold text-sm text-ink">Konfirmasi Pembayaran Iuran</h3>
+                <p className="text-[11px] text-ink-muted">Unggah bukti transfer untuk verifikasi kasir RT</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="p-1 hover:bg-canvas rounded-full text-ink-muted hover:text-ink active:scale-95 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {paymentSuccess ? (
@@ -1807,41 +2355,42 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <Check className="w-6 h-6 stroke-[3]" />
                 </div>
                 <p className="font-bold text-sm text-ink">Bukti Pembayaran Terkirim!</p>
-                <p className="text-xs text-ink-muted">Bendahara akan segera memverifikasi transaksi Anda.</p>
+                <p className="text-xs text-ink-muted">Bendahara paguyuban akan memverifikasi transaksi Anda.</p>
               </div>
             ) : (
               <form onSubmit={handleConfirmPayment} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Rumah / Unit</label>
+                  <label className="font-bold text-ink block mb-1">Rumah / Unit Hunian</label>
                   <input
                     type="text"
                     disabled
-                    value={`Rumah ${currentUser?.propertyCode || 'A-17'}`}
+                    value={`Rumah ${currentUser?.propertyCode || 'A-17'} (${currentUser?.fullName || 'Warga'})`}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Jumlah Pembayaran</label>
+                  <label className="font-bold text-ink block mb-1">Jumlah Pembayaran</label>
                   <input
                     type="text"
                     disabled
-                    value="Rp 750.000"
+                    value={formatRupiah(monthlyFeeRate)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink tabular-nums"
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Metode Transfer</label>
-                  <select className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-medium">
-                    <option>BCA Virtual Account / Transfer</option>
-                    <option>Mandiri Transfer</option>
-                    <option>QRIS WargaHub</option>
+                  <label className="font-bold text-ink block mb-1">Metode Transfer</label>
+                  <select className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-semibold focus:ring-2 focus:ring-primary-500/20">
+                    <option>BCA Virtual Account / Transfer (8830-1928-33)</option>
+                    <option>Mandiri Transfer Kas Paguyuban</option>
+                    <option>QRIS Dinamis WargaHub</option>
                   </select>
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Unggah Bukti Transfer</label>
-                  <div className="p-4 border-2 border-dashed border-border hover:border-primary-500 rounded-xl text-center cursor-pointer bg-canvas/40">
+                  <label className="font-bold text-ink block mb-1">Unggah Struk / Bukti Transfer</label>
+                  <div className="p-4 border-2 border-dashed border-border hover:border-primary-500 rounded-xl text-center cursor-pointer bg-canvas/40 transition-colors">
                     <Upload className="w-5 h-5 text-ink-muted mx-auto mb-1" />
-                    <span className="text-[11px] text-ink-muted">Klik untuk pilih gambar bukti transfer</span>
+                    <span className="text-[11px] text-ink-muted block">Klik untuk memilih foto bukti transfer</span>
+                    <span className="text-[10px] text-primary-700 font-semibold mt-1 block">JPG, PNG atau PDF maks. 5MB</span>
                   </div>
                 </div>
 
@@ -1849,13 +2398,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(false)}
-                    className="flex-1 py-2 rounded-xl border border-border text-ink font-semibold"
+                    className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-95 transition-all"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-semibold shadow-xs"
+                    className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                   >
                     Kirim Bukti
                   </button>
@@ -1866,13 +2415,22 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       )}
 
-      {/* Complaint Modal */}
+      {/* 2. Complaint Modal */}
       {showComplaintModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-2xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-ink">Laporkan Aduan / Masalah Warga</h3>
-              <button onClick={() => setShowComplaintModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <div>
+                <h3 className="font-bold text-sm text-ink">Laporkan Aduan / Masalah Warga</h3>
+                <p className="text-[11px] text-ink-muted">Sampaikan kendala fasilitas atau ketertiban</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowComplaintModal(false)}
+                className="p-1 hover:bg-canvas rounded-full text-ink-muted hover:text-ink active:scale-95 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {compSuccess ? (
@@ -1881,56 +2439,56 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <Check className="w-6 h-6 stroke-[3]" />
                 </div>
                 <p className="font-bold text-sm text-ink">Laporan Berhasil Diajukan!</p>
-                <p className="text-xs text-ink-muted">Pengurus komplek & satpam akan segera menindaklanjuti.</p>
+                <p className="text-xs text-ink-muted">Petugas dan pengurus komplek akan segera menindaklanjuti.</p>
               </div>
             ) : (
               <form onSubmit={handleCreateComplaint} className="space-y-3 text-xs">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Kategori Masalah</label>
+                  <label className="font-bold text-ink block mb-1">Kategori Masalah</label>
                   <select
                     value={compCategory}
                     onChange={(e) => setCompCategory(e.target.value)}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl font-medium text-ink"
+                    className="w-full p-2.5 bg-surface border border-border rounded-xl font-semibold text-ink"
                   >
-                    <option value="FASILITAS">Fasilitas Umum & PJU</option>
-                    <option value="KEBERSIHAN">Kebersihan & Sampah</option>
-                    <option value="KETERTIBAN">Ketertiban & Kebisingan</option>
-                    <option value="KEAMANAN">Keamanan & Parkir Liar</option>
+                    <option value="FASILITAS">Fasilitas Umum & Lampu PJU</option>
+                    <option value="KEBERSIHAN">Kebersihan & Viar Tossa</option>
+                    <option value="KETERTIBAN">Ketertiban Lingkungan & Hewan Peliharaan</option>
+                    <option value="KEAMANAN">Keamanan & Parkir Sembarangan</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Judul Laporan</label>
+                  <label className="font-bold text-ink block mb-1">Judul Ringkas Aduan</label>
                   <input
                     type="text"
                     placeholder="Contoh: Lampu jalan di depan rumah mati"
                     value={compTitle}
                     onChange={(e) => setCompTitle(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Lokasi Kejadian</label>
+                  <label className="font-bold text-ink block mb-1">Lokasi Kejadian</label>
                   <input
                     type="text"
-                    placeholder="Contoh: Depan Rumah A-17"
+                    placeholder={`Contoh: Depan Rumah ${currentUser?.propertyCode || 'A-17'}`}
                     value={compLocation}
                     onChange={(e) => setCompLocation(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Deskripsi Detail</label>
+                  <label className="font-bold text-ink block mb-1">Deskripsi Detail</label>
                   <textarea
                     rows={3}
-                    placeholder="Jelaskan kendala yang dialami secara singkat..."
+                    placeholder="Jelaskan kondisi atau kendala yang dialami secara singkat..."
                     value={compDesc}
                     onChange={(e) => setCompDesc(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
 
@@ -1938,13 +2496,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowComplaintModal(false)}
-                    className="flex-1 py-2 rounded-xl border border-border text-ink font-semibold"
+                    className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-95 transition-all"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-semibold shadow-xs"
+                    className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                   >
                     Kirim Aduan
                   </button>
@@ -1955,74 +2513,83 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       )}
 
-      {/* Vehicle Registration Modal */}
+      {/* 3. Vehicle Registration Modal */}
       {showVehicleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-2xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-ink">Daftarkan Kendaraan Baru</h3>
-              <button onClick={() => setShowVehicleModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <div>
+                <h3 className="font-bold text-sm text-ink">Daftarkan Kendaraan Baru</h3>
+                <p className="text-[11px] text-ink-muted">Akses barrier gate RFID pos satpam otomatis</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowVehicleModal(false)}
+                className="p-1 hover:bg-canvas rounded-full text-ink-muted hover:text-ink active:scale-95 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <form onSubmit={handleCreateVehicle} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Jenis</label>
+                  <label className="font-bold text-ink block mb-1">Jenis Kendaraan</label>
                   <select
                     value={vehType}
                     onChange={(e) => setVehType(e.target.value)}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl font-medium text-ink"
+                    className="w-full p-2.5 bg-surface border border-border rounded-xl font-semibold text-ink"
                   >
                     <option value="Mobil">Mobil</option>
                     <option value="Motor">Motor</option>
                   </select>
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Nomor Polisi (Plat)</label>
+                  <label className="font-bold text-ink block mb-1">Nomor Polisi (Plat)</label>
                   <input
                     type="text"
                     placeholder="B 1234 XYZ"
                     value={vehPlate}
                     onChange={(e) => setVehPlate(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono uppercase text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono uppercase font-bold text-ink"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Merk</label>
+                  <label className="font-bold text-ink block mb-1">Merk Pabrikan</label>
                   <input
                     type="text"
                     placeholder="Toyota / Honda"
                     value={vehBrand}
                     onChange={(e) => setVehBrand(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Model / Tipe</label>
+                  <label className="font-bold text-ink block mb-1">Model / Varian</label>
                   <input
                     type="text"
                     placeholder="Innova / PCX"
                     value={vehModel}
                     onChange={(e) => setVehModel(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-semibold text-ink block mb-1">Warna Kendaraan</label>
+                <label className="font-bold text-ink block mb-1">Warna Kendaraan</label>
                 <input
                   type="text"
                   placeholder="Hitam Metalik / Putih"
                   value={vehColor}
                   onChange={(e) => setVehColor(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                 />
               </div>
 
@@ -2030,13 +2597,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowVehicleModal(false)}
-                  className="flex-1 py-2 rounded-xl border border-border text-ink font-semibold"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-95 transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-semibold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
                   Simpan Kendaraan
                 </button>
@@ -2046,13 +2613,22 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       )}
 
-      {/* Facility Booking Modal */}
+      {/* 4. Facility Booking Modal */}
       {showFacilityModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-2xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-ink">Pesan / Sewa Fasilitas Warga</h3>
-              <button onClick={() => setShowFacilityModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <div>
+                <h3 className="font-bold text-sm text-ink">Pesan / Sewa Fasilitas Warga</h3>
+                <p className="text-[11px] text-ink-muted">Balai pertemuan, lapangan & sarana bersama</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFacilityModal(false)}
+                className="p-1 hover:bg-canvas rounded-full text-ink-muted hover:text-ink active:scale-95 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {facSuccess ? (
@@ -2061,74 +2637,75 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <Check className="w-6 h-6 stroke-[3]" />
                 </div>
                 <p className="font-bold text-sm text-ink">Permohonan Terkirim!</p>
-                <p className="text-xs text-ink-muted">Pengurus komplek akan segera memverifikasi ketersediaan jadwal sarana.</p>
+                <p className="text-xs text-ink-muted">Pengurus fasum akan segera memverifikasi ketersediaan jadwal sarana.</p>
               </div>
             ) : (
               <form onSubmit={handleBookFacility} className="space-y-3 text-xs">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Pilih Sarana / Fasilitas</label>
+                  <label className="font-bold text-ink block mb-1">Pilih Sarana / Fasilitas</label>
                   <select
                     value={facId}
                     onChange={(e) => {
                       setFacId(e.target.value);
                       setFacName(e.target.options[e.target.selectedIndex].text);
                     }}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl font-medium text-ink"
+                    className="w-full p-2.5 bg-surface border border-border rounded-xl font-semibold text-ink"
                   >
                     <option value="fac-balai">Balai Warga Serbaguna</option>
-                    <option value="fac-lapangan">Lapangan Olahraga & Futsal</option>
+                    <option value="fac-tennis">Lapangan Tenis & Badminton</option>
+                    <option value="fac-pool">Kolam Renang Anak Komplek</option>
                     <option value="fac-taman">Taman & Area Bermain Blok A</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Tanggal Pemakaian</label>
+                  <label className="font-bold text-ink block mb-1">Tanggal Pemakaian</label>
                   <input
                     type="date"
                     value={facDate}
                     onChange={(e) => setFacDate(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="font-semibold text-ink block mb-1">Jam Mulai</label>
+                    <label className="font-bold text-ink block mb-1">Jam Mulai</label>
                     <input
                       type="time"
                       value={facStart}
                       onChange={(e) => setFacStart(e.target.value)}
                       required
-                      className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                      className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-ink block mb-1">Jam Selesai</label>
+                    <label className="font-bold text-ink block mb-1">Jam Selesai</label>
                     <input
                       type="time"
                       value={facEnd}
                       onChange={(e) => setFacEnd(e.target.value)}
                       required
-                      className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                      className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Keperluan / Nama Acara</label>
+                  <label className="font-bold text-ink block mb-1">Keperluan / Acara</label>
                   <textarea
                     rows={2}
-                    placeholder="Contoh: Arisan warga RT 02 / Latihan bulutangkis keluarga..."
+                    placeholder="Contoh: Arisan keluarga warga RT 02 / Latihan bulutangkis..."
                     value={facPurpose}
                     onChange={(e) => setFacPurpose(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">No. WhatsApp Pemohon</label>
+                  <label className="font-bold text-ink block mb-1">No. WhatsApp Pemohon</label>
                   <input
                     type="tel"
                     value={facPhone}
@@ -2141,13 +2718,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowFacilityModal(false)}
-                    className="flex-1 py-2 rounded-xl border border-border text-ink font-semibold"
+                    className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-95 transition-all"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-semibold shadow-xs"
+                    className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                   >
                     Ajukan Sewa
                   </button>
@@ -2158,35 +2735,44 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       )}
 
-      {/* Add Occupant Modal */}
+      {/* 5. Add Occupant Modal */}
       {showAddOccupantModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-2xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-ink">Tambah Anggota Keluarga / Penghuni</h3>
-              <button onClick={() => setShowAddOccupantModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <div>
+                <h3 className="font-bold text-sm text-ink">Tambah Anggota Keluarga / Penghuni</h3>
+                <p className="text-[11px] text-ink-muted">Daftarkan ke database RT 02 / RW 05</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddOccupantModal(false)}
+                className="p-1 hover:bg-canvas rounded-full text-ink-muted hover:text-ink active:scale-95 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <form onSubmit={handleAddOccupant} className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-ink block mb-1">Nama Lengkap Sesuai KTP</label>
+                <label className="font-bold text-ink block mb-1">Nama Lengkap Sesuai KTP</label>
                 <input
                   type="text"
                   placeholder="Contoh: Rian Santoso"
                   value={newOccName}
                   onChange={(e) => setNewOccName(e.target.value)}
                   required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Hubungan Keluarga</label>
+                  <label className="font-bold text-ink block mb-1">Hubungan Keluarga</label>
                   <select
                     value={newOccRelation}
                     onChange={(e) => setNewOccRelation(e.target.value)}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-medium"
+                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-semibold"
                   >
                     <option value="ANAK">Anak</option>
                     <option value="ISTRI">Istri</option>
@@ -2196,7 +2782,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Nomor WhatsApp / HP</label>
+                  <label className="font-bold text-ink block mb-1">Nomor WhatsApp / HP</label>
                   <input
                     type="text"
                     placeholder="0812-xxxx-xxxx"
@@ -2208,10 +2794,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               </div>
 
               <div>
-                <label className="font-semibold text-ink block mb-1">Nomor Induk Kependudukan (NIK)</label>
+                <label className="font-bold text-ink block mb-1">Nomor Induk Kependudukan (NIK)</label>
                 <input
                   type="text"
-                  placeholder="16 Digit NIK"
+                  placeholder="16 Digit NIK KTP"
                   value={newOccIdCard}
                   onChange={(e) => setNewOccIdCard(e.target.value)}
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
@@ -2226,7 +2812,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   onChange={(e) => setNewOccEmergency(e.target.checked)}
                   className="rounded border-border text-primary-600 focus:ring-primary-500"
                 />
-                <label htmlFor="occEmergency" className="text-xs text-ink font-medium cursor-pointer">
+                <label htmlFor="occEmergency" className="text-xs text-ink font-semibold cursor-pointer">
                   Jadikan Kontak Darurat Sekunder Rumah
                 </label>
               </div>
@@ -2235,13 +2821,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddOccupantModal(false)}
-                  className="flex-1 py-2 rounded-xl border border-border text-ink font-semibold"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-95 transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-semibold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
                   Simpan Penghuni
                 </button>
@@ -2251,13 +2837,22 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       )}
 
-      {/* Add Permit Modal */}
+      {/* 6. Add Permit (SIK Renovasi) Modal */}
       {showAddPermitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-2xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-ink">Pengajuan Izin Renovasi / Pekerja</h3>
-              <button onClick={() => setShowAddPermitModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <div>
+                <h3 className="font-bold text-sm text-ink">Pengajuan Izin Renovasi / Pekerja (SIK)</h3>
+                <p className="text-[11px] text-ink-muted">Pemberitahuan kepada satpam dan pengurus RT</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddPermitModal(false)}
+                className="p-1 hover:bg-canvas rounded-full text-ink-muted hover:text-ink active:scale-95 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {permitSuccess ? (
@@ -2271,35 +2866,35 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
             ) : (
               <form onSubmit={handleAddPermit} className="space-y-3 text-xs">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Jenis Pekerjaan</label>
+                  <label className="font-bold text-ink block mb-1">Jenis Pekerjaan</label>
                   <select
                     value={permitWorkType}
                     onChange={(e) => setPermitWorkType(e.target.value)}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-medium"
+                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-semibold"
                   >
-                    <option value="Pengecatan & Kanopi">Pengecatan & Kanopi</option>
-                    <option value="Renovasi Interior">Renovasi Interior / Plafon</option>
+                    <option value="Pengecatan & Kanopi">Pengecatan & Kanopi Depan</option>
+                    <option value="Renovasi Interior">Renovasi Interior & Plafon</option>
                     <option value="Perbaikan Atap / Genteng">Perbaikan Atap & Talang Air</option>
                     <option value="Instalasi Listrik / AC">Instalasi Listrik & Pipa AC</option>
-                    <option value="Pekerjaan Taman">Pekerjaan Taman / Lansekap</option>
+                    <option value="Pekerjaan Taman">Pekerjaan Taman & Paving</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Nama Mandor / Penanggung Jawab</label>
+                  <label className="font-bold text-ink block mb-1">Nama Mandor / Penanggung Jawab</label>
                   <input
                     type="text"
-                    placeholder="Contoh: Bpk. Sugeng (CV Berkah)"
+                    placeholder="Contoh: Bpk. Sugeng (CV Berkah Abadi)"
                     value={permitContractor}
                     onChange={(e) => setPermitContractor(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="font-semibold text-ink block mb-1">Jml Tukang</label>
+                    <label className="font-bold text-ink block mb-1">Jml Tukang</label>
                     <input
                       type="number"
                       min="1"
@@ -2310,7 +2905,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-ink block mb-1">Mulai</label>
+                    <label className="font-bold text-ink block mb-1">Mulai</label>
                     <input
                       type="date"
                       value={permitStart}
@@ -2319,7 +2914,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-ink block mb-1">Selesai</label>
+                    <label className="font-bold text-ink block mb-1">Selesai</label>
                     <input
                       type="date"
                       value={permitEnd}
@@ -2330,14 +2925,14 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Deskripsi Ringkas Pekerjaan</label>
+                  <label className="font-bold text-ink block mb-1">Deskripsi Ringkas Pekerjaan</label>
                   <textarea
                     rows={2}
                     placeholder="Rincian bagian yang direnovasi..."
                     value={permitDesc}
                     onChange={(e) => setPermitDesc(e.target.value)}
                     required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
                   />
                 </div>
 
@@ -2345,15 +2940,15 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowAddPermitModal(false)}
-                    className="flex-1 py-2 rounded-xl border border-border text-ink font-semibold"
+                    className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-95 transition-all"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-semibold shadow-xs"
+                    className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                   >
-                    Terbitkan Izin
+                    Terbitkan Izin SIK
                   </button>
                 </div>
               </form>
@@ -2362,32 +2957,41 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       )}
 
-      {/* Edit Property Specs Modal */}
+      {/* 7. Edit Property Specs Modal */}
       {showEditSpecsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-2xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-ink">Perbarui Data Teknis Rumah</h3>
-              <button onClick={() => setShowEditSpecsModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <div>
+                <h3 className="font-bold text-sm text-ink">Perbarui Data Teknis Rumah</h3>
+                <p className="text-[11px] text-ink-muted">Kapasitas listrik, meter PAM dan tipe hunian</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditSpecsModal(false)}
+                className="p-1 hover:bg-canvas rounded-full text-ink-muted hover:text-ink active:scale-95 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <form onSubmit={handleUpdateSpecs} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Tipe Bangunan</label>
+                  <label className="font-bold text-ink block mb-1">Tipe Bangunan</label>
                   <input
                     type="text"
                     value={buildingType}
                     onChange={(e) => setBuildingType(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-semibold"
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Status Hunian</label>
+                  <label className="font-bold text-ink block mb-1">Status Hunian</label>
                   <select
                     value={occupancyStatus}
                     onChange={(e) => setOccupancyStatus(e.target.value)}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-medium"
+                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-semibold"
                   >
                     <option value="Dihuni Pemilik">Dihuni Pemilik</option>
                     <option value="Disewa / Kontrak">Disewa / Kontrak</option>
@@ -2398,7 +3002,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Luas Tanah (m²)</label>
+                  <label className="font-bold text-ink block mb-1">Luas Tanah (m²)</label>
                   <input
                     type="number"
                     value={landArea}
@@ -2407,7 +3011,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Luas Bangunan (m²)</label>
+                  <label className="font-bold text-ink block mb-1">Luas Bangunan (m²)</label>
                   <input
                     type="number"
                     value={buildingArea}
@@ -2419,11 +3023,11 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold text-ink block mb-1">Daya Listrik PLN</label>
+                  <label className="font-bold text-ink block mb-1">Daya Listrik PLN</label>
                   <select
                     value={plnCapacity}
                     onChange={(e) => setPlnCapacity(e.target.value)}
-                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-medium"
+                    className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-semibold"
                   >
                     <option value="1.300 VA">1.300 VA</option>
                     <option value="2.200 VA">2.200 VA</option>
@@ -2433,7 +3037,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="font-semibold text-ink block mb-1">No. Meteran PAM</label>
+                  <label className="font-bold text-ink block mb-1">No. Meteran PAM</label>
                   <input
                     type="text"
                     value={pamMeterNo}
@@ -2447,13 +3051,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowEditSpecsModal(false)}
-                  className="flex-1 py-2 rounded-xl border border-border text-ink font-semibold"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-95 transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-semibold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
                   Simpan Perubahan
                 </button>
@@ -2463,7 +3067,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         </div>
       )}
 
-      {/* Digital Receipt Modal */}
+      {/* Digital Official Receipt Modal */}
       {selectedReceipt && (
         <ReceiptModal
           isOpen={Boolean(selectedReceipt)}
@@ -2472,7 +3076,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         />
       )}
 
-      {/* Digital E-Voting Modal */}
+      {/* Digital E-Voting Civic Modal */}
       <VotingSectionModal
         isOpen={showVotingModal}
         onClose={() => setShowVotingModal(false)}
@@ -2482,6 +3086,24 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
 
       {/* Floating Warga AI Assistant Widget */}
       <WargaAIChatWidget currentPropertyCode={currentUser?.propertyCode || 'A-17'} />
+
+      {/* Footer */}
+      <footer className="mt-12 py-6 border-t border-border bg-surface/50 text-center text-xs text-ink-muted">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>WargaHub • Portal Mandiri Warga</span>
+          <span>
+            Dikembangkan oleh{' '}
+            <a
+              href="https://yahyanursidik.my.id/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-primary-700 hover:text-primary-800 hover:underline"
+            >
+              Yahya Nursidik
+            </a>
+          </span>
+        </div>
+      </footer>
     </div>
   );
 };

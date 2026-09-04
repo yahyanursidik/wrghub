@@ -1,18 +1,20 @@
 ---
 import { ResidentPortalView } from '../components/portal/ResidentPortalView';
-import { DEMO_USERS } from '../services/auth.service';
+import { getAnnouncements } from '../services/announcement.service';
 import '../styles/global.css';
 
 const userCookie = Astro.cookies.get('wargahub_user');
-let currentUser = DEMO_USERS.warga;
+let currentUser = undefined;
 
 if (userCookie && userCookie.value) {
   try {
     currentUser = JSON.parse(userCookie.value);
   } catch (e) {
-    currentUser = DEMO_USERS.warga;
+    currentUser = undefined;
   }
 }
+
+const announcements = await getAnnouncements();
 ---
 
 <!doctype html>
@@ -35,6 +37,6 @@ if (userCookie && userCookie.value) {
     </script>
   </head>
   <body class="bg-canvas text-ink font-sans min-h-screen antialiased selection:bg-primary-100 selection:text-primary-900">
-    <ResidentPortalView initialUser={currentUser} client:load />
+    <ResidentPortalView initialUser={currentUser} initialAnnouncements={announcements} client:load />
   </body>
 </html>

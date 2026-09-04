@@ -3,9 +3,10 @@ import PublicLayout from '../../layouts/PublicLayout.astro';
 import { TransparencyView } from '../../components/transparency/TransparencyView';
 import { getPublicMonthlyReport } from '../../services/transparency.service';
 
+const tab = Astro.url.searchParams.get('tab') || 'cashflow_summary';
 const reportData = await getPublicMonthlyReport(2026, 8);
 ---
 
 <PublicLayout title="Laporan Transparansi Warga - WargaHub" currentPath="/transparency">
-  <TransparencyView initialData={reportData} client:load />
+  <TransparencyView initialData={reportData} initialTab={tab as any} client:load />
 </PublicLayout>

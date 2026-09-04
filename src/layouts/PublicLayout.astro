@@ -20,6 +20,43 @@ const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran Wa
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#1e40af" />
+    <script is:inline>
+      try {
+        const CLEAN_VERSION = 'wargahub_demo_cleaned_v4';
+        if (!localStorage.getItem(CLEAN_VERSION)) {
+          const demoKeys = [
+            'wargahub_announcements',
+            'wargahub_deleted_announcements',
+            'wargahub_announcement_agenda',
+            'wargahub_facilities',
+            'wargahub_facility_bookings',
+            'wargahub_facility_maintenance',
+            'wargahub_security_guards',
+            'wargahub_patrol_logs',
+            'wargahub_cleaning_staff',
+            'wargahub_cleaning_routes',
+            'wargahub_staff_loans',
+            'wargahub_deleted_loans',
+            'wargahub_polls_data',
+            'wargahub_deleted_polls',
+            'wargahub_payments',
+            'wargahub_deleted_payments',
+            'wargahub_properties',
+            'wargahub_deleted_properties',
+            'wargahub_residents',
+            'wargahub_deleted_residents',
+            'wargahub_vehicles',
+            'wargahub_deleted_vehicles',
+            'wargahub_permits',
+            'wargahub_deleted_permits',
+            'wargahub_utilities',
+            'wargahub_deleted_utilities',
+          ];
+          demoKeys.forEach(function(k) { localStorage.removeItem(k); });
+          localStorage.setItem(CLEAN_VERSION, 'true');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body class="min-h-full flex flex-col bg-canvas text-ink font-sans">
     <!-- Public Navbar -->
@@ -100,8 +137,10 @@ const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran Wa
           <span>•</span>
           <span>Transparansi Kas & Iuran Terbuka</span>
         </div>
-        <div>
-          <span>© 2026 Paguyuban Warga. Seluruh data disinkronkan secara real-time.</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <span>Dikembangkan oleh <a href="https://yahyanursidik.my.id/" target="_blank" rel="noopener noreferrer" class="font-bold text-primary-700 hover:text-primary-800 hover:underline">Yahya Nursidik</a></span>
+          <span>•</span>
+          <span>© 2026 Paguyuban Warga</span>
         </div>
       </div>
     </footer>

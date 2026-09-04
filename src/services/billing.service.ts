@@ -87,13 +87,13 @@ export async function getBillingProgress(billingPeriodId: string) {
         FROM invoices
         WHERE billing_period_id = ${billingPeriodId}
       `;
-      const total = Number(res[0].total) || 120;
-      const paidCount = Number(res[0].paid_count) || 86;
-      const unpaidCount = Number(res[0].unpaid_count) || 34;
-      const totalAmount = Number(res[0].total_amount) || 90000000;
-      const paidAmount = Number(res[0].paid_amount) || 64500000;
-      const unpaidAmount = Number(res[0].unpaid_amount) || 25500000;
-      const percentage = total > 0 ? Math.round((paidCount / total) * 100) : 72;
+      const total = Number(res[0]?.total ?? 0);
+      const paidCount = Number(res[0]?.paid_count ?? 0);
+      const unpaidCount = Number(res[0]?.unpaid_count ?? 0);
+      const totalAmount = Number(res[0]?.total_amount ?? 0);
+      const paidAmount = Number(res[0]?.paid_amount ?? 0);
+      const unpaidAmount = Number(res[0]?.unpaid_amount ?? 0);
+      const percentage = total > 0 ? Math.round((paidCount / total) * 100) : 0;
 
       return {
         total,
@@ -103,7 +103,7 @@ export async function getBillingProgress(billingPeriodId: string) {
         totalAmount,
         paidAmount,
         unpaidAmount,
-        monthlyRatePerHouse: 750000,
+        monthlyRatePerHouse: 250000,
       };
     } catch (e) {
       console.warn('Neon progress error:', e);
@@ -111,16 +111,16 @@ export async function getBillingProgress(billingPeriodId: string) {
   }
 
   const invs = await db.select().from(schema.invoices).where(eq(schema.invoices.billingPeriodId, billingPeriodId));
-  const total = invs.length || 120;
+  const total = invs.length;
   const paidInvoices = invs.filter(i => i.status === 'PAID');
   const unpaidInvoices = invs.filter(i => i.status !== 'PAID');
 
-  const paidCount = paidInvoices.length || 86;
-  const unpaidCount = unpaidInvoices.length || 34;
-  const totalAmount = invs.reduce((sum, i) => sum + (i.total || 0), 0) || 90000000;
-  const paidAmount = paidInvoices.reduce((sum, i) => sum + (i.total || 0), 0) || 64500000;
-  const unpaidAmount = unpaidInvoices.reduce((sum, i) => sum + (i.total || 0), 0) || 25500000;
-  const percentage = total > 0 ? Math.round((paidCount / total) * 100) : 72;
+  const paidCount = paidInvoices.length;
+  const unpaidCount = unpaidInvoices.length;
+  const totalAmount = invs.reduce((sum, i) => sum + (i.total || 0), 0);
+  const paidAmount = paidInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
+  const unpaidAmount = unpaidInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
+  const percentage = total > 0 ? Math.round((paidCount / total) * 100) : 0;
 
   return {
     total,
@@ -130,6 +130,6 @@ export async function getBillingProgress(billingPeriodId: string) {
     totalAmount,
     paidAmount,
     unpaidAmount,
-    monthlyRatePerHouse: 750000,
+    monthlyRatePerHouse: 250000,
   };
 }

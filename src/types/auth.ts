@@ -116,6 +116,36 @@ export const PORTAL_ACCOUNTS: Record<string, DemoAccountInfo> = {
     badge: 'Status: Belum Bayar',
     description: 'Portal mandiri warga Rumah B-07 untuk mencoba konfirmasi pembayaran dan upload bukti transfer.'
   },
+  warga_kava: {
+    id: 'user-kav-a',
+    username: 'kav_a',
+    name: 'Pak Verial (Kav A)',
+    roleTitle: 'Warga / Kepala Keluarga',
+    role: 'HOUSEHOLD_HEAD',
+    passwordHint: 'warga123',
+    defaultPassword: 'warga123',
+    targetPortal: 'resident',
+    targetUrl: '/',
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    propertyCode: 'Kav A',
+    badge: 'Status: Lunas',
+    description: 'Portal mandiri warga Kavling A (Pak Verial): pantau iuran bulanan lunas dan informasi komplek.'
+  },
+  warga_kavb: {
+    id: 'user-kav-b',
+    username: 'kav_b',
+    name: 'Mahasiswa Polban (Kav B)',
+    roleTitle: 'Warga / Penghuni Sewa',
+    role: 'RESIDENT',
+    passwordHint: 'warga123',
+    defaultPassword: 'warga123',
+    targetPortal: 'resident',
+    targetUrl: '/',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    propertyCode: 'Kav B',
+    badge: 'Status: Belum Bayar',
+    description: 'Portal mandiri penghuni sewa Kavling B: konfirmasi iuran dan upload bukti transfer bank.'
+  },
   satpam: {
     id: 'user-satpam',
     username: 'satpam',
@@ -196,6 +226,26 @@ export const DEMO_USERS: Record<string, UserSession> = {
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     propertyCode: 'B-07',
     propertyId: 'prop-b-07'
+  },
+  kav_a: {
+    id: 'user-kav-a',
+    username: 'kav_a',
+    fullName: 'Pak Verial',
+    email: 'kav_a@wargahub.id',
+    role: 'HOUSEHOLD_HEAD',
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    propertyCode: 'Kav A',
+    propertyId: 'prop-kav-a'
+  },
+  kav_b: {
+    id: 'user-kav-b',
+    username: 'kav_b',
+    fullName: 'Mahasiswa Polban',
+    email: 'kav_b@wargahub.id',
+    role: 'RESIDENT',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    propertyCode: 'Kav B',
+    propertyId: 'prop-kav-b'
   },
   satpam: {
     id: 'user-satpam',

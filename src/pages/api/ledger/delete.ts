@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
+import { deleteLedgerEntry } from '../../../services/finance.service';
 import { recordAuditLog } from '../../../services/audit.service';
 
 const deleteLedgerSchema = z.object({
@@ -19,6 +20,9 @@ export const POST: APIRoute = async ({ request }) => {
     if (!targetId) {
       throw new Error('ID entri jurnal wajib disertakan.');
     }
+
+    // Delete from Neon / SQLite database and reverse balance
+    await deleteLedgerEntry(targetId);
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
@@ -40,8 +44,8 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({
         data: {
           success: true,
-          id: validated.ledgerId,
-          message: `Entri jurnal ${validated.ledgerId} berhasil dibatalkan / dihapus.`
+          id: targetId,
+          message: `Entri jurnal ${targetId} berhasil dibatalkan / dihapus.`
         },
         meta: {},
         error: null,

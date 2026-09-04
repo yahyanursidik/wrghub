@@ -76,13 +76,15 @@ export interface BroadcastTemplate {
 }
 
 interface AnnouncementsManagerProps {
-  initialAnnouncements: AnnouncementItem[];
+  initialAnnouncements?: AnnouncementItem[];
   initialTab?: string;
+  totalProperties?: number;
 }
 
 export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
-  initialAnnouncements,
+  initialAnnouncements = [],
   initialTab = 'announcements',
+  totalProperties = 0,
 }) => {
   // Persistence helpers
   const getPersisted = <T,>(key: string, fallback: T): T => {
@@ -221,20 +223,20 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
       title: 'Peringatan Waspada Penipuan Mengatasnamakan Pengurus / Petugas Tagihan Air',
       content: 'Ditegaskan bahwa seluruh pembayaran iuran komplek HANYA dilakukan ke rekening resmi Paguyuban BCA atau QRIS resmi WargaHub. Petugas satpam dan kebersihan tidak pernah meminta uang tunai di rumah tanpa kuitansi berstempel.',
       category: 'DARURAT',
-      audience: 'ALL',
       scheduledAt: 'Penting & Segera',
       location: 'Papan Informasi Warga',
       isPinned: false,
-      authorName: 'Ketua Paguyuban',
+      authorName: 'Pengurus Paguyuban',
       createdAt: '2026-08-15T08:00:00Z',
       viewCount: 112,
     }
   ];
 
+  // 1. Announcements State
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('wargahub_announcements');
+        const saved = localStorage.getItem('wargahub_announcements_data');
         const deletedStr = localStorage.getItem('wargahub_deleted_announcements');
         const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
         if (saved !== null) {
@@ -247,70 +249,12 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
         console.warn(e);
       }
     }
-    return defaultAnnouncements;
+    return (initialAnnouncements && initialAnnouncements.length > 0) ? initialAnnouncements : [];
   });
 
-  // 2. Agenda Items
-  const defaultAgenda: AgendaItem[] = [
-    {
-      id: 'AGD-01',
-      title: 'Kerja Bakti Massal & Fogging Pencegahan DBD',
-      date: '2026-09-06',
-      time: '07:00 - 11:30 WIB',
-      location: 'Balai Warga & Lingkungan Blok A-D',
-      organizer: 'Seksi Lingkungan & Pengurus RW',
-      category: 'KERJA_BAKTI',
-      description: 'Pembersihan got selokan serentak dan pengasapan fogging jentik nyamuk.',
-      targetParticipants: 'Seluruh Kepala Keluarga (123 Rumah)'
-    },
-    {
-      id: 'AGD-02',
-      title: 'Pembersihan Tandon Air Utama Komplek',
-      date: '2026-09-10',
-      time: '09:00 - 13:00 WIB',
-      location: 'Tandon Fasum Blok B',
-      organizer: 'Tim Teknisi Sarana',
-      category: 'MAINTENANCE',
-      description: 'Pengurasan sedimen lumpur dan sterilisasi tangki penampung air.',
-      targetParticipants: 'Teknisi & Warga Terdampak'
-    },
-    {
-      id: 'AGD-03',
-      title: 'Posyandu Balita & Pemeriksaan Kesehatan Lansia',
-      date: '2026-09-12',
-      time: '08:30 - 12:00 WIB',
-      location: 'Gedung Balai Warga',
-      organizer: 'Kader Posyandu PKK & Bidan Desa',
-      category: 'KESEHATAN',
-      description: 'Penimbangan balita, vitamin A, dan tes gula darah/tensi gratis lansia.',
-      targetParticipants: 'Balita & Warga Usia 50+ Tahun'
-    },
-    {
-      id: 'AGD-04',
-      title: 'Rapat Evaluasi Triwulan 3 & Musyawarah Paguyuban',
-      date: '2026-09-20',
-      time: '19:30 - 22:00 WIB',
-      location: 'Balai Warga Serbaguna',
-      organizer: 'Pengurus Inti RW / RT',
-      category: 'RAPAT',
-      description: 'Laporan keuangan kas triwulan 3 dan perencanaan renovasi jalan paving.',
-      targetParticipants: 'Perwakilan Warga Tiap Blok'
-    },
-    {
-      id: 'AGD-05',
-      title: 'Turnamen Badminton WargaHub Cup 2026',
-      date: '2026-09-27',
-      time: '08:00 - 17:00 WIB',
-      location: 'Lapangan Badminton Balai Warga',
-      organizer: 'Seksi Pemuda & Olahraga',
-      category: 'OLAHRAGA',
-      description: 'Pertandingan bulutangkis ganda putra dan ganda campuran antar blok.',
-      targetParticipants: 'Seluruh Warga Pendaftar'
-    }
-  ];
-
+  // 2. Agenda Items (Dynamic from storage)
   const [agendaList, setAgendaList] = useState<AgendaItem[]>(() =>
-    getPersisted('wargahub_announcement_agenda', defaultAgenda)
+    getPersisted('wargahub_announcement_agenda', [])
   );
 
   // 3. WhatsApp Templates
@@ -700,7 +644,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
-            Saluran komunikasi resmi paguyuban untuk mempublikasikan maklumat, jadwal kerja bakti, himbauan keamanan, dan broadcast WhatsApp massal ke 123 rumah warga.
+            Saluran komunikasi resmi paguyuban untuk mempublikasikan maklumat, jadwal kerja bakti, himbauan keamanan, dan broadcast WhatsApp massal ke {totalProperties} rumah warga.
           </p>
         </div>
 
@@ -753,7 +697,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
         <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
           <span className="text-[11px] text-ink-muted font-bold block">Jangkauan Warga Siaran</span>
           <p className="text-2xl font-black text-teal-700 mt-1 tabular-nums">
-            123 <span className="text-xs font-normal text-ink-muted">Rumah</span>
+            {totalProperties} <span className="text-xs font-normal text-ink-muted">Rumah</span>
           </p>
           <span className="text-[10px] text-teal-600 font-bold">100% Terintegrasi WhatsApp</span>
         </div>
@@ -765,7 +709,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
           { id: 'announcements', label: 'Daftar Pengumuman Warga', icon: Megaphone, count: totalAnnouncementsCount },
           { id: 'agenda', label: 'Kalender & Agenda Kegiatan', icon: Calendar, count: totalAgendaCount },
           { id: 'templates', label: 'Template Siaran WhatsApp', icon: MessageCircle, count: templates.length },
-          { id: 'audience', label: 'Sasaran Distribusi Siaran', icon: Users, count: '123 Unit' },
+          { id: 'audience', label: 'Sasaran Distribusi Siaran', icon: Users, count: `${totalProperties} Unit` },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -1418,30 +1362,30 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
               <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-ink">🌐 Seluruh Warga Komplek</span>
-                  <span className="px-2 py-0.5 bg-teal-100 text-teal-900 font-bold rounded text-[10px]">123 Rumah</span>
+                  <span className="px-2 py-0.5 bg-teal-100 text-teal-900 font-bold rounded text-[10px]">{totalProperties} Rumah</span>
                 </div>
                 <p className="text-ink-muted text-[11px] leading-relaxed">
-                  Blok A, Blok B, Blok C, Blok D, Kavling Mandiri, dan Jl. Sariwangi Indah 1 & 2.
+                  Seluruh unit rumah dan warga terdaftar aktif dalam database paguyuban komplek.
                 </p>
               </div>
 
               <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-ink">🏘️ Kluster Blok A & B</span>
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-900 font-bold rounded text-[10px]">60 Rumah</span>
+                  <span className="font-bold text-ink">🏘️ Kluster Blok Tertentu</span>
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-900 font-bold rounded text-[10px]">Filter Blok</span>
                 </div>
                 <p className="text-ink-muted text-[11px] leading-relaxed">
-                  Pengumuman khusus pemeliharaan pipa air blok barat dan jadwal posyandu balai warga.
+                  Pengumuman khusus per-blok (pemeliharaan pipa air, got selokan, atau kegiatan internal blok).
                 </p>
               </div>
 
               <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-ink">🏡 Kluster Blok C, D & Kavling</span>
-                  <span className="px-2 py-0.5 bg-purple-100 text-purple-900 font-bold rounded text-[10px]">63 Rumah</span>
+                  <span className="font-bold text-ink">🏡 Pemilik / Penyewa Saja</span>
+                  <span className="px-2 py-0.5 bg-purple-100 text-purple-900 font-bold rounded text-[10px]">Segmentasi Hak</span>
                 </div>
                 <p className="text-ink-muted text-[11px] leading-relaxed">
-                  Pengumuman khusus pemangkasan pohon jalan belakang dan servis PJU solar cell.
+                  Pengumuman tertarget untuk musyawarah kepemilikan unit atau tata tertib penyewa.
                 </p>
               </div>
             </div>
@@ -1498,7 +1442,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
                     onChange={(e) => setFormAudience(e.target.value as any)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
-                    <option value="ALL">Seluruh Warga (123 Unit)</option>
+                    <option value="ALL">Seluruh Warga ({totalProperties} Unit)</option>
                     <option value="BLOK_A_B">Khusus Blok A & B</option>
                     <option value="BLOK_C_D">Khusus Blok C & D</option>
                     <option value="KAVLING">Khusus Kavling Mandiri</option>

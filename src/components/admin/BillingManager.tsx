@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   PlusCircle,
   Send,
@@ -34,7 +34,8 @@ import {
   TrendingUp,
   Receipt,
   Users,
-  CheckSquare
+  CheckSquare,
+  Settings
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { ReceiptModal } from '../shared/ReceiptModal';
@@ -72,6 +73,19 @@ interface BillingProgress {
   monthlyRatePerHouse: number;
 }
 
+export interface TariffComponent {
+  id: string;
+  name: string;
+  fee: number;
+  desc: string;
+}
+
+const DEFAULT_TARIFF_COMPONENTS: TariffComponent[] = [
+  { id: 'tf-1', name: '1. Iuran Pengamanan Pos Satpam 24 Jam', fee: 150000, desc: 'Operasional pos satpam, barrier gate RFID, HT, dan pemantauan keamanan' },
+  { id: 'tf-2', name: '2. Iuran Pengangkutan Sampah & Kebersihan', fee: 50000, desc: 'Armada pengangkutan sampah dinas LH dan pemotongan rumput berkala' },
+  { id: 'tf-3', name: '3. Dana Kas Operasional & Perawatan Komplek', fee: 50000, desc: 'Penerangan jalan PJU, genset darurat, dan sarana balai warga' },
+];
+
 interface BillingManagerProps {
   initialPeriodName: string;
   initialInvoices: InvoiceItem[];
@@ -84,8 +98,16 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   initialProgress,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'batch' | 'tariffs' | 'public_ledger'>('invoices');
-  const [invoices, setInvoices] = useState<InvoiceItem[]>(initialInvoices);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>(initialInvoices || []);
   const [progress, setProgress] = useState<BillingProgress>(initialProgress);
+
+  useEffect(() => {
+    setInvoices(initialInvoices || []);
+  }, [initialInvoices]);
+
+  useEffect(() => {
+    setProgress(initialProgress);
+  }, [initialProgress]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'PENDING'>('ALL');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
@@ -95,6 +117,40 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Tariff Structure State (Editable & Persisted)
+  const [tariffComponents, setTariffComponents] = useState<TariffComponent[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_tariff_components');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const total = parsed.reduce((a: number, b: any) => a + (Number(b.fee) || 0), 0);
+          if (total === 750000) {
+            localStorage.setItem('wargahub_tariff_components', JSON.stringify(DEFAULT_TARIFF_COMPONENTS));
+            return DEFAULT_TARIFF_COMPONENTS;
+          }
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    return DEFAULT_TARIFF_COMPONENTS;
+  });
+
+  const [tariffNote, setTariffNote] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('wargahub_tariff_note') || 'Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 05 / RW 05';
+    }
+    return 'Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 05 / RW 05';
+  });
+
+  const [showTariffModal, setShowTariffModal] = useState(false);
+  const [editableTariffs, setEditableTariffs] = useState<TariffComponent[]>(DEFAULT_TARIFF_COMPONENTS);
+  const [editableTariffNote, setEditableTariffNote] = useState(tariffNote);
+
+  const totalTariff = useMemo(() => {
+    return tariffComponents.reduce((acc, item) => acc + (Number(item.fee) || 0), 0);
+  }, [tariffComponents]);
 
   // Modal & Toast State
   const [showGenerateModal, setShowGenerateModal] = useState(false);
@@ -112,16 +168,16 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [genYear, setGenYear] = useState(2026);
   const [genMonth, setGenMonth] = useState(9);
   const [genDueDate, setGenDueDate] = useState('2026-09-10');
-  const [genFee, setGenFee] = useState(750000);
+  const [genFee, setGenFee] = useState(250000);
 
   // Single Invoice Form State
   const [formHouseCode, setFormHouseCode] = useState('A-17');
   const [formAreaLabel, setFormAreaLabel] = useState('Blok A');
   const [formOwnerName, setFormOwnerName] = useState('Budi Santoso');
   const [formPeriodName, setFormPeriodName] = useState(initialPeriodName);
-  const [formSecurityFee, setFormSecurityFee] = useState(450000);
-  const [formCleaningFee, setFormCleaningFee] = useState(150000);
-  const [formSinkingFund, setFormSinkingFund] = useState(150000);
+  const [formSecurityFee, setFormSecurityFee] = useState(150000);
+  const [formCleaningFee, setFormCleaningFee] = useState(50000);
+  const [formSinkingFund, setFormSinkingFund] = useState(50000);
   const [formAdditionalFee, setFormAdditionalFee] = useState(0);
   const [formDueDate, setFormDueDate] = useState('2026-08-10');
   const [formStatus, setFormStatus] = useState<'PAID' | 'UNPAID' | 'PENDING_VERIFICATION'>('UNPAID');
@@ -403,6 +459,29 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const paidInvoicesList = useMemo(() => invoices.filter(inv => inv.status === 'PAID'), [invoices]);
   const unpaidInvoicesList = useMemo(() => invoices.filter(inv => inv.status === 'UNPAID' || inv.status === 'PENDING_VERIFICATION'), [invoices]);
 
+  // Realtime Live Totals derived directly from active invoices state
+  const liveTotalAmount = useMemo(() => {
+    return invoices.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
+  }, [invoices]);
+
+  const livePaidAmount = useMemo(() => {
+    return paidInvoicesList.reduce((sum, inv) => sum + (Number(inv.paidAmount ?? inv.total) || 0), 0);
+  }, [paidInvoicesList]);
+
+  const liveUnpaidAmount = useMemo(() => {
+    return unpaidInvoicesList.reduce((sum, inv) => sum + (Number(inv.total) - Number(inv.paidAmount || 0)), 0);
+  }, [unpaidInvoicesList]);
+
+  const liveRatePerHouse = useMemo(() => {
+    if (invoices.length === 0) return 0;
+    return Math.round(liveTotalAmount / invoices.length);
+  }, [invoices.length, liveTotalAmount]);
+
+  const liveEfficiency = useMemo(() => {
+    if (invoices.length === 0) return 0;
+    return Math.round((paidInvoicesList.length / invoices.length) * 100);
+  }, [invoices.length, paidInvoicesList.length]);
+
   // Copy Public Link
   const publicTransparencyUrl = 'http://localhost:4321/transparency';
   const handleCopyPublicLink = () => {
@@ -478,26 +557,26 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           <button
             type="button"
             onClick={handleExportBillingCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
-            <Download className="w-4 h-4 text-ink-muted" />
-            Ekspor Tagihan (CSV)
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>Ekspor Tagihan (CSV)</span>
           </button>
           <button
             type="button"
             onClick={handleOpenAddInvoice}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
             <PlusCircle className="w-4 h-4 text-primary-600" />
-            Tambah Tagihan Satuan
+            <span>Tambah Tagihan Satuan</span>
           </button>
           <button
             type="button"
             onClick={() => setShowGenerateModal(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
             <Sparkles className="w-4 h-4" />
-            Generate Tagihan Massal
+            <span>Generate Tagihan Massal</span>
           </button>
         </div>
       </div>
@@ -520,27 +599,27 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           <button
             type="button"
             onClick={handleCopyPublicLink}
-            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-            Salin Link Publik
+            <span>Salin Link Publik</span>
           </button>
           <a
             href={publicTransparencyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             <ExternalLink className="w-4 h-4" />
-            Buka Halaman Publik
+            <span>Buka Halaman Publik</span>
           </a>
         </div>
       </div>
 
       {/* 4-SubTab Navigation Bar */}
-      <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'invoices', label: 'Daftar Tagihan & Invoice Bulanan', icon: Receipt, count: invoices.length },
+          { id: 'invoices', label: 'Daftar Tagihan & Invoice Bulanan', icon: Receipt, count: `${invoices.length} Inv` },
           { id: 'public_ledger', label: 'Rekapitulasi Iuran Publik (Lunas vs Belum)', icon: Eye, count: `${paidInvoicesList.length}/${invoices.length}` },
           { id: 'tariffs', label: 'Struktur Tarif Iuran Komplek', icon: DollarSign },
           { id: 'batch', label: 'Generator Tagihan Massal', icon: Sparkles },
@@ -551,17 +630,17 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-[0.98] ${
                 isActive
-                  ? 'bg-primary-600 text-white shadow-xs'
+                  ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-ink-muted hover:text-ink hover:bg-canvas'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-primary-400' : 'text-ink-muted'}`} />
               <span>{tab.label}</span>
               {tab.count !== undefined && (
-                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border'
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border/60'
                 }`}>
                   {tab.count}
                 </span>
@@ -577,27 +656,35 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           {/* Progress Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Total Tagihan Periode Ini</span>
-              <p className="text-xl font-black text-ink mt-1 tabular-nums">{formatRupiah(progress.totalAmount)}</p>
-              <span className="text-[10px] text-ink-muted mt-0.5 block">{invoices.length} Rumah @ Rp750.000</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Tagihan Periode Ini</span>
+              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{formatRupiah(liveTotalAmount)}</p>
+              <span className="text-[10px] text-ink-muted font-medium mt-0.5 block">
+                {invoices.length} Rumah {liveRatePerHouse > 0 ? `@ ${formatRupiah(liveRatePerHouse)}` : '@ Rp0'}
+              </span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Telah Terkumpul (Lunas)</span>
-              <p className="text-xl font-black text-emerald-700 mt-1 tabular-nums">{formatRupiah(progress.paidAmount)}</p>
-              <span className="text-[10px] text-emerald-700 font-bold mt-0.5 block">{paidInvoicesList.length} Unit ({Math.round((paidInvoicesList.length / Math.max(1, invoices.length)) * 100)}%)</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Telah Terkumpul (Lunas)</span>
+              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">{formatRupiah(livePaidAmount)}</p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">
+                {paidInvoicesList.length} Unit ({liveEfficiency}%) LUNAS
+              </span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Tunggakan / Belum Lunas</span>
-              <p className="text-xl font-black text-rose-700 mt-1 tabular-nums">{formatRupiah(progress.unpaidAmount)}</p>
-              <span className="text-[10px] text-rose-700 font-bold mt-0.5 block">{unpaidInvoicesList.length} Unit Rumah</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Tunggakan / Belum Lunas</span>
+              <p className="text-2xl font-black font-mono text-rose-700 mt-0.5 tabular-nums">{formatRupiah(liveUnpaidAmount)}</p>
+              <span className="text-[10px] text-rose-600 font-bold font-mono mt-0.5 block">
+                {unpaidInvoicesList.length} Unit Tertunda
+              </span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[11px] font-semibold text-ink-muted">Efisiensi Kolektibilitas</span>
-              <p className="text-xl font-black text-primary-700 mt-1 tabular-nums">96.8%</p>
-              <span className="text-[10px] text-emerald-600 font-bold mt-0.5 block">Bank BCA Auto-Reconciled</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Efisiensi Kolektibilitas</span>
+              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
+                {liveEfficiency}%
+              </p>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">BANK BCA AUTO-RECONCILED</span>
             </div>
           </div>
 
@@ -691,35 +778,49 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 <tbody className="divide-y divide-border/60">
                   {paginatedInvoices.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-ink-muted font-medium">
-                        Tidak ada invoice yang cocok dengan filter.
+                      <td colSpan={6} className="py-12 text-center text-ink-muted">
+                        <div className="max-w-sm mx-auto flex flex-col items-center justify-center gap-2">
+                          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <p className="font-bold text-ink text-sm">
+                            {invoices.length === 0 ? 'Belum Ada Tagihan Invoice' : 'Tidak ada invoice yang cocok dengan filter'}
+                          </p>
+                          <p className="text-xs text-ink-muted">
+                            {invoices.length === 0
+                              ? 'Data tagihan iuran masih kosong. Klik tombol "Buat Invoice" atau "Generate Tagihan Periode" di atas untuk menerbitkan tagihan resmi.'
+                              : 'Coba ubah kata kunci pencarian atau filter status untuk melihat tagihan lain.'}
+                          </p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     paginatedInvoices.map((inv) => {
                       const isPaid = inv.status === 'PAID';
                       return (
-                        <tr key={inv.id} className="hover:bg-canvas/50 text-ink transition-colors">
+                        <tr key={inv.id} className="hover:bg-canvas/60 text-ink transition-colors">
                           <td className="py-3.5 px-4">
-                            <span className="font-mono font-bold text-ink block">{inv.invoiceNumber}</span>
-                            <span className="text-[10px] text-ink-muted">{inv.billingPeriodName || initialPeriodName}</span>
+                            <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-950 text-white font-mono font-black text-xs tracking-wider border border-slate-700 shadow-2xs mb-0.5">
+                              {inv.invoiceNumber}
+                            </span>
+                            <span className="text-[10px] text-ink-muted font-medium block">{inv.billingPeriodName || initialPeriodName}</span>
                           </td>
-                          <td className="py-3.5 px-4 font-bold text-primary-700">
-                            <span className="block text-sm font-black">Unit {inv.propertyCode}</span>
+                          <td className="py-3.5 px-4">
+                            <span className="font-mono font-black text-sm text-primary-700 block">Unit {inv.propertyCode}</span>
                             <span className="text-[10px] text-ink-muted font-medium">{inv.areaLabel || 'Taman Sejahtera'}</span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <p className="font-bold tabular-nums text-sm text-ink">{formatRupiah(inv.total)}</p>
+                            <p className="font-mono font-black tabular-nums text-sm text-ink">{formatRupiah(inv.total)}</p>
                             <span className="text-[10px] text-ink-muted">IPL Keamanan + Sampah + Kas</span>
                           </td>
                           <td className="py-3.5 px-4 text-center">
                             <button
                               type="button"
                               onClick={() => handleTogglePaymentStatus(inv)}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all cursor-pointer shadow-xs ${
+                              className={`px-3 py-1 rounded-lg text-[10px] font-mono font-black border transition-all cursor-pointer shadow-2xs active:scale-[0.95] ${
                                 isPaid
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-rose-50 hover:text-rose-800'
-                                  : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-emerald-50 hover:text-emerald-800'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                  : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
                               }`}
                               title="Klik untuk mengubah status lunas/belum lunas secara cepat"
                             >
@@ -729,7 +830,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                               <span className="text-[9px] text-ink-muted font-mono block mt-0.5">{inv.paidAt}</span>
                             )}
                           </td>
-                          <td className="py-3.5 px-4 text-center font-mono text-ink-muted font-medium">
+                          <td className="py-3.5 px-4 text-center font-mono text-ink-muted font-bold">
                             {inv.dueDate}
                           </td>
                           <td className="py-3.5 px-4 text-right">
@@ -747,7 +848,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                                     paymentMethod: 'Transfer Bank BCA (Otomatis)',
                                     referenceNumber: `TRX-${inv.propertyCode}-BCA`,
                                   })}
-                                  className="px-2 py-1 text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px]"
+                                  className="px-2.5 py-1.5 text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
                                   title="Lihat / Cetak Kuitansi Resmi"
                                 >
                                   <Printer className="w-3.5 h-3.5" /> Kuitansi
@@ -757,7 +858,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                                   href={getWaReminderUrl(inv)}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="px-2 py-1 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px]"
+                                  className="px-2.5 py-1.5 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
                                   title="Kirim Pesan WhatsApp Pengingat"
                                 >
                                   <Send className="w-3.5 h-3.5" /> Ingatkan WA
@@ -767,7 +868,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditInvoice(inv)}
-                                className="p-1 text-amber-700 hover:bg-amber-50 rounded-lg"
+                                className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg active:scale-[0.98] transition-all"
                                 title="Edit Tagihan"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -775,7 +876,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setInvoiceToDelete(inv)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded-lg"
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg active:scale-[0.98] transition-all"
                                 title="Hapus / Batalkan Invoice"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -900,10 +1001,10 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyPublicLink}
-                  className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  Salin Tautan Rekapitulasi
+                  <span>Salin Tautan Rekapitulasi</span>
                 </button>
               </div>
             </div>
@@ -917,20 +1018,20 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     Daftar Unit Sudah Lunas ({paidInvoicesList.length} Unit)
                   </h4>
-                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-black">
+                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-black">
                     TERVERIFIKASI
                   </span>
                 </div>
 
                 <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1 text-xs">
                   {paidInvoicesList.map(inv => (
-                    <div key={inv.id} className="p-2.5 bg-white rounded-xl border border-emerald-200/80 flex items-center justify-between shadow-2xs">
+                    <div key={inv.id} className="p-3 bg-white rounded-xl border border-emerald-200/80 flex items-center justify-between shadow-2xs">
                       <div>
-                        <span className="font-black text-ink">Unit {inv.propertyCode}</span>
+                        <span className="font-mono font-black text-ink block">Unit {inv.propertyCode}</span>
                         <span className="text-[10px] text-ink-muted block">{inv.ownerName || 'Warga Terdaftar'}</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-emerald-700 font-black text-xs block">{formatRupiah(inv.total)}</span>
+                        <span className="text-emerald-700 font-mono font-black text-xs block">{formatRupiah(inv.total)}</span>
                         <span className="text-[9px] font-mono text-emerald-600">Lunas {inv.paidAt || '15-08-2026'}</span>
                       </div>
                     </div>
@@ -945,25 +1046,25 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                     <Clock className="w-4 h-4 text-rose-600" />
                     Daftar Unit Belum Lunas ({unpaidInvoicesList.length} Unit)
                   </h4>
-                  <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-black">
+                  <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-mono font-black">
                     MENUNGGU BAYAR
                   </span>
                 </div>
 
                 <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1 text-xs">
                   {unpaidInvoicesList.map(inv => (
-                    <div key={inv.id} className="p-2.5 bg-white rounded-xl border border-rose-200/80 flex items-center justify-between shadow-2xs">
+                    <div key={inv.id} className="p-3 bg-white rounded-xl border border-rose-200/80 flex items-center justify-between shadow-2xs">
                       <div>
-                        <span className="font-black text-ink">Unit {inv.propertyCode}</span>
-                        <span className="text-[10px] text-ink-muted block">Jatuh Tempo: {inv.dueDate}</span>
+                        <span className="font-mono font-black text-ink block">Unit {inv.propertyCode}</span>
+                        <span className="text-[10px] text-ink-muted font-mono block">Jatuh Tempo: {inv.dueDate}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-rose-700 font-black text-xs">{formatRupiah(inv.total)}</span>
+                        <span className="text-rose-700 font-mono font-black text-xs">{formatRupiah(inv.total)}</span>
                         <a
                           href={getWaReminderUrl(inv)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 shadow-2xs"
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 shadow-2xs active:scale-[0.95] transition-all"
                         >
                           <Send className="w-3 h-3" /> WA
                         </a>
@@ -980,36 +1081,71 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
       {/* ================= SUBTAB 3: STRUKTUR TARIF IURAN ================= */}
       {activeSubTab === 'tariffs' && (
         <div className="space-y-4 max-w-3xl animate-in fade-in duration-150">
+          {/* Quick Settings Location Banner */}
+          <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-sky-100 rounded-xl text-sky-700 shrink-0 mt-0.5">
+                <Settings className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="font-extrabold text-sky-950 text-xs">
+                  Pusat Pengaturan Tarif & Rekening Bank Komplek
+                </h4>
+                <p className="text-[11px] text-sky-800 leading-relaxed">
+                  Pengaturan tarif iuran, rincian biaya sampah & keamanan, jatuh tempo, serta rekening bank resmi dikelola pada halaman <strong>Pengaturan Komplek</strong>.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/admin/settings?tab=financial"
+              className="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-[0.98] transition-all"
+            >
+              <span>Pengaturan Komplek</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
           <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4 text-xs">
-            <h3 className="font-black text-base text-ink flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-primary-600" />
-              Matriks Struktur Komponen Iuran Pengelolaan Lingkungan (IPL)
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
+              <h3 className="font-black text-base text-ink flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-primary-600" />
+                Matriks Struktur Komponen Iuran Pengelolaan Lingkungan (IPL)
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditableTariffs([...tariffComponents]);
+                  setEditableTariffNote(tariffNote);
+                  setShowTariffModal(true);
+                }}
+                className="px-3 py-1.5 bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 self-start sm:self-auto active:scale-[0.98] transition-all"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Struktur Tarif</span>
+              </button>
+            </div>
+
             <p className="text-ink-muted">
-              Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 05 / RW 05 sebesar <strong>Rp 750.000 / unit rumah per bulan</strong>.
+              {tariffNote} sebesar <strong>{formatRupiah(totalTariff)} / unit rumah per bulan</strong>.
             </p>
 
             <div className="space-y-2.5">
-              {[
-                { name: '1. Iuran Pengamanan Pos Satpam 24 Jam', fee: 450000, desc: 'Gaji 6 personil satpam, operasional barrier gate RFID, HT, dan CCTV cloud' },
-                { name: '2. Iuran Pengangkutan Sampah & Kebersihan', fee: 150000, desc: 'Armada angkut sampah dinas LH 3x seminggu, pemotongan rumput taman komplek' },
-                { name: '3. Dana Kas Operasional & Perawatan Komplek', fee: 150000, desc: 'Penerangan jalan PJU, perbaikan aspal, genset darurat, dan sarana balai warga' },
-              ].map((item, idx) => (
-                <div key={idx} className="p-3.5 bg-canvas rounded-2xl border border-border flex items-center justify-between">
+              {tariffComponents.map((item, idx) => (
+                <div key={item.id || idx} className="p-3.5 bg-canvas rounded-2xl border border-border flex items-center justify-between gap-3">
                   <div>
                     <h4 className="font-bold text-ink text-xs">{item.name}</h4>
                     <p className="text-[11px] text-ink-muted mt-0.5">{item.desc}</p>
                   </div>
-                  <span className="font-mono font-black text-primary-700 text-sm">{formatRupiah(item.fee)}</span>
+                  <span className="font-mono font-black text-primary-700 text-sm shrink-0">{formatRupiah(item.fee)}</span>
                 </div>
               ))}
 
-              <div className="p-3.5 bg-primary-50 rounded-2xl border border-primary-200 flex items-center justify-between">
+              <div className="p-4 bg-primary-50 rounded-2xl border border-primary-200 flex items-center justify-between">
                 <div>
                   <h4 className="font-black text-primary-900 text-xs">Total Iuran Standar Per Unit</h4>
                   <p className="text-[11px] text-primary-800">Diterbitkan otomatis setiap tanggal 1 awal bulan</p>
                 </div>
-                <span className="font-mono font-black text-primary-900 text-base">Rp 750.000 / bln</span>
+                <span className="font-mono font-black text-primary-900 text-base">{formatRupiah(totalTariff)} / bln</span>
               </div>
             </div>
           </div>
@@ -1217,14 +1353,14 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={savingInvoice}
-                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50 active:scale-[0.98] transition-all"
                 >
                   {savingInvoice ? 'Menyimpan...' : editingInvoiceId ? 'Perbarui Tagihan' : 'Terbitkan Tagihan'}
                 </button>
@@ -1267,16 +1403,172 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               <button
                 type="button"
                 onClick={() => setInvoiceToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas"
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteInvoice}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
               >
                 Ya, Batalkan Tagihan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: EDIT STRUKTUR TARIF IPL ================= */}
+      {showTariffModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-primary-100 text-primary-700 rounded-xl">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-ink">Edit Struktur Komponen Tarif IPL</h3>
+                  <p className="text-[11px] text-ink-muted">Sesuaikan rincian pos iuran dan nominal iuran bulanan warga</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTariffModal(false)}
+                className="p-1.5 hover:bg-canvas rounded-xl text-ink-muted hover:text-ink transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="font-bold text-ink block mb-1">Dasar Kesepakatan / Catatan Musyawarah:</label>
+                <input
+                  type="text"
+                  value={editableTariffNote}
+                  onChange={(e) => setEditableTariffNote(e.target.value)}
+                  placeholder="Contoh: Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 05 / RW 05"
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs text-ink font-semibold"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="font-bold text-ink block">Komponen Pos Iuran:</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newId = `tf-${Date.now()}`;
+                      setEditableTariffs([
+                        ...editableTariffs,
+                        { id: newId, name: `${editableTariffs.length + 1}. Komponen Baru`, fee: 50000, desc: 'Deskripsi peruntukan iuran' },
+                      ]);
+                    }}
+                    className="px-2 py-1 bg-primary-50 hover:bg-primary-100 text-primary-700 font-bold rounded-lg text-[10px] inline-flex items-center gap-1 active:scale-[0.95] transition-all"
+                  >
+                    <PlusCircle className="w-3 h-3" /> Tambah Pos
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {editableTariffs.map((item, idx) => (
+                    <div key={item.id} className="p-3 bg-canvas rounded-2xl border border-border space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => {
+                            const updated = [...editableTariffs];
+                            updated[idx].name = e.target.value;
+                            setEditableTariffs(updated);
+                          }}
+                          placeholder="Nama Komponen Pos"
+                          className="flex-1 p-1.5 bg-surface border border-border rounded-lg text-xs font-bold text-ink"
+                        />
+                        {editableTariffs.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditableTariffs(editableTariffs.filter((_, i) => i !== idx));
+                            }}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Hapus Pos Ini"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      <input
+                        type="text"
+                        value={item.desc}
+                        onChange={(e) => {
+                          const updated = [...editableTariffs];
+                          updated[idx].desc = e.target.value;
+                          setEditableTariffs(updated);
+                        }}
+                        placeholder="Keterangan alokasi/peruntukan biaya"
+                        className="w-full p-1.5 bg-surface border border-border rounded-lg text-[11px] text-ink-muted"
+                      />
+
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
+                        <span className="text-[11px] font-bold text-ink-muted">Nominal (Rp):</span>
+                        <input
+                          type="number"
+                          value={item.fee}
+                          onChange={(e) => {
+                            const updated = [...editableTariffs];
+                            updated[idx].fee = Number(e.target.value) || 0;
+                            setEditableTariffs(updated);
+                          }}
+                          className="w-32 p-1.5 bg-surface border border-border rounded-lg text-right font-mono font-bold text-primary-700 text-xs"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total Summary Preview */}
+              <div className="p-3.5 bg-primary-50 rounded-2xl border border-primary-200 flex items-center justify-between">
+                <div>
+                  <h4 className="font-black text-primary-900 text-xs">Total Iuran Baru Per Unit</h4>
+                  <p className="text-[10px] text-primary-700">Dihitung otomatis dari akumulasi pos di atas</p>
+                </div>
+                <span className="font-mono font-black text-primary-900 text-sm">
+                  {formatRupiah(editableTariffs.reduce((sum, item) => sum + (Number(item.fee) || 0), 0))} / bln
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowTariffModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newTotal = editableTariffs.reduce((sum, item) => sum + (Number(item.fee) || 0), 0);
+                  setTariffComponents(editableTariffs);
+                  setTariffNote(editableTariffNote);
+                  setGenFee(newTotal);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('wargahub_tariff_components', JSON.stringify(editableTariffs));
+                    localStorage.setItem('wargahub_tariff_note', editableTariffNote);
+                    localStorage.setItem('wargahub_set_fee', String(newTotal));
+                  }
+                  setShowTariffModal(false);
+                  showToast('Struktur tarif IPL dan nominal iuran berhasil diperbarui!');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
+              >
+                Simpan Perubahan
               </button>
             </div>
           </div>

@@ -83,9 +83,10 @@ export interface VoterHouse {
 
 interface VotingManagerProps {
   initialTab?: string;
+  initialProperties?: any[];
 }
 
-export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'election' }) => {
+export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'election', initialProperties = [] }) => {
   // Persistence helpers
   const getPersisted = <T,>(key: string, fallback: T): T => {
     if (typeof window === 'undefined') return fallback;
@@ -129,11 +130,11 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
   const defaultElection = {
     title: 'Pemilihan Ketua RW 05 / RT 02 Paguyuban WargaHub Periode 2026 - 2029',
     description: 'Musyawarah pemilihan ketua komplek baru untuk masa bakti 3 tahun ke depan secara digital, transparan, dan terverifikasi per unit rumah.',
-    period: '20 Agustus - 15 September 2026',
+    period: '2026 - 2029',
     status: 'ACTIVE',
-    totalEligible: 123,
-    totalVoted: 104,
-    turnout: 84.6,
+    totalEligible: initialProperties?.length || 0,
+    totalVoted: 0,
+    turnout: 0,
     candidates: [
       {
         number: '01',
@@ -141,8 +142,8 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
         tagline: 'Mewujudkan Komplek Aman, Asri, dan Transparan Berbasis Digital.',
         vision: 'Meningkatkan transparansi buku kas publik secara realtime, modernisasi portal satpam dengan RFID scan otomatis, serta revitalisasi taman bermain anak fasum.',
         photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-        votes: 60,
-        percentage: 57.7,
+        votes: 0,
+        percentage: 0,
         color: 'bg-emerald-600',
         bgColor: 'bg-emerald-50/70',
         borderColor: 'border-emerald-300',
@@ -153,8 +154,8 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
         tagline: 'Guyub Rukun, Peduli Lansia, dan Pengelolaan Sampah Mandiri Ramah Lingkungan.',
         vision: 'Optimalisasi pengelolaan TPS3R dan pemilahan daur ulang organik, program posyandu lansia & balita terpadu, serta pemasangan 16 titik CCTV di seluruh gang blok.',
         photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
-        votes: 44,
-        percentage: 42.3,
+        votes: 0,
+        percentage: 0,
         color: 'bg-blue-600',
         bgColor: 'bg-blue-50/70',
         borderColor: 'border-blue-300',
@@ -261,57 +262,40 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
         console.warn(e);
       }
     }
-    return defaultPolls;
+    return [];
   });
 
-  // 3. Generate Complete 123 House DPT Voters List
-  const generateVoters = (): VoterHouse[] => {
-    const list: VoterHouse[] = [];
-    const blocks = [
-      { name: 'Blok A', prefix: 'A', count: 30, votedRatio: 0.90 },
-      { name: 'Blok B', prefix: 'B', count: 30, votedRatio: 0.85 },
-      { name: 'Blok C', prefix: 'C', count: 30, votedRatio: 0.83 },
-      { name: 'Blok D', prefix: 'D', count: 30, votedRatio: 0.80 },
-      { name: 'Kavling Mandiri', prefix: 'KAV', count: 10, votedRatio: 0.80 },
-    ];
-
-    const sampleNames = [
-      'Budi Santoso', 'Siti Rahmawati', 'Agus Setiawan', 'Dewi Lestari', 'Hendra Wijaya',
-      'Ratna Sari', 'Eko Prasetyo', 'Sri Wahyuni', 'Bambang Sudiro', 'Rina Marlina',
-      'Ahmad Fauzi', 'Nur Hidayah', 'Dedi Kurniawan', 'Yuni Astuti', 'Hadi Pranoto',
-      'Maya Anggraini', 'Joko Widodo', 'Indah Permata', 'Rudi Hermawan', 'Lestari Handayani'
-    ];
-
-    blocks.forEach((b) => {
-      for (let i = 1; i <= b.count; i++) {
-        const code = b.prefix === 'KAV' ? `KAV-${i < 10 ? '0' + i : i}` : `${b.prefix}-${i < 10 ? '0' + i : i}`;
-        const hasVoted = (i / b.count) <= b.votedRatio;
-        const name = sampleNames[(i * 3 + b.prefix.charCodeAt(0)) % sampleNames.length];
-        list.push({
-          propertyCode: code,
-          block: b.name,
-          residentName: `Bpk/Ibu ${name}`,
-          phone: `0812-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
-          hasVotedElection: hasVoted,
-          votedAt: hasVoted ? `2026-08-${(15 + (i % 10)).toString().padStart(2, '0')}, ${(8 + (i % 8)).toString().padStart(2, '0')}:${(10 + (i * 3) % 50).toString().padStart(2, '0')} WIB` : undefined,
-          voteReceiptHash: hasVoted ? `SHA256-${Math.random().toString(36).substring(2, 10).toUpperCase()}` : undefined
-        });
-      }
-    });
-
-    // Add Jl Sariwangi Indah units (3 units)
-    list.push(
-      { propertyCode: 'SW1', block: 'Jl. Sariwangi Indah', residentName: 'Bpk. Ridwan Kamil', phone: '0811-2233-4455', hasVotedElection: true, votedAt: '2026-08-22, 10:15 WIB', voteReceiptHash: 'SHA256-SW1-98AF' },
-      { propertyCode: 'SW2', block: 'Jl. Sariwangi Indah', residentName: 'Ibu Desi Ratnasari', phone: '0812-3344-5566', hasVotedElection: true, votedAt: '2026-08-23, 14:20 WIB', voteReceiptHash: 'SHA256-SW2-37CE' },
-      { propertyCode: 'SW3', block: 'Jl. Sariwangi Indah', residentName: 'Bpk. Cecep Reza', phone: '0813-4455-6677', hasVotedElection: false }
-    );
-
-    return list;
+  // 3. Build DPT Voters List from Registered Properties
+  const buildVotersFromProperties = (propsList: any[] = []): VoterHouse[] => {
+    return propsList.map((p) => ({
+      propertyCode: p.code,
+      block: p.blockName || (p.blockCode ? `Blok ${p.blockCode}` : 'Komplek'),
+      residentName: p.ownerName ? `Bpk/Ibu ${p.ownerName}` : (p.headName ? `Bpk/Ibu ${p.headName}` : 'Penghuni'),
+      phone: '-',
+      hasVotedElection: false,
+    }));
   };
 
-  const [voters, setVoters] = useState<VoterHouse[]>(() =>
-    getPersisted('wargahub_voters_dpt', generateVoters())
-  );
+  const [voters, setVoters] = useState<VoterHouse[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_voters_dpt');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    return buildVotersFromProperties(initialProperties);
+  });
+
+  const uniqueBlocks = useMemo(() => {
+    return Array.from(new Set(voters.map(v => v.block).filter(Boolean)));
+  }, [voters]);
 
   // Active Subtab matching query parameter
   const validTabs = ['election', 'polls', 'voters', 'regulations'];
@@ -687,7 +671,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
         {[
           { id: 'election', label: 'Pemilihan Ketua RT/RW (Quick Count)', icon: Award, count: `${election.turnout}%` },
           { id: 'polls', label: 'Polling & Musyawarah Proyek', icon: BarChart3, count: polls.length },
-          { id: 'voters', label: 'Daftar Partisipasi Pemilih per Rumah (DPT)', icon: Users, count: `${voters.filter(v => v.hasVotedElection).length}/123` },
+          { id: 'voters', label: 'Daftar Partisipasi Pemilih per Rumah (DPT)', icon: Users, count: `${voters.filter(v => v.hasVotedElection).length}/${voters.length}` },
           { id: 'regulations', label: 'Tata Tertib & Berita Acara', icon: FileText },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -724,27 +708,27 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
             {election.candidates.map((c) => (
               <div
                 key={c.number}
-                className={`p-6 rounded-3xl border shadow-card space-y-4 relative overflow-hidden ${c.bgColor} ${c.borderColor}`}
+                className={`p-5 rounded-3xl border ${c.borderColor} ${c.bgColor} space-y-4 shadow-card transition-all`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="px-3 py-1 bg-surface font-black text-sm text-ink rounded-xl border border-border shadow-xs">
-                    KANDIDAT #{c.number}
-                  </span>
-                  <div className="text-right">
-                    <span className="text-3xl font-black text-ink tabular-nums">{c.percentage}%</span>
-                    <span className="text-xs text-ink-muted block font-bold">{c.votes} Suara Sah</span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={c.photoUrl}
+                      alt={c.name}
+                      className="w-14 h-14 rounded-2xl object-cover border-2 border-surface shadow-xs"
+                    />
+                    <div>
+                      <span className={`px-2 py-0.5 rounded-full text-white font-black text-[10px] ${c.color}`}>
+                        KANDIDAT #{c.number}
+                      </span>
+                      <h4 className="text-base font-black text-ink mt-1">{c.name}</h4>
+                      <p className="text-[11px] text-ink-muted italic">&ldquo;{c.tagline}&rdquo;</p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-start gap-4">
-                  <img
-                    src={c.photoUrl}
-                    alt={c.name}
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-surface shadow-xs shrink-0"
-                  />
-                  <div className="space-y-1">
-                    <h3 className="font-black text-lg text-ink">{c.name}</h3>
-                    <p className="text-xs text-ink-muted leading-relaxed font-semibold italic">"{c.tagline}"</p>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-ink font-mono tabular-nums">{c.votes}</span>
+                    <span className="text-xs text-ink-muted block font-bold">{c.percentage}% Suara</span>
                   </div>
                 </div>
 
@@ -769,7 +753,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                   Rincian Perolehan Suara Terverifikasi per Kluster Blok
                 </h3>
                 <p className="text-ink-muted mt-0.5">
-                  Distribusi pemilih yang telah mencoblos dari total 123 unit rumah komplek.
+                  Distribusi pemilih yang telah mencoblos dari total {voters.length} unit rumah komplek.
                 </p>
               </div>
 
@@ -793,31 +777,24 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border">
-                <span className="font-bold text-ink block text-xs">Blok A (30 Unit)</span>
-                <p className="text-base font-black text-emerald-700 mt-1">27 Suara (90%)</p>
-                <span className="text-[10px] text-ink-muted">#01: 16 | #02: 11</span>
-              </div>
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border">
-                <span className="font-bold text-ink block text-xs">Blok B (30 Unit)</span>
-                <p className="text-base font-black text-emerald-700 mt-1">26 Suara (86%)</p>
-                <span className="text-[10px] text-ink-muted">#01: 15 | #02: 11</span>
-              </div>
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border">
-                <span className="font-bold text-ink block text-xs">Blok C (30 Unit)</span>
-                <p className="text-base font-black text-emerald-700 mt-1">25 Suara (83%)</p>
-                <span className="text-[10px] text-ink-muted">#01: 14 | #02: 11</span>
-              </div>
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border">
-                <span className="font-bold text-ink block text-xs">Blok D (30 Unit)</span>
-                <p className="text-base font-black text-emerald-700 mt-1">24 Suara (80%)</p>
-                <span className="text-[10px] text-ink-muted">#01: 13 | #02: 11</span>
-              </div>
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border col-span-2 sm:col-span-1">
-                <span className="font-bold text-ink block text-xs">Kavling & SW (13 Unit)</span>
-                <p className="text-base font-black text-emerald-700 mt-1">2 Suara (15%)</p>
-                <span className="text-[10px] text-ink-muted">#01: 2 | #02: 0</span>
-              </div>
+              {uniqueBlocks.length > 0 ? (
+                uniqueBlocks.map((blockName) => {
+                  const blockVoters = voters.filter(v => v.block === blockName);
+                  const votedCount = blockVoters.filter(v => v.hasVotedElection).length;
+                  const pct = blockVoters.length > 0 ? Math.round((votedCount / blockVoters.length) * 100) : 0;
+                  return (
+                    <div key={blockName} className="p-3.5 bg-canvas rounded-2xl border border-border">
+                      <span className="font-bold text-ink block text-xs truncate" title={blockName}>{blockName} ({blockVoters.length} Unit)</span>
+                      <p className="text-base font-black text-emerald-700 mt-1">{votedCount} Suara ({pct}%)</p>
+                      <span className="text-[10px] text-ink-muted">{blockVoters.length - votedCount} belum vote</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-full py-6 text-center text-ink-muted text-xs">
+                  Belum ada unit rumah tercatat dalam DPT.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1085,13 +1062,10 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                 onChange={(e) => setVoterBlockFilter(e.target.value)}
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
-                <option value="ALL">Semua Blok (123 Unit)</option>
-                <option value="Blok A">Blok A (30 Unit)</option>
-                <option value="Blok B">Blok B (30 Unit)</option>
-                <option value="Blok C">Blok C (30 Unit)</option>
-                <option value="Blok D">Blok D (30 Unit)</option>
-                <option value="Kavling Mandiri">Kavling Mandiri</option>
-                <option value="Jl. Sariwangi Indah">Jl. Sariwangi Indah</option>
+                <option value="ALL">Semua Blok ({voters.length} Unit)</option>
+                {uniqueBlocks.map((blk) => (
+                  <option key={blk} value={blk}>{blk} ({voters.filter(v => v.block === blk).length} Unit)</option>
+                ))}
               </select>
 
               <select
@@ -1121,7 +1095,16 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {paginatedVoters.map((v) => (
+                  {paginatedVoters.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-ink-muted">
+                        <Users className="w-8 h-8 mx-auto mb-2 text-ink-muted/50" />
+                        <p className="font-bold text-sm text-ink">Tidak ada data pemilih DPT</p>
+                        <p className="text-[11px] mt-1">Belum ada unit rumah terdaftar atau tidak sesuai dengan filter pencarian.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedVoters.map((v) => (
                     <tr key={v.propertyCode} className="hover:bg-canvas/50 transition-colors">
                       <td className="py-3.5 px-4">
                         <span className="font-mono font-black text-primary-700 block">{v.propertyCode}</span>
@@ -1187,7 +1170,8 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                         )}
                       </td>
                     </tr>
-                  ))}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1297,7 +1281,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
               <button
                 type="button"
                 onClick={() => {
-                  const content = `BERITA ACARA REKAPITULASI HASIL E-VOTING WARGAHUB\n========================================================\nNomor Dokumen: BA-PLENO/RW05/IX/2026\nPerihal: Pemilihan Ketua RW 05 / RT 02 Periode 2026-2029\n\n1. Jumlah Daftar Pemilih Tetap (DPT): 123 Rumah\n2. Jumlah Suara Masuk: ${election.totalVoted} Rumah (${election.turnout}%)\n\nPEROLEHAN SUARA SAH KANDIDAT:\n• Kandidat #01 (${election.candidates[0].name}): ${election.candidates[0].votes} Suara (${election.candidates[0].percentage}%)\n• Kandidat #02 (${election.candidates[1].name}): ${election.candidates[1].votes} Suara (${election.candidates[1].percentage}%)\n\nDemikian Berita Acara ini dibuat dengan sebenarnya menggunakan sistem E-Voting WargaHub yang terenkripsi dan terverifikasi per unit rumah.\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}`;
+                  const content = `BERITA ACARA REKAPITULASI HASIL E-VOTING WARGAHUB\n========================================================\nNomor Dokumen: BA-PLENO/RW05/IX/2026\nPerihal: Pemilihan Ketua RW 05 / RT 02 Periode 2026-2029\n\n1. Jumlah Daftar Pemilih Tetap (DPT): ${voters.length} Rumah\n2. Jumlah Suara Masuk: ${election.totalVoted} Rumah (${election.turnout}%)\n\nPEROLEHAN SUARA SAH KANDIDAT:\n• Kandidat #01 (${election.candidates[0].name}): ${election.candidates[0].votes} Suara (${election.candidates[0].percentage}%)\n• Kandidat #02 (${election.candidates[1].name}): ${election.candidates[1].votes} Suara (${election.candidates[1].percentage}%)\n\nDemikian Berita Acara ini dibuat dengan sebenarnya menggunakan sistem E-Voting WargaHub yang terenkripsi dan terverifikasi per unit rumah.\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}`;
                   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');

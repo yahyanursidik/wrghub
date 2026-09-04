@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Home,
   Users,
@@ -24,45 +24,44 @@ import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
-  Clock,
-  Sparkles,
-  Shield,
-  Truck,
-  DollarSign,
   Send,
-  UserCheck,
-  Building2,
-  Vote,
-  Layers,
-  PhoneCall,
-  BellRing,
-  Check,
-  Lock,
-  RefreshCw,
-  AlertTriangle,
-  Volume2,
-  QrCode,
-  Receipt,
-  Inbox,
-  Filter,
-  CheckCircle,
-  XCircle,
-  Banknote,
   Eye,
-  BookOpen,
-  FileCheck,
-  UserCircle2,
+  Check,
+  Filter,
+  DollarSign,
+  Download,
+  Printer,
+  Sparkles,
+  Layers,
+  HelpCircle,
+  Clock,
+  Volume2,
+  Trash2,
+  Edit,
+  Truck,
   ArrowRight,
   X,
   FileSpreadsheet,
   UploadCloud,
   Search,
   MessageSquare,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Building2,
+  Vote,
+  Receipt
 } from 'lucide-react';
-import { DEMO_USERS, type UserRole, type UserSession } from '../../types/auth';
+import type { UserRole, UserSession } from '../../types/auth';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
+
+const DEFAULT_ADMIN: UserSession = {
+  id: 'usr-admin',
+  username: 'admin',
+  fullName: 'Pengurus Komplek',
+  email: 'admin@wargahub.id',
+  role: 'CHAIRMAN',
+  avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
+};
 
 interface AdminDashboardViewProps {
   stats: {
@@ -83,6 +82,8 @@ interface AdminDashboardViewProps {
     needingRepairCount: number;
   };
   currentUser?: UserSession;
+  pendingPayments?: any[];
+  properties?: any[];
 }
 
 interface PendingPayment {
@@ -107,7 +108,12 @@ interface VisitorItem {
   status: 'Di Dalam' | 'Sudah Keluar';
 }
 
-const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initialStats, currentUser }) => {
+const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ 
+  stats: initialStats, 
+  currentUser,
+  pendingPayments: initialPendingPayments = [],
+  properties: initialProperties = []
+}) => {
   // Live stats with optimistic mutability
   const [stats, setStats] = useState(initialStats);
   const [selectedMonth, setSelectedMonth] = useState('Agustus 2026');
@@ -127,7 +133,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
         }
       } catch (e) {}
     }
-    return currentUser || DEMO_USERS.ketua;
+    return currentUser || DEFAULT_ADMIN;
   });
 
   // Dynamic dashboard role filter (defaults to active user role)
@@ -163,7 +169,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
   // Form: Terbitkan Invoice Tagihan IPL
   const [invPeriod, setInvPeriod] = useState('September 2026');
   const [invBlockTarget, setInvBlockTarget] = useState('ALL');
-  const [invRate, setInvRate] = useState(750000);
+  const [invRate, setInvRate] = useState(250000);
   const [invDueDate, setInvDueDate] = useState('2026-09-10');
   const [invSendWa, setInvSendWa] = useState(true);
   const [invNotes, setInvNotes] = useState('Iuran Pengelolaan Lingkungan (Keamanan, Kebersihan TPS3R & Fasum)');
@@ -194,20 +200,37 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
 
-  // Treasurer quick verification state
-  const [pendingList, setPendingList] = useState<PendingPayment[]>([
-    { id: 'pay-01', house: 'B-12', name: 'Hendra Wijaya', amount: 750000, method: 'Transfer Bank BCA', time: '10 mnt lalu', note: 'Iuran IPL Agt 2026', refNumber: 'TRX-BCA-987112', proofUrl: '/proof-bca.jpg' },
-    { id: 'pay-02', house: 'A-04', name: 'Ridwan Fauzi', amount: 750000, method: 'QRIS Mandiri', time: '25 mnt lalu', note: 'Iuran IPL + Fasum', refNumber: 'QRIS-MND-445102', proofUrl: '/proof-qris.jpg' },
-    { id: 'pay-03', house: 'C-09', name: 'Dewi Lestari', amount: 1500000, method: 'Transfer Bank BCA', time: '1 jam lalu', note: 'Iuran 2 Bulan (Agt-Sep)', refNumber: 'TRX-BCA-661908', proofUrl: '/proof-bca2.jpg' },
-  ]);
+  // Treasurer quick verification state (connected to real pending payments)
+  const [pendingList, setPendingList] = useState<PendingPayment[]>(() => {
+    if (initialPendingPayments && initialPendingPayments.length > 0) {
+      return initialPendingPayments.map((p: any) => ({
+        id: p.id,
+        house: p.propertyCode || '-',
+        name: p.propertyCode ? `Warga ${p.propertyCode}` : 'Warga',
+        amount: Number(p.amount) || 250000,
+        method: p.method || 'Transfer Bank',
+        time: p.paidAt ? new Date(p.paidAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB' : 'Baru saja',
+        note: p.notes || 'Iuran IPL',
+        refNumber: p.reference || `TRX-${p.id.slice(0, 6)}`,
+        proofUrl: p.proofFileUrl || undefined,
+      }));
+    }
+    return [];
+  });
 
-  // Live Visitors List
-  const [visitors, setVisitors] = useState<VisitorItem[]>([
-    { id: 'v-1', name: 'Ridwan Fauzi (Tamu Keluarga)', unit: 'A-04', plate: 'B 1234 SAK', category: 'Keluarga', inTime: '08:30 WIB', status: 'Di Dalam' },
-    { id: 'v-2', name: 'Kurir J&T Express (Antar Paket)', unit: 'B-07, B-12', plate: 'B 4567 TUV', category: 'Kurir Logistik', inTime: '09:15 WIB', status: 'Di Dalam' },
-    { id: 'v-3', name: 'GrabFood Delivery', unit: 'C-03', plate: 'B 8899 XYZ', category: 'Ojol Makanan', inTime: '09:40 WIB', status: 'Di Dalam' },
-    { id: 'v-4', name: 'Teknisi Servis AC Daikin', unit: 'A-17', plate: 'B 3344 KLM', category: 'Teknisi/Servis', inTime: '07:50 WIB', status: 'Sudah Keluar' },
-  ]);
+  // Live Visitors List (loaded from saved records or empty)
+  const [visitors, setVisitors] = useState<VisitorItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_live_visitors');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
 
   useEffect(() => {
     try {
@@ -237,167 +260,93 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
     return () => window.removeEventListener('wargahub_user_changed', handleUserChanged);
   }, []);
 
-  // Budget comparison table data
-  const [budgetRows, setBudgetRows] = useState([
-    {
-      id: 'b-1',
-      category: 'PEMASUKAN',
-      keterangan: 'Pemasukan (Iuran Lingkungan & IPL)',
-      anggaran: 90000000,
-      realisasi: 64500000,
-      selisih: -25500000,
-      isPositive: false,
-      pct: 71.7,
-      status: 'On Track',
-    },
-    {
-      id: 'b-2',
-      category: 'OPERASIONAL',
-      keterangan: 'Gaji & Operasional Satpam/Kebersihan',
-      anggaran: 45000000,
-      realisasi: 28350000,
-      selisih: 16650000,
-      isPositive: true,
-      pct: 63.0,
-      status: 'Hemat 37%',
-    },
-    {
-      id: 'b-3',
-      category: 'PEMELIHARAAN',
-      keterangan: 'Pemeliharaan Fasum, PJU & Pompa Air',
-      anggaran: 20000000,
-      realisasi: 12600000,
-      selisih: 7400000,
-      isPositive: true,
-      pct: 63.0,
-      status: 'Terkendali',
-    },
-    {
-      id: 'b-4',
-      category: 'CADANGAN',
-      keterangan: 'Kas Cadangan & Pembangunan Fasilitas',
-      anggaran: 25000000,
-      realisasi: 23550000,
-      selisih: -1450000,
-      isPositive: false,
-      pct: 94.2,
-      status: 'Hampir Penuh',
-    },
-  ]);
+  // Budget comparison table data (persisted or empty)
+  const [budgetRows, setBudgetRows] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_budget_items');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
 
   const filteredBudgetData = budgetRows.filter(b => {
-    const matchSearch = b.keterangan.toLowerCase().includes(budgetSearch.toLowerCase());
+    const matchSearch = b.keterangan?.toLowerCase().includes(budgetSearch.toLowerCase()) || false;
     const matchCat = budgetCategoryFilter === 'ALL' || b.category === budgetCategoryFilter;
     return matchSearch && matchCat;
   });
 
-  // Block compliance data
-  const blockStats = [
-    {
-      block: 'Blok A (Boulevard Utama)',
-      code: 'A',
-      total: 32,
-      paid: 31,
-      pct: 96.8,
-      color: 'bg-emerald-500',
-      note: '1 unit proses verifikasi',
-      houses: [
-        { no: 'A-01', name: 'Bpk. Hendrawan', status: 'Lunas', phone: '081234567801' },
-        { no: 'A-04', name: 'Bpk. Ridwan Fauzi', status: 'Verifikasi', phone: '081234567804' },
-        { no: 'A-17', name: 'Bpk. Budi Santoso', status: 'Lunas', phone: '081234567817' },
-        { no: 'A-22', name: 'Ibu Rina Saptari', status: 'Lunas', phone: '081234567822' },
-      ]
-    },
-    {
-      block: 'Blok B (Taman Barat)',
-      code: 'B',
-      total: 30,
-      paid: 28,
-      pct: 93.3,
-      color: 'bg-emerald-500',
-      note: '2 unit jatuh tempo 25 Agt',
-      houses: [
-        { no: 'B-03', name: 'Bpk. Antonius', status: 'Lunas', phone: '081234567903' },
-        { no: 'B-07', name: 'Ibu Siti Khadijah', status: 'Tertunggak', phone: '081234567907' },
-        { no: 'B-12', name: 'Bpk. Hendra Wijaya', status: 'Verifikasi', phone: '081234567912' },
-      ]
-    },
-    {
-      block: 'Blok C (Taman Timur)',
-      code: 'C',
-      total: 31,
-      paid: 30,
-      pct: 96.7,
-      color: 'bg-emerald-500',
-      note: '1 unit kosong',
-      houses: [
-        { no: 'C-01', name: 'Bpk. Gunawan', status: 'Lunas', phone: '081234568101' },
-        { no: 'C-09', name: 'Ibu Dewi Lestari', status: 'Verifikasi', phone: '081234568109' },
-        { no: 'C-15', name: 'Unit Kosong (Pemilik Luar Kota)', status: 'Kosong', phone: '-' },
-      ]
-    },
-    {
-      block: 'Blok D (Taman Selatan)',
-      code: 'D',
-      total: 30,
-      paid: 28,
-      pct: 93.3,
-      color: 'bg-emerald-500',
-      note: '2 unit konfirmasi transfer',
-      houses: [
-        { no: 'D-02', name: 'Bpk. Fajar Ramadhan', status: 'Lunas', phone: '081234568202' },
-        { no: 'D-08', name: 'Ibu Maya Melati', status: 'Tertunggak', phone: '081234568208' },
-      ]
-    },
-  ];
+  // Dynamic Block compliance data derived directly from real database properties
+  const blockStats = useMemo(() => {
+    if (!initialProperties || initialProperties.length === 0) return [];
 
-  // Activities list
-  const [activities, setActivities] = useState([
-    {
-      id: 'act-1',
-      type: 'finance',
-      icon: CreditCard,
-      iconBg: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-      category: 'finance',
-      title: 'Pembayaran IPL Rumah A-17 Terverifikasi',
-      detail: 'Bpk. Budi Santoso membayar Rp 750.000 via Transfer BCA',
-      time: '12 menit lalu',
-      link: '/admin/payments',
-    },
-    {
-      id: 'act-2',
-      type: 'security',
-      icon: ShieldCheck,
-      iconBg: 'bg-blue-50 text-blue-700 border border-blue-200',
-      category: 'security',
-      title: 'Tamu Masuk: Kurir Ekspedisi J&T',
-      detail: 'Tujuan Rumah B-07 (Telah diverifikasi Satpam Pos 1)',
-      time: '28 menit lalu',
-      link: '/admin/security-gate',
-    },
-    {
-      id: 'act-3',
-      type: 'complaint',
-      icon: Headphones,
-      iconBg: 'bg-amber-50 text-amber-700 border border-amber-200',
-      category: 'complaint',
-      title: 'Aduan Warga: PJU Blok C Mati',
-      detail: 'Dilaporkan oleh warga C-12, teknisi ditugaskan untuk survei',
-      time: '1 jam lalu',
-      link: '/admin/complaints',
-    },
-    {
-      id: 'act-4',
-      type: 'facility',
-      icon: Truck,
-      iconBg: 'bg-teal-50 text-teal-700 border border-teal-200',
-      category: 'facility',
-      title: 'Rute Sampah Pagi Selesai (Viar Tossa 01)',
-      detail: 'Pengangkutan door-to-door Blok A & B telah dituntaskan',
-      time: 'Pukul 09:30 WIB',
-      link: '/admin/cleaning-staff',
-    },
-  ]);
+    const blockMap = new Map<string, {
+      block: string;
+      code: string;
+      total: number;
+      paid: number;
+      pct: number;
+      color: string;
+      note: string;
+      houses: Array<{ no: string; name: string; status: string; phone: string }>;
+    }>();
+
+    for (const prop of initialProperties) {
+      const codePart = String(prop.code || '').trim();
+      const bCode = prop.blockCode || (codePart.includes('-') ? codePart.split('-')[0] : 'A') || 'A';
+      const blockTitle = prop.blockName || `Blok ${bCode}`;
+
+      if (!blockMap.has(bCode)) {
+        blockMap.set(bCode, {
+          block: blockTitle,
+          code: bCode,
+          total: 0,
+          paid: 0,
+          pct: 0,
+          color: 'bg-emerald-500',
+          note: '',
+          houses: [],
+        });
+      }
+
+      const b = blockMap.get(bCode)!;
+      b.total += 1;
+      const isOccupied = prop.occupancyStatus !== 'VACANT';
+      if (isOccupied) {
+        b.paid += 1;
+      }
+      b.houses.push({
+        no: prop.code,
+        name: prop.ownerName || (isOccupied ? 'Penghuni' : 'Unit Kosong'),
+        status: isOccupied ? 'Lunas' : 'Kosong',
+        phone: prop.phone || '-',
+      });
+    }
+
+    return Array.from(blockMap.values()).map(b => ({
+      ...b,
+      pct: b.total > 0 ? Math.round((b.paid / b.total) * 100) : 0,
+      note: `${b.total} unit terdata (${b.paid} terisi)`,
+    }));
+  }, [initialProperties]);
+
+  // Activities list (loaded from real audit or empty state)
+  const [activities, setActivities] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_recent_activities');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
 
   const filteredActivities = activities.filter((act) => {
     const matchCat = activityFilter === 'all' || act.category === activityFilter;
@@ -479,7 +428,13 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
       inTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
       status: 'Di Dalam',
     };
-    setVisitors([newVis, ...visitors]);
+    const updated = [newVis, ...visitors];
+    setVisitors(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wargahub_live_visitors', JSON.stringify(updated));
+      } catch (e) {}
+    }
     showToast(`✓ Tamu ${visName} (Tujuan Rumah ${visHouse}) berhasil dicatat di buku tamu pos.`);
     setShowAddVisitorModal(false);
     setVisName('');
@@ -488,7 +443,13 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
 
   // 5. Tandai Tamu Keluar
   const handleMarkVisitorExited = (id: string) => {
-    setVisitors(prev => prev.map(v => v.id === id ? { ...v, status: 'Sudah Keluar' } : v));
+    const updated = visitors.map(v => v.id === id ? { ...v, status: 'Sudah Keluar' as const } : v);
+    setVisitors(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('wargahub_live_visitors', JSON.stringify(updated));
+      } catch (e) {}
+    }
     showToast('✓ Tamu berhasil ditandai keluar dari komplek.');
   };
 
@@ -974,25 +935,34 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {filteredBudgetData.map((row) => (
-                      <tr key={row.id} className="text-ink hover:bg-canvas/50 transition-colors">
-                        <td className="py-3 pr-2">
-                          <p className="font-bold text-xs">{row.keterangan}</p>
-                          <div className="w-36 bg-canvas h-1.5 rounded-full overflow-hidden border border-border/50 mt-1">
-                            <div className={`h-full rounded-full ${row.pct > 80 ? 'bg-primary-600' : 'bg-emerald-500'}`} style={{ width: `${Math.min(row.pct, 100)}%` }} />
-                          </div>
-                        </td>
-                        <td className="py-3 px-2 text-right tabular-nums font-mono text-ink-muted">{formatRupiah(row.anggaran)}</td>
-                        <td className="py-3 px-2 text-right tabular-nums font-mono font-bold text-ink">{formatRupiah(row.realisasi)}</td>
-                        <td className="py-3 pl-2 text-right">
-                          <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
-                            row.isPositive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-800 border border-slate-200'
-                          }`}>
-                            {row.status}
-                          </span>
+                    {filteredBudgetData.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-ink-muted">
+                          <p className="font-bold text-xs text-ink">Belum ada pos anggaran operasional yang terdaftar.</p>
+                          <p className="text-[11px] text-ink-muted mt-0.5">Pengurus dapat mengatur pagu anggaran di menu Anggaran Komplek.</p>
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredBudgetData.map((row) => (
+                        <tr key={row.id} className="text-ink hover:bg-canvas/50 transition-colors">
+                          <td className="py-3 pr-2">
+                            <p className="font-bold text-xs">{row.keterangan}</p>
+                            <div className="w-36 bg-canvas h-1.5 rounded-full overflow-hidden border border-border/50 mt-1">
+                              <div className={`h-full rounded-full ${row.pct > 80 ? 'bg-primary-600' : 'bg-emerald-500'}`} style={{ width: `${Math.min(row.pct, 100)}%` }} />
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-right tabular-nums font-mono text-ink-muted">{formatRupiah(row.anggaran)}</td>
+                          <td className="py-3 px-2 text-right tabular-nums font-mono font-bold text-ink">{formatRupiah(row.realisasi)}</td>
+                          <td className="py-3 pl-2 text-right">
+                            <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
+                              row.isPositive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-800 border border-slate-200'
+                            }`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1011,26 +981,34 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
               </div>
 
               <div className="space-y-3">
-                {blockStats.map((b) => (
-                  <div
-                    key={b.block}
-                    onClick={() => setSelectedBlockDrilldown(b.code)}
-                    className="p-3.5 bg-canvas hover:bg-surface rounded-2xl border border-border/70 hover:border-primary-400 hover:shadow-xs cursor-pointer transition-all space-y-2 active:scale-[0.99]"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-black text-ink block">{b.block}</span>
-                        <span className="text-[10px] text-ink-muted">{b.note}</span>
-                      </div>
-                      <span className="font-mono font-black text-primary-700">
-                        {b.paid}/{b.total} Unit ({b.pct}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-surface h-2 rounded-full overflow-hidden border border-border/60">
-                      <div className={`h-full rounded-full ${b.color}`} style={{ width: `${b.pct}%` }} />
-                    </div>
+                {blockStats.length === 0 ? (
+                  <div className="p-8 text-center text-ink-muted space-y-1">
+                    <Home className="w-7 h-7 text-slate-400 mx-auto" />
+                    <p className="text-xs font-bold text-ink">Belum ada data kepatuhan blok.</p>
+                    <p className="text-[11px]">Daftarkan unit rumah di menu Data Rumah & Warga.</p>
                   </div>
-                ))}
+                ) : (
+                  blockStats.map((b) => (
+                    <div
+                      key={b.block}
+                      onClick={() => setSelectedBlockDrilldown(b.code)}
+                      className="p-3.5 bg-canvas hover:bg-surface rounded-2xl border border-border/70 hover:border-primary-400 hover:shadow-xs cursor-pointer transition-all space-y-2 active:scale-[0.99]"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-black text-ink block">{b.block}</span>
+                          <span className="text-[10px] text-ink-muted">{b.note}</span>
+                        </div>
+                        <span className="font-mono font-black text-primary-700">
+                          {b.paid}/{b.total} Unit ({b.pct}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-surface h-2 rounded-full overflow-hidden border border-border/60">
+                        <div className={`h-full rounded-full ${b.color}`} style={{ width: `${b.pct}%` }} />
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               <div className="p-3 rounded-xl bg-primary-50/60 border border-primary-100 flex items-center justify-between text-xs">
@@ -1080,7 +1058,14 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
             </div>
 
             <div className="divide-y divide-border/60">
-              {filteredActivities.map((act) => {
+              {filteredActivities.length === 0 ? (
+                <div className="p-8 text-center text-ink-muted space-y-1">
+                  <Clock className="w-7 h-7 text-slate-400 mx-auto" />
+                  <p className="text-xs font-bold text-ink">Belum ada aktivitas operasional komplek tercatat.</p>
+                  <p className="text-[11px]">Aktivitas baru akan otomatis terekam saat ada transaksi atau laporan masuk.</p>
+                </div>
+              ) : (
+                filteredActivities.map((act) => {
                 const Icon = act.icon;
                 return (
                   <div key={act.id} className="py-3 flex items-center justify-between gap-3 hover:bg-canvas/40 px-2 rounded-xl transition-colors">
@@ -1101,7 +1086,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </div>
         </div>
@@ -1344,7 +1329,13 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
               </div>
 
               <div className="divide-y divide-border/60">
-                {visitors.map((guest) => (
+                {visitors.length === 0 ? (
+                  <div className="p-8 text-center text-ink-muted space-y-1">
+                    <Car className="w-7 h-7 text-slate-400 mx-auto" />
+                    <p className="text-xs font-bold text-ink">Belum ada catatan tamu atau kurir di pos satpam hari ini.</p>
+                  </div>
+                ) : (
+                  visitors.map((guest) => (
                   <div key={guest.id} className="py-2.5 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center font-bold text-xs">
@@ -1372,7 +1363,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
                       )}
                     </div>
                   </div>
-                ))}
+                )))}
               </div>
             </div>
           </div>
@@ -1474,11 +1465,12 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
                     onChange={(e) => setInvBlockTarget(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
                   >
-                    <option value="ALL">Semua Blok (123 Unit)</option>
-                    <option value="A">Blok A Saja (32 Unit)</option>
-                    <option value="B">Blok B Saja (30 Unit)</option>
-                    <option value="C">Blok C Saja (31 Unit)</option>
-                    <option value="D">Blok D Saja (30 Unit)</option>
+                    <option value="ALL">Semua Unit ({stats.totalProperties} Unit)</option>
+                    {blockStats.map((b) => (
+                      <option key={b.code} value={b.code}>
+                        {b.block} ({b.total} Unit)
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1923,13 +1915,15 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({ stats: initial
                     onChange={(e) => setVisHouse(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
                   >
-                    <option value="A-04">Rumah A-04 (Ridwan Fauzi)</option>
-                    <option value="A-17">Rumah A-17 (Budi Santoso)</option>
-                    <option value="B-07">Rumah B-07 (Siti Khadijah)</option>
-                    <option value="B-12">Rumah B-12 (Hendra Wijaya)</option>
-                    <option value="C-03">Rumah C-03 (Bambang)</option>
-                    <option value="C-09">Rumah C-09 (Dewi Lestari)</option>
-                    <option value="D-02">Rumah D-02 (Fajar)</option>
+                    {initialProperties && initialProperties.length > 0 ? (
+                      initialProperties.map((p) => (
+                        <option key={p.id || p.code} value={p.code}>
+                          Rumah {p.code} {p.ownerName ? `(${p.ownerName})` : ''}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="A-01">Rumah A-01</option>
+                    )}
                   </select>
                 </div>
               </div>

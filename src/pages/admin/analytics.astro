@@ -1,8 +1,23 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { AnalyticsManager } from '../../components/admin/AnalyticsManager';
+import { getProperties } from '../../services/property.service';
+import { getLedgerEntries } from '../../services/finance.service';
+import { getComplaints } from '../../services/complaint.service';
+import { getInvoices } from '../../services/billing.service';
+
+const properties = await getProperties().catch(() => []);
+const ledgerEntries = await getLedgerEntries(200).catch(() => []);
+const complaints = await getComplaints().catch(() => []);
+const invoices = await getInvoices().catch(() => []);
 ---
 
 <AdminLayout title="Analitik & Tren Finansial - WargaHub" currentPath="/admin/analytics">
-  <AnalyticsManager client:load />
+  <AnalyticsManager
+    properties={properties as any}
+    ledgerEntries={ledgerEntries as any}
+    complaints={complaints as any}
+    invoices={invoices as any}
+    client:load
+  />
 </AdminLayout>

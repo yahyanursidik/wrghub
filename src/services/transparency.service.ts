@@ -29,38 +29,53 @@ export interface PublicTransparencyData {
 }
 
 export async function getPublicMonthlyReport(year = 2026, month = 8): Promise<PublicTransparencyData> {
-  const defaultUnpaid = ['A-03', 'A-11', 'B-07', 'C-02', 'C-11', 'D-05'];
-  const defaultBreakdown = [
-    { name: 'Keamanan', percentage: 45, amount: 17600000, icon: 'ShieldCheck' },
-    { name: 'Kebersihan', percentage: 25, amount: 9787500, icon: 'Sparkles' },
-    { name: 'Listrik', percentage: 20, amount: 7830000, icon: 'Zap' },
-    { name: 'Pemeliharaan', percentage: 10, amount: 3932500, icon: 'Wrench' },
-  ];
-
-  let totalProps = 68;
-  let paidProps = 59;
-  let unpaidProps = 9;
-  let income = 64500000;
-  let expense = 39150000;
-  let openingBalance = 18000000;
-  let closingBalance = 25350000;
-  let unpaidHouses = defaultUnpaid;
-  let expenseBreakdown = defaultBreakdown;
+  let totalProps = 0;
+  let paidProps = 0;
+  let unpaidProps = 0;
+  let income = 0;
+  let expense = 0;
+  let openingBalance = 0;
+  let closingBalance = 0;
+  let unpaidHouses: string[] = [];
+  let expenseBreakdown: Array<{ name: string; percentage: number; amount: number; icon: string }> = [];
 
   if (process.env.DATABASE_URL) {
     try {
-      const snaps = await neonSql`SELECT * FROM monthly_snapshots WHERE billing_period_id = 'period-2026-08' LIMIT 1`;
+      const periodId = `period-${year}-${month.toString().padStart(2, '0')}`;
+      const snaps = await neonSql`SELECT * FROM monthly_snapshots WHERE billing_period_id = ${periodId} LIMIT 1`;
       if (snaps.length) {
         const s = snaps[0];
-        totalProps = Number(s.total_properties) || 68;
-        paidProps = Number(s.paid_properties) || 59;
-        unpaidProps = Number(s.unpaid_properties) || 9;
-        income = Number(s.income) || 64500000;
-        expense = Number(s.expense) || 39150000;
-        openingBalance = Number(s.opening_balance) || 18000000;
-        closingBalance = Number(s.closing_balance) || 25350000;
+        totalProps = Number(s.total_properties ?? 0);
+        paidProps = Number(s.paid_properties ?? 0);
+        unpaidProps = Number(s.unpaid_properties ?? 0);
+        income = Number(s.income ?? 0);
+        expense = Number(s.expense ?? 0);
+        openingBalance = Number(s.opening_balance ?? 0);
+        closingBalance = Number(s.closing_balance ?? 0);
         if (s.unpaid_properties_list_json) unpaidHouses = JSON.parse(s.unpaid_properties_list_json);
         if (s.breakdown_json) expenseBreakdown = JSON.parse(s.breakdown_json);
+      } else {
+        // Query live counts from database
+        const pCount = await neonSql`SELECT COUNT(*) as total FROM properties WHERE is_active = true`;
+        totalProps = Number(pCount[0]?.total ?? 0);
+
+        const invStats = await neonSql`
+          SELECT 
+            COUNT(CASE WHEN status = 'PAID' THEN 1 END) as paid,
+            COUNT(CASE WHEN status != 'PAID' THEN 1 END) as unpaid,
+            COALESCE(SUM(CASE WHEN status = 'PAID' THEN total ELSE 0 END), 0) as income
+          FROM invoices
+          WHERE billing_period_id = ${periodId}
+        `;
+        paidProps = Number(invStats[0]?.paid ?? 0);
+        unpaidProps = Number(invStats[0]?.unpaid ?? 0);
+        income = Number(invStats[0]?.income ?? 0);
+
+        const expSum = await neonSql`SELECT COALESCE(SUM(amount), 0) as total FROM expenses`;
+        expense = Number(expSum[0]?.total ?? 0);
+
+        const accSum = await neonSql`SELECT COALESCE(SUM(balance), 0) as total FROM accounts WHERE is_active = true`;
+        closingBalance = Number(accSum[0]?.total ?? 0);
       }
     } catch (e) {
       console.warn('Neon transparency snapshot error:', e);
@@ -85,8 +100,8 @@ export async function getPublicMonthlyReport(year = 2026, month = 8): Promise<Pu
     totalProperties: totalProps,
     paidProperties: paidProps,
     unpaidProperties: unpaidProps,
-    paidPercentage: Number(((paidProps / totalProps) * 100).toFixed(1)),
-    unpaidPercentage: Number(((unpaidProps / totalProps) * 100).toFixed(1)),
+    paidPercentage: totalProps > 0 ? Number(((paidProps / totalProps) * 100).toFixed(1)) : 0,
+    unpaidPercentage: totalProps > 0 ? Number(((unpaidProps / totalProps) * 100).toFixed(1)) : 0,
     income,
     expense,
     openingBalance,
@@ -94,7 +109,7 @@ export async function getPublicMonthlyReport(year = 2026, month = 8): Promise<Pu
     unpaidHouses,
     expenseBreakdown,
     qrCodeDataUrl,
-    lastUpdatedAt: '19 Agustus 2026, 17:30 WIB',
+    lastUpdatedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + ', 17:30 WIB',
     communityName: 'Komplek Taman Sejahtera',
   };
 }

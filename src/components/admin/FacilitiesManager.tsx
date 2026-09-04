@@ -340,7 +340,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   ];
 
   const [bookings, setBookings] = useState<FacilityBooking[]>(() =>
-    getPersisted('wargahub_facility_bookings', defaultBookings)
+    getPersisted('wargahub_facility_bookings', [])
   );
 
   // 3. Maintenance Projects State
@@ -412,7 +412,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   ];
 
   const [maintenanceList, setMaintenanceList] = useState<MaintenanceProject[]>(() =>
-    getPersisted('wargahub_facility_maintenance', defaultMaintenance)
+    getPersisted('wargahub_facility_maintenance', [])
   );
 
   // 4. Staff & Technicians State

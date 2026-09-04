@@ -47,7 +47,7 @@ export interface PropertyDuesItem {
   unpaidMonthsCount: number; // 0 = Lunas, 1 = 1 Bulan ini, 2 = 2 Bulan, dst
   unpaidPeriodNames?: string[];
   totalDueAmount: number;
-  status: 'PAID' | 'UNPAID';
+  status: 'PAID' | 'UNPAID' | 'UNBILLED';
   paidAt?: string;
   paymentMethod?: string;
   receiptNumber?: string;
@@ -60,8 +60,18 @@ export interface BankAccountInfo {
   qrisNmid?: string;
 }
 
-export const PublicDuesLedger: React.FC = () => {
-  const activePeriod = 'Agustus 2026';
+export interface PublicDuesLedgerProps {
+  initialProperties?: any[];
+  initialInvoices?: any[];
+  initialPeriodName?: string;
+}
+
+export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({ 
+  initialProperties, 
+  initialInvoices, 
+  initialPeriodName = 'Agustus 2026' 
+}) => {
+  const activePeriod = initialPeriodName;
 
   // State
   const [activeTab, setActiveTab] = useState<'UNPAID' | 'PAID' | 'ALL'>('UNPAID');
@@ -115,202 +125,50 @@ export const PublicDuesLedger: React.FC = () => {
     }
   }, []);
 
-  // Generate All 123 Complex Properties with Real-time Sync with LocalStorage Payments
+  // Generate All Properties or Map from Real Initial Properties
   const propertiesData: PropertyDuesItem[] = useMemo(() => {
-    let verifiedCodes = new Set<string>();
-    let deletedCodes = new Set<string>();
-
-    if (typeof window !== 'undefined') {
-      try {
-        const paymentsStr = localStorage.getItem('wargahub_payments');
-        if (paymentsStr) {
-          const payments = JSON.parse(paymentsStr);
-          if (Array.isArray(payments)) {
-            payments.forEach((p: any) => {
-              if (p.status === 'VERIFIED') {
-                verifiedCodes.add(p.propertyCode.toUpperCase());
-              }
-            });
-          }
-        }
-
-        const delProps = localStorage.getItem('wargahub_deleted_properties');
-        if (delProps) {
-          const parsed = JSON.parse(delProps);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((id: string) => deletedCodes.add(id.toUpperCase()));
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
+    if (!initialProperties || initialProperties.length === 0) {
+      return [];
     }
 
-    const list: PropertyDuesItem[] = [];
-
-    // Blok A (30 Units)
-    for (let i = 1; i <= 30; i++) {
-      const code = `A-${i.toString().padStart(2, '0')}`;
-      if (deletedCodes.has(code)) continue;
-
-      const isDefaultUnpaid = i === 12 || i === 24 || i === 18;
-      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
-
-      // Overdue mock
-      const isMultiMonthOverdue = i === 24;
-      const unpaidMonths = isPaid ? 0 : isMultiMonthOverdue ? 2 : 1;
-      const periodNames = isPaid ? [] : isMultiMonthOverdue ? ['Juli 2026', 'Agustus 2026'] : ['Agustus 2026'];
-
-      list.push({
-        code,
-        number: `${i}`,
-        block: 'Blok A',
-        ownerName: i === 17 ? 'Budi Santoso' : i === 1 ? 'Hendra Gunawan' : `Warga Blok A No. ${i}`,
-        monthlyRate: 750000,
-        unpaidMonthsCount: unpaidMonths,
-        unpaidPeriodNames: periodNames,
-        totalDueAmount: unpaidMonths * 750000,
-        status: isPaid ? 'PAID' : 'UNPAID',
-        paidAt: isPaid ? `2026-08-${(10 + (i % 12)).toString().padStart(2, '0')}` : undefined,
-        paymentMethod: isPaid ? (i % 3 === 0 ? 'TUNAI_BENDAHARA' : 'BCA_TRANSFER') : undefined,
-        receiptNumber: isPaid ? `KWT-202608-A${i}` : undefined,
+    const invoiceMap = new Map<string, any>();
+    if (initialInvoices) {
+      initialInvoices.forEach((inv) => {
+        if (inv.propertyId) invoiceMap.set(inv.propertyId, inv);
+        if (inv.propertyCode) invoiceMap.set(inv.propertyCode.toUpperCase(), inv);
       });
     }
 
-    // Blok B (30 Units)
-    for (let i = 1; i <= 30; i++) {
-      const code = `B-${i.toString().padStart(2, '0')}`;
-      if (deletedCodes.has(code)) continue;
-
-      const isDefaultUnpaid = i === 5 || i === 18 || i === 29;
-      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
-      const isMultiMonthOverdue = i === 5;
-      const unpaidMonths = isPaid ? 0 : isMultiMonthOverdue ? 3 : 1;
-      const periodNames = isPaid ? [] : isMultiMonthOverdue ? ['Juni 2026', 'Juli 2026', 'Agustus 2026'] : ['Agustus 2026'];
-
-      list.push({
-        code,
-        number: `${i}`,
-        block: 'Blok B',
-        ownerName: `Warga Blok B No. ${i}`,
-        monthlyRate: 750000,
-        unpaidMonthsCount: unpaidMonths,
-        unpaidPeriodNames: periodNames,
-        totalDueAmount: unpaidMonths * 750000,
-        status: isPaid ? 'PAID' : 'UNPAID',
-        paidAt: isPaid ? `2026-08-${(12 + (i % 10)).toString().padStart(2, '0')}` : undefined,
+    return initialProperties.map((p) => {
+      const inv = invoiceMap.get(p.id) || invoiceMap.get(p.code?.toUpperCase());
+      const hasInvoice = !!inv;
+      const isPaid = inv?.status === 'PAID';
+      const rate = Number(inv?.total || p.monthlyFee || 250000);
+      return {
+        code: p.code,
+        number: p.number || p.code,
+        block: p.blockName || `Blok ${p.blockCode || p.code?.split('-')[0]}`,
+        ownerName: p.ownerName || 'Warga',
+        phone: p.ownerPhone,
+        monthlyRate: rate,
+        unpaidMonthsCount: isPaid || !hasInvoice ? 0 : 1,
+        unpaidPeriodNames: isPaid || !hasInvoice ? [] : [activePeriod],
+        totalDueAmount: isPaid || !hasInvoice ? 0 : rate,
+        status: isPaid ? 'PAID' : (hasInvoice ? 'UNPAID' : 'UNBILLED'),
+        paidAt: inv?.paidAt ? new Date(inv.paidAt).toISOString().substring(0, 10) : undefined,
         paymentMethod: isPaid ? 'BCA_TRANSFER' : undefined,
-        receiptNumber: isPaid ? `KWT-202608-B${i}` : undefined,
-      });
-    }
-
-    // Blok C (30 Units)
-    for (let i = 1; i <= 30; i++) {
-      const code = `C-${i.toString().padStart(2, '0')}`;
-      if (deletedCodes.has(code)) continue;
-
-      const isDefaultUnpaid = i === 7 || i === 22;
-      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
-      const unpaidMonths = isPaid ? 0 : 1;
-
-      list.push({
-        code,
-        number: `${i}`,
-        block: 'Blok C',
-        ownerName: `Warga Blok C No. ${i}`,
-        monthlyRate: 750000,
-        unpaidMonthsCount: unpaidMonths,
-        unpaidPeriodNames: isPaid ? [] : ['Agustus 2026'],
-        totalDueAmount: unpaidMonths * 750000,
-        status: isPaid ? 'PAID' : 'UNPAID',
-        paidAt: isPaid ? `2026-08-${(14 + (i % 8)).toString().padStart(2, '0')}` : undefined,
-        paymentMethod: isPaid ? 'QRIS_DINAMIS' : undefined,
-        receiptNumber: isPaid ? `KWT-202608-C${i}` : undefined,
-      });
-    }
-
-    // Blok D (30 Units)
-    for (let i = 1; i <= 30; i++) {
-      const code = `D-${i.toString().padStart(2, '0')}`;
-      if (deletedCodes.has(code)) continue;
-
-      const isDefaultUnpaid = i === 14;
-      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
-      const unpaidMonths = isPaid ? 0 : 1;
-
-      list.push({
-        code,
-        number: `${i}`,
-        block: 'Blok D',
-        ownerName: `Warga Blok D No. ${i}`,
-        monthlyRate: 750000,
-        unpaidMonthsCount: unpaidMonths,
-        unpaidPeriodNames: isPaid ? [] : ['Agustus 2026'],
-        totalDueAmount: unpaidMonths * 750000,
-        status: isPaid ? 'PAID' : 'UNPAID',
-        paidAt: isPaid ? `2026-08-${(11 + (i % 11)).toString().padStart(2, '0')}` : undefined,
-        paymentMethod: isPaid ? 'BCA_TRANSFER' : undefined,
-        receiptNumber: isPaid ? `KWT-202608-D${i}` : undefined,
-      });
-    }
-
-    // Kavling Mandiri (10 Units)
-    for (let i = 1; i <= 10; i++) {
-      const code = `KAV-${i.toString().padStart(2, '0')}`;
-      if (deletedCodes.has(code)) continue;
-
-      const isDefaultUnpaid = i === 4;
-      const isPaid = verifiedCodes.has(code) || (!isDefaultUnpaid && !verifiedCodes.has(code));
-      const unpaidMonths = isPaid ? 0 : 1;
-
-      list.push({
-        code,
-        number: `${i}`,
-        block: 'Kavling Mandiri',
-        ownerName: `Pemilik Kavling ${i}`,
-        monthlyRate: 750000,
-        unpaidMonthsCount: unpaidMonths,
-        unpaidPeriodNames: isPaid ? [] : ['Agustus 2026'],
-        totalDueAmount: unpaidMonths * 750000,
-        status: isPaid ? 'PAID' : 'UNPAID',
-        paidAt: isPaid ? `2026-08-${(15 + i).toString().padStart(2, '0')}` : undefined,
-        paymentMethod: isPaid ? 'BCA_TRANSFER' : undefined,
-        receiptNumber: isPaid ? `KWT-202608-KAV${i}` : undefined,
-      });
-    }
-
-    // Jl. Sariwangi Indah 1 & 2 (13 Units)
-    for (let i = 1; i <= 13; i++) {
-      const isSw1 = i <= 6;
-      const code = isSw1 ? `SW1-${i.toString().padStart(2, '0')}` : `SW2-${(i - 6).toString().padStart(2, '0')}`;
-      if (deletedCodes.has(code)) continue;
-
-      const streetName = isSw1 ? 'Jl. Sariwangi Indah 1' : 'Jl. Sariwangi Indah 2';
-      list.push({
-        code,
-        number: `${i}`,
-        block: streetName,
-        ownerName: `Warga ${streetName} No. ${i}`,
-        monthlyRate: 750000,
-        unpaidMonthsCount: 0,
-        unpaidPeriodNames: [],
-        totalDueAmount: 0,
-        status: 'PAID',
-        paidAt: `2026-08-${(10 + (i % 8)).toString().padStart(2, '0')}`,
-        paymentMethod: 'BCA_TRANSFER',
-        receiptNumber: `KWT-202608-SW${i}`,
-      });
-    }
-
-    return list;
-  }, []);
+        receiptNumber: isPaid ? `KWT-${inv?.invoiceNumber || p.code}` : undefined,
+      };
+    });
+  }, [initialProperties, initialInvoices, activePeriod]);
 
   // Metrics Calculation
   const totalUnits = propertiesData.length;
   const paidCount = propertiesData.filter((p) => p.status === 'PAID').length;
   const unpaidCount = propertiesData.filter((p) => p.status === 'UNPAID').length;
+  const unbilledCount = propertiesData.filter((p) => p.status === 'UNBILLED').length;
   const paidPercentage = totalUnits > 0 ? (paidCount / totalUnits) * 100 : 0;
-  const totalCollected = paidCount * 750000;
+  const totalCollected = propertiesData.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + p.monthlyRate, 0);
   const totalUnpaidAmount = propertiesData.reduce((sum, p) => sum + (p.status === 'UNPAID' ? p.totalDueAmount : 0), 0);
 
   // Filter & Sort Properties
@@ -431,7 +289,7 @@ export const PublicDuesLedger: React.FC = () => {
             </button>
             <a
               href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                `📢 Status Iuran Warga Komplek - Periode ${activePeriod}\n\n• Sudah Lunas: ${paidCount} dari ${totalUnits} Rumah (${paidPercentage.toFixed(1)}%)\n• Menunggu Bayar / Menunggak: ${unpaidCount} Rumah\n• Nominal Iuran: Rp 750.000 / bulan\n• Rekening Kas BCA: ${bankInfo.accountNumber} a.n ${bankInfo.accountHolder}\n\nPeriksa daftar status unit Anda secara mandiri di:\nhttp://localhost:4321/rekap-iuran`
+                `📢 Status Iuran Warga Komplek - Periode ${activePeriod}\n\n• Sudah Lunas: ${paidCount} dari ${totalUnits} Rumah (${paidPercentage.toFixed(1)}%)\n• Menunggu Bayar / Menunggak: ${unpaidCount} Rumah\n• Nominal Iuran: Rp 250.000 / bulan\n• Rekening Kas BCA: ${bankInfo.accountNumber} a.n ${bankInfo.accountHolder}\n\nPeriksa daftar status unit Anda secara mandiri di:\nhttp://localhost:4321/rekap-iuran`
               )}`}
               target="_blank"
               rel="noopener noreferrer"
@@ -680,7 +538,25 @@ export const PublicDuesLedger: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {paginatedProperties.length === 0 ? (
+              {propertiesData.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-ink-muted">
+                    <Home className="w-10 h-10 text-slate-400 mx-auto mb-3 opacity-60" />
+                    <p className="font-bold text-base text-ink">Belum Ada Unit Rumah Terdaftar</p>
+                    <p className="text-xs text-ink-muted max-w-md mx-auto mt-1 leading-relaxed">
+                      Basis data komplek dalam kondisi bersih. Pengurus komplek dapat mulai mendaftarkan data unit rumah riil dan tagihan melalui Portal Admin.
+                    </p>
+                    <div className="pt-4">
+                      <a
+                        href="/login"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+                      >
+                        🔐 Masuk ke Portal Admin
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedProperties.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-ink-muted font-medium">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
@@ -710,6 +586,10 @@ export const PublicDuesLedger: React.FC = () => {
                             <Check className="w-3 h-3 text-emerald-600" />
                             <span>LUNAS</span>
                           </span>
+                        ) : p.status === 'UNBILLED' ? (
+                          <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-[10px] font-black border border-slate-300 inline-flex items-center gap-1">
+                            <span>BELUM DITERBITKAN</span>
+                          </span>
                         ) : p.unpaidMonthsCount > 1 ? (
                           <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-900 text-[10px] font-black border border-rose-300 inline-flex items-center gap-1 animate-pulse">
                             <AlertTriangle className="w-3 h-3 text-rose-600" />
@@ -726,6 +606,8 @@ export const PublicDuesLedger: React.FC = () => {
                       <td className="py-3.5 px-4 text-right font-black font-mono">
                         {isPaid ? (
                           <span className="text-emerald-700">{formatRupiah(p.monthlyRate)}</span>
+                        ) : p.status === 'UNBILLED' ? (
+                          <span className="text-ink-muted font-normal text-xs">-</span>
                         ) : (
                           <span className="text-rose-700">{formatRupiah(p.totalDueAmount)}</span>
                         )}
@@ -737,6 +619,10 @@ export const PublicDuesLedger: React.FC = () => {
                             <span className="font-mono text-ink font-bold block">{p.paidAt}</span>
                             <span className="text-[10px] text-ink-muted">{p.paymentMethod?.replace('_', ' ')}</span>
                           </div>
+                        ) : p.status === 'UNBILLED' ? (
+                          <span className="text-[11px] text-ink-muted font-medium block">
+                            Menunggu tagihan {activePeriod}
+                          </span>
                         ) : (
                           <span className="text-[11px] text-rose-700 font-semibold block">
                             Tagihan: {p.unpaidPeriodNames?.join(', ')}
@@ -754,6 +640,8 @@ export const PublicDuesLedger: React.FC = () => {
                             <Receipt className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Kuitansi</span>
                           </button>
+                        ) : p.status === 'UNBILLED' ? (
+                          <span className="text-[11px] text-ink-muted italic">Belum terbit</span>
                         ) : (
                           <div className="inline-flex items-center gap-1.5">
                             <button

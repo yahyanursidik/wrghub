@@ -4,44 +4,47 @@ import { AdminDashboardView } from '../../components/admin/AdminDashboardView';
 import { getPropertyStats } from '../../services/property.service';
 import { getBillingProgress, getCurrentBillingPeriod } from '../../services/billing.service';
 import { getMainAccountBalance } from '../../services/finance.service';
-import { getPendingPaymentsCount } from '../../services/payment.service';
+import { getPendingPaymentsCount, getPayments } from '../../services/payment.service';
 import { getOpenComplaintsCount } from '../../services/complaint.service';
 import { getNeedingRepairCount } from '../../services/facility.service';
+import { getProperties } from '../../services/property.service';
 
 const propStats = await getPropertyStats();
+const propertiesList = await getProperties();
 const currentPeriod = await getCurrentBillingPeriod();
 const billingProgress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
-  total: 120,
-  paidCount: 86,
-  unpaidCount: 34,
-  percentage: 72,
-  totalAmount: 90000000,
-  paidAmount: 64500000,
-  unpaidAmount: 25500000,
-  monthlyRatePerHouse: 750000,
+  total: 0,
+  paidCount: 0,
+  unpaidCount: 0,
+  percentage: 0,
+  totalAmount: 0,
+  paidAmount: 0,
+  unpaidAmount: 0,
+  monthlyRatePerHouse: 250000,
 };
 
 const cashBalance = await getMainAccountBalance();
 const pendingPayments = await getPendingPaymentsCount();
+const pendingPaymentsList = await getPayments(undefined, 'PENDING');
 const openComplaints = await getOpenComplaintsCount();
 const needingRepair = await getNeedingRepairCount();
 
 const stats = {
-  totalProperties: propStats.total || 120,
-  occupiedProperties: propStats.occupied || 98,
-  vacantProperties: propStats.vacant || 22,
-  occupiedPercentage: propStats.occupiedPercentage || '81.7',
-  vacantPercentage: propStats.vacantPercentage || '18.3',
-  paidCount: billingProgress.paidCount || 86,
-  unpaidCount: billingProgress.unpaidCount || 34,
-  paidPercentage: billingProgress.percentage || 72,
-  paidAmount: billingProgress.paidAmount || 64500000,
-  unpaidAmount: billingProgress.unpaidAmount || 25500000,
-  monthlyRate: 750000,
-  cashBalance: cashBalance || 128450000,
-  pendingPaymentsCount: pendingPayments || 3,
-  openComplaintsCount: openComplaints || 4,
-  needingRepairCount: needingRepair || 2,
+  totalProperties: propStats.total ?? 0,
+  occupiedProperties: propStats.occupied ?? 0,
+  vacantProperties: propStats.vacant ?? 0,
+  occupiedPercentage: propStats.occupiedPercentage ?? '0.0',
+  vacantPercentage: propStats.vacantPercentage ?? '0.0',
+  paidCount: billingProgress.paidCount ?? 0,
+  unpaidCount: billingProgress.unpaidCount ?? 0,
+  paidPercentage: billingProgress.percentage ?? 0,
+  paidAmount: billingProgress.paidAmount ?? 0,
+  unpaidAmount: billingProgress.unpaidAmount ?? 0,
+  monthlyRate: 250000,
+  cashBalance: cashBalance ?? 0,
+  pendingPaymentsCount: pendingPayments ?? 0,
+  openComplaintsCount: openComplaints ?? 0,
+  needingRepairCount: needingRepair ?? 0,
 };
 
 const cookieUser = Astro.cookies.get('wargahub_user');
@@ -60,5 +63,11 @@ const pageTitle = currentUser?.role === 'TREASURER' ? 'Dashboard Bendahara - War
 ---
 
 <AdminLayout title={pageTitle} currentPath="/admin">
-  <AdminDashboardView stats={stats} currentUser={currentUser} client:load />
+  <AdminDashboardView 
+    stats={stats} 
+    currentUser={currentUser} 
+    pendingPayments={pendingPaymentsList} 
+    properties={propertiesList} 
+    client:load 
+  />
 </AdminLayout>

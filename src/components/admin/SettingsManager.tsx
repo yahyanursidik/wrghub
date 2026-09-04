@@ -37,11 +37,17 @@ import {
   CheckCircle2,
   Lock,
   Globe,
-  MessageCircle
+  MessageCircle,
+  KeyRound
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
+import { UserPasswordSettingsTab } from './UserPasswordSettingsTab';
 
-export const SettingsManager: React.FC = () => {
+interface SettingsManagerProps {
+  initialTab?: string;
+}
+
+export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = 'branding' }) => {
   // Persistence helpers
   const getPersisted = <T,>(key: string, fallback: T): T => {
     if (typeof window === 'undefined') return fallback;
@@ -71,8 +77,20 @@ export const SettingsManager: React.FC = () => {
 
   // Navigation Subtabs
   const [activeTab, setActiveTab] = useState<
-    'branding' | 'profile' | 'finances' | 'security' | 'sanitation' | 'notifications' | 'committee' | 'inputs_directory'
-  >('branding');
+    'branding' | 'profile' | 'finances' | 'security' | 'sanitation' | 'notifications' | 'committee' | 'inputs_directory' | 'passwords'
+  >(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam === 'passwords' || tabParam === 'users' || tabParam === 'auth' || tabParam === 'password') {
+        return 'passwords';
+      }
+      if (tabParam && ['branding', 'profile', 'finances', 'security', 'sanitation', 'notifications', 'committee', 'inputs_directory'].includes(tabParam)) {
+        return tabParam as any;
+      }
+    }
+    return (initialTab as any) || 'branding';
+  });
 
   // Preview Mode for Branding
   const [brandingPreviewScreen, setBrandingPreviewScreen] = useState<'login' | 'admin_dash' | 'resident_dash'>('login');
@@ -98,7 +116,10 @@ export const SettingsManager: React.FC = () => {
   const [motto, setMotto] = useState(() => getPersisted('wargahub_set_motto', 'Guyub Rukun, Aman, Asri, dan Transparan Berbasis Digital'));
 
   // ================= 3. KEUANGAN, TARIF & REKENING BANK =================
-  const [monthlyFee, setMonthlyFee] = useState(() => getPersisted('wargahub_set_fee', '750000'));
+  const [monthlyFee, setMonthlyFee] = useState(() => {
+    const val = getPersisted<string>('wargahub_set_fee', '250000');
+    return val === '750000' ? '250000' : val;
+  });
   const [trashFee, setTrashFee] = useState(() => getPersisted('wargahub_set_trash_fee', '75000'));
   const [securityFee, setSecurityFee] = useState(() => getPersisted('wargahub_set_security_fee', '150000'));
   const [facilityReserveFee, setFacilityReserveFee] = useState(() => getPersisted('wargahub_set_reserve_fee', '525000'));
@@ -251,7 +272,7 @@ export const SettingsManager: React.FC = () => {
       category: 'DATA WARGA & PROPERTI',
       color: 'border-blue-200 bg-blue-50/40 text-blue-900',
       items: [
-        { title: 'Input Rumah & Spesifikasi Teknis', url: '/admin/properties', desc: 'Tambah/edit data 123 rumah, luas tanah/bangunan, status hunian, daya PLN.', icon: Building },
+        { title: 'Input Rumah & Spesifikasi Teknis', url: '/admin/properties', desc: 'Tambah/edit data unit rumah, luas tanah/bangunan, status hunian, daya PLN.', icon: Building },
         { title: 'Input Anggota Keluarga & Penghuni', url: '/admin/properties?tab=occupants', desc: 'Tambah/edit/hapus data KK, NIK, hubungan keluarga, status tinggal.', icon: Users },
         { title: 'Input Kendaraan & Kartu Akses RFID', url: '/admin/properties?tab=vehicles', desc: 'Daftarkan mobil, motor, plat nomor, nomor seri RFID pass gerbang.', icon: Car },
         { title: 'Input Izin Renovasi & Utilitas', url: '/admin/properties?tab=permits', desc: 'Catat izin renovasi bangunan, uang jaminan, serta meteran air/listrik.', icon: Wrench },
@@ -261,7 +282,7 @@ export const SettingsManager: React.FC = () => {
       category: 'KEUANGAN, IURAN & KASBON',
       color: 'border-emerald-200 bg-emerald-50/40 text-emerald-900',
       items: [
-        { title: 'Terbitkan Tagihan Iuran Bulanan (Billing)', url: '/admin/billing', desc: 'Generate invoice iuran bulanan per unit atau massal seluruh 123 rumah.', icon: Receipt },
+        { title: 'Terbitkan Tagihan Iuran Bulanan (Billing)', url: '/admin/billing', desc: 'Generate invoice iuran bulanan per unit atau massal seluruh rumah warga.', icon: Receipt },
         { title: 'Input Pembayaran & Verifikasi Transfer/QRIS', url: '/admin/payments', desc: 'Verifikasi setoran iuran warga, catat pembayaran tunai/manual & cetak kuitansi.', icon: CreditCard },
         { title: 'Input Pengeluaran Operasional Kas', url: '/admin/expenses', desc: 'Catat voucher belanja, kuitansi keluar kas, dan upload bukti transfer belanja.', icon: DollarSign },
         { title: 'Input Kasbon & Gaji Awal Staf', url: '/admin/staff-loans', desc: 'Kelola kasbon satpam/kebersihan, jadwal cicilan potong gaji, dan cetak slip kasbon.', icon: DollarSign },
@@ -360,10 +381,11 @@ export const SettingsManager: React.FC = () => {
         </div>
       </div>
 
-      {/* 8 Subtabs Navigation Bar */}
+      {/* Subtabs Navigation Bar */}
       <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar text-xs">
         {[
-          { id: 'branding', label: '🎨 Judul, Sub-Judul & Branding', icon: Palette, highlight: true },
+          { id: 'passwords', label: '🔑 Manajemen Akun & Password', icon: KeyRound, highlight: true },
+          { id: 'branding', label: '🎨 Judul, Sub-Judul & Branding', icon: Palette, highlight: false },
           { id: 'profile', label: '🏛️ Identitas & Wilayah', icon: Building },
           { id: 'finances', label: '💳 Tarif Iuran & Bank Kas', icon: CreditCard },
           { id: 'security', label: '🛡️ Keamanan & Satpam', icon: Shield },
@@ -1225,6 +1247,11 @@ export const SettingsManager: React.FC = () => {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ================= TAB: MANAJEMEN AKUN & PASSWORD WARGA / STAFF ================= */}
+      {activeTab === 'passwords' && (
+        <UserPasswordSettingsTab />
       )}
     </div>
   );

@@ -1,8 +1,10 @@
 ---
 import PublicLayout from '../../layouts/PublicLayout.astro';
 import { ReceiptValidator } from '../../components/public/ReceiptValidator';
+const tab = Astro.url.searchParams.get('tab') || 'verify_receipt';
+const q = Astro.url.searchParams.get('q') || '';
 ---
 
 <PublicLayout title="Verifikasi Kuitansi Pembayaran Digital - WargaHub" currentPath="/kuitansi">
-  <ReceiptValidator client:load />
+  <ReceiptValidator initialTab={tab as any} initialQuery={q} client:load />
 </PublicLayout>
