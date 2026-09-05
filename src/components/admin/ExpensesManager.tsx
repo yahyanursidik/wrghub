@@ -45,10 +45,12 @@ import {
   Heart,
   CreditCard,
   Layers,
-  Banknote
+  Banknote,
+  Repeat
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { StaffLoansManager } from './StaffLoansManager';
+import { RecurringExpensesManager } from './RecurringExpensesManager';
 
 interface ExpenseItem {
   id: string;
@@ -107,11 +109,20 @@ interface MaintenanceProjectItem {
 
 interface ExpensesManagerProps {
   initialExpenses: ExpenseItem[];
+  initialAccounts?: any[];
+  initialBalance?: number;
 }
 
-export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpenses }) => {
+export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ 
+  initialExpenses,
+  initialAccounts = [],
+  initialBalance = 28065000,
+}) => {
   const [expenses, setExpenses] = useState<ExpenseItem[]>(initialExpenses);
-  const [activeSubTab, setActiveSubTab] = useState<'expenses_list' | 'staff_loans' | 'social_aid' | 'fasum_projects' | 'public_transparency'>('expenses_list');
+  const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
+  const [activeSubTab, setActiveSubTab] = useState<
+    'expenses_list' | 'recurring_expenses' | 'staff_loans' | 'social_aid' | 'fasum_projects' | 'public_transparency'
+  >('expenses_list');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'amount' | 'category'>('date');
@@ -295,6 +306,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
             status: 'APPROVED',
           };
           setExpenses([newExp, ...expenses]);
+          setCurrentBalance((prev) => prev - Number(formAmount));
           showToast(`Pengeluaran baru "${formTitle}" berhasil dicatat.`);
           setShowAddModal(false);
         }
@@ -323,6 +335,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
       });
       if (res.ok) {
         setExpenses(expenses.filter((e) => e.id !== expenseToDelete.id));
+        setCurrentBalance((prev) => prev + expenseToDelete.amount);
         showToast(`Pengeluaran "${expenseToDelete.title}" berhasil dihapus.`);
         setExpenseToDelete(null);
       }
@@ -552,8 +565,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
               <TrendingDown className="w-6 h-6 text-rose-600" />
               Pengeluaran, Kasbon & Pemeliharaan Fasum
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black border border-rose-200">
-              Kas BCA: Rp 128.450.000
+            <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black border border-rose-200 tabular-nums">
+              Kas BCA: {formatRupiah(currentBalance)}
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
@@ -646,10 +659,11 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
         </div>
       </div>
 
-      {/* 5 Sub-Tabs Navigation Bar */}
+      {/* 6 Sub-Tabs Navigation Bar */}
       <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
         {[
           { id: 'expenses_list', label: 'Buku Pengeluaran & Nota Belanja', icon: FileText, count: `${expenses.length} Pos` },
+          { id: 'recurring_expenses', label: '⚙️ Setting Pengeluaran Rutin (Auto-Debit)', icon: Repeat },
           { id: 'staff_loans', label: 'Kasbon & Pinjaman Petugas (Satpam)', icon: Banknote, count: `${staffLoans.length} Petugas` },
           { id: 'social_aid', label: 'Dana Santunan & Kesehatan Petugas', icon: HeartHandshake, count: `${socialAids.length} Agenda` },
           { id: 'fasum_projects', label: 'Dana Cat Komplek & Perbaikan Alat', icon: Paintbrush, count: `${maintenanceProjects.length} Proyek` },
@@ -917,6 +931,21 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ initialExpense
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ================= SUBTAB: SETTING PENGELUARAN RUTIN & AUTO-DEBIT ================= */}
+      {activeSubTab === 'recurring_expenses' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          <RecurringExpensesManager
+            accounts={initialAccounts}
+            currentBalance={currentBalance}
+            existingExpenseTitles={expenses.map((e) => e.title)}
+            onExpensesProcessed={(newItems, newBal) => {
+              setExpenses((prev) => [...newItems, ...prev]);
+              setCurrentBalance(newBal);
+            }}
+          />
         </div>
       )}
 

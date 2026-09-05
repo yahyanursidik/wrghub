@@ -1,11 +1,18 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { ExpensesManager } from '../../components/admin/ExpensesManager';
-import { getExpenses } from '../../services/finance.service';
+import { getExpenses, getAccounts, getMainAccountBalance } from '../../services/finance.service';
 
 const expenses = await getExpenses();
+const accounts = await getAccounts();
+const mainBalance = await getMainAccountBalance();
 ---
 
 <AdminLayout title="Pengeluaran & Kas - WargaHub" currentPath="/admin/expenses">
-  <ExpensesManager initialExpenses={expenses} client:load />
+  <ExpensesManager 
+    initialExpenses={expenses} 
+    initialAccounts={accounts}
+    initialBalance={mainBalance}
+    client:load 
+  />
 </AdminLayout>
