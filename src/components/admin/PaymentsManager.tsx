@@ -190,6 +190,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   // Navigation & SubTabs
   const [activeSubTab, setActiveSubTab] = useState<'verification' | 'manual_entry' | 'public_transparency' | 'bank_recon'>('verification');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('ALL');
+  const [periodFilter, setPeriodFilter] = useState<string>('Agustus 2026');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'code' | 'amount' | 'status' | 'method'>('date');
@@ -252,11 +253,27 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     savePersisted('wargahub_payments', newList);
   };
 
-  // Counts
-  const pendingCount = payments.filter((p) => p.status === 'PENDING').length;
-  const verifiedCount = payments.filter((p) => p.status === 'VERIFIED').length;
-  const rejectedCount = payments.filter((p) => p.status === 'REJECTED').length;
-  const totalVerifiedAmount = payments.filter((p) => p.status === 'VERIFIED').reduce((sum, p) => sum + p.amount, 0);
+  // Available Periods (Descending sort)
+  const availablePeriods = useMemo(() => {
+    const list: string[] = [];
+    payments.forEach(p => {
+      if (p.periodName && !list.includes(p.periodName)) {
+        list.push(p.periodName);
+      }
+    });
+    return list;
+  }, [payments]);
+
+  // Counts filtered by period
+  const periodPayments = useMemo(() => {
+    if (periodFilter === 'ALL') return payments;
+    return payments.filter(p => p.periodName === periodFilter);
+  }, [payments, periodFilter]);
+
+  const pendingCount = periodPayments.filter((p) => p.status === 'PENDING').length;
+  const verifiedCount = periodPayments.filter((p) => p.status === 'VERIFIED').length;
+  const rejectedCount = periodPayments.filter((p) => p.status === 'REJECTED').length;
+  const totalVerifiedAmount = periodPayments.filter((p) => p.status === 'VERIFIED').reduce((sum, p) => sum + p.amount, 0);
 
   // Total Kas Bank Live
   const primaryAccount = bankAccounts.find(a => a.isPrimary) || bankAccounts[0];
@@ -412,6 +429,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         accountHolder: bAccountHolder,
         securityPhone: '0812-3456-7801',
         rwHeadPhone: '0812-9988-7766',
+        balance: Number(bBalance),
       })
     }).catch(() => {});
 
@@ -582,6 +600,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   // Filtered & Sorted Payments
   const filteredAndSorted = useMemo(() => {
     const list = payments.filter((p) => {
+      const matchPeriod = periodFilter === 'ALL' || p.periodName === periodFilter;
       const matchStatus = statusFilter === 'ALL' || p.status === statusFilter;
       const matchSearch =
         p.propertyCode.toLowerCase().includes(search.toLowerCase()) ||
@@ -595,7 +614,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         else matchArea = p.propertyCode.startsWith(areaFilter);
       }
 
-      return matchStatus && matchSearch && matchArea;
+      return matchPeriod && matchStatus && matchSearch && matchArea;
     });
 
     list.sort((a, b) => {
@@ -609,7 +628,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     });
 
     return list;
-  }, [payments, statusFilter, areaFilter, search, sortBy, sortOrder]);
+  }, [payments, periodFilter, statusFilter, areaFilter, search, sortBy, sortOrder]);
 
   // Pagination
   const totalFiltered = filteredAndSorted.length;
@@ -775,9 +794,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Setoran Terverifikasi</span>
+              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">
+                {periodFilter === 'ALL' ? 'Setoran Terverifikasi (Semua)' : `Setoran ${periodFilter}`}
+              </span>
               <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">{formatRupiah(totalVerifiedAmount)}</p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">{verifiedCount} TRANSAKSI LUNAS</span>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">
+                {verifiedCount} TRANSAKSI LUNAS {periodFilter !== 'ALL' ? `(${periodFilter})` : '(AKUMULASI)'}
+              </span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
@@ -872,6 +895,20 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <select
+                value={periodFilter}
+                onChange={(e) => {
+                  setPeriodFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+              >
+                <option value="ALL">Semua Periode (Akumulasi)</option>
+                {availablePeriods.map(pr => (
+                  <option key={pr} value={pr}>{pr}</option>
+                ))}
+              </select>
+
               <select
                 value={areaFilter}
                 onChange={(e) => {

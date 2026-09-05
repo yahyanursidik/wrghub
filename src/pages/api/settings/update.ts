@@ -13,6 +13,7 @@ const settingsSchema = z.object({
   accountHolder: z.string(),
   securityPhone: z.string(),
   rwHeadPhone: z.string(),
+  balance: z.number().optional(),
 });
 
 export const POST: APIRoute = async ({ request }) => {
@@ -29,7 +30,18 @@ export const POST: APIRoute = async ({ request }) => {
         WHERE id = 'comm-01';
       `;
 
-      // 2. Update settings table
+      // 2. Update accounts balance if provided
+      if (validated.balance !== undefined) {
+        await neonSql`
+          UPDATE accounts
+          SET balance = ${validated.balance},
+              bank_name = ${validated.bankName},
+              account_number = ${validated.bankAccount}
+          WHERE id = 'acc-main' OR code = 'BCA-UTAMA' OR code = 'BCA_MAIN';
+        `;
+      }
+
+      // 3. Update settings table
       await neonSql`
         INSERT INTO settings (id, community_id, key, value, description, updated_at)
         VALUES ('set-profile', 'comm-01', 'community_profile', ${JSON.stringify(validated)}, 'Pengaturan utama profil komplek', NOW())
