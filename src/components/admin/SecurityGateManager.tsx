@@ -39,7 +39,10 @@ import {
   Sparkles,
   Layers,
   Sliders,
-  Filter
+  Filter,
+  Sun,
+  Moon,
+  Home
 } from 'lucide-react';
 
 export interface SecurityGuard {
@@ -65,7 +68,7 @@ export interface SecurityGuard {
 export interface RosterSchedule {
   id: string;
   teamName: string;
-  shiftType: 'SHIFT_PAGI' | 'SHIFT_SIANG' | 'SHIFT_MALAM' | 'SHIFT_FULL_DAY' | 'SHIFT_WEEKEND';
+  shiftType: 'SHIFT_PAGI' | 'SHIFT_SIANG' | 'SHIFT_MALAM' | 'SHIFT_FULL_DAY' | 'SHIFT_WEEKEND' | 'SHIFT_24_JAM';
   shiftLabel: string;
   shiftHours: string;
   dutyCategory: 'KEAMANAN_MURNI' | 'KEAMANAN_KEBERSIHAN' | 'KEBERSIHAN_TAMAN' | 'TEKNISI_FASUM';
@@ -78,6 +81,10 @@ export interface RosterSchedule {
   }[];
   status: 'SEDANG_DINAS' | 'SIAGA_SIANG' | 'LEPAS_PIKET' | 'LIBUR_OFF';
   notes?: string;
+  isSolo24Hour?: boolean;
+  shiftDate?: string;
+  handoverTime?: string;
+  nextHandoverGuardName?: string;
 }
 
 export interface PatrolLog {
@@ -123,6 +130,103 @@ export interface DailyDutyItem {
   isCompleted: boolean;
   completedAt?: string;
 }
+
+export const DEFAULT_GUARDS: SecurityGuard[] = [
+  {
+    id: 'GUARD-001',
+    nip: 'SEC.2026.1001',
+    fullName: 'Pak Joko Sutrisno',
+    role: 'Komandan Regu / Satpam Utama 24 Jam',
+    dutyCategory: 'KEAMANAN_MURNI',
+    team: 'Regu Piket 24 Jam',
+    phone: '0812-3456-7890',
+    emergencyContact: '0812-9876-5432 (Istri)',
+    certification: 'GADA_PRATAMA',
+    regNumber: 'POL-REG-88201',
+    assignedPost: 'Pos Gerbang Utama (Main Gate)',
+    shift: 'SHIFT_24_JAM',
+    salary: 4500000,
+    nightAllowance: 500000,
+    status: 'AKTIF_BERTUGAS',
+    joinDate: '2024-01-10',
+    notes: 'Piket tunggal pos gerbang & ronda berkala malam 14 kavling.',
+  },
+  {
+    id: 'GUARD-002',
+    nip: 'SEC.2026.1002',
+    fullName: 'Pak Agus Suparman',
+    role: 'Satpam Piket Bergilir 24 Jam',
+    dutyCategory: 'KEAMANAN_MURNI',
+    team: 'Regu Piket 24 Jam',
+    phone: '0813-8877-6655',
+    emergencyContact: '0813-1122-3344 (Adik)',
+    certification: 'GADA_PRATAMA',
+    regNumber: 'POL-REG-88202',
+    assignedPost: 'Pos Gerbang Utama (Main Gate)',
+    shift: 'SHIFT_24_JAM',
+    salary: 4300000,
+    nightAllowance: 500000,
+    status: 'LEPAS_PIKET',
+    joinDate: '2024-03-15',
+    notes: 'Piket bergilir 24 jam pagi-ke-pagi berikutnya.',
+  },
+  {
+    id: 'GUARD-003',
+    nip: 'SEC.2026.1003',
+    fullName: 'Pak Bambang Sudiro',
+    role: 'Satpam Cadangan / Ronda Malam Weekend',
+    dutyCategory: 'KEAMANAN_KEBERSIHAN',
+    team: 'Regu Cadangan & Fasum',
+    phone: '0857-1234-9988',
+    emergencyContact: '0857-9988-1122',
+    certification: 'GADA_PRATAMA',
+    regNumber: 'POL-REG-88203',
+    assignedPost: 'Pos Gerbang Utama (Main Gate)',
+    shift: 'SHIFT_24_JAM',
+    salary: 4200000,
+    nightAllowance: 400000,
+    status: 'LEPAS_PIKET',
+    joinDate: '2024-06-01',
+    notes: 'Pengganti piket darurat & back-up hari libur.',
+  }
+];
+
+export const DEFAULT_DUTIES_24H: DailyDutyItem[] = [
+  { id: 'DUTY-01', title: 'Serah Terima Piket 24 Jam & Inventaris HT/Kunci Gerbang', category: 'KEAMANAN', timeSchedule: '07:00 WIB', assignedTo: 'Satpam Bertugas', isCompleted: true, completedAt: '07:05 WIB' },
+  { id: 'DUTY-02', title: 'Pemeriksaan Portal & Standby Tamu / Kurir Paket Pagi', category: 'KEAMANAN', timeSchedule: '08:00 - 12:00 WIB', assignedTo: 'Satpam Bertugas', isCompleted: true, completedAt: '09:30 WIB' },
+  { id: 'DUTY-03', title: 'Patroli Siang Lingkungan Blok A - D & Pemeriksaan Fasum', category: 'KEAMANAN', timeSchedule: '13:00 - 14:00 WIB', assignedTo: 'Satpam Bertugas', isCompleted: true, completedAt: '13:45 WIB' },
+  { id: 'DUTY-04', title: 'Nyalakan Lampu PJU Utama & Penerangan Taman Komplek', category: 'FASUM', timeSchedule: '17:45 - 18:00 WIB', assignedTo: 'Satpam Bertugas', isCompleted: false },
+  { id: 'DUTY-05', title: 'Penutupan & Penguncian Portal Utama Komplek (Akses Satu Pintu)', category: 'KEAMANAN', timeSchedule: '21:00 WIB', assignedTo: 'Satpam Bertugas', isCompleted: false },
+  { id: 'DUTY-06', title: 'Ronda Keliling Malam Sesi 1 & Cek Kendaraan Terparkir di Kavling', category: 'KEAMANAN', timeSchedule: '23:30 - 00:30 WIB', assignedTo: 'Satpam Bertugas', isCompleted: false },
+  { id: 'DUTY-07', title: 'Ronda Keliling Dini Hari Sesi 2 & Pemeriksaan Pagar Keliling', category: 'KEAMANAN', timeSchedule: '02:30 - 03:30 WIB', assignedTo: 'Satpam Bertugas', isCompleted: false },
+  { id: 'DUTY-08', title: 'Padamkan Lampu PJU, Buka Portal & Siapkan Buku Mutasi Pagi', category: 'FASUM', timeSchedule: '05:30 - 06:30 WIB', assignedTo: 'Satpam Bertugas', isCompleted: false },
+];
+
+export const DEFAULT_ROSTERS: RosterSchedule[] = [
+  {
+    id: 'ROSTER-SOLO-24H-TODAY',
+    teamName: 'Piket Tunggal 24 Jam (Pagi s/d Pagi)',
+    shiftType: 'SHIFT_24_JAM',
+    shiftLabel: 'Shift 24 Jam (Pagi s/d Pagi)',
+    shiftHours: '07:00 - 07:00 WIB (24 Jam Penuh)',
+    dutyCategory: 'KEAMANAN_MURNI',
+    assignedGuards: [
+      {
+        guardId: 'GUARD-001',
+        guardName: 'Pak Joko Sutrisno',
+        role: 'Satpam Tunggal 24 Jam',
+        assignedArea: 'Pos Gerbang Utama & Ronda 14 Kavling',
+        specialDuty: 'Jaga Gerbang Pagi-Malam, Nyalakan PJU 18:00, Portal Tutup 21:00, Ronda Dini Hari'
+      }
+    ],
+    status: 'SEDANG_DINAS',
+    isSolo24Hour: true,
+    shiftDate: new Date().toISOString().split('T')[0],
+    handoverTime: '07:00 WIB',
+    nextHandoverGuardName: 'Pak Agus Suparman',
+    notes: 'Sistem operasional klaster perumahan: 1 satpam piket mandiri 24 jam penuh, serah terima esok pagi 07:00 WIB.'
+  }
+];
 
 export interface SecurityGateManagerProps {
   initialProperties?: any[];
@@ -184,19 +288,20 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
         const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
         if (saved !== null) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            return parsed.filter((g: any) => !deletedIds.includes(g.id) && !deletedIds.includes(g.fullName));
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const filtered = parsed.filter((g: any) => !deletedIds.includes(g.id) && !deletedIds.includes(g.fullName));
+            if (filtered.length > 0) return filtered;
           }
         }
       } catch (e) {
         console.warn(e);
       }
     }
-    return [];
+    return DEFAULT_GUARDS;
   });
 
   // Teams List (Customizable)
-  const initialTeams = ['Regu A - Garuda', 'Regu B - Rajawali', 'Regu C - Elang', 'Tim Kebersihan & Fasum', 'Tim Reaksi Cepat'];
+  const initialTeams = ['Regu Piket 24 Jam', 'Regu A - Garuda', 'Regu B - Rajawali', 'Regu Cadangan & Fasum', 'Tim Kebersihan & Fasum'];
   const [teamsList, setTeamsList] = useState<string[]>(() =>
     getPersisted('wargahub_security_teams', initialTeams)
   );
@@ -227,10 +332,10 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   // Guard Form Inputs
   const [gFullName, setGFullName] = useState('');
   const [gNip, setGNip] = useState('');
-  const [gRole, setGRole] = useState('Anggota Jaga Pos Utama & Gerbang');
+  const [gRole, setGRole] = useState('Satpam Tunggal 24 Jam');
   const [gCustomRole, setGCustomRole] = useState('');
   const [gDutyCategory, setGDutyCategory] = useState<SecurityGuard['dutyCategory']>('KEAMANAN_MURNI');
-  const [gTeam, setGTeam] = useState('Regu A - Garuda');
+  const [gTeam, setGTeam] = useState('Regu Piket 24 Jam');
   const [gCustomTeam, setGCustomTeam] = useState('');
   const [gPhone, setGPhone] = useState('');
   const [gEmergency, setGEmergency] = useState('');
@@ -238,24 +343,44 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   const [gRegNumber, setGRegNumber] = useState('');
   const [gAssignedPost, setGAssignedPost] = useState('Pos Gerbang Utama (Main Gate)');
   const [gCustomPost, setGCustomPost] = useState('');
-  const [gShift, setGShift] = useState('SHIFT_PAGI');
-  const [gSalary, setGSalary] = useState(4300000);
-  const [gNightAllowance, setGNightAllowance] = useState(350000);
+  const [gShift, setGShift] = useState('SHIFT_24_JAM');
+  const [gSalary, setGSalary] = useState(4500000);
+  const [gNightAllowance, setGNightAllowance] = useState(500000);
   const [gStatus, setGStatus] = useState<'AKTIF_BERTUGAS' | 'LEPAS_PIKET' | 'CUTI' | 'SAKIT' | 'NONAKTIF'>('AKTIF_BERTUGAS');
   const [gNotes, setGNotes] = useState('');
 
   // ================= 2. ROSTER & SHIFT MANAGEMENT STATE =================
-  const [rosters, setRosters] = useState<RosterSchedule[]>(() =>
-    getPersisted('wargahub_security_rosters', [])
+  const [rosters, setRosters] = useState<RosterSchedule[]>(() => {
+    const persisted = getPersisted<RosterSchedule[]>('wargahub_security_rosters', []);
+    if (persisted && persisted.length > 0) return persisted;
+    return DEFAULT_ROSTERS;
+  });
+
+  // Mode Operasional: Mode 1 Satpam 24 Jam (Pagi s/d Pagi) vs Multi-Shift Reguler
+  const [rosterMode, setRosterMode] = useState<'SOLO_24H' | 'MULTI_SHIFT'>(() =>
+    getPersisted<'SOLO_24H' | 'MULTI_SHIFT'>('wargahub_roster_mode', 'SOLO_24H')
   );
+
+  const handleToggleRosterMode = (mode: 'SOLO_24H' | 'MULTI_SHIFT') => {
+    setRosterMode(mode);
+    savePersisted('wargahub_roster_mode', mode);
+    showToast(`Mode operasional diubah: ${mode === 'SOLO_24H' ? 'Mode Komplek Kecil: 1 Satpam 24 Jam (Pagi s/d Pagi)' : 'Mode Multi-Shift Reguler'}`);
+  };
+
+  // Solo 24-Hour Roster Modal State
+  const [showSolo24hModal, setShowSolo24hModal] = useState(false);
+  const [soloGuardToday, setSoloGuardToday] = useState('');
+  const [soloGuardTomorrow, setSoloGuardTomorrow] = useState('');
+  const [soloHandoverTime, setSoloHandoverTime] = useState('07:00');
+  const [soloNotes, setSoloNotes] = useState('Piket tunggal 24 jam klaster perumahan (14 unit kavling). Standby pos gerbang, verifikasi kurir/tamu, kontrol lampu PJU 18:00, gembok portal 21:00, ronda malam keliling.');
 
   // Roster Modals State
   const [showRosterModal, setShowRosterModal] = useState(false);
   const [editingRosterId, setEditingRosterId] = useState<string | null>(null);
-  const [rTeamName, setRTeamName] = useState('Regu A — Garuda');
-  const [rShiftType, setRShiftType] = useState<RosterSchedule['shiftType']>('SHIFT_PAGI');
-  const [rShiftLabel, setRShiftLabel] = useState('Shift Pagi');
-  const [rShiftHours, setRShiftHours] = useState('07:00 - 15:00 WIB');
+  const [rTeamName, setRTeamName] = useState('Piket Tunggal 24 Jam');
+  const [rShiftType, setRShiftType] = useState<RosterSchedule['shiftType']>('SHIFT_24_JAM');
+  const [rShiftLabel, setRShiftLabel] = useState('Shift 24 Jam (Pagi s/d Pagi)');
+  const [rShiftHours, setRShiftHours] = useState('07:00 - 07:00 WIB (24 Jam Penuh)');
   const [rDutyCategory, setRDutyCategory] = useState<RosterSchedule['dutyCategory']>('KEAMANAN_MURNI');
   const [rStatus, setRStatus] = useState<RosterSchedule['status']>('SEDANG_DINAS');
   const [rNotes, setRNotes] = useState('');
@@ -268,9 +393,11 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   const [swapReason, setSwapReason] = useState('Izin Keperluan Keluarga / Sakit');
 
   // Daily Duty Checklist State
-  const [dailyDuties, setDailyDuties] = useState<DailyDutyItem[]>(() =>
-    getPersisted('wargahub_security_duties', [])
-  );
+  const [dailyDuties, setDailyDuties] = useState<DailyDutyItem[]>(() => {
+    const persisted = getPersisted<DailyDutyItem[]>('wargahub_security_duties', []);
+    if (persisted && persisted.length > 0) return persisted;
+    return DEFAULT_DUTIES_24H;
+  });
 
   const toggleDutyCompleted = (id: string) => {
     const updated = dailyDuties.map(d => {
@@ -587,6 +714,159 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     }
   };
 
+  // ================= 24-HOUR SOLO GUARD HANDLERS =================
+  const handleOpenSolo24hModal = () => {
+    const activeSoloRoster = rosters.find(r => r.isSolo24Hour || r.shiftType === 'SHIFT_24_JAM');
+    const currentGuardId = activeSoloRoster?.assignedGuards[0]?.guardId || guards[0]?.id || '';
+    const nextCandidate = guards.find(g => g.id !== currentGuardId)?.id || guards[1]?.id || guards[0]?.id || '';
+    
+    setSoloGuardToday(currentGuardId);
+    setSoloGuardTomorrow(nextCandidate);
+    setSoloHandoverTime('07:00');
+    setSoloNotes(activeSoloRoster?.notes || 'Piket tunggal 24 jam klaster perumahan (14 unit kavling). Standby pos gerbang, verifikasi tamu & kurir, kontrol lampu PJU 18:00, kunci portal 21:00, ronda dini hari.');
+    setShowSolo24hModal(true);
+  };
+
+  const handleApplySolo24hRoster = (e: React.FormEvent) => {
+    e.preventDefault();
+    const todayGuard = guards.find(g => g.id === soloGuardToday) || guards[0];
+    const tomorrowGuard = guards.find(g => g.id === soloGuardTomorrow) || guards[1] || guards[0];
+
+    if (!todayGuard) {
+      showToast('Pilih satpam yang bertugas hari ini.');
+      return;
+    }
+
+    const newSoloRoster: RosterSchedule = {
+      id: `ROSTER-SOLO-24H-${Date.now()}`,
+      teamName: 'Piket Tunggal 24 Jam (Pagi s/d Pagi)',
+      shiftType: 'SHIFT_24_JAM',
+      shiftLabel: 'Shift 24 Jam (Pagi s/d Pagi)',
+      shiftHours: `${soloHandoverTime || '07:00'} - ${soloHandoverTime || '07:00'} WIB (24 Jam Penuh)`,
+      dutyCategory: 'KEAMANAN_MURNI',
+      assignedGuards: [
+        {
+          guardId: todayGuard.id,
+          guardName: todayGuard.fullName,
+          role: todayGuard.role || 'Satpam Tunggal 24 Jam',
+          assignedArea: todayGuard.assignedPost || 'Pos Gerbang Utama & Ronda 14 Kavling',
+          specialDuty: 'Jaga Pos Pagi-Malam, Kontrol Lampu PJU 18:00, Gembok Portal 21:00, Ronda Dini Hari 02:30'
+        }
+      ],
+      status: 'SEDANG_DINAS',
+      notes: soloNotes,
+      isSolo24Hour: true,
+      shiftDate: new Date().toISOString().split('T')[0],
+      handoverTime: `${soloHandoverTime || '07:00'} WIB`,
+      nextHandoverGuardName: tomorrowGuard?.fullName || 'Petugas Pengganti'
+    };
+
+    const otherRosters = rosters.filter(r => !r.isSolo24Hour && r.shiftType !== 'SHIFT_24_JAM');
+    const updatedRosters = [newSoloRoster, ...otherRosters];
+    setRosters(updatedRosters);
+    savePersisted('wargahub_security_rosters', updatedRosters);
+
+    // Update guards statuses
+    const updatedGuards = guards.map(g => {
+      if (g.id === todayGuard.id) {
+        return { ...g, status: 'AKTIF_BERTUGAS' as const, shift: 'SHIFT_24_JAM' };
+      }
+      if (tomorrowGuard && g.id === tomorrowGuard.id) {
+        return { ...g, status: 'LEPAS_PIKET' as const, shift: 'SHIFT_24_JAM' };
+      }
+      return g;
+    });
+    setGuards(updatedGuards);
+    savePersisted('wargahub_security_guards', updatedGuards);
+
+    setShowSolo24hModal(false);
+    showToast(`Roster 1 Satpam 24 Jam berhasil diaktifkan: ${todayGuard.fullName} bertugas hingga besok ${soloHandoverTime} WIB.`);
+  };
+
+  const handleQuickHandover24h = () => {
+    const activeSoloRoster = rosters.find(r => r.isSolo24Hour || r.shiftType === 'SHIFT_24_JAM');
+    const currentGuardId = activeSoloRoster?.assignedGuards[0]?.guardId;
+    const currentGuard = guards.find(g => g.id === currentGuardId) || guards[0];
+    
+    const otherGuards = guards.filter(g => g.id !== currentGuard?.id);
+    const incomingGuard = otherGuards.length > 0 ? otherGuards[0] : guards[0];
+    const nextInLine = otherGuards.length > 1 ? otherGuards[1] : currentGuard;
+
+    if (!incomingGuard || !currentGuard) {
+      showToast('Data personel satpam tidak cukup untuk pergantian.');
+      return;
+    }
+
+    const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+    const newSoloRoster: RosterSchedule = {
+      id: `ROSTER-SOLO-24H-${Date.now()}`,
+      teamName: 'Piket Tunggal 24 Jam (Pagi s/d Pagi)',
+      shiftType: 'SHIFT_24_JAM',
+      shiftLabel: 'Shift 24 Jam (Pagi s/d Pagi)',
+      shiftHours: '07:00 - 07:00 WIB (24 Jam Penuh)',
+      dutyCategory: 'KEAMANAN_MURNI',
+      assignedGuards: [
+        {
+          guardId: incomingGuard.id,
+          guardName: incomingGuard.fullName,
+          role: incomingGuard.role || 'Satpam Tunggal 24 Jam',
+          assignedArea: incomingGuard.assignedPost || 'Pos Gerbang Utama & Ronda 14 Kavling',
+          specialDuty: `Serah terima piket pada ${nowStr}. Jaga pos, kontrol PJU & gembok portal malam`
+        }
+      ],
+      status: 'SEDANG_DINAS',
+      notes: `Serah terima piket 24 jam pagi dari ${currentGuard.fullName} ke ${incomingGuard.fullName}. Inventaris HT & kunci portal lengkap.`,
+      isSolo24Hour: true,
+      shiftDate: new Date().toISOString().split('T')[0],
+      handoverTime: '07:00 WIB',
+      nextHandoverGuardName: nextInLine?.fullName || currentGuard.fullName
+    };
+
+    const otherRosters = rosters.filter(r => !r.isSolo24Hour && r.shiftType !== 'SHIFT_24_JAM');
+    const updatedRosters = [newSoloRoster, ...otherRosters];
+    setRosters(updatedRosters);
+    savePersisted('wargahub_security_rosters', updatedRosters);
+
+    const updatedGuards = guards.map(g => {
+      if (g.id === incomingGuard.id) {
+        return { ...g, status: 'AKTIF_BERTUGAS' as const, shift: 'SHIFT_24_JAM' };
+      }
+      if (g.id === currentGuard.id) {
+        return { ...g, status: 'LEPAS_PIKET' as const, shift: 'SHIFT_24_JAM' };
+      }
+      return g;
+    });
+    setGuards(updatedGuards);
+    savePersisted('wargahub_security_guards', updatedGuards);
+
+    const updatedDuties = dailyDuties.map(d => {
+      if (d.id === 'DUTY-01' || d.title.toLowerCase().includes('serah terima')) {
+        return { ...d, isCompleted: true, completedAt: nowStr };
+      }
+      return d;
+    });
+    setDailyDuties(updatedDuties);
+    savePersisted('wargahub_security_duties', updatedDuties);
+
+    const handoverLog: PatrolLog = {
+      id: `PATROL-HANDOVER-${Date.now()}`,
+      checkpointCode: 'CP-01',
+      checkpointName: 'Pos Gerbang Utama (Main Gate)',
+      guardName: `${incomingGuard.fullName} (Terima dari ${currentGuard.fullName})`,
+      guardId: incomingGuard.id,
+      condition: 'AMAN_KONDUSIF',
+      notes: `Serah terima piket 24 jam (Pagi s/d Pagi). Kondisi pos, portal, kunci gerbang, dan HT dalam keadaan baik dan lengkap.`,
+      displayTime: nowStr,
+      displayDate: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    };
+    const nextLogs = [handoverLog, ...patrolLogs];
+    setPatrolLogs(nextLogs);
+    savePersisted('wargahub_patrol_logs', nextLogs);
+
+    showToast(`🔄 Serah terima piket 24 jam berhasil! ${incomingGuard.fullName} kini bertugas aktif hingga esok pagi.`);
+  };
+
   // ================= ROSTER HANDLERS =================
   const handleOpenAddRoster = () => {
     setEditingRosterId(null);
@@ -631,6 +911,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
       return;
     }
 
+    const existingRoster = rosters.find(r => r.id === editingRosterId);
     const payload: RosterSchedule = {
       id: editingRosterId || `ROSTER-${Date.now()}`,
       teamName: rTeamName,
@@ -641,6 +922,10 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
       assignedGuards: assigned,
       status: rStatus,
       notes: rNotes,
+      isSolo24Hour: rShiftType === 'SHIFT_24_JAM' || existingRoster?.isSolo24Hour,
+      shiftDate: existingRoster?.shiftDate || new Date().toISOString().split('T')[0],
+      handoverTime: existingRoster?.handoverTime || '07:00 WIB',
+      nextHandoverGuardName: existingRoster?.nextHandoverGuardName
     };
 
     let nextRosters: RosterSchedule[];
@@ -993,6 +1278,37 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   };
 
   const completedDutiesCount = dailyDuties.filter(d => d.isCompleted).length;
+
+  // Active Solo 24-Hour Roster and Next Guard In Line
+  const activeSoloRoster = rosters.find(r => r.isSolo24Hour || r.shiftType === 'SHIFT_24_JAM') || rosters[0];
+  const activeGuardId = activeSoloRoster?.assignedGuards[0]?.guardId;
+  const activeSoloGuard = guards.find(g => g.id === activeGuardId) || guards[0];
+  const nextSoloGuardName = activeSoloRoster?.nextHandoverGuardName || guards.find(g => g.id !== activeSoloGuard?.id)?.fullName || 'Pak Agus Suparman';
+  const nextSoloGuardObj = guards.find(g => g.fullName === nextSoloGuardName || (g.id !== activeSoloGuard?.id && g.status === 'LEPAS_PIKET')) || guards.find(g => g.id !== activeSoloGuard?.id);
+
+  // 7-Day Solo Rotation Projection
+  const soloWeekSchedule = useMemo(() => {
+    const days = [];
+    const now = new Date();
+    const guardA = activeSoloGuard?.fullName || 'Pak Joko Sutrisno';
+    const guardB = nextSoloGuardName || 'Pak Agus Suparman';
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + i);
+      const dayName = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+      const assigned = i % 2 === 0 ? guardA : guardB;
+      days.push({
+        index: i,
+        dateLabel: dayName,
+        isToday: i === 0,
+        isTomorrow: i === 1,
+        guardName: assigned,
+        shiftHours: '07:00 - 07:00 WIB'
+      });
+    }
+    return days;
+  }, [activeSoloGuard?.fullName, nextSoloGuardName]);
 
   return (
     <div className="space-y-6">
@@ -1447,19 +1763,74 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
       {/* ================= SUBTAB 2: JADWAL SHIFT & ROSTER JAGA ================= */}
       {activeTab === 'roster' && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Header Actions */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Header Actions & Mode Switcher */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-4 bg-surface rounded-2xl border border-border shadow-card">
             <div>
-              <h3 className="font-bold text-base text-ink flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 font-black text-[10px] uppercase tracking-wider border border-amber-500/20 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Rekomendasi Klaster Kecil
+                </span>
+                <span className="text-ink-muted text-xs">• 14 Kavling (A s/d M)</span>
+              </div>
+              <h3 className="font-black text-base text-ink flex items-center gap-2 mt-1">
                 <Calendar className="w-5 h-5 text-primary-600" />
-                Roster Jadwal Shift & Penugasan Area Jaga (24 Jam)
+                Roster Jadwal Shift & Penugasan Area Jaga
               </h3>
               <p className="text-xs text-ink-muted mt-0.5">
-                Pengaturan rotasi dinamis shift jaga satpam, plotting area tugas, tim kebersihan, dan opsi tukar shift petugas.
+                Pengaturan rotasi dinamis satpam tunggal 24 jam (pagi s/d pagi), serah terima estafet, buku checklist tugas harian, dan mutasi pos.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Mode Switcher */}
+              <div className="flex items-center gap-1 p-1 bg-canvas rounded-xl border border-border">
+                <button
+                  type="button"
+                  onClick={() => handleToggleRosterMode('SOLO_24H')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    rosterMode === 'SOLO_24H'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'text-ink-muted hover:text-ink hover:bg-surface'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Mode 1 Satpam 24 Jam</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleRosterMode('MULTI_SHIFT')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    rosterMode === 'MULTI_SHIFT'
+                      ? 'bg-primary-600 text-white shadow-xs'
+                      : 'text-ink-muted hover:text-ink hover:bg-surface'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Multi-Shift Reguler</span>
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <button
+                type="button"
+                onClick={handleOpenSolo24hModal}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs active:scale-[0.98]"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>⚡ Atur Rotasi 1 Satpam 24 Jam</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickHandover24h}
+                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs active:scale-[0.98]"
+                title="Serah terima mutasi pagi ke satpam berikutnya"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-700" />
+                <span>🔄 Serah Terima Pagi (Cepat)</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -1469,22 +1840,286 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   setSwapGuardTo(firstTo);
                   setShowSwapModal(true);
                 }}
-                className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
+                className="px-3 py-2 bg-canvas hover:bg-surface border border-border text-ink text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs"
               >
-                <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
-                <span>Tukar Shift Petugas</span>
+                <ArrowUpDown className="w-3.5 h-3.5 text-ink-muted" />
+                <span>Tukar Shift</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleOpenAddRoster}
-                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Atur Shift Baru</span>
+                <span>+ Shift Baru</span>
               </button>
             </div>
           </div>
+
+          {/* ================= HERO TACTICAL CARD: 1 SATPAM TUNGGAL 24 JAM (PAGI S/D PAGI) ================= */}
+          {rosterMode === 'SOLO_24H' && (
+            <div className="p-5 md:p-6 bg-gradient-to-br from-amber-500/5 via-surface to-surface rounded-3xl border-2 border-amber-500/30 shadow-card space-y-5">
+              {/* Card Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-black text-[11px] tracking-wide flex items-center gap-1.5 shadow-2xs">
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      SEDANG DINAS 24 JAM (PAGI S/D PAGI)
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-bold text-[11px] font-mono">
+                      Jam Kerja: 07:00 WIB s/d 07:00 WIB Besok
+                    </span>
+                  </div>
+                  <h4 className="text-base font-black text-ink mt-2 flex items-center gap-2">
+                    <Home className="w-4 h-4 text-amber-600" />
+                    <span>Sistem Pengamanan Komplek Kecil: Piket Tunggal Mandiri (1 Orang Satpam)</span>
+                  </h4>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    Karena skala klaster kecil (14 kavling), pos pengamanan dioperasikan secara penuh oleh 1 orang satpam dari pagi hingga pagi berikutnya secara estafet.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 bg-canvas px-3.5 py-2 rounded-2xl border border-border/80 shrink-0">
+                  <Clock className="w-4 h-4 text-amber-500 animate-pulse" />
+                  <div className="text-right">
+                    <span className="text-[10px] text-ink-muted block font-semibold">Waktu WIB Saat Ini</span>
+                    <span className="text-xs font-mono font-black text-ink">{currentWibTime}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2-Column Split: Active Guard & 24H Cycle Timeline */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                {/* Left Column: Active Guard Profile & Handover (5 cols) */}
+                <div className="lg:col-span-5 space-y-3.5">
+                  {/* Active Guard Card */}
+                  <div className="p-4 bg-canvas/80 rounded-2xl border border-border space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white font-black text-lg flex items-center justify-center shadow-xs">
+                            {activeSoloGuard?.fullName?.charAt(0) || 'J'}
+                          </div>
+                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-surface" title="Aktif di Pos" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-2 py-0.2 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-200">
+                              PETUGAS HARI INI
+                            </span>
+                          </div>
+                          <h5 className="text-sm font-black text-ink mt-0.5">{activeSoloGuard?.fullName || 'Pak Joko Sutrisno'}</h5>
+                          <span className="text-[11px] text-ink-muted font-mono">{activeSoloGuard?.nip || 'SEC.2026.1001'} • {activeSoloGuard?.role || 'Satpam Tunggal 24 Jam'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1 text-xs">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-ink-muted">Titik Jaga Utama:</span>
+                        <strong className="text-ink font-semibold flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-rose-500" />
+                          {activeSoloGuard?.assignedPost || 'Pos Gerbang Utama & Ronda 14 Kavling'}
+                        </strong>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-ink-muted">Kontak Darurat:</span>
+                        <span className="text-ink font-mono">{activeSoloGuard?.emergencyContact || '-'}</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Call & WhatsApp Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <a
+                        href={`tel:${activeSoloGuard?.phone || '0812-3456-7890'}`}
+                        className="py-2 px-3 bg-surface hover:bg-canvas text-ink border border-border font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs font-mono"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-primary-600" />
+                        <span>{activeSoloGuard?.phone || '0812-3456-7890'}</span>
+                      </a>
+                      <a
+                        href={`https://wa.me/${activeSoloGuard?.phone ? activeSoloGuard.phone.replace(/[^0-9]/g, '') : '6281234567890'}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>Hubungi WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Next Morning Handover Box */}
+                  <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 border border-dashed border-amber-300 dark:border-amber-700/60 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                        <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
+                        Serah Terima Piket Besok Pagi (07:00 WIB):
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-bold text-[10px]">
+                        ESTAFET PAGI
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-surface rounded-xl border border-border flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] text-ink-muted block">Satpam Penerima Estafet:</span>
+                        <strong className="text-xs text-ink font-black block">{nextSoloGuardName}</strong>
+                        <span className="text-[10px] text-ink-muted font-mono">{nextSoloGuardObj?.phone || '0813-8877-6655'}</span>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-bold">
+                        Lepas Piket / Siaga Pagi
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleQuickHandover24h}
+                      className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Lakukan Serah Terima Pagi Sekarang (Handover)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Column: 24-Hour Cycle Milestones (7 cols) */}
+                <div className="lg:col-span-7 p-4 bg-canvas/80 rounded-2xl border border-border space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      <h5 className="font-black text-xs text-ink">Timeline Siklus Piket 24 Jam Pagi s/d Pagi (Standar Operasional Komplek)</h5>
+                    </div>
+                    <span className="text-[10px] text-ink-muted font-mono">1 Personel Bertugas Mandiri</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {[
+                      {
+                        time: '07:00 WIB',
+                        icon: Sun,
+                        title: 'Serah Terima Piket & Cek Inventaris Pos',
+                        desc: 'Pemeriksaan buku mutasi, HT, lampu darurat, gembok portal, dan kondisi pos.',
+                        badge: 'Waktu Masuk',
+                        badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      },
+                      {
+                        time: '08:00 - 16:00 WIB',
+                        icon: ShieldCheck,
+                        title: 'Standby Gerbang, Tamu & Kurir Paket',
+                        desc: 'Pemeriksaan akses tamu kavling A - M, ojol makanan, paket kurir, dan keamanan jalan.',
+                        badge: 'Siang Hari',
+                        badgeColor: 'bg-blue-50 text-blue-800 border-blue-200'
+                      },
+                      {
+                        time: '18:00 WIB',
+                        icon: Zap,
+                        title: 'Nyalakan Lampu Penerangan Jalan (PJU)',
+                        desc: 'Mengaktifkan saklar PJU utama di gardu dan cek lampu jalan di sepanjang kavling A - M.',
+                        badge: 'Wajib Sore',
+                        badgeColor: 'bg-amber-50 text-amber-900 border-amber-200'
+                      },
+                      {
+                        time: '21:00 WIB',
+                        icon: Moon,
+                        title: 'Gembok & Kunci Portal Utama Komplek',
+                        desc: 'Akses terbatas 1 pintu diberlakukan. Setiap tamu malam wajib lapor satpam bertugas.',
+                        badge: 'Keamanan Malam',
+                        badgeColor: 'bg-rose-50 text-rose-800 border-rose-200'
+                      },
+                      {
+                        time: '23:30 & 02:30 WIB',
+                        icon: Compass,
+                        title: 'Ronda Keliling Malam & Dini Hari (14 Kavling)',
+                        desc: 'Patroli jalan kaki bersenter keliling Kav A s/d Kav M, cek mobil di carport dan pagar.',
+                        badge: 'Ronda Dini Hari',
+                        badgeColor: 'bg-purple-50 text-purple-800 border-purple-200'
+                      },
+                      {
+                        time: '07:00 WIB (Besok)',
+                        icon: RefreshCw,
+                        title: 'Buka Portal & Serah Terima ke Petugas Berikutnya',
+                        desc: 'Padamkan PJU pagi, buka kunci portal, dan serahkan buku mutasi ke satpam pengganti.',
+                        badge: 'Serah Terima',
+                        badgeColor: 'bg-teal-50 text-teal-800 border-teal-200'
+                      }
+                    ].map((step, idx) => {
+                      const StepIcon = step.icon;
+                      return (
+                        <div key={idx} className="p-2.5 bg-surface rounded-xl border border-border/70 flex items-start gap-3 transition-colors hover:border-amber-300">
+                          <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                            <StepIcon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex-1 space-y-0.5 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-xs text-ink truncate">{step.title}</span>
+                              <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border shrink-0 ${step.badgeColor}`}>
+                                {step.badge}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-ink-muted leading-tight">{step.desc}</p>
+                            <div className="text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 pt-0.5">
+                              ⏰ {step.time}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 7-Day Solo Rotation Calendar / Projection */}
+              <div className="p-4 bg-canvas/90 rounded-2xl border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary-600" />
+                    <h5 className="font-black text-xs text-ink">Jadwal Rotasi Mingguan 1 Satpam Pagi-ke-Pagi (7 Hari ke Depan)</h5>
+                  </div>
+                  <span className="text-[10px] text-ink-muted">Bergantian Setiap 24 Jam Penuh</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
+                  {soloWeekSchedule.map((day) => (
+                    <div
+                      key={day.index}
+                      className={`p-3 rounded-xl border text-center space-y-1.5 transition-all ${
+                        day.isToday
+                          ? 'bg-amber-500/10 border-amber-400 text-ink shadow-xs ring-1 ring-amber-400'
+                          : day.isTomorrow
+                          ? 'bg-surface border-border text-ink'
+                          : 'bg-surface/60 border-border/70 text-ink-muted'
+                      }`}
+                    >
+                      <div className="text-[10px] font-extrabold uppercase tracking-wider text-ink-muted">
+                        {day.dateLabel}
+                      </div>
+                      <div className="w-8 h-8 mx-auto rounded-full bg-amber-100 text-amber-900 flex items-center justify-center font-black text-xs">
+                        {day.guardName.charAt(0)}
+                      </div>
+                      <strong className="text-xs font-black text-ink block truncate" title={day.guardName}>
+                        {day.guardName}
+                      </strong>
+                      <span className={`inline-block px-2 py-0.5 rounded-md font-bold text-[9px] ${
+                        day.isToday
+                          ? 'bg-emerald-600 text-white'
+                          : day.isTomorrow
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-slate-200 dark:bg-slate-700 text-ink'
+                      }`}>
+                        {day.isToday ? 'Hari Ini (Aktif)' : day.isTomorrow ? 'Besok (Siaga)' : 'Terjadwal'}
+                      </span>
+                      <div className="text-[9px] font-mono text-ink-muted">
+                        07:00 - 07:00
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Daily Duty Checklist Box */}
           <div className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3">
@@ -1545,82 +2180,105 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
           </div>
 
           {/* Roster Shift Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-            {rosters.length === 0 ? (
-              <div className="col-span-full p-8 text-center text-ink-muted text-xs bg-surface rounded-2xl border border-border">
-                Belum ada jadwal shift jaga regu satpam. Klik <strong>"+ Plotting Shift Baru"</strong> di atas untuk menambahkan.
-              </div>
-            ) : (
-              rosters.map((r) => (
-                <div key={r.id} className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3.5 text-xs">
-                  <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-primary-700 uppercase tracking-wider block">{r.shiftHours}</span>
-                        {getDutyCategoryBadge(r.dutyCategory)}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-xs text-ink uppercase tracking-wider">
+                Daftar Plotting Shift & Regu Tersimpan ({rosters.length})
+              </h4>
+              <span className="text-[11px] text-ink-muted">
+                {rosterMode === 'SOLO_24H' ? 'Mode Aktif: 1 Satpam 24 Jam' : 'Mode Multi-Shift'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+              {rosters.length === 0 ? (
+                <div className="col-span-full p-8 text-center text-ink-muted text-xs bg-surface rounded-2xl border border-border">
+                  Belum ada jadwal shift jaga regu satpam. Klik <strong>"+ Atur Shift Baru"</strong> di atas untuk menambahkan.
+                </div>
+              ) : (
+                rosters.map((r) => (
+                  <div key={r.id} className="p-4 bg-surface rounded-2xl border border-border shadow-card space-y-3.5 text-xs">
+                    <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-primary-700 uppercase tracking-wider block">{r.shiftHours}</span>
+                          {getDutyCategoryBadge(r.dutyCategory)}
+                          {r.shiftType === 'SHIFT_24_JAM' && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-black text-[10px] border border-amber-200">
+                              24 Jam
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-sm font-black text-ink mt-0.5">{r.teamName}</h4>
                       </div>
-                      <h4 className="text-sm font-black text-ink mt-0.5">{r.teamName}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                          r.status === 'SEDANG_DINAS' ? 'bg-emerald-600 text-white' :
+                          r.status === 'SIAGA_SIANG' ? 'bg-amber-500 text-white' :
+                          'bg-purple-600 text-white'
+                        }`}>
+                          {r.status.replace(/_/g, ' ')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditRoster(r)}
+                          className="p-1 text-ink-muted hover:text-ink hover:bg-canvas rounded-lg"
+                          title="Edit Shift & Plotting"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        {rosters.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRoster(r.id)}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                            title="Hapus Shift"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                      r.status === 'SEDANG_DINAS' ? 'bg-emerald-600 text-white' :
-                      r.status === 'SIAGA_SIANG' ? 'bg-amber-500 text-white' :
-                      'bg-purple-600 text-white'
-                    }`}>
-                      {r.status.replace(/_/g, ' ')}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditRoster(r)}
-                      className="p-1 text-ink-muted hover:text-ink hover:bg-canvas rounded-lg"
-                      title="Edit Shift & Plotting"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    {rosters.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRoster(r.id)}
-                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                        title="Hapus Shift"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+
+                    {/* Assigned Guards in this Shift */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider block">
+                        Personel & Area Bertugas:
+                      </span>
+                      {r.assignedGuards.map((g, idx) => (
+                        <div key={idx} className="p-2.5 bg-canvas rounded-xl border border-border/70 flex items-center justify-between gap-2">
+                          <div>
+                            <span className="font-bold text-ink block">{idx + 1}. {g.guardName} ({g.role})</span>
+                            <span className="text-[10px] text-ink-muted flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 text-rose-500" />
+                              <span>{g.assignedArea}</span>
+                            </span>
+                          </div>
+                          {g.specialDuty && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-surface text-ink border border-border rounded-md shrink-0 text-right">
+                              {g.specialDuty}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {r.nextHandoverGuardName && (
+                      <div className="p-2 bg-amber-50/70 border border-amber-200 rounded-lg text-[10px] text-amber-900 flex items-center justify-between">
+                        <span>Serah terima esok pagi ({r.handoverTime || '07:00 WIB'}):</span>
+                        <strong>{r.nextHandoverGuardName}</strong>
+                      </div>
+                    )}
+
+                    {r.notes && (
+                      <div className="p-2 bg-canvas/60 rounded-lg border border-border/60 text-[11px] text-ink-muted italic">
+                        Catatan: {r.notes}
+                      </div>
                     )}
                   </div>
-                </div>
-
-                {/* Assigned Guards in this Shift */}
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider block">
-                    Personel & Area Bertugas:
-                  </span>
-                  {r.assignedGuards.map((g, idx) => (
-                    <div key={idx} className="p-2.5 bg-canvas rounded-xl border border-border/70 flex items-center justify-between gap-2">
-                      <div>
-                        <span className="font-bold text-ink block">{idx + 1}. {g.guardName} ({g.role})</span>
-                        <span className="text-[10px] text-ink-muted flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3 text-rose-500" />
-                          <span>{g.assignedArea}</span>
-                        </span>
-                      </div>
-                      {g.specialDuty && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-surface text-ink border border-border rounded-md shrink-0 text-right">
-                          {g.specialDuty}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {r.notes && (
-                  <div className="p-2 bg-canvas/60 rounded-lg border border-border/60 text-[11px] text-ink-muted italic">
-                    Catatan: {r.notes}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -2678,7 +3336,8 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     onChange={(e) => {
                       const val = e.target.value as any;
                       setRShiftType(val);
-                      if (val === 'SHIFT_PAGI') { setRShiftLabel('Shift Pagi'); setRShiftHours('07:00 - 15:00 WIB'); }
+                      if (val === 'SHIFT_24_JAM') { setRShiftLabel('Shift 24 Jam (Pagi s/d Pagi)'); setRShiftHours('07:00 - 07:00 WIB (24 Jam Penuh)'); }
+                      else if (val === 'SHIFT_PAGI') { setRShiftLabel('Shift Pagi'); setRShiftHours('07:00 - 15:00 WIB'); }
                       else if (val === 'SHIFT_SIANG') { setRShiftLabel('Shift Siang'); setRShiftHours('15:00 - 23:00 WIB'); }
                       else if (val === 'SHIFT_MALAM') { setRShiftLabel('Shift Malam'); setRShiftHours('23:00 - 07:00 WIB'); }
                       else if (val === 'SHIFT_FULL_DAY') { setRShiftLabel('Shift Harian Lingkungan'); setRShiftHours('08:00 - 17:00 WIB'); }
@@ -2686,6 +3345,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     }}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
+                    <option value="SHIFT_24_JAM">⭐ Shift 24 Jam: Pagi s/d Pagi (07:00 - 07:00 WIB)</option>
                     <option value="SHIFT_PAGI">Shift Pagi (07:00 - 15:00)</option>
                     <option value="SHIFT_SIANG">Shift Siang (15:00 - 23:00)</option>
                     <option value="SHIFT_MALAM">Shift Malam (23:00 - 07:00)</option>
@@ -2871,6 +3531,140 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-xs"
                 >
                   Aplikasikan Tukar Shift
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: ATUR ROTASI 1 SATPAM 24 JAM (PAGI S/D PAGI) ================= */}
+      {showSolo24hModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal max-h-[90vh] overflow-y-auto space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
+                  <Clock className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-ink flex items-center gap-1.5">
+                    <span>Atur Rotasi 1 Satpam 24 Jam</span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-extrabold text-[10px] uppercase tracking-wider">
+                      Pagi s/d Pagi
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-ink-muted">Sistem operasional tunggal komplek kecil (14 kavling)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSolo24hModal(false)}
+                className="p-1.5 rounded-xl text-ink-muted hover:text-ink hover:bg-canvas transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl text-[11px] text-amber-950 space-y-1">
+              <span className="font-bold flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                Ketentuan Operasional Piket Mandiri 24 Jam:
+              </span>
+              <p className="text-amber-900/90 leading-relaxed">
+                Hanya <strong>1 orang satpam</strong> yang berjaga penuh dari pagi hari (07:00 WIB) sampai pagi berikutnya (07:00 WIB), mencakup penjagaan pos gerbang utama, verifikasi kurir paket & tamu, menyalakan lampu PJU komplek pukul 18:00, mengunci portal pukul 21:00, dan ronda berkala 14 kavling.
+              </p>
+            </div>
+
+            <form onSubmit={handleApplySolo24hRoster} className="space-y-3.5">
+              <div>
+                <label className="font-bold text-ink block mb-1">
+                  1. Satpam yang Bertugas Hari Ini (Piket Penuh 24 Jam) *
+                </label>
+                <select
+                  value={soloGuardToday}
+                  onChange={(e) => setSoloGuardToday(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                >
+                  {guards.map(g => (
+                    <option key={g.id} value={g.id}>
+                      {g.fullName} ({g.nip}) — {g.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="font-bold text-ink block mb-1">Jam Masuk Piket Pagi</label>
+                  <input
+                    type="text"
+                    value={soloHandoverTime}
+                    onChange={(e) => setSoloHandoverTime(e.target.value)}
+                    placeholder="07:00"
+                    required
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink text-center font-bold"
+                  />
+                  <span className="text-[10px] text-ink-muted mt-0.5 block">Waktu mulai bertugas pagi</span>
+                </div>
+                <div>
+                  <label className="font-bold text-ink block mb-1">Durasi Piket</label>
+                  <div className="p-2.5 bg-slate-100 dark:bg-slate-800/60 border border-border rounded-xl font-mono text-ink text-center font-bold">
+                    24 Jam Penuh
+                  </div>
+                  <span className="text-[10px] text-ink-muted mt-0.5 block">Hingga esok pagi {soloHandoverTime} WIB</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">
+                  2. Satpam Penerima Estafet Serah Terima Besok Pagi *
+                </label>
+                <select
+                  value={soloGuardTomorrow}
+                  onChange={(e) => setSoloGuardTomorrow(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                >
+                  {guards.map(g => (
+                    <option key={g.id} value={g.id} disabled={g.id === soloGuardToday}>
+                      {g.fullName} {g.id === soloGuardToday ? '(Sedang Dipilih Hari Ini)' : `(${g.nip})`}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-ink-muted mt-0.5 block">
+                  Petugas berikutnya yang akan menerima buku mutasi dan kunci gerbang esok pukul {soloHandoverTime} WIB.
+                </span>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">
+                  Instruksi Khusus & Catatan Operasional Komplek
+                </label>
+                <textarea
+                  rows={3}
+                  value={soloNotes}
+                  onChange={(e) => setSoloNotes(e.target.value)}
+                  placeholder="Catatan instruksi ronda atau fokus pemantauan lingkungan..."
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSolo24hModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Simpan & Aktifkan Roster 24 Jam</span>
                 </button>
               </div>
             </form>
