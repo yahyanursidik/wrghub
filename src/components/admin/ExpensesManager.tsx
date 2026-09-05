@@ -111,12 +111,14 @@ interface ExpensesManagerProps {
   initialExpenses: ExpenseItem[];
   initialAccounts?: any[];
   initialBalance?: number;
+  initialRecurringConfig?: any[];
 }
 
 export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ 
   initialExpenses,
   initialAccounts = [],
   initialBalance = 28065000,
+  initialRecurringConfig = [],
 }) => {
   const [expenses, setExpenses] = useState<ExpenseItem[]>(initialExpenses);
   const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
@@ -698,6 +700,34 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
       {/* ================= SUBTAB 1: BUKU PENGELUARAN & NOTA BELANJA ================= */}
       {activeSubTab === 'expenses_list' && (
         <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Smart Automation Banner: Bebas Input Berulang */}
+          <div className="p-4 bg-gradient-to-r from-rose-50 via-amber-50 to-emerald-50 rounded-2xl border border-rose-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                <Repeat className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-950 text-sm flex items-center gap-2">
+                  <span>Otomasi Pengeluaran Rutin Bebas Repot</span>
+                  <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-black tracking-wide uppercase border border-rose-200">
+                    Bebas Input Berulang
+                  </span>
+                </h4>
+                <p className="text-slate-600 text-[11px] mt-0.5">
+                  Pos bulanan (Honor Pa Adri Harry, Sampah, PJU, Got, Pos) otomatis dibukukan dan langsung memotong saldo kas tanpa perlu diketik berulang kali setiap bulan.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('recurring_expenses')}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 shrink-0 active:scale-[0.98] transition-all"
+            >
+              <Repeat className="w-3.5 h-3.5 text-rose-400" />
+              <span>⚙️ Setting & Auto-Debit Rutin</span>
+            </button>
+          </div>
+
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
@@ -940,7 +970,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
           <RecurringExpensesManager
             accounts={initialAccounts}
             currentBalance={currentBalance}
-            existingExpenseTitles={expenses.map((e) => e.title)}
+            initialConfig={initialRecurringConfig}
+            existingExpenseTitles={expenses.map((e) => `${e.expenseDate.slice(0, 7)} - ${e.title}`)}
             onExpensesProcessed={(newItems, newBal) => {
               setExpenses((prev) => [...newItems, ...prev]);
               setCurrentBalance(newBal);

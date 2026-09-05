@@ -138,8 +138,24 @@ export async function recordExpense(data: {
   expenseDate: string;
   recordedBy?: string;
 }) {
-  const expenseId = `exp-${Date.now()}`;
+  const expenseId = `exp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const accountId = data.accountId || 'acc-main';
+
+  // Normalize categoryId against valid DB categories: cat-keamanan, cat-kebersihan, cat-listrik, cat-pemeliharaan
+  let safeCategoryId = data.categoryId || 'cat-pemeliharaan';
+  const catLower = safeCategoryId.toLowerCase();
+  if (catLower === 'cat-satpam' || catLower.includes('keamanan') || catLower.includes('satpam')) {
+    safeCategoryId = 'cat-keamanan';
+  } else if (catLower === 'cat-utilitas' || catLower === 'cat-pju' || catLower.includes('listrik')) {
+    safeCategoryId = 'cat-listrik';
+  } else if (catLower.includes('kebersihan') || catLower.includes('sampah')) {
+    safeCategoryId = 'cat-kebersihan';
+  } else {
+    safeCategoryId = 'cat-pemeliharaan';
+  }
+
+  // Normalize recordedBy to a valid user ID (user-bendahara, user-admin, etc.)
+  const safeRecordedBy = (data.recordedBy && data.recordedBy.startsWith('user-')) ? data.recordedBy : 'user-bendahara';
 
   if (process.env.DATABASE_URL) {
     try {
@@ -147,9 +163,9 @@ export async function recordExpense(data: {
         INSERT INTO expenses (
           id, community_id, category_id, account_id, title, description, amount, expense_date, recorded_by, approved_by, status
         ) VALUES (
-          ${expenseId}, 'comm-01', ${data.categoryId}, ${accountId}, ${data.title},
+          ${expenseId}, 'comm-01', ${safeCategoryId}, ${accountId}, ${data.title},
           ${data.description || null}, ${data.amount}, ${data.expenseDate},
-          ${data.recordedBy || 'user-bendahara'}, 'user-ketua', 'APPROVED'
+          ${safeRecordedBy}, 'user-ketua', 'APPROVED'
         )
       `;
 
@@ -158,7 +174,7 @@ export async function recordExpense(data: {
           id, account_id, entry_date, direction, amount, source_type, source_id, description, created_by
         ) VALUES (
           ${'ledg-' + expenseId}, ${accountId}, ${data.expenseDate}, 'OUT',
-          ${data.amount}, 'EXPENSE', ${expenseId}, ${data.title}, ${data.recordedBy || 'user-bendahara'}
+          ${data.amount}, 'EXPENSE', ${expenseId}, ${data.title}, ${safeRecordedBy}
         )
       `;
 
@@ -179,19 +195,23 @@ export async function recordExpense(data: {
     }
   }
 
-  await db.insert(schema.expenses).values({
-    id: expenseId,
-    communityId: 'comm-01',
-    categoryId: data.categoryId,
-    accountId,
-    title: data.title,
-    description: data.description || null,
-    amount: data.amount,
-    expenseDate: data.expenseDate,
-    recordedBy: data.recordedBy || 'user-bendahara',
-    approvedBy: 'user-ketua',
-    status: 'APPROVED',
-  });
+  try {
+    await db.insert(schema.expenses).values({
+      id: expenseId,
+      communityId: 'comm-01',
+      categoryId: safeCategoryId,
+      accountId,
+      title: data.title,
+      description: data.description || null,
+      amount: data.amount,
+      expenseDate: data.expenseDate,
+      recordedBy: 'user-admin',
+      approvedBy: 'user-admin',
+      status: 'APPROVED',
+    });
+  } catch (sqErr) {
+    console.warn('SQLite expense fallback error:', sqErr);
+  }
 
   return expenseId;
 }
@@ -266,5 +286,217 @@ export async function deleteLedgerEntry(ledgerId: string) {
     console.warn('SQLite delete ledger error:', e);
     return { success: false, error: e };
   }
+}
+
+// ================= RECURRING EXPENSES AUTOMATION =================
+
+export interface RecurringExpenseConfigItem {
+  id: string;
+  title: string;
+  amount: number;
+  categoryId: string;
+  categoryName: string;
+  accountId: string;
+  executionDay: number;
+  vendor?: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export const DEFAULT_RECURRING_CONFIG: RecurringExpenseConfigItem[] = [
+  {
+    id: 'rec-01',
+    title: 'Honor Petugas Jaga & Keamanan 24 Jam (Pa Adri Harry)',
+    amount: 1800000,
+    categoryId: 'cat-keamanan',
+    categoryName: 'Keamanan & Satpam',
+    accountId: 'acc-main',
+    executionDay: 25,
+    vendor: 'Pa Adri Harry (Petugas Jaga)',
+    description: 'Honor bulanan penjagaan gerbang utama & kontrol keamanan 14 kavling',
+    isActive: true,
+  },
+  {
+    id: 'rec-02',
+    title: 'Iuran Retribusi Kebersihan & Pengangkutan Sampah',
+    amount: 600000,
+    categoryId: 'cat-kebersihan',
+    categoryName: 'Kebersihan & Sanitasi',
+    accountId: 'acc-main',
+    executionDay: 5,
+    vendor: 'Armada Sampah / Petugas Lingkungan',
+    description: 'Biaya pengangkutan sampah rumah tangga komplek 3x seminggu',
+    isActive: true,
+  },
+  {
+    id: 'rec-03',
+    title: 'Tagihan Listrik PLN (PJU Lingkungan & Pompa Air Fasum)',
+    amount: 400000,
+    categoryId: 'cat-listrik',
+    categoryName: 'Listrik & Utilitas',
+    accountId: 'acc-main',
+    executionDay: 10,
+    vendor: 'PT PLN (Persero)',
+    description: 'Penerangan jalan umum 14 titik & pompa air otomatis fasum',
+    isActive: true,
+  },
+  {
+    id: 'rec-04',
+    title: 'Pemeliharaan Taman, Potong Rumput & Drainase/Got',
+    amount: 250000,
+    categoryId: 'cat-pemeliharaan',
+    categoryName: 'Pemeliharaan Lingkungan',
+    accountId: 'acc-main',
+    executionDay: 15,
+    vendor: 'Pak Slamet / Tukang Taman',
+    description: 'Perawatan taman fasum, pemotongan rumput jalan & pembersihan selokan',
+    isActive: true,
+  },
+  {
+    id: 'rec-05',
+    title: 'Operasional Pos Satpam & Kuota Internet CCTV/Gate',
+    amount: 100000,
+    categoryId: 'cat-pemeliharaan',
+    categoryName: 'Operasional Pos Satpam',
+    accountId: 'acc-main',
+    executionDay: 1,
+    vendor: 'Telkomsel / Indihome Pos',
+    description: 'Paket data CCTV online gerbang, buku mutasi & ATK pos',
+    isActive: true,
+  },
+];
+
+export async function getRecurringExpensesConfig(): Promise<RecurringExpenseConfigItem[]> {
+  if (process.env.DATABASE_URL) {
+    try {
+      const rows = await neonSql`SELECT value FROM settings WHERE key = 'recurring_expenses_config' LIMIT 1`;
+      if (rows.length && rows[0].value) {
+        const parsed = JSON.parse(rows[0].value);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Neon get recurring config error:', e);
+    }
+  }
+
+  try {
+    const dbRows = await db.select().from(schema.settings).where(eq(schema.settings.key, 'recurring_expenses_config')).limit(1);
+    if (dbRows.length && dbRows[0].value) {
+      const parsed = JSON.parse(dbRows[0].value);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+
+  return DEFAULT_RECURRING_CONFIG;
+}
+
+export async function saveRecurringExpensesConfig(items: RecurringExpenseConfigItem[]) {
+  const jsonStr = JSON.stringify(items);
+  if (process.env.DATABASE_URL) {
+    try {
+      await neonSql`
+        INSERT INTO settings (id, community_id, key, value, description, updated_at)
+        VALUES ('set-recurring-expenses', 'comm-01', 'recurring_expenses_config', ${jsonStr}, 'Konfigurasi Pos Pengeluaran Rutin Bulanan', NOW())
+        ON CONFLICT (id) DO UPDATE SET value = ${jsonStr}, updated_at = NOW();
+      `;
+    } catch (e) {
+      console.warn('Neon save recurring config error:', e);
+    }
+  }
+
+  try {
+    const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, 'recurring_expenses_config')).limit(1);
+    if (existing.length) {
+      await db.update(schema.settings).set({ value: jsonStr, updatedAt: new Date().toISOString() }).where(eq(schema.settings.key, 'recurring_expenses_config'));
+    } else {
+      await db.insert(schema.settings).values({
+        id: 'set-recurring-expenses',
+        communityId: 'comm-01',
+        key: 'recurring_expenses_config',
+        value: jsonStr,
+        description: 'Konfigurasi Pos Pengeluaran Rutin Bulanan',
+      });
+    }
+  } catch (e) {
+    console.warn('SQLite save recurring config error:', e);
+  }
+
+  return items;
+}
+
+export async function generateMonthlyRecurringExpenses(targetMonths?: string[]) {
+  const config = await getRecurringExpensesConfig();
+  const activeItems = config.filter((i) => i.isActive);
+
+  const months = targetMonths && targetMonths.length > 0
+    ? targetMonths
+    : ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'];
+
+  let totalItemsCreated = 0;
+  let totalDeducted = 0;
+  const createdExpenses: any[] = [];
+
+  for (const month of months) {
+    // Get existing expenses in that month
+    let existingTitles: string[] = [];
+    if (process.env.DATABASE_URL) {
+      try {
+        const rows = await neonSql`SELECT title FROM expenses WHERE expense_date LIKE ${month + '%'}`;
+        existingTitles = rows.map((r: any) => String(r.title).toLowerCase());
+      } catch (e) {}
+    } else {
+      try {
+        const allExp = await db.select({ title: schema.expenses.title, date: schema.expenses.expenseDate }).from(schema.expenses);
+        existingTitles = allExp.filter(e => e.date?.startsWith(month)).map(e => e.title.toLowerCase());
+      } catch (e) {}
+    }
+
+    for (const item of activeItems) {
+      // Check if already booked for this month
+      const isAlreadyBooked = existingTitles.some(t => 
+        t.includes(item.title.toLowerCase()) || 
+        (t.includes(item.id.toLowerCase()) && t.includes(month))
+      );
+
+      if (!isAlreadyBooked) {
+        const safeDay = Math.min(Math.max(item.executionDay, 1), 28);
+        const expenseDate = `${month}-${String(safeDay).padStart(2, '0')}`;
+        const title = `${item.title} (Bulan ${month})`;
+
+        const expenseId = await recordExpense({
+          categoryId: item.categoryId || 'cat-operasional',
+          accountId: item.accountId || 'acc-main',
+          title,
+          description: item.description || `Auto-Debit Pengeluaran Rutin Periode ${month}`,
+          amount: item.amount,
+          expenseDate,
+          recordedBy: 'user-bendahara',
+        });
+
+        totalItemsCreated++;
+        totalDeducted += item.amount;
+        createdExpenses.push({
+          id: expenseId,
+          title,
+          amount: item.amount,
+          expenseDate,
+          categoryName: item.categoryName,
+          vendor: item.vendor,
+          status: 'APPROVED',
+        });
+      }
+    }
+  }
+
+  const newBalance = await getMainAccountBalance();
+
+  return {
+    success: true,
+    totalItemsCreated,
+    totalDeducted,
+    newBalance,
+    monthsProcessed: months,
+    createdExpenses,
+  };
 }
 

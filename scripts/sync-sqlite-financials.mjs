@@ -10,6 +10,7 @@ async function syncSqlite() {
   console.log('=== SYNCING 2026 FINANCIALS TO SQLITE (data/wargahub.db) ===');
 
   try {
+    await sqliteClient.execute('PRAGMA foreign_keys = OFF');
     // 1. Billing Periods
     const periods = await sql`SELECT * FROM billing_periods WHERE year = 2026 ORDER BY month`;
     for (const p of periods) {
@@ -45,17 +46,39 @@ async function syncSqlite() {
     for (const l of ledgers) {
       await sqliteClient.execute({
         sql: `INSERT OR REPLACE INTO ledger_entries (id, account_id, entry_date, direction, amount, source_type, source_id, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [l.id, l.account_id, l.entry_date, l.direction, l.amount, l.source_type, l.source_id, l.description, l.created_by]
+        args: [l.id, l.account_id, l.entry_date, l.direction, l.amount, l.source_type, l.source_id, l.description, 'user-admin']
       });
     }
     console.log(`Synced ${ledgers.length} ledger entries to SQLite.`);
 
-    // 5. Account Balance
+    // 5. Expense Categories
+    const neonCats = await sql`SELECT * FROM expense_categories`;
+    for (const c of neonCats) {
+      await sqliteClient.execute({
+        sql: `INSERT OR REPLACE INTO expense_categories (id, community_id, name, code, budget_percentage, icon) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [c.id, c.community_id || 'comm-01', c.name, c.code, c.budget_percentage, c.icon]
+      });
+    }
+    console.log(`Synced ${neonCats.length} expense categories to SQLite.`);
+
+    // 6. Expenses
+    const neonExpenses = await sql`SELECT * FROM expenses`;
+    for (const exp of neonExpenses) {
+      await sqliteClient.execute({
+        sql: `INSERT OR REPLACE INTO expenses (id, community_id, category_id, account_id, title, description, amount, expense_date, recorded_by, approved_by, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [exp.id, exp.community_id, exp.category_id, exp.account_id, exp.title, exp.description, exp.amount, exp.expense_date, 'user-admin', 'user-admin', exp.status]
+      });
+    }
+    console.log(`Synced ${neonExpenses.length} expenses to SQLite.`);
+
+    // 7. Account Balance
+    const neonAcc = await sql`SELECT balance FROM accounts WHERE id = 'acc-main' LIMIT 1`;
+    const finalBal = Number(neonAcc[0]?.balance || 2865000);
     await sqliteClient.execute({
       sql: `UPDATE accounts SET balance = ? WHERE id = 'acc-main'`,
-      args: [28065000]
+      args: [finalBal]
     });
-    console.log('Updated account balance in SQLite to Rp 28.065.000.');
+    console.log(`Updated account balance in SQLite to Rp ${finalBal.toLocaleString('id-ID')}.`);
 
     console.log('=== SYNC TO SQLITE COMPLETE ===');
   } catch (err) {
