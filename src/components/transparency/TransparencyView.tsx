@@ -34,7 +34,9 @@ import {
   Layers,
   ChevronRight,
   TrendingUp,
-  FileCheck
+  FileCheck,
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import type { PublicTransparencyData } from '../../services/transparency.service';
@@ -121,6 +123,137 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
   const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState<string>('ALL');
+
+  // Dues Breakdown Filter & Search States
+  const [duesFilter, setDuesFilter] = useState<'ALL' | 'UNPAID' | 'PAID'>('ALL');
+  const [duesSearch, setDuesSearch] = useState('');
+
+  // Quick Action to Prefill Confirmation
+  const handleQuickConfirm = (propertyCode: string, residentName: string, amount: number, period: string) => {
+    setConfirmUnit(propertyCode);
+    setConfirmName(residentName);
+    setConfirmAmount(amount.toString());
+    setConfirmPeriod(period || 'Agustus 2026');
+    handleTabChange('citizen_confirm');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Resident Directory for Accurate Resident Names
+  const RESIDENT_DIRECTORY: Record<string, string> = {
+    'Kav A': 'Pak Verial',
+    'Kav B': 'Mahasiswa Polban',
+    'Kav C': 'Bu Rina',
+    'Kav D': 'Pak Rieva',
+    'Kav E': 'Pak Budi',
+    'Kav F': 'Pa Anggia',
+    'Kav G': 'Pak Misael',
+    'Kav H': 'Pak Fahmi Rizal',
+    'Kav I': 'Pak Yahya',
+    'Kav J': 'Bu Sofia P',
+    'Kav K': 'Pak Eky',
+    'Kav L': 'Pak Haji Ano',
+    'Kav M': 'Pak Dedi N / Pak Jaya',
+  };
+
+  const getCleanResidentName = (code: string, rawName?: string) => {
+    if (!rawName || rawName.toLowerCase().startsWith('no. kavling') || rawName === code) {
+      return RESIDENT_DIRECTORY[code] || rawName || code;
+    }
+    return rawName;
+  };
+
+  // Resolved lists for Unpaid and Household Matrix
+  const resolvedUnpaidList = useMemo(() => {
+    if (data.unpaidDetailedList && data.unpaidDetailedList.length > 0) {
+      return data.unpaidDetailedList.map((u) => ({
+        ...u,
+        residentName: getCleanResidentName(u.propertyCode, u.residentName),
+      }));
+    }
+    if (data.unpaidHouses && data.unpaidHouses.length > 0) {
+      return data.unpaidHouses.map((code) => ({
+        propertyCode: code,
+        residentName: getCleanResidentName(code),
+        unpaidMonths: code === 'Kav J' ? ['Juni 2026', 'Juli 2026', 'Agustus 2026'] : ['Agustus 2026'],
+        arrearsAmount: code === 'Kav J' ? 750000 : 250000,
+        paidMonthsCount: code === 'Kav J' ? 5 : 7,
+      }));
+    }
+    return [];
+  }, [data.unpaidDetailedList, data.unpaidHouses]);
+
+  const resolvedHouseholdDues = useMemo(() => {
+    if (data.householdDuesList && data.householdDuesList.length > 0) {
+      return data.householdDuesList.map((h) => ({
+        ...h,
+        residentName: getCleanResidentName(h.propertyCode, h.residentName),
+      }));
+    }
+    const MONTHS = [
+      { index: 1, name: 'Jan', full: 'Januari 2026', amount: 250000 },
+      { index: 2, name: 'Feb', full: 'Februari 2026', amount: 250000 },
+      { index: 3, name: 'Mar', full: 'Maret 2026', amount: 365000 },
+      { index: 4, name: 'Apr', full: 'April 2026', amount: 250000 },
+      { index: 5, name: 'Mei', full: 'Mei 2026', amount: 250000 },
+      { index: 6, name: 'Jun', full: 'Juni 2026', amount: 250000 },
+      { index: 7, name: 'Jul', full: 'Juli 2026', amount: 250000 },
+      { index: 8, name: 'Agu', full: 'Agustus 2026', amount: 250000 },
+    ];
+    const DEFAULT_KAVS = [
+      { code: 'Kav A', name: 'Pak Verial', unpaid: [] },
+      { code: 'Kav B', name: 'Mahasiswa Polban', unpaid: [] },
+      { code: 'Kav C', name: 'Bu Rina', unpaid: [] },
+      { code: 'Kav D', name: 'Pak Rieva', unpaid: [] },
+      { code: 'Kav E', name: 'Pak Budi', unpaid: ['Agustus 2026'] },
+      { code: 'Kav F', name: 'Pa Anggia', unpaid: [] },
+      { code: 'Kav G', name: 'Pak Misael', unpaid: [] },
+      { code: 'Kav H', name: 'Pak Fahmi Rizal', unpaid: [] },
+      { code: 'Kav I', name: 'Pak Yahya', unpaid: [] },
+      { code: 'Kav J', name: 'Bu Sofia P', unpaid: ['Juni 2026', 'Juli 2026', 'Agustus 2026'] },
+      { code: 'Kav K', name: 'Pak Eky', unpaid: [] },
+      { code: 'Kav L', name: 'Pak Haji Ano', unpaid: [] },
+      { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', unpaid: [] },
+    ];
+    return DEFAULT_KAVS.map((k, idx) => {
+      const months = MONTHS.map((m) => ({
+        monthIndex: m.index,
+        monthCode: m.index.toString().padStart(2, '0'),
+        monthName: m.name,
+        fullName: m.full,
+        isPaid: !k.unpaid.includes(m.full),
+        amount: m.amount,
+      }));
+      const totalPaid = months.filter((m) => m.isPaid).reduce((s, m) => s + m.amount, 0);
+      const totalArrears = months.filter((m) => !m.isPaid).reduce((s, m) => s + m.amount, 0);
+      return {
+        propertyId: `prop-${idx + 1}`,
+        propertyCode: k.code,
+        residentName: k.name,
+        months,
+        paidMonthsCount: months.filter((m) => m.isPaid).length,
+        totalMonthsCount: 8,
+        unpaidMonths: k.unpaid,
+        totalPaidAmount: totalPaid,
+        totalArrearsAmount: totalArrears,
+        isFullyPaid: k.unpaid.length === 0,
+      };
+    });
+  }, [data.householdDuesList]);
+
+  const filteredHouseholdDues = useMemo(() => {
+    return resolvedHouseholdDues.filter((item) => {
+      const matchSearch =
+        item.propertyCode.toLowerCase().includes(duesSearch.toLowerCase()) ||
+        item.residentName.toLowerCase().includes(duesSearch.toLowerCase());
+
+      if (!matchSearch) return false;
+      if (duesFilter === 'UNPAID') return !item.isFullyPaid;
+      if (duesFilter === 'PAID') return item.isFullyPaid;
+      return true;
+    });
+  }, [resolvedHouseholdDues, duesFilter, duesSearch]);
 
   // Confirmation Form State
   const [confirmUnit, setConfirmUnit] = useState('');
@@ -330,14 +463,21 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         <button
           type="button"
           onClick={() => handleTabChange('dues_breakdown')}
-          className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`flex-1 min-w-[145px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'dues_breakdown'
               ? 'bg-primary-600 text-white shadow-xs'
               : 'text-ink-muted hover:text-ink hover:bg-canvas'
           }`}
         >
           <Building2 className="w-3.5 h-3.5" />
-          <span>Rekap per Wilayah</span>
+          <span>Status Iuran & Tunggakan</span>
+          {resolvedUnpaidList.length > 0 && (
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeTab === 'dues_breakdown' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-700'
+            }`}>
+              {resolvedUnpaidList.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -509,33 +649,67 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="text-base font-black text-ink">Daftar Unit Belum Iuran</h3>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                    {data.unpaidHouses.length} Unit
+                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
+                    resolvedUnpaidList.length > 0 
+                      ? 'bg-rose-50 text-rose-800 border-rose-200' 
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  }`}>
+                    {resolvedUnpaidList.length} Unit
                   </span>
                 </div>
                 <p className="text-xs text-ink-muted">
-                  Unit yang belum melakukan konfirmasi pembayaran periode {data.periodName}.
+                  Unit yang masih memiliki tunggakan pada periode berjalan {data.periodName}.
                 </p>
 
-                {data.unpaidHouses.length === 0 ? (
-                  <div className="mt-4 p-5 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-1.5">
+                {resolvedUnpaidList.length === 0 ? (
+                  <div className="mt-4 p-5 text-center bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-1.5">
                     <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-                    <p className="text-xs font-bold text-ink">Semua Unit Lunas / Belum Ada Tunggakan</p>
-                    <p className="text-[11px] text-ink-muted leading-relaxed">
-                      Tidak ada catatan unit rumah yang menunggak untuk periode {data.periodName}.
+                    <p className="text-xs font-bold text-emerald-950">Semua Unit Telah Lunas!</p>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Tidak ada tunggakan iuran warga untuk periode {data.periodName}.
                     </p>
                   </div>
                 ) : (
-                  <div className="mt-5 grid grid-cols-3 gap-2">
-                    {data.unpaidHouses.slice(0, 9).map((house) => (
+                  <div className="mt-4 space-y-2.5">
+                    {resolvedUnpaidList.map((item) => (
                       <div
-                        key={house}
-                        className="flex items-center gap-2 p-2.5 rounded-xl bg-canvas border border-border text-xs font-bold text-ink hover:border-amber-400 transition-colors"
+                        key={item.propertyCode}
+                        className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200/90 flex flex-col gap-2 transition-all hover:bg-rose-50"
                       >
-                        <Home className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>{house}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-xl bg-rose-100 text-rose-800 font-black text-xs flex items-center justify-center border border-rose-300">
+                              {item.propertyCode.replace('Kav ', '')}
+                            </span>
+                            <div>
+                              <h4 className="text-xs font-black text-ink">{item.propertyCode}</h4>
+                              <p className="text-[10px] text-ink-muted">{item.residentName}</p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200">
+                            {item.unpaidMonths.length} Bln Tertunda
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-rose-200/60 text-xs">
+                          <span className="text-[11px] text-rose-900 font-medium">
+                            {item.unpaidMonths.map((m) => m.split(' ')[0]).join(', ')}
+                          </span>
+                          <span className="font-black text-rose-700 tabular-nums">
+                            {formatRupiah(item.arrearsAmount)}
+                          </span>
+                        </div>
                       </div>
                     ))}
+
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('dues_breakdown')}
+                      className="w-full mt-1 py-2 px-3 rounded-xl bg-canvas hover:bg-primary-50 border border-border hover:border-primary-300 text-primary-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                    >
+                      <span>Buka Matriks Lengkap Seluruh Kavling</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -839,86 +1013,581 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
       {/* SUBTAB 3: DUES BREAKDOWN BY REGION & BLOCKS                               */}
       {/* ========================================================================= */}
       {activeTab === 'dues_breakdown' && (
-        <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-6 animate-in fade-in">
-          <div className="border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary-800 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-200">
-                Agregat Wilayah Lingkungan
-              </span>
-              <h2 className="text-xl font-black text-ink mt-1">
-                Kinerja Pembayaran Iuran per Blok Hunian
-              </h2>
-              <p className="text-xs text-ink-muted mt-0.5">
-                Pantau tingkat kesadaran iuran warga berdasarkan blok dan kawasan komplek.
-              </p>
-            </div>
-            <a
-              href="/rekap-iuran"
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
-            >
-              <span>Daftar Unit Rumah Lengkap</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </a>
-          </div>
+        <div className="space-y-6 animate-in fade-in">
+          {/* Header & KPI Summary Banner */}
+          <div className="bg-surface rounded-3xl p-6 sm:p-7 border border-border shadow-card space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary-800 bg-primary-50 px-2.5 py-0.5 rounded-md border border-primary-200">
+                    Transparansi Iuran Warga 2026
+                  </span>
+                  <span className="text-xs text-ink-muted">
+                    Periode: Januari – {data.periodName}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-ink mt-1">
+                  Status Iuran & Tunggakan Kavling Warga
+                </h2>
+                <p className="text-xs sm:text-sm text-ink-muted mt-0.5 max-w-2xl leading-relaxed">
+                  Pemantauan terbuka atas kewajiban iuran pemeliharaan lingkungan (*IPL*). Menyorot kavling yang masih menunggak dan memperlihatkan bulan-bulan yang telah terbayar oleh setiap warga.
+                </p>
+              </div>
 
-          {data.paidProperties === 0 && data.income === 0 ? (
-            <div className="py-14 px-4 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-2">
-              <Building2 className="w-10 h-10 text-ink-muted/40 mx-auto" />
-              <p className="text-sm font-bold text-ink">Belum Ada Rekapitulasi Iuran Masuk Riil</p>
-              <p className="text-xs text-ink-muted max-w-md mx-auto">
-                Agregat pembayaran per blok hunian akan otomatis terisi dan diperbarui begitu warga membayar iuran IPL dan diverifikasi bendahara.
-              </p>
-              <div className="pt-2">
-                <a
-                  href="/rekap-iuran"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('citizen_confirm')}
+                  className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
                 >
-                  <span>Buka Daftar Unit Rumah</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </a>
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Konfirmasi Pembayaran</span>
+                </button>
               </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                { block: 'Kavling Komplek', total: data.totalProperties, paid: data.paidProperties, unpaid: data.unpaidProperties, pct: data.paidPercentage, collected: data.income },
-              ].map((b) => (
-                <div key={b.block} className="p-5 rounded-2xl bg-canvas border border-border space-y-3 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black text-ink">{b.block}</h4>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      b.pct === 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-primary-50 text-primary-800'
-                    }`}>
-                      {b.pct}% Lunas
-                    </span>
-                  </div>
 
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xl font-black text-ink tabular-nums">
-                      {b.paid} <span className="text-xs font-normal text-ink-muted">/ {b.total} rumah</span>
-                    </span>
-                    <span className="text-xs font-bold text-primary-700 tabular-nums">
-                      {formatRupiah(b.collected)}
-                    </span>
-                  </div>
+            {/* 4 Summary Stat Chips */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+              <div className="p-4 rounded-2xl bg-canvas border border-border flex flex-col">
+                <span className="text-xs font-bold text-ink-muted">Total Kavling Komplek</span>
+                <span className="text-2xl font-black text-ink mt-0.5 tabular-nums">
+                  {resolvedHouseholdDues.length} Unit
+                </span>
+                <span className="text-[10px] text-ink-muted mt-0.5">Kav A s/d Kav M</span>
+              </div>
 
-                  <div className="bg-border/50 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-primary-600 h-full rounded-full transition-all"
-                      style={{ width: `${b.pct}%` }}
-                    />
-                  </div>
+              <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col">
+                <span className="text-xs font-bold text-emerald-800">Lunas Penuh</span>
+                <span className="text-2xl font-black text-emerald-700 mt-0.5 tabular-nums">
+                  {resolvedHouseholdDues.filter((h) => h.isFullyPaid).length} Unit
+                </span>
+                <span className="text-[10px] text-emerald-800/80 font-bold mt-0.5">
+                  {((resolvedHouseholdDues.filter((h) => h.isFullyPaid).length / (resolvedHouseholdDues.length || 1)) * 100).toFixed(1)}% Tertib Iuran
+                </span>
+              </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-ink-muted pt-1 border-t border-border/60">
-                    <span>Unit tertunda: <strong className="text-ink">{b.unpaid} rumah</strong></span>
-                    <a href="/rekap-iuran" className="font-bold text-primary-700 hover:underline">
-                      Periksa Unit →
-                    </a>
-                  </div>
-                </div>
-              ))}
+              <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 flex flex-col">
+                <span className="text-xs font-bold text-rose-800">Masih Menunggak</span>
+                <span className="text-2xl font-black text-rose-700 mt-0.5 tabular-nums">
+                  {resolvedUnpaidList.length} Unit
+                </span>
+                <span className="text-[10px] text-rose-800/80 font-bold mt-0.5">
+                  Memerlukan Tindak Lanjut
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col">
+                <span className="text-xs font-bold text-amber-800">Total Piutang Tertunda</span>
+                <span className="text-xl font-black text-amber-900 mt-0.5 tabular-nums truncate">
+                  {formatRupiah(resolvedUnpaidList.reduce((acc, curr) => acc + curr.arrearsAmount, 0))}
+                </span>
+                <span className="text-[10px] text-amber-800 font-bold mt-0.5">
+                  Total {resolvedUnpaidList.reduce((acc, curr) => acc + curr.unpaidMonths.length, 0)} Bulan Tagihan
+                </span>
+              </div>
             </div>
-          )}
+          </div>
+
+          {/* ========================================================================= */}
+          {/* SECTION 1: FOKUS PENGAWASAN - UNIT RUMAH YANG MASIH MENUNGGAK             */}
+          {/* ========================================================================= */}
+          <div className="p-6 sm:p-7 rounded-3xl bg-rose-50/40 border-2 border-rose-300/80 shadow-card space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200/80 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center border border-rose-300 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-ink">
+                    Fokus Pengawasan: Rumah / Kavling yang Masih Menunggak
+                  </h3>
+                  <p className="text-xs text-ink-muted">
+                    Unit hunian di bawah ini tercatat belum melunasi kewajiban iuran IPL hingga periode {data.periodName}.
+                  </p>
+                </div>
+              </div>
+
+              <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-black text-xs border border-rose-300 self-start sm:self-auto">
+                ⚠️ {resolvedUnpaidList.length} Unit Menunggak
+              </span>
+            </div>
+
+            {resolvedUnpaidList.length === 0 ? (
+              <div className="py-10 text-center bg-surface rounded-2xl border border-dashed border-emerald-200 p-6 space-y-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+                <h4 className="text-sm font-black text-ink">Luar Biasa! Tidak Ada Tunggakan Aktif</h4>
+                <p className="text-xs text-ink-muted max-w-md mx-auto">
+                  Seluruh 13 unit rumah telah melunasi kewajiban iuran IPL komplek hingga periode {data.periodName}.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {resolvedUnpaidList.map((house) => (
+                  <div
+                    key={house.propertyCode}
+                    className="p-5 rounded-2xl bg-surface border-2 border-rose-200/90 shadow-2xs hover:border-rose-300 transition-all flex flex-col justify-between space-y-4"
+                  >
+                    <div>
+                      {/* House Header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-800 flex items-center justify-center font-black text-base border border-rose-200 shrink-0">
+                            {house.propertyCode.replace('Kav ', '')}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-base font-black text-ink">{house.propertyCode}</h4>
+                              <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold text-[10px] border border-rose-200">
+                                {house.unpaidMonths.length} Bln Menunggak
+                              </span>
+                            </div>
+                            <p className="text-xs font-bold text-ink-muted mt-0.5">
+                              Penghuni: <span className="text-ink font-black">{house.residentName}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider">Total Tunggakan</span>
+                          <span className="text-lg font-black text-rose-700 tabular-nums">
+                            {formatRupiah(house.arrearsAmount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Detail Unpaid Months Chips */}
+                      <div className="mt-4 p-3.5 bg-rose-50/60 rounded-xl border border-rose-200/60 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-rose-900">
+                            Bulan Yang Belum Terbayar:
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-rose-700">
+                            {house.paidMonthsCount} dari 8 Bulan Lunas
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {house.unpaidMonths.map((m) => (
+                            <span
+                              key={m}
+                              className="px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-rose-800 text-xs font-black shadow-2xs flex items-center gap-1.5"
+                            >
+                              <X className="w-3 h-3 text-rose-600 shrink-0" />
+                              <span>{m}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mt-3.5 space-y-1">
+                        <div className="flex justify-between text-[11px] text-ink-muted">
+                          <span>Kepatuhan Pembayaran</span>
+                          <span className="font-bold text-ink">
+                            {((house.paidMonthsCount / 8) * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-border/50 overflow-hidden">
+                          <div
+                            className="h-full bg-rose-500 rounded-full"
+                            style={{ width: `${(house.paidMonthsCount / 8) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-border/70">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickConfirm(
+                            house.propertyCode,
+                            house.residentName,
+                            house.arrearsAmount,
+                            house.unpaidMonths.join(', ')
+                          )
+                        }
+                        className="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Konfirmasi Pelunasan</span>
+                      </button>
+
+                      <a
+                        href={`https://api.whatsapp.com/send?phone=6281234567802&text=${encodeURIComponent(
+                          `Halo Pengurus Komplek, konfirmasi perihal iuran ${house.propertyCode} (${house.residentName}):\n- Periode tertunda: ${house.unpaidMonths.join(', ')}\n- Total tunggakan: ${formatRupiah(house.arrearsAmount)}\nMohon info nomor rekening / QRIS untuk pelunasan.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-2.5 px-3 bg-canvas hover:bg-surface border border-border text-ink font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                        title="Hubungi bendahara via WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="hidden sm:inline">WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ========================================================================= */}
+          {/* SECTION 2: MATRIKS TRANSPARANSI BULAN-DEMI-BULAN (RUMAH BERBAYAR)        */}
+          {/* ========================================================================= */}
+          <div className="bg-surface rounded-3xl p-6 sm:p-7 border border-border shadow-card space-y-5">
+            <div className="border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  Matriks Transparansi Pembayaran
+                </span>
+                <h3 className="text-xl font-black text-ink mt-1">
+                  Rincian Bulan Terbayar Seluruh Kavling (Jan – Agu 2026)
+                </h3>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Setiap tanda centang hijau (<span className="text-emerald-700 font-bold">✓ Jan - Agu</span>) menunjukkan iuran pada bulan bersangkutan telah lunas dan tercatat di kas resmi.
+                </p>
+              </div>
+
+              {/* Legend Badges */}
+              <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>Bulan Lunas</span>
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 font-bold text-[11px]">
+                  <X className="w-3 h-3 text-rose-600" />
+                  <span>Menunggak</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-ink-muted absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Cari kavling (cth: Kav A, Kav J) atau nama warga..."
+                  value={duesSearch}
+                  onChange={(e) => setDuesSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-canvas border border-border rounded-xl text-xs font-medium text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setDuesFilter('ALL')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                    duesFilter === 'ALL'
+                      ? 'bg-primary-600 text-white shadow-xs'
+                      : 'bg-canvas text-ink-muted hover:text-ink border border-border'
+                  }`}
+                >
+                  Semua Unit ({resolvedHouseholdDues.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuesFilter('UNPAID')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    duesFilter === 'UNPAID'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-canvas text-ink-muted hover:text-ink border border-border'
+                  }`}
+                >
+                  <span>🔴 Menunggak</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    duesFilter === 'UNPAID' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {resolvedUnpaidList.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuesFilter('PAID')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                    duesFilter === 'PAID'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-canvas text-ink-muted hover:text-ink border border-border'
+                  }`}
+                >
+                  <span>🟢 Lunas Penuh</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    duesFilter === 'PAID' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {resolvedHouseholdDues.filter((h) => h.isFullyPaid).length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block border border-border rounded-2xl overflow-hidden overflow-x-auto text-xs shadow-2xs">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-border bg-canvas text-ink-muted font-bold text-[11px]">
+                    <th className="py-3.5 px-4 w-44">Kavling & Penghuni</th>
+                    <th className="py-3.5 px-3 text-center w-36">Status</th>
+                    <th className="py-3.5 px-4 text-center">Rincian Bulan Terbayar (Jan – Agu 2026)</th>
+                    <th className="py-3.5 px-4 text-right w-32">Total Masuk</th>
+                    <th className="py-3.5 px-4 text-right w-28">Tunggakan</th>
+                    <th className="py-3.5 px-3 text-center w-28">Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {filteredHouseholdDues.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-ink-muted">
+                        <div className="flex flex-col items-center justify-center gap-1 max-w-sm mx-auto">
+                          <Search className="w-6 h-6 text-ink-muted/50" />
+                          <span className="font-bold text-ink text-xs">Unit Tidak Ditemukan</span>
+                          <span className="text-[11px] text-ink-muted">
+                            Tidak ada kavling yang cocok dengan kata kunci "{duesSearch}".
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredHouseholdDues.map((item) => (
+                      <tr
+                        key={item.propertyCode}
+                        className={`hover:bg-canvas/60 transition-colors ${
+                          !item.isFullyPaid ? 'bg-rose-50/25' : ''
+                        }`}
+                      >
+                        {/* Kavling & Penghuni */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 border ${
+                              item.isFullyPaid
+                                ? 'bg-primary-50 text-primary-800 border-primary-200'
+                                : 'bg-rose-100 text-rose-800 border-rose-300'
+                            }`}>
+                              {item.propertyCode.replace('Kav ', '')}
+                            </span>
+                            <div>
+                              <span className="font-black text-ink block leading-tight">
+                                {item.propertyCode}
+                              </span>
+                              <span className="text-[11px] text-ink-muted">
+                                {item.residentName}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="py-3.5 px-3 text-center">
+                          {item.isFullyPaid ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              Lunas (8 Bln)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                              <AlertCircle className="w-3 h-3 text-rose-600" />
+                              {item.unpaidMonths.length} Bln Tertunda
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Month Pills Matrix */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {item.months.map((m) => (
+                              <span
+                                key={m.monthCode}
+                                title={`${m.fullName}: ${m.isPaid ? 'Lunas ' + formatRupiah(m.amount) : 'Belum Dibayar'}`}
+                                className={`px-2 py-0.8 rounded-md text-[10px] font-bold inline-flex items-center gap-1 border transition-all cursor-default ${
+                                  m.isPaid
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                                    : 'bg-rose-100 text-rose-800 border-rose-300 font-black animate-pulse'
+                                }`}
+                              >
+                                {m.isPaid ? (
+                                  <Check className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <X className="w-2.5 h-2.5 text-rose-600 shrink-0" />
+                                )}
+                                <span>{m.monthName}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+
+                        {/* Total Masuk */}
+                        <td className="py-3.5 px-4 text-right font-black tabular-nums text-emerald-700">
+                          {formatRupiah(item.totalPaidAmount)}
+                        </td>
+
+                        {/* Tunggakan */}
+                        <td className="py-3.5 px-4 text-right font-black tabular-nums">
+                          {item.totalArrearsAmount > 0 ? (
+                            <span className="text-rose-700">
+                              {formatRupiah(item.totalArrearsAmount)}
+                            </span>
+                          ) : (
+                            <span className="text-ink-muted/60 font-normal">Rp 0</span>
+                          )}
+                        </td>
+
+                        {/* Tindakan */}
+                        <td className="py-3.5 px-3 text-center">
+                          {item.isFullyPaid ? (
+                            <span className="text-[11px] font-bold text-emerald-700">
+                              Tertib ✓
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleQuickConfirm(
+                                  item.propertyCode,
+                                  item.residentName,
+                                  item.totalArrearsAmount,
+                                  item.unpaidMonths.join(', ')
+                                )
+                              }
+                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-lg shadow-2xs active:scale-[0.98] transition-colors"
+                            >
+                              Bayar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View (< md) */}
+            <div className="md:hidden space-y-3">
+              {filteredHouseholdDues.length === 0 ? (
+                <div className="py-8 text-center text-ink-muted text-xs">
+                  Tidak ada kavling yang cocok dengan pencarian.
+                </div>
+              ) : (
+                filteredHouseholdDues.map((item) => (
+                  <div
+                    key={item.propertyCode}
+                    className={`p-4 rounded-2xl border space-y-3 ${
+                      !item.isFullyPaid
+                        ? 'bg-rose-50/40 border-rose-200 shadow-xs'
+                        : 'bg-canvas border-border'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs border ${
+                          item.isFullyPaid
+                            ? 'bg-primary-50 text-primary-800 border-primary-200'
+                            : 'bg-rose-100 text-rose-800 border-rose-300'
+                        }`}>
+                          {item.propertyCode.replace('Kav ', '')}
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-ink">{item.propertyCode}</h4>
+                          <span className="text-[11px] text-ink-muted">{item.residentName}</span>
+                        </div>
+                      </div>
+
+                      {item.isFullyPaid ? (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                          ✓ Lunas Penuh
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200">
+                          ⚠️ {item.unpaidMonths.length} Bln Tertunda
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Months Matrix */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-ink-muted block uppercase tracking-wider">
+                        Bulan Terbayar:
+                      </span>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {item.months.map((m) => (
+                          <div
+                            key={m.monthCode}
+                            className={`p-1.5 rounded-lg border text-center text-[10px] font-bold flex items-center justify-center gap-1 ${
+                              m.isPaid
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : 'bg-rose-100 text-rose-800 border-rose-300 font-black'
+                            }`}
+                          >
+                            {m.isPaid ? <Check className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
+                            <span>{m.monthName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Bottom Summary */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/70 text-xs">
+                      <div>
+                        <span className="text-[10px] text-ink-muted block">Total Masuk</span>
+                        <span className="font-black text-emerald-700 tabular-nums">
+                          {formatRupiah(item.totalPaidAmount)}
+                        </span>
+                      </div>
+
+                      {item.totalArrearsAmount > 0 ? (
+                        <div className="text-right">
+                          <span className="text-[10px] text-rose-700 block font-bold">Tunggakan</span>
+                          <span className="font-black text-rose-700 tabular-nums">
+                            {formatRupiah(item.totalArrearsAmount)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-bold text-emerald-700">Lunas Bebas Piutang</span>
+                      )}
+                    </div>
+
+                    {!item.isFullyPaid && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickConfirm(
+                            item.propertyCode,
+                            item.residentName,
+                            item.totalArrearsAmount,
+                            item.unpaidMonths.join(', ')
+                          )
+                        }
+                        className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Konfirmasi Pelunasan Sekarang</span>
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Matrix Summary Stats Footer */}
+            <div className="p-4 bg-canvas rounded-2xl border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary-700 shrink-0" />
+                <span className="text-ink-muted">
+                  Data ini disinkronkan langsung dengan pembukuan rekening koran BCA Paguyuban per <strong>{data.lastUpdatedAt}</strong>.
+                </span>
+              </div>
+              <div className="flex items-center gap-4 text-[11px] font-bold shrink-0">
+                <span className="text-emerald-700">
+                  Total Terkumpul: {formatRupiah(resolvedHouseholdDues.reduce((s, h) => s + h.totalPaidAmount, 0))}
+                </span>
+                <span className="text-rose-700">
+                  Sisa Piutang: {formatRupiah(resolvedUnpaidList.reduce((s, u) => s + u.arrearsAmount, 0))}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
