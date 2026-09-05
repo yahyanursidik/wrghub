@@ -231,6 +231,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   const [gCustomRole, setGCustomRole] = useState('');
   const [gDutyCategory, setGDutyCategory] = useState<SecurityGuard['dutyCategory']>('KEAMANAN_MURNI');
   const [gTeam, setGTeam] = useState('Regu A - Garuda');
+  const [gCustomTeam, setGCustomTeam] = useState('');
   const [gPhone, setGPhone] = useState('');
   const [gEmergency, setGEmergency] = useState('');
   const [gCertification, setGCertification] = useState('GADA_PRATAMA');
@@ -406,6 +407,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     setGCustomRole('');
     setGDutyCategory('KEAMANAN_MURNI');
     setGTeam(teamsList[0] || 'Regu A - Garuda');
+    setGCustomTeam('');
     setGPhone('');
     setGEmergency('');
     setGCertification('GADA_PRATAMA');
@@ -427,7 +429,13 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     setGRole(g.role);
     setGCustomRole('');
     setGDutyCategory(g.dutyCategory || 'KEAMANAN_MURNI');
-    setGTeam(g.team);
+    if (teamsList.includes(g.team)) {
+      setGTeam(g.team);
+      setGCustomTeam('');
+    } else {
+      setGTeam('LAINNYA');
+      setGCustomTeam(g.team);
+    }
     setGPhone(g.phone);
     setGEmergency(g.emergencyContact);
     setGCertification(g.certification);
@@ -448,6 +456,13 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     try {
       const finalRole = gRole === 'LAINNYA' ? gCustomRole : gRole;
       const finalPost = gAssignedPost === 'LAINNYA' ? gCustomPost : gAssignedPost;
+      const finalTeam = gTeam === 'LAINNYA' ? gCustomTeam.trim() : gTeam;
+
+      if (gTeam === 'LAINNYA' && gCustomTeam.trim() && !teamsList.includes(gCustomTeam.trim())) {
+        const nextTeams = [...teamsList, gCustomTeam.trim()];
+        setTeamsList(nextTeams);
+        savePersisted('wargahub_security_teams', nextTeams);
+      }
 
       const payload = {
         id: editingGuardId || undefined,
@@ -455,7 +470,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
         fullName: gFullName,
         role: finalRole,
         dutyCategory: gDutyCategory,
-        team: gTeam,
+        team: finalTeam,
         phone: gPhone,
         emergencyContact: gEmergency,
         certification: gCertification,
@@ -2443,7 +2458,18 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     {teamsList.map(t => (
                       <option key={t} value={t}>{t}</option>
                     ))}
+                    <option value="LAINNYA">+ Tambah / Ketik Regu Baru...</option>
                   </select>
+                  {gTeam === 'LAINNYA' && (
+                    <input
+                      type="text"
+                      placeholder="Ketik nama regu baru (misal: Regu D - Harimau)..."
+                      value={gCustomTeam}
+                      onChange={(e) => setGCustomTeam(e.target.value)}
+                      required
+                      className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink mt-1.5 font-bold"
+                    />
+                  )}
                 </div>
               </div>
 
