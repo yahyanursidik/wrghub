@@ -76,11 +76,40 @@ interface PaymentsManagerProps {
   initialProperties?: any[];
 }
 
+const CLUSTER_PROPERTIES_FALLBACK = [
+  { code: 'Kav A', ownerName: 'Pak Verial' },
+  { code: 'Kav B', ownerName: 'Mahasiswa Polban' },
+  { code: 'Kav C', ownerName: 'Bu Rina' },
+  { code: 'Kav D', ownerName: 'Pak Rieva' },
+  { code: 'Kav E', ownerName: 'Bu Wulan' },
+  { code: 'Kav F', ownerName: 'Pak Yahya' },
+  { code: 'Kav G', ownerName: 'Pak Wisnu' },
+  { code: 'Kav H', ownerName: 'Pak Asep' },
+  { code: 'Kav I', ownerName: 'Pak Iin' },
+  { code: 'Kav J', ownerName: 'Bu Acih' },
+  { code: 'Kav K', ownerName: 'Pak Taufik' },
+  { code: 'Kav L', ownerName: 'Pak Doni' },
+  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya' },
+];
+
 export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   initialPayments,
   initialAccounts = [],
   initialProperties = [],
 }) => {
+  const clusterProperties = useMemo(() => {
+    if (initialProperties && initialProperties.length > 0) {
+      const filtered = initialProperties
+        .filter((p: any) => p.code && !p.code.toLowerCase().includes('dummy') && p.code !== 'A-99')
+        .map((p: any) => ({
+          code: p.code,
+          ownerName: p.ownerName || p.occupantName || `Warga ${p.code}`,
+        }));
+      if (filtered.length > 0) return filtered;
+    }
+    return CLUSTER_PROPERTIES_FALLBACK;
+  }, [initialProperties]);
+
   // Helper storage persistence
   const getPersisted = <T,>(key: string, fallback: T): T => {
     if (typeof window === 'undefined') return fallback;
@@ -371,15 +400,18 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
   const handleOpenCreatePayment = (prefillHouse?: string) => {
     setEditingPaymentId(null);
-    setFormHouseCode(prefillHouse || 'A-17');
-    setFormOwnerName(prefillHouse ? `Warga Rumah ${prefillHouse}` : 'Budi Santoso');
-    setFormPeriod('Agustus 2026');
+    const firstProp = clusterProperties[0] || CLUSTER_PROPERTIES_FALLBACK[0];
+    const targetCode = prefillHouse || firstProp.code;
+    const matched = clusterProperties.find(p => p.code.toLowerCase() === targetCode.toLowerCase());
+    setFormHouseCode(targetCode);
+    setFormOwnerName(matched ? matched.ownerName : `Warga ${targetCode}`);
+    setFormPeriod('September 2026');
     setFormAmount(250000);
     setFormMethod('BCA_TRANSFER');
-    setFormRef(`TRX-${(prefillHouse || 'A17').replace(/[^A-Z0-9]/g, '')}-${Date.now().toString().slice(-4)}`);
+    setFormRef(`TRX-${targetCode.replace(/[^A-Z0-9]/g, '')}-${Date.now().toString().slice(-4)}`);
     setFormPaidDate(new Date().toISOString().slice(0, 10));
     setFormStatus('VERIFIED');
-    setFormNotes('Setoran iuran IPL');
+    setFormNotes('Setoran iuran warga');
     setShowManualModal(true);
   };
 
@@ -1826,14 +1858,38 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
             <form onSubmit={handleSavePayment} className="space-y-3">
               <div>
-                <label className="font-bold text-ink block mb-1">Kode Unit Rumah *</label>
-                <input
-                  type="text"
+                <label className="font-bold text-ink block mb-1">Pilih Unit Rumah / Kavling *</label>
+                <select
                   value={formHouseCode}
-                  onChange={(e) => setFormHouseCode(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormHouseCode(val);
+                    const matched = clusterProperties.find(p => p.code.toLowerCase() === val.toLowerCase());
+                    if (matched) {
+                      setFormOwnerName(matched.ownerName);
+                    }
+                  }}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                >
+                  {clusterProperties.map(p => (
+                    <option key={p.code} value={p.code}>{p.code} — {p.ownerName}</option>
+                  ))}
+                  <option value="__CUSTOM__">➕ Ketik Unit Kustom Lainnya...</option>
+                </select>
+                {formHouseCode === '__CUSTOM__' && (
+                  <input
+                    type="text"
+                    placeholder="Contoh: Kav A / Rumah 10"
+                    onChange={(e) => setFormHouseCode(e.target.value)}
+                    className="w-full mt-2 p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
+                    required
+                  />
+                )}
+                {formOwnerName && (
+                  <span className="text-[10px] text-ink-muted mt-1 block">
+                    Nama Warga / Pemilik: <strong className="text-ink">{formOwnerName}</strong>
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

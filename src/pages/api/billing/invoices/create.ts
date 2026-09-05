@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
+import { recordAdminDirectIuran } from '../../../../services/billing.service';
 import { recordAuditLog } from '../../../../services/audit.service';
 
 const createInvoiceSchema = z.object({
@@ -7,14 +8,16 @@ const createInvoiceSchema = z.object({
   houseCode: z.string().optional(),
   areaLabel: z.string().optional(),
   ownerName: z.string().optional(),
-  periodName: z.string().default('Agustus 2026'),
+  periodName: z.string().default('September 2026'),
   securityFee: z.number().default(150000),
   cleaningFee: z.number().default(50000),
   sinkingFund: z.number().default(50000),
   additionalFee: z.number().default(0),
   total: z.number().default(250000),
-  dueDate: z.string().default('2026-08-10'),
+  dueDate: z.string().default('2026-09-10'),
   status: z.enum(['PAID', 'UNPAID', 'PENDING_VERIFICATION', 'VOID']).default('UNPAID'),
+  paymentMethod: z.string().optional(),
+  paidAt: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -24,49 +27,35 @@ export const POST: APIRoute = async ({ request }) => {
     const validated = createInvoiceSchema.parse(body);
 
     const house = (validated.houseCode || validated.propertyCode).toUpperCase();
-    const cleanHouse = house.replace(/[^A-Z0-9]/g, '');
-    const cleanPeriod = validated.periodName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    const invoiceNumber = `INV-${cleanPeriod.slice(0, 6)}-${cleanHouse}`;
-
-    const newInvoice = {
-      id: `inv-${Date.now()}`,
-      invoiceNumber,
-      propertyId: `prop-${house.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+    const result = await recordAdminDirectIuran({
+      ...validated,
       propertyCode: house,
-      areaLabel: validated.areaLabel || (house.startsWith('KAV') ? 'Kavling' : house.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${house.split('-')[0]}`),
-      ownerName: validated.ownerName || 'Warga Terdaftar',
-      billingPeriodName: validated.periodName,
-      securityFee: validated.securityFee,
-      cleaningFee: validated.cleaningFee,
-      sinkingFund: validated.sinkingFund,
-      additionalFee: validated.additionalFee,
-      total: validated.total || (validated.securityFee + validated.cleaningFee + validated.sinkingFund + validated.additionalFee),
-      paidAmount: validated.status === 'PAID' ? validated.total : 0,
-      dueDate: validated.dueDate,
-      issuedAt: new Date().toISOString(),
-      paidAt: validated.status === 'PAID' ? new Date().toISOString() : null,
-      status: validated.status,
-      notes: validated.notes || null,
-    };
+    });
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
-        actorName: 'Pengurus Komplek',
+        actorName: 'Kepala Komplek / Admin',
         action: 'billing.create_invoice',
         entityType: 'INVOICE',
-        entityId: newInvoice.invoiceNumber,
+        entityId: result.invoice.invoiceNumber,
         newValue: {
-          house: newInvoice.propertyCode,
+          house: result.invoice.propertyCode,
           period: validated.periodName,
-          total: newInvoice.total,
+          total: result.invoice.total,
           status: validated.status,
+          method: validated.paymentMethod || 'CASH',
         },
       });
     }
 
     return new Response(
       JSON.stringify({
-        data: newInvoice,
+        data: {
+          ...result.invoice,
+          payment: result.payment,
+          newBalance: result.newBalance,
+          message: result.message,
+        },
         meta: {},
         error: null,
       }),
@@ -82,3 +71,4 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 };
+

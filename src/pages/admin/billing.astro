@@ -2,13 +2,15 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { BillingManager } from '../../components/admin/BillingManager';
 import { getCurrentBillingPeriod, getInvoices, getBillingProgress, getBillingPeriods } from '../../services/billing.service';
+import { getProperties } from '../../services/property.service';
+import { getMainAccountBalance } from '../../services/finance.service';
 
 const periodParam = Astro.url.searchParams.get('period');
 const allPeriods = await getBillingPeriods();
 
 const currentPeriod = periodParam
   ? allPeriods.find((p: any) => p.id === periodParam || p.name === periodParam)
-  : (allPeriods.find((p: any) => p.id === 'period-2026-08') || await getCurrentBillingPeriod());
+  : (allPeriods.find((p: any) => p.id === 'period-2026-09') || allPeriods.find((p: any) => p.id === 'period-2026-08') || await getCurrentBillingPeriod());
 
 const invoices = currentPeriod ? await getInvoices(currentPeriod.id) : [];
 const progress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
@@ -21,13 +23,20 @@ const progress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
   unpaidAmount: 0,
   monthlyRatePerHouse: 250000,
 };
+
+const properties = await getProperties().catch(() => []);
+const currentBalance = await getMainAccountBalance();
 ---
 
 <AdminLayout title="Iuran & Billing - WargaHub" currentPath="/admin/billing">
   <BillingManager
-    initialPeriodName={currentPeriod?.name || 'Agustus 2026'}
+    initialPeriodName={currentPeriod?.name || 'September 2026'}
     initialInvoices={invoices as any}
     initialProgress={progress}
+    initialProperties={properties as any}
+    allPeriods={allPeriods as any}
+    initialBalance={currentBalance}
     client:load
   />
 </AdminLayout>
+

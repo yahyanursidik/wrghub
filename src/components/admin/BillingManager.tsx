@@ -35,7 +35,8 @@ import {
   Receipt,
   Users,
   CheckSquare,
-  Settings
+  Settings,
+  Wallet
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { ReceiptModal } from '../shared/ReceiptModal';
@@ -86,20 +87,43 @@ const DEFAULT_TARIFF_COMPONENTS: TariffComponent[] = [
   { id: 'tf-3', name: '3. Dana Kas Operasional & Perawatan Komplek', fee: 50000, desc: 'Penerangan jalan PJU, genset darurat, dan sarana balai warga' },
 ];
 
+const CLUSTER_PROPERTIES_FALLBACK = [
+  { code: 'Kav A', ownerName: 'Pak Verial', area: 'Klaster 14 Kavling' },
+  { code: 'Kav B', ownerName: 'Mahasiswa Polban', area: 'Klaster 14 Kavling' },
+  { code: 'Kav C', ownerName: 'Bu Rina', area: 'Klaster 14 Kavling' },
+  { code: 'Kav D', ownerName: 'Pak Rieva', area: 'Klaster 14 Kavling' },
+  { code: 'Kav E', ownerName: 'Bu Wulan', area: 'Klaster 14 Kavling' },
+  { code: 'Kav F', ownerName: 'Pak Yahya', area: 'Klaster 14 Kavling' },
+  { code: 'Kav G', ownerName: 'Pak Wisnu', area: 'Klaster 14 Kavling' },
+  { code: 'Kav H', ownerName: 'Pak Asep', area: 'Klaster 14 Kavling' },
+  { code: 'Kav I', ownerName: 'Pak Iin', area: 'Klaster 14 Kavling' },
+  { code: 'Kav J', ownerName: 'Bu Acih', area: 'Klaster 14 Kavling' },
+  { code: 'Kav K', ownerName: 'Pak Taufik', area: 'Klaster 14 Kavling' },
+  { code: 'Kav L', ownerName: 'Pak Doni', area: 'Klaster 14 Kavling' },
+  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya', area: 'Klaster 14 Kavling' },
+];
+
 interface BillingManagerProps {
   initialPeriodName: string;
   initialInvoices: InvoiceItem[];
   initialProgress: BillingProgress;
+  initialProperties?: any[];
+  allPeriods?: any[];
+  initialBalance?: number;
 }
 
 export const BillingManager: React.FC<BillingManagerProps> = ({
   initialPeriodName,
   initialInvoices,
   initialProgress,
+  initialProperties = [],
+  allPeriods = [],
+  initialBalance = 2865000,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'batch' | 'tariffs' | 'public_ledger'>('invoices');
   const [invoices, setInvoices] = useState<InvoiceItem[]>(initialInvoices || []);
   const [progress, setProgress] = useState<BillingProgress>(initialProgress);
+  const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
 
   useEffect(() => {
     setInvoices(initialInvoices || []);
@@ -108,6 +132,42 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   useEffect(() => {
     setProgress(initialProgress);
   }, [initialProgress]);
+
+  useEffect(() => {
+    if (typeof initialBalance === 'number') {
+      setCurrentBalance(initialBalance);
+    }
+  }, [initialBalance]);
+
+  const clusterProperties = useMemo(() => {
+    if (initialProperties && initialProperties.length > 0) {
+      const filtered = initialProperties
+        .filter((p: any) => p.code && !p.code.toLowerCase().includes('dummy') && p.code !== 'A-99')
+        .map((p: any) => ({
+          code: p.code,
+          ownerName: p.ownerName || p.occupantName || `Warga ${p.code}`,
+          area: p.blockName || p.address || 'Klaster 14 Kavling',
+        }));
+      if (filtered.length > 0) return filtered;
+    }
+    return CLUSTER_PROPERTIES_FALLBACK;
+  }, [initialProperties]);
+
+  const availablePeriods = useMemo(() => {
+    const list: string[] = ['September 2026', 'Agustus 2026', 'Juli 2026', 'Juni 2026', 'Mei 2026', 'April 2026', 'Maret 2026', 'Februari 2026', 'Januari 2026', 'Oktober 2026'];
+    if (allPeriods && allPeriods.length > 0) {
+      allPeriods.forEach((p: any) => {
+        if (p.name && !list.includes(p.name)) {
+          list.unshift(p.name);
+        }
+      });
+    }
+    if (initialPeriodName && !list.includes(initialPeriodName)) {
+      list.unshift(initialPeriodName);
+    }
+    return list;
+  }, [allPeriods, initialPeriodName]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'PENDING'>('ALL');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
@@ -170,20 +230,60 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [genDueDate, setGenDueDate] = useState('2026-09-10');
   const [genFee, setGenFee] = useState(250000);
 
-  // Single Invoice Form State
-  const [formHouseCode, setFormHouseCode] = useState('A-17');
-  const [formAreaLabel, setFormAreaLabel] = useState('Blok A');
-  const [formOwnerName, setFormOwnerName] = useState('Budi Santoso');
-  const [formPeriodName, setFormPeriodName] = useState(initialPeriodName);
+  // Single Invoice / Direct Iuran Form State
+  const [formPropertyMode, setFormPropertyMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
+  const [formSelectedProp, setFormSelectedProp] = useState<string>('Kav A');
+  const [formHouseCode, setFormHouseCode] = useState('Kav A');
+  const [formAreaLabel, setFormAreaLabel] = useState('Klaster 14 Kavling');
+  const [formOwnerName, setFormOwnerName] = useState('Pak Verial');
+  const [formPeriodMode, setFormPeriodMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
+  const [formPeriodName, setFormPeriodName] = useState(initialPeriodName || 'September 2026');
   const [formSecurityFee, setFormSecurityFee] = useState(150000);
   const [formCleaningFee, setFormCleaningFee] = useState(50000);
   const [formSinkingFund, setFormSinkingFund] = useState(50000);
   const [formAdditionalFee, setFormAdditionalFee] = useState(0);
-  const [formDueDate, setFormDueDate] = useState('2026-08-10');
-  const [formStatus, setFormStatus] = useState<'PAID' | 'UNPAID' | 'PENDING_VERIFICATION'>('UNPAID');
+  const [formDueDate, setFormDueDate] = useState('2026-09-10');
+  const [formStatus, setFormStatus] = useState<'PAID' | 'UNPAID' | 'PENDING_VERIFICATION'>('PAID');
+  const [formPaymentMethod, setFormPaymentMethod] = useState<'CASH' | 'TRANSFER_BCA' | 'QRIS'>('CASH');
+  const [formPaidAt, setFormPaidAt] = useState(new Date().toISOString().slice(0, 10));
   const [formNotes, setFormNotes] = useState('');
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [savingInvoice, setSavingInvoice] = useState(false);
+
+  const handlePropertySelect = (val: string) => {
+    setFormSelectedProp(val);
+    if (val === '__CUSTOM__') {
+      setFormPropertyMode('CUSTOM');
+      setFormHouseCode('');
+      setFormOwnerName('');
+    } else {
+      setFormPropertyMode('SELECT');
+      const matched = clusterProperties.find(p => p.code.toLowerCase() === val.toLowerCase());
+      if (matched) {
+        setFormHouseCode(matched.code);
+        setFormOwnerName(matched.ownerName);
+        setFormAreaLabel(matched.area);
+      }
+    }
+  };
+
+  const handlePeriodSelect = (val: string) => {
+    if (val === '__CUSTOM__') {
+      setFormPeriodMode('CUSTOM');
+    } else {
+      setFormPeriodMode('SELECT');
+      setFormPeriodName(val);
+      const parts = val.split(' ');
+      const monthMap: Record<string, string> = {
+        'Januari': '01', 'Februari': '02', 'Maret': '03', 'April': '04',
+        'Mei': '05', 'Juni': '06', 'Juli': '07', 'Agustus': '08',
+        'September': '09', 'Oktober': '10', 'November': '11', 'Desember': '12'
+      };
+      if (parts.length === 2 && monthMap[parts[0]]) {
+        setFormDueDate(`${parts[1]}-${monthMap[parts[0]]}-10`);
+      }
+    }
+  };
 
   // Show Toast
   const showToast = (msg: string) => {
@@ -229,49 +329,67 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     }
   };
 
-  // Open Add Single Invoice Modal
+  // Open Add Single Invoice / Direct Iuran Modal (by Head of Complex / Admin)
   const handleOpenAddInvoice = () => {
     setEditingInvoiceId(null);
-    setFormHouseCode('A-17');
-    setFormAreaLabel('Blok A');
-    setFormOwnerName('Budi Santoso');
-    setFormPeriodName(initialPeriodName);
-    setFormSecurityFee(450000);
-    setFormCleaningFee(150000);
-    setFormSinkingFund(150000);
+    const firstProp = clusterProperties[0] || CLUSTER_PROPERTIES_FALLBACK[0];
+    setFormPropertyMode('SELECT');
+    setFormSelectedProp(firstProp.code);
+    setFormHouseCode(firstProp.code);
+    setFormAreaLabel(firstProp.area);
+    setFormOwnerName(firstProp.ownerName);
+    setFormPeriodMode('SELECT');
+    setFormPeriodName(initialPeriodName || 'September 2026');
+    setFormSecurityFee(150000);
+    setFormCleaningFee(50000);
+    setFormSinkingFund(50000);
     setFormAdditionalFee(0);
-    setFormDueDate('2026-08-10');
-    setFormStatus('UNPAID');
-    setFormNotes('');
+    setFormDueDate('2026-09-10');
+    setFormStatus('PAID'); // Default PAID when admin inputs direct iuran payment
+    setFormPaymentMethod('CASH');
+    setFormPaidAt(new Date().toISOString().slice(0, 10));
+    setFormNotes('Diterima langsung oleh Pengurus');
     setShowCreateModal(true);
   };
 
   // Open Edit Single Invoice Modal
   const handleOpenEditInvoice = (inv: InvoiceItem) => {
     setEditingInvoiceId(inv.id);
+    const matched = clusterProperties.find(p => p.code.toLowerCase() === inv.propertyCode.toLowerCase());
+    if (matched) {
+      setFormPropertyMode('SELECT');
+      setFormSelectedProp(matched.code);
+    } else {
+      setFormPropertyMode('CUSTOM');
+      setFormSelectedProp('__CUSTOM__');
+    }
     setFormHouseCode(inv.propertyCode);
-    setFormAreaLabel(inv.areaLabel || (inv.propertyCode.startsWith('KAV') ? 'Kavling' : inv.propertyCode.startsWith('SW') ? 'Jl. Sariwangi' : 'Blok A'));
+    setFormAreaLabel(inv.areaLabel || (inv.propertyCode.startsWith('Kav') ? 'Klaster 14 Kavling' : 'Blok A'));
     setFormOwnerName(inv.ownerName || `Warga Rumah ${inv.propertyCode}`);
+    setFormPeriodMode('SELECT');
     setFormPeriodName(inv.billingPeriodName || initialPeriodName);
-    setFormSecurityFee(inv.securityFee || 450000);
-    setFormCleaningFee(inv.cleaningFee || 150000);
-    setFormSinkingFund(inv.sinkingFund || 150000);
-    setFormAdditionalFee(inv.additionalFee || 0);
-    setFormDueDate(inv.dueDate || '2026-08-10');
+    setFormSecurityFee(inv.securityFee ?? 150000);
+    setFormCleaningFee(inv.cleaningFee ?? 50000);
+    setFormSinkingFund(inv.sinkingFund ?? 50000);
+    setFormAdditionalFee(inv.additionalFee ?? 0);
+    setFormDueDate(inv.dueDate || '2026-09-10');
     setFormStatus(inv.status as any);
+    setFormPaymentMethod('CASH');
+    setFormPaidAt(inv.paidAt || new Date().toISOString().slice(0, 10));
     setFormNotes(inv.notes || '');
     setShowCreateModal(true);
   };
 
-  // Save Single Invoice (Create or Update)
+  // Save Single Invoice / Direct Iuran (Create or Update)
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingInvoice(true);
     try {
       const calculatedTotal = Number(formSecurityFee) + Number(formCleaningFee) + Number(formSinkingFund) + Number(formAdditionalFee);
+      const cleanHouse = formHouseCode.trim();
       const payload = {
-        propertyCode: formHouseCode.toUpperCase(),
-        houseCode: formHouseCode.toUpperCase(),
+        propertyCode: cleanHouse,
+        houseCode: cleanHouse,
         areaLabel: formAreaLabel,
         ownerName: formOwnerName,
         periodName: formPeriodName,
@@ -282,6 +400,8 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         total: calculatedTotal,
         dueDate: formDueDate,
         status: formStatus,
+        paymentMethod: formPaymentMethod,
+        paidAt: formStatus === 'PAID' ? formPaidAt : undefined,
         notes: formNotes || undefined,
       };
 
@@ -291,24 +411,44 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             invoiceId: editingInvoiceId,
-            propertyCode: formHouseCode.toUpperCase(),
+            propertyCode: cleanHouse,
             status: formStatus,
             total: calculatedTotal,
             dueDate: formDueDate,
-            paidAt: formStatus === 'PAID' ? new Date().toISOString().slice(0, 10) : null,
+            paidAt: formStatus === 'PAID' ? formPaidAt : null,
             notes: formNotes,
           })
         });
 
         if (res.ok) {
+          const oldInv = invoices.find(i => i.id === editingInvoiceId);
+          const wasPaid = oldInv?.status === 'PAID';
+          const isNowPaid = formStatus === 'PAID';
+
           setInvoices(invoices.map(inv => inv.id === editingInvoiceId ? {
             ...inv,
             ...payload,
-            paidAmount: formStatus === 'PAID' ? calculatedTotal : 0,
-            paidAt: formStatus === 'PAID' ? (inv.paidAt || '2026-08-28') : null,
+            propertyCode: cleanHouse,
+            paidAmount: isNowPaid ? calculatedTotal : 0,
+            paidAt: isNowPaid ? formPaidAt : null,
           } : inv));
-          showToast(`Invoice ${formHouseCode} berhasil diperbarui.`);
+
+          if (isNowPaid && !wasPaid) {
+            setCurrentBalance(prev => prev + calculatedTotal);
+            setProgress(prev => ({
+              ...prev,
+              paidCount: prev.paidCount + 1,
+              unpaidCount: Math.max(0, prev.unpaidCount - 1),
+              paidAmount: prev.paidAmount + calculatedTotal,
+              unpaidAmount: Math.max(0, prev.unpaidAmount - calculatedTotal),
+              percentage: prev.total > 0 ? Math.round(((prev.paidCount + 1) / prev.total) * 100) : 0,
+            }));
+          }
+
+          showToast(`Invoice ${cleanHouse} berhasil diperbarui.`);
           setShowCreateModal(false);
+        } else {
+          showToast('Gagal memperbarui invoice tagihan.');
         }
       } else {
         const res = await fetch('/api/billing/invoices/create', {
@@ -317,13 +457,15 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           body: JSON.stringify(payload)
         });
 
+        const data = await res.json();
         if (res.ok) {
-          const cleanHouse = formHouseCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const invData = data.data || {};
+          const isPaid = formStatus === 'PAID';
           const newInv: InvoiceItem = {
-            id: `inv-${Date.now()}`,
-            invoiceNumber: `INV-202608-${cleanHouse}`,
-            propertyId: `prop-${formHouseCode.toLowerCase()}`,
-            propertyCode: formHouseCode.toUpperCase(),
+            id: invData.id || `inv-${Date.now()}`,
+            invoiceNumber: invData.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
+            propertyId: invData.propertyId || `prop-${cleanHouse.toLowerCase()}`,
+            propertyCode: cleanHouse,
             areaLabel: formAreaLabel,
             ownerName: formOwnerName,
             billingPeriodName: formPeriodName,
@@ -332,21 +474,71 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             sinkingFund: Number(formSinkingFund),
             additionalFee: Number(formAdditionalFee),
             total: calculatedTotal,
-            paidAmount: formStatus === 'PAID' ? calculatedTotal : 0,
+            paidAmount: isPaid ? calculatedTotal : 0,
             dueDate: formDueDate,
             issuedAt: new Date().toISOString(),
-            paidAt: formStatus === 'PAID' ? new Date().toISOString().slice(0, 10) : null,
+            paidAt: isPaid ? formPaidAt : null,
             status: formStatus,
             notes: formNotes,
           };
-          setInvoices([newInv, ...invoices]);
-          showToast(`Tagihan baru untuk ${formHouseCode} berhasil dibuat.`);
+
+          setInvoices(prev => {
+            const existsIdx = prev.findIndex(i => i.propertyCode.toLowerCase() === newInv.propertyCode.toLowerCase() && i.billingPeriodName === newInv.billingPeriodName);
+            if (existsIdx >= 0) {
+              const updated = [...prev];
+              updated[existsIdx] = newInv;
+              return updated;
+            }
+            return [newInv, ...prev];
+          });
+
+          if (isPaid) {
+            if (typeof invData.newBalance === 'number') {
+              setCurrentBalance(invData.newBalance);
+            } else {
+              setCurrentBalance(prev => prev + calculatedTotal);
+            }
+
+            setProgress(prev => ({
+              ...prev,
+              total: prev.total + 1,
+              paidCount: prev.paidCount + 1,
+              totalAmount: prev.totalAmount + calculatedTotal,
+              paidAmount: prev.paidAmount + calculatedTotal,
+              percentage: prev.total + 1 > 0 ? Math.round(((prev.paidCount + 1) / (prev.total + 1)) * 100) : 0,
+            }));
+
+            // Instantly open digital receipt modal for admin!
+            setSelectedReceipt({
+              invoiceNumber: newInv.invoiceNumber,
+              periodName: newInv.billingPeriodName,
+              propertyCode: newInv.propertyCode,
+              residentName: newInv.ownerName,
+              amount: newInv.total,
+              paidAt: newInv.paidAt || new Date().toISOString().slice(0, 10),
+              paymentMethod: formPaymentMethod === 'CASH' ? 'Tunai (Diterima Pengurus)' : formPaymentMethod === 'QRIS' ? 'QRIS Komplek' : 'Transfer Bank BCA',
+              referenceNumber: invData.payment?.reference || `TRX-${newInv.propertyCode}-ADM`,
+            });
+          } else {
+            setProgress(prev => ({
+              ...prev,
+              total: prev.total + 1,
+              unpaidCount: prev.unpaidCount + 1,
+              totalAmount: prev.totalAmount + calculatedTotal,
+              unpaidAmount: prev.unpaidAmount + calculatedTotal,
+              percentage: prev.total + 1 > 0 ? Math.round((prev.paidCount / (prev.total + 1)) * 100) : 0,
+            }));
+          }
+
+          showToast(`Iuran ${newInv.propertyCode} (${isPaid ? 'LUNAS - Saldo Kas Bertambah' : 'BELUM BAYAR'}) berhasil dicatat!`);
           setShowCreateModal(false);
+        } else {
+          showToast(data.error?.message || 'Gagal menyimpan iuran.');
         }
       }
     } catch (err) {
       console.error(err);
-      showToast('Gagal menyimpan invoice tagihan.');
+      showToast('Gagal menyimpan iuran.');
     } finally {
       setSavingInvoice(false);
     }
@@ -377,7 +569,29 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         paidAt: newPaidAt,
       } : item));
 
-      showToast(`Status tagihan ${inv.propertyCode} diubah menjadi: ${newStatus === 'PAID' ? 'LUNAS' : 'BELUM BAYAR'}`);
+      if (newStatus === 'PAID') {
+        setCurrentBalance(prev => prev + inv.total);
+        setProgress(prev => ({
+          ...prev,
+          paidCount: prev.paidCount + 1,
+          unpaidCount: Math.max(0, prev.unpaidCount - 1),
+          paidAmount: prev.paidAmount + inv.total,
+          unpaidAmount: Math.max(0, prev.unpaidAmount - inv.total),
+          percentage: prev.total > 0 ? Math.round(((prev.paidCount + 1) / prev.total) * 100) : 0,
+        }));
+      } else {
+        setCurrentBalance(prev => Math.max(0, prev - inv.total));
+        setProgress(prev => ({
+          ...prev,
+          paidCount: Math.max(0, prev.paidCount - 1),
+          unpaidCount: prev.unpaidCount + 1,
+          paidAmount: Math.max(0, prev.paidAmount - inv.total),
+          unpaidAmount: prev.unpaidAmount + inv.total,
+          percentage: prev.total > 0 ? Math.round((Math.max(0, prev.paidCount - 1) / prev.total) * 100) : 0,
+        }));
+      }
+
+      showToast(`Status tagihan ${inv.propertyCode} diubah menjadi: ${newStatus === 'PAID' ? 'LUNAS (Saldo Kas Bertambah)' : 'BELUM BAYAR'}`);
     } catch (err) {
       console.error(err);
       showToast('Gagal mengubah status pembayaran.');
@@ -554,6 +768,11 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 border border-emerald-200 rounded-xl shadow-2xs text-xs font-bold text-emerald-950">
+            <Wallet className="w-4 h-4 text-emerald-600" />
+            <span className="text-ink-muted">Kas Komplek:</span>
+            <span className="font-mono font-black text-emerald-800">{formatRupiah(currentBalance)}</span>
+          </div>
           <button
             type="button"
             onClick={handleExportBillingCSV}
@@ -565,15 +784,15 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           <button
             type="button"
             onClick={handleOpenAddInvoice}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
-            <PlusCircle className="w-4 h-4 text-primary-600" />
-            <span>Tambah Tagihan Satuan</span>
+            <PlusCircle className="w-4 h-4" />
+            <span>➕ Input Iuran Warga (Admin)</span>
           </button>
           <button
             type="button"
             onClick={() => setShowGenerateModal(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
             <Sparkles className="w-4 h-4" />
             <span>Generate Tagihan Massal</span>
@@ -1225,56 +1444,141 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: TAMBAH / EDIT SINGLE INVOICE ================= */}
+      {/* ================= MODAL: INPUT IURAN WARGA OLEH ADMIN / KEPALA KOMPLEK ================= */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 max-h-[92vh] overflow-y-auto text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-primary-600" />
-                <h3 className="font-black text-sm text-ink">
-                  {editingInvoiceId ? `Edit Invoice Tagihan` : `Tambah Tagihan Iuran Satuan`}
-                </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-xl w-full p-6 border border-border shadow-modal space-y-4 max-h-[94vh] overflow-y-auto text-xs">
+            <div className="flex items-center justify-between border-b border-border pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-ink">
+                    {editingInvoiceId ? `Edit Invoice Tagihan ${formHouseCode}` : `Input Iuran Warga (Admin & Kepala Komplek)`}
+                  </h3>
+                  <p className="text-[11px] text-ink-muted">
+                    {editingInvoiceId ? 'Perbarui data rincian atau status tagihan warga' : 'Catat penerimaan iuran tunai/transfer langsung atau terbitkan tagihan baru'}
+                  </p>
+                </div>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-ink-muted hover:text-ink">✕</button>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="p-1 rounded-xl text-ink-muted hover:text-ink hover:bg-canvas transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <form onSubmit={handleSaveInvoice} className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nomor / Kode Unit *</label>
-                  <input
-                    type="text"
-                    placeholder="A-17 / KAV-12 / SW1-05"
-                    value={formHouseCode}
-                    onChange={(e) => setFormHouseCode(e.target.value)}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  />
+            <form onSubmit={handleSaveInvoice} className="space-y-4">
+              {/* Unit Rumah / Kavling Selection */}
+              <div className="p-3.5 bg-canvas rounded-2xl border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-ink block text-xs">Pilih Unit Rumah / Kavling Warga *</label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormPropertyMode('SELECT');
+                        handlePropertySelect(clusterProperties[0]?.code || 'Kav A');
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                        formPropertyMode === 'SELECT'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'bg-surface text-ink-muted border border-border hover:text-ink'
+                      }`}
+                    >
+                      Daftar 13 Kavling
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormPropertyMode('CUSTOM');
+                        setFormSelectedProp('__CUSTOM__');
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                        formPropertyMode === 'CUSTOM'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'bg-surface text-ink-muted border border-border hover:text-ink'
+                      }`}
+                    >
+                      Kustom / Manual
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nama Pemilik / Penghuni</label>
-                  <input
-                    type="text"
-                    placeholder="Budi Santoso"
-                    value={formOwnerName}
-                    onChange={(e) => setFormOwnerName(e.target.value)}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  />
-                </div>
+
+                {formPropertyMode === 'SELECT' ? (
+                  <div>
+                    <select
+                      value={formSelectedProp}
+                      onChange={(e) => handlePropertySelect(e.target.value)}
+                      className="w-full p-2.5 bg-surface border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    >
+                      {clusterProperties.map((p) => (
+                        <option key={p.code} value={p.code}>
+                          {p.code} — {p.ownerName} ({p.area})
+                        </option>
+                      ))}
+                      <option value="__CUSTOM__">➕ Ketik Unit Kustom Lainnya...</option>
+                    </select>
+                    <div className="mt-2 flex items-center justify-between px-2 text-[11px] text-ink-muted">
+                      <span>Pemilik: <strong className="text-ink">{formOwnerName}</strong></span>
+                      <span>Area: <strong className="text-ink">{formAreaLabel}</strong></span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="font-bold text-ink block mb-1 text-[11px]">Kode Unit *</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Kav A / A-17"
+                        value={formHouseCode}
+                        onChange={(e) => setFormHouseCode(e.target.value)}
+                        required
+                        className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-ink block mb-1 text-[11px]">Nama Warga / Pemilik</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Pak Verial"
+                        value={formOwnerName}
+                        onChange={(e) => setFormOwnerName(e.target.value)}
+                        className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              {/* Periode & Jatuh Tempo */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="font-bold text-ink block mb-1">Periode Tagihan *</label>
-                  <input
-                    type="text"
-                    placeholder="Agustus 2026"
-                    value={formPeriodName}
-                    onChange={(e) => setFormPeriodName(e.target.value)}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink font-medium"
-                  />
+                  <label className="font-bold text-ink block mb-1">Periode Iuran *</label>
+                  {formPeriodMode === 'SELECT' ? (
+                    <select
+                      value={formPeriodName}
+                      onChange={(e) => handlePeriodSelect(e.target.value)}
+                      className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                    >
+                      {availablePeriods.map((per) => (
+                        <option key={per} value={per}>{per}</option>
+                      ))}
+                      <option value="__CUSTOM__">✏️ Ketik Periode Lain...</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Contoh: September 2026"
+                      value={formPeriodName}
+                      onChange={(e) => setFormPeriodName(e.target.value)}
+                      required
+                      className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="font-bold text-ink block mb-1">Tanggal Jatuh Tempo *</label>
@@ -1283,73 +1587,156 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                     value={formDueDate}
                     onChange={(e) => setFormDueDate(e.target.value)}
                     required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-semibold text-ink"
                   />
                 </div>
               </div>
 
-              <div className="p-3 bg-canvas rounded-2xl border border-border space-y-2">
-                <span className="font-bold text-ink block text-[11px]">Rincian Komponen Iuran:</span>
+              {/* Status Pembayaran (LUNAS vs BELUM BAYAR) Segmented Control */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-ink block text-xs">Status Pembayaran Saat Ini *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormStatus('PAID')}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      formStatus === 'PAID'
+                        ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                        : 'bg-surface border-border hover:bg-canvas'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-black text-xs text-emerald-900">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>🟢 SUDAH LUNAS</span>
+                    </div>
+                    <p className="text-[10px] text-emerald-700 mt-1 leading-relaxed">
+                      Diterima langsung oleh Pengurus (Kas bertambah & terbit kuitansi digital).
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormStatus('UNPAID')}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      formStatus === 'UNPAID'
+                        ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/20 shadow-xs'
+                        : 'bg-surface border-border hover:bg-canvas'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-black text-xs text-rose-900">
+                      <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      <span>🔴 BELUM BAYAR</span>
+                    </div>
+                    <p className="text-[10px] text-rose-700 mt-1 leading-relaxed">
+                      Terbitkan tagihan baru untuk ditagihkan/muncul di transparansi warga.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Jika Status Lunas, Tampilkan Opsi Metode Pembayaran & Tanggal Bayar */}
+              {formStatus === 'PAID' && (
+                <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-3 animate-in fade-in">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="font-bold text-emerald-950 block mb-1 text-[11px]">Metode Penyerahan Iuran:</label>
+                      <select
+                        value={formPaymentMethod}
+                        onChange={(e) => setFormPaymentMethod(e.target.value as any)}
+                        className="w-full p-2 bg-white border border-emerald-300 rounded-xl font-bold text-emerald-950 text-xs"
+                      >
+                        <option value="CASH">💵 Tunai (Diterima Pengurus/RT)</option>
+                        <option value="TRANSFER_BCA">🏦 Transfer Bank BCA (acc-main)</option>
+                        <option value="QRIS">📱 QRIS Statis Komplek</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-bold text-emerald-950 block mb-1 text-[11px]">Tanggal Uang Diterima:</label>
+                      <input
+                        type="date"
+                        value={formPaidAt}
+                        onChange={(e) => setFormPaidAt(e.target.value)}
+                        className="w-full p-2 bg-white border border-emerald-300 rounded-xl font-semibold text-emerald-950 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-emerald-800 font-semibold bg-emerald-100/70 p-2 rounded-xl">
+                    <Check className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>
+                      Saldo Kas BCA Operasional akan otomatis bertambah sebesar{' '}
+                      <strong>{formatRupiah(Number(formSecurityFee) + Number(formCleaningFee) + Number(formSinkingFund) + Number(formAdditionalFee))}</strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Rincian Komponen Iuran */}
+              <div className="p-3.5 bg-canvas rounded-2xl border border-border space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-ink text-xs">Rincian Komponen Tarif Iuran:</span>
+                  <span className="text-[10px] text-ink-muted">Standar Klaster: Rp 250.000 / bln</span>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-ink-muted block text-[10px]">IPL Keamanan (Rp)</label>
+                    <label className="text-ink-muted block text-[10px] mb-0.5">IPL Satpam & Keamanan 24 Jam (Rp)</label>
                     <input
                       type="number"
                       value={formSecurityFee}
                       onChange={(e) => setFormSecurityFee(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold"
+                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
                     />
                   </div>
                   <div>
-                    <label className="text-ink-muted block text-[10px]">Kebersihan Sampah (Rp)</label>
+                    <label className="text-ink-muted block text-[10px] mb-0.5">Kebersihan & Sampah LH (Rp)</label>
                     <input
                       type="number"
                       value={formCleaningFee}
                       onChange={(e) => setFormCleaningFee(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold"
+                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
                     />
                   </div>
                   <div>
-                    <label className="text-ink-muted block text-[10px]">Kas Komplek (Rp)</label>
+                    <label className="text-ink-muted block text-[10px] mb-0.5">Kas Operasional & Fasum (Rp)</label>
                     <input
                       type="number"
                       value={formSinkingFund}
                       onChange={(e) => setFormSinkingFund(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold"
+                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
                     />
                   </div>
                   <div>
-                    <label className="text-ink-muted block text-[10px]">Biaya Tambahan (Rp)</label>
+                    <label className="text-ink-muted block text-[10px] mb-0.5">Biaya Tambahan / Denda (Rp)</label>
                     <input
                       type="number"
                       value={formAdditionalFee}
                       onChange={(e) => setFormAdditionalFee(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold"
+                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
                     />
                   </div>
                 </div>
-                <div className="pt-2 border-t border-border flex justify-between font-black text-ink">
-                  <span>Total Tagihan:</span>
-                  <span className="font-mono text-primary-700">
+
+                <div className="pt-2 border-t border-border flex items-center justify-between">
+                  <span className="font-black text-ink text-xs">Total Iuran:</span>
+                  <span className="font-mono font-black text-base text-emerald-700">
                     {formatRupiah(Number(formSecurityFee) + Number(formCleaningFee) + Number(formSinkingFund) + Number(formAdditionalFee))}
                   </span>
                 </div>
               </div>
 
+              {/* Catatan / Keterangan */}
               <div>
-                <label className="font-bold text-ink block mb-1">Status Pembayaran</label>
-                <select
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value as any)}
-                  className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                >
-                  <option value="UNPAID">Belum Bayar (Unpaid)</option>
-                  <option value="PAID">Lunas (Paid)</option>
-                  <option value="PENDING_VERIFICATION">Menunggu Verifikasi</option>
-                </select>
+                <label className="font-bold text-ink block mb-1 text-[11px]">Catatan / Keterangan Tambahan (Opsional)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Diserahkan tunai ke Pak RT saat ronda malam / Transfer via m-BCA"
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  className="w-full p-2 bg-canvas border border-border rounded-xl text-ink text-xs"
+                />
               </div>
 
-              <div className="pt-2 flex gap-2">
+              {/* Action Buttons */}
+              <div className="pt-2 flex gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
@@ -1360,9 +1747,25 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 <button
                   type="submit"
                   disabled={savingInvoice}
-                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50 active:scale-[0.98] transition-all"
+                  className={`flex-1 py-2.5 rounded-xl text-white font-black shadow-xs disabled:opacity-50 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 ${
+                    formStatus === 'PAID'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-primary-600 hover:bg-primary-700'
+                  }`}
                 >
-                  {savingInvoice ? 'Menyimpan...' : editingInvoiceId ? 'Perbarui Tagihan' : 'Terbitkan Tagihan'}
+                  {savingInvoice ? (
+                    'Menyimpan...'
+                  ) : formStatus === 'PAID' ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Simpan & Catat Kas Masuk (Lunas)</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      <span>{editingInvoiceId ? 'Perbarui Tagihan' : 'Terbitkan Tagihan Baru'}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
