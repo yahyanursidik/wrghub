@@ -1488,7 +1488,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                 <label className="font-bold text-ink block mb-1">Nama Penerima / Petugas *</label>
                 <input
                   type="text"
-                  placeholder="Pak Agus Suparman (Satpam)"
+                  placeholder="Pa Adri Harry (Petugas Satpam)"
                   value={socRecipient}
                   onChange={(e) => setSocRecipient(e.target.value)}
                   required

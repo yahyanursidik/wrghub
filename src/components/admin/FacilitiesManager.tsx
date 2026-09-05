@@ -2061,7 +2061,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
                 <label className="font-bold text-ink block mb-1">Nama Lengkap Teknisi *</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Pak Suparman"
+                  placeholder="Contoh: Pak Slamet / Teknisi"
                   value={stfName}
                   onChange={(e) => setStfName(e.target.value)}
                   required

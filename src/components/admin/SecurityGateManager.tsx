@@ -134,13 +134,13 @@ export interface DailyDutyItem {
 export const DEFAULT_GUARDS: SecurityGuard[] = [
   {
     id: 'GUARD-001',
-    nip: 'SEC.2026.1001',
-    fullName: 'Pak Joko Sutrisno',
-    role: 'Komandan Regu / Satpam Utama 24 Jam',
+    nip: 'SEC.2026.2280',
+    fullName: 'Pa Adri Harry',
+    role: 'Satpam Tunggal 24 Jam (Piket Gerbang & Patroli)',
     dutyCategory: 'KEAMANAN_MURNI',
-    team: 'Regu Piket 24 Jam',
-    phone: '0812-3456-7890',
-    emergencyContact: '0812-9876-5432 (Istri)',
+    team: 'Petugas Piket Gerbang',
+    phone: '0812-2008-2240',
+    emergencyContact: '-',
     certification: 'GADA_PRATAMA',
     regNumber: 'POL-REG-88201',
     assignedPost: 'Pos Gerbang Utama (Main Gate)',
@@ -149,45 +149,7 @@ export const DEFAULT_GUARDS: SecurityGuard[] = [
     nightAllowance: 500000,
     status: 'AKTIF_BERTUGAS',
     joinDate: '2024-01-10',
-    notes: 'Piket tunggal pos gerbang & ronda berkala malam 14 kavling.',
-  },
-  {
-    id: 'GUARD-002',
-    nip: 'SEC.2026.1002',
-    fullName: 'Pak Agus Suparman',
-    role: 'Satpam Piket Bergilir 24 Jam',
-    dutyCategory: 'KEAMANAN_MURNI',
-    team: 'Regu Piket 24 Jam',
-    phone: '0813-8877-6655',
-    emergencyContact: '0813-1122-3344 (Adik)',
-    certification: 'GADA_PRATAMA',
-    regNumber: 'POL-REG-88202',
-    assignedPost: 'Pos Gerbang Utama (Main Gate)',
-    shift: 'SHIFT_24_JAM',
-    salary: 4300000,
-    nightAllowance: 500000,
-    status: 'LEPAS_PIKET',
-    joinDate: '2024-03-15',
-    notes: 'Piket bergilir 24 jam pagi-ke-pagi berikutnya.',
-  },
-  {
-    id: 'GUARD-003',
-    nip: 'SEC.2026.1003',
-    fullName: 'Pak Bambang Sudiro',
-    role: 'Satpam Cadangan / Ronda Malam Weekend',
-    dutyCategory: 'KEAMANAN_KEBERSIHAN',
-    team: 'Regu Cadangan & Fasum',
-    phone: '0857-1234-9988',
-    emergencyContact: '0857-9988-1122',
-    certification: 'GADA_PRATAMA',
-    regNumber: 'POL-REG-88203',
-    assignedPost: 'Pos Gerbang Utama (Main Gate)',
-    shift: 'SHIFT_24_JAM',
-    salary: 4200000,
-    nightAllowance: 400000,
-    status: 'LEPAS_PIKET',
-    joinDate: '2024-06-01',
-    notes: 'Pengganti piket darurat & back-up hari libur.',
+    notes: 'Piket tunggal pos gerbang & ronda berkala mandiri 14 kavling.',
   }
 ];
 
@@ -213,7 +175,7 @@ export const DEFAULT_ROSTERS: RosterSchedule[] = [
     assignedGuards: [
       {
         guardId: 'GUARD-001',
-        guardName: 'Pak Joko Sutrisno',
+        guardName: 'Pa Adri Harry',
         role: 'Satpam Tunggal 24 Jam',
         assignedArea: 'Pos Gerbang Utama & Ronda 14 Kavling',
         specialDuty: 'Jaga Gerbang Pagi-Malam, Nyalakan PJU 18:00, Portal Tutup 21:00, Ronda Dini Hari'
@@ -223,8 +185,7 @@ export const DEFAULT_ROSTERS: RosterSchedule[] = [
     isSolo24Hour: true,
     shiftDate: new Date().toISOString().split('T')[0],
     handoverTime: '07:00 WIB',
-    nextHandoverGuardName: 'Pak Agus Suparman',
-    notes: 'Sistem operasional klaster perumahan: 1 satpam piket mandiri 24 jam penuh, serah terima esok pagi 07:00 WIB.'
+    notes: 'Sistem operasional klaster 14 kavling: 1 satpam piket mandiri 24 jam penuh (Pa Adri Harry).'
   }
 ];
 
@@ -289,7 +250,13 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
         if (saved !== null) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const filtered = parsed.filter((g: any) => !deletedIds.includes(g.id) && !deletedIds.includes(g.fullName));
+            const filtered = parsed.filter((g: any) => 
+              !deletedIds.includes(g.id) && 
+              !deletedIds.includes(g.fullName) &&
+              !g.fullName?.toLowerCase().includes('suparman') &&
+              !g.fullName?.toLowerCase().includes('joko') &&
+              !g.fullName?.toLowerCase().includes('bambang')
+            );
             if (filtered.length > 0) return filtered;
           }
         }
@@ -352,7 +319,16 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   // ================= 2. ROSTER & SHIFT MANAGEMENT STATE =================
   const [rosters, setRosters] = useState<RosterSchedule[]>(() => {
     const persisted = getPersisted<RosterSchedule[]>('wargahub_security_rosters', []);
-    if (persisted && persisted.length > 0) return persisted;
+    if (persisted && persisted.length > 0) {
+      const clean = persisted.filter(r => 
+        !r.assignedGuards?.some((g: any) => 
+          g.guardName?.toLowerCase().includes('joko') || 
+          g.guardName?.toLowerCase().includes('suparman') ||
+          g.guardName?.toLowerCase().includes('bambang')
+        )
+      );
+      if (clean.length > 0) return clean;
+    }
     return DEFAULT_ROSTERS;
   });
 
@@ -1283,32 +1259,30 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   const activeSoloRoster = rosters.find(r => r.isSolo24Hour || r.shiftType === 'SHIFT_24_JAM') || rosters[0];
   const activeGuardId = activeSoloRoster?.assignedGuards[0]?.guardId;
   const activeSoloGuard = guards.find(g => g.id === activeGuardId) || guards[0];
-  const nextSoloGuardName = activeSoloRoster?.nextHandoverGuardName || guards.find(g => g.id !== activeSoloGuard?.id)?.fullName || 'Pak Agus Suparman';
-  const nextSoloGuardObj = guards.find(g => g.fullName === nextSoloGuardName || (g.id !== activeSoloGuard?.id && g.status === 'LEPAS_PIKET')) || guards.find(g => g.id !== activeSoloGuard?.id);
+  const nextSoloGuardName = activeSoloRoster?.nextHandoverGuardName || '';
+  const nextSoloGuardObj = guards.find(g => g.id !== activeSoloGuard?.id);
 
   // 7-Day Solo Rotation Projection
   const soloWeekSchedule = useMemo(() => {
     const days = [];
     const now = new Date();
-    const guardA = activeSoloGuard?.fullName || 'Pak Joko Sutrisno';
-    const guardB = nextSoloGuardName || 'Pak Agus Suparman';
+    const guardName = activeSoloGuard?.fullName || 'Pa Adri Harry';
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(now);
       d.setDate(d.getDate() + i);
       const dayName = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-      const assigned = i % 2 === 0 ? guardA : guardB;
       days.push({
         index: i,
         dateLabel: dayName,
         isToday: i === 0,
         isTomorrow: i === 1,
-        guardName: assigned,
-        shiftHours: '07:00 - 07:00 WIB'
+        guardName: guardName,
+        shiftHours: '07:00 - 07:00 WIB (24 Jam Mandiri)'
       });
     }
     return days;
-  }, [activeSoloGuard?.fullName, nextSoloGuardName]);
+  }, [activeSoloGuard?.fullName]);
 
   return (
     <div className="space-y-6">
@@ -1951,37 +1925,26 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     </div>
                   </div>
 
-                  {/* Next Morning Handover Box */}
-                  <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 border border-dashed border-amber-300 dark:border-amber-700/60 rounded-2xl space-y-2.5">
+                  {/* Solo Guard 24h Operational Mode Box */}
+                  <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-                        <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
-                        Serah Terima Piket Besok Pagi (07:00 WIB):
+                      <span className="font-extrabold text-xs text-emerald-950 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        Sistem Piket Tunggal Mandiri (24 Jam)
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-bold text-[10px]">
-                        ESTAFET PAGI
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-surface rounded-xl border border-border flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-[10px] text-ink-muted block">Satpam Penerima Estafet:</span>
-                        <strong className="text-xs text-ink font-black block">{nextSoloGuardName}</strong>
-                        <span className="text-[10px] text-ink-muted font-mono">{nextSoloGuardObj?.phone || '0813-8877-6655'}</span>
-                      </div>
-                      <span className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-bold">
-                        Lepas Piket / Siaga Pagi
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 font-black text-[10px]">
+                        1 SATPAM TETAP
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleQuickHandover24h}
-                      className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Lakukan Serah Terima Pagi Sekarang (Handover)</span>
-                    </button>
+                    <p className="text-[11px] text-emerald-900 leading-relaxed">
+                      Sesuai skala komplek (14 kavling), pos gerbang utama dijaga mandiri oleh <strong>{activeSoloGuard?.fullName || 'Pa Adri Harry'}</strong> dari pukul <strong>07:00 WIB s/d 07:00 WIB esok hari</strong> tanpa estafet pergantian orang.
+                    </p>
+
+                    <div className="pt-1 flex items-center justify-between border-t border-emerald-200/80 text-[11px] text-emerald-800 font-mono">
+                      <span>✓ Kontrol Portal & PJU Terpusat</span>
+                      <span className="font-bold">Standby Pos Gerbang</span>
+                    </div>
                   </div>
                 </div>
 

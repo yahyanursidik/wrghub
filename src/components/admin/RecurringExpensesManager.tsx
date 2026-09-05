@@ -46,14 +46,14 @@ export interface RecurringExpenseItem {
 const DEFAULT_RECURRING_EXPENSES: RecurringExpenseItem[] = [
   {
     id: 'rec-01',
-    title: 'Honor Satpam Piket 24 Jam (Pak Suparman)',
+    title: 'Honor Satpam Piket 24 Jam (Pa Adri Harry)',
     amount: 4500000,
     categoryId: 'cat-satpam',
     categoryName: 'Keamanan & Satpam',
     accountId: 'acc-main',
     accountName: 'BCA Utama - Operasional',
     executionDay: 25,
-    vendor: 'Pak Suparman (Satpam Mandiri)',
+    vendor: 'Pa Adri Harry (Satpam Mandiri)',
     description: 'Honor bulanan penjagaan gerbang utama & patroli lingkungan 24 jam',
     isActive: true,
     lastProcessedMonth: '2026-08',
@@ -137,7 +137,18 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((it: any) => {
+              if (it.title?.includes('Suparman') || it.vendor?.includes('Suparman')) {
+                return {
+                  ...it,
+                  title: 'Honor Satpam Piket 24 Jam (Pa Adri Harry)',
+                  vendor: 'Pa Adri Harry (Satpam Mandiri)',
+                };
+              }
+              return it;
+            });
+          }
         }
       } catch (e) {
         console.warn('Failed to parse recurring expenses from localStorage', e);
@@ -883,7 +894,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                   <label className="font-bold text-ink block mb-1">Penerima Dana / Vendor</label>
                   <input
                     type="text"
-                    placeholder="Contoh: Pak Suparman / PLN"
+                    placeholder="Contoh: Pa Adri Harry / PLN"
                     value={formVendor}
                     onChange={(e) => setFormVendor(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
