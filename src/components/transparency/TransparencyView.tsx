@@ -513,68 +513,43 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
       {activeTab === 'cashflow_summary' && (
         <div className="space-y-6 animate-in fade-in">
           {/* Top Banner: Participation Rate */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Left 2 Cols: Progress */}
-            <div className="lg:col-span-2 bg-surface rounded-3xl p-6 sm:p-7 border border-border shadow-card flex flex-col justify-between">
-              <div>
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-2xl sm:text-3xl font-black text-ink tracking-tight tabular-nums">
-                    {data.paidProperties} dari {data.totalProperties} unit rumah
-                  </span>
-                  <span className="text-2xl sm:text-3xl font-black text-primary-600 tracking-tight">
-                    telah membayar
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm text-ink-muted mt-1.5">
-                  Tingkat partisipasi iuran pemeliharaan lingkungan (*IPL*) pada periode {data.periodName}.
-                </p>
+          <div className="bg-surface rounded-3xl p-6 sm:p-7 border border-border shadow-card flex flex-col justify-between">
+            <div>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-ink tracking-tight tabular-nums">
+                  {data.paidProperties} dari {data.totalProperties} unit rumah
+                </span>
+                <span className="text-2xl sm:text-3xl font-black text-primary-600 tracking-tight">
+                  telah membayar
+                </span>
               </div>
-
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 bg-canvas rounded-full h-3.5 overflow-hidden border border-border/60">
-                    <div
-                      className="bg-primary-600 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${data.paidPercentage}%` }}
-                    />
-                  </div>
-                  <span className="text-base font-black text-ink tabular-nums">
-                    {data.paidPercentage.toFixed(1).replace('.', ',')}%
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-6 text-xs text-ink-muted pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-primary-600" />
-                    <span>Lunas: <strong className="text-ink font-bold">{data.paidProperties} rumah</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    <span>Belum Terkonfirmasi: <strong className="text-ink font-bold">{data.unpaidProperties} rumah</strong></span>
-                  </div>
-                </div>
-              </div>
+              <p className="text-xs sm:text-sm text-ink-muted mt-1.5">
+                Tingkat partisipasi iuran pemeliharaan lingkungan (*IPL*) pada periode {data.periodName}.
+              </p>
             </div>
 
-            {/* Right 1 Col: Transparency Trust Card */}
-            <div className="bg-primary-50/80 border border-primary-200 rounded-3xl p-6 flex flex-col justify-between shadow-card">
-              <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-surface border border-primary-200 flex items-center justify-center text-primary-700 shrink-0 shadow-2xs">
-                  <ShieldCheck className="w-5 h-5" />
+            <div className="mt-6 space-y-3">
+              <div className="flex items-center gap-4">
+                <div className="flex-1 bg-canvas rounded-full h-3.5 overflow-hidden border border-border/60">
+                  <div
+                    className="bg-primary-600 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${data.paidPercentage}%` }}
+                  />
                 </div>
-                <div>
-                  <h3 className="text-sm font-black text-primary-950">
-                    Keterbukaan untuk Keharmonisan Warga
-                  </h3>
-                  <p className="text-xs text-primary-800/90 mt-1 leading-relaxed">
-                    Setiap rupiah iuran warga dicatat digital dan diaudit berkala demi fasilitas komplek yang aman, bersih, dan terpelihara.
-                  </p>
-                </div>
+                <span className="text-base font-black text-ink tabular-nums">
+                  {data.paidPercentage.toFixed(1).replace('.', ',')}%
+                </span>
               </div>
 
-              <div className="pt-4 border-t border-primary-200/80 flex items-center justify-between text-xs text-primary-900 font-bold">
-                <span>Rekening Resmi Paguyuban:</span>
-                <span className="font-mono">BCA 8830-1928-33</span>
+              <div className="flex flex-wrap items-center gap-6 text-xs text-ink-muted pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary-600" />
+                  <span>Lunas: <strong className="text-ink font-bold">{data.paidProperties} rumah</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span>Belum Terkonfirmasi: <strong className="text-ink font-bold">{data.unpaidProperties} rumah</strong></span>
+                </div>
               </div>
             </div>
           </div>
