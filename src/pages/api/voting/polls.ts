@@ -15,7 +15,7 @@ export const GET: APIRoute = async () => {
       {
         id: 'cand-1',
         candidateNumber: 1,
-        name: 'Bpk. Ir. H. Bambang Sutrisno',
+        name: 'Yahya Nursidik',
         title: 'Calon Nomor Urut 01',
         tagline: 'Mewujudkan Komplek Aman, Asri, dan Transparan Berbasis Digital.',
         photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',

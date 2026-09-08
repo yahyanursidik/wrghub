@@ -24,7 +24,7 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
     {
       id: 'cand-1',
       number: '01',
-      name: 'Bpk. Ir. H. Bambang Sutrisno',
+      name: 'Yahya Nursidik',
       tagline: 'Mewujudkan Komplek Aman, Asri, dan Transparan Berbasis Digital.',
       vision: 'Pemasangan smart barrier gate gerbang pos satpam, transparansi kas real-time, dan revitalisasi taman bermain anak.',
       color: 'border-emerald-500 bg-emerald-50/50',

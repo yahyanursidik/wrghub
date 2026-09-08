@@ -314,12 +314,18 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     if (typeof window !== 'undefined') {
       try {
         const savedK = localStorage.getItem('wargahub_set_kepala_komplek');
-        if (savedK) return JSON.parse(savedK);
+        if (savedK) {
+          const parsed = JSON.parse(savedK);
+          if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) return parsed;
+        }
         const savedRw = localStorage.getItem('wargahub_set_rwheadname');
-        if (savedRw) return JSON.parse(savedRw);
+        if (savedRw) {
+          const parsed = JSON.parse(savedRw);
+          if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) return parsed;
+        }
       } catch (e) {}
     }
-    return 'Bpk. Ir. H. Bambang Sutrisno';
+    return 'Yahya Nursidik';
   });
 
   useEffect(() => {
@@ -1853,10 +1859,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                       } else {
                         setFormMethod(val);
                         if ((val === 'CASH_KEPALA_KOMPLEK' || val.includes('Kepala Komplek')) && (!formNotes || formNotes.includes('Diterima'))) {
-                          let kpName = 'Bpk. Ir. H. Bambang Sutrisno';
+                          let kpName = 'Yahya Nursidik';
                           try {
                             const savedK = typeof window !== 'undefined' ? localStorage.getItem('wargahub_set_kepala_komplek') : null;
-                            if (savedK) kpName = JSON.parse(savedK);
+                            if (savedK) {
+                              const parsed = JSON.parse(savedK);
+                              if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) kpName = parsed;
+                            }
                           } catch (err) {}
                           setFormNotes(`Diterima langsung oleh Kepala Komplek (${kpName})`);
                         }
@@ -2419,10 +2428,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                       } else {
                         setFormMethod(val);
                         if ((val === 'CASH_KEPALA_KOMPLEK' || val.includes('Kepala Komplek')) && (!formNotes || formNotes.includes('Diterima'))) {
-                          let kpName = 'Bpk. Ir. H. Bambang Sutrisno';
+                          let kpName = 'Yahya Nursidik';
                           try {
                             const savedK = typeof window !== 'undefined' ? localStorage.getItem('wargahub_set_kepala_komplek') : null;
-                            if (savedK) kpName = JSON.parse(savedK);
+                            if (savedK) {
+                              const parsed = JSON.parse(savedK);
+                              if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) kpName = parsed;
+                            }
                           } catch (err) {}
                           setFormNotes(`Diterima langsung oleh Kepala Komplek (${kpName})`);
                         }

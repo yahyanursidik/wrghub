@@ -316,12 +316,18 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     if (typeof window !== 'undefined') {
       try {
         const savedK = localStorage.getItem('wargahub_set_kepala_komplek');
-        if (savedK) return JSON.parse(savedK);
+        if (savedK) {
+          const parsed = JSON.parse(savedK);
+          if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) return parsed;
+        }
         const savedRw = localStorage.getItem('wargahub_set_rwheadname');
-        if (savedRw) return JSON.parse(savedRw);
+        if (savedRw) {
+          const parsed = JSON.parse(savedRw);
+          if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) return parsed;
+        }
       } catch (e) {}
     }
-    return 'Bpk. Ir. H. Bambang Sutrisno';
+    return 'Yahya Nursidik';
   });
 
   const [showTariffModal, setShowTariffModal] = useState(false);

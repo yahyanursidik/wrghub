@@ -69,15 +69,23 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, dat
   })() : 'RT 01 / RW 08';
 
   const kepalaKomplek = typeof window !== 'undefined' ? (() => {
-    if (data.kepalaKomplekName) return data.kepalaKomplekName;
+    if (data.kepalaKomplekName && !data.kepalaKomplekName.toLowerCase().includes('bambang sutrisno')) {
+      return data.kepalaKomplekName;
+    }
     try {
       const savedK = localStorage.getItem('wargahub_set_kepala_komplek');
-      if (savedK) return JSON.parse(savedK);
+      if (savedK) {
+        const parsed = JSON.parse(savedK);
+        if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) return parsed;
+      }
       const savedRw = localStorage.getItem('wargahub_set_rwheadname');
-      if (savedRw) return JSON.parse(savedRw);
+      if (savedRw) {
+        const parsed = JSON.parse(savedRw);
+        if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) return parsed;
+      }
     } catch (e) {}
-    return 'Bpk. Ir. H. Bambang Sutrisno';
-  })() : (data.kepalaKomplekName || 'Bpk. Ir. H. Bambang Sutrisno');
+    return 'Yahya Nursidik';
+  })() : (data.kepalaKomplekName && !data.kepalaKomplekName.toLowerCase().includes('bambang sutrisno') ? data.kepalaKomplekName : 'Yahya Nursidik');
 
   const kasManager = typeof window !== 'undefined' ? (() => {
     if (data.treasurerName && !data.treasurerName.toLowerCase().includes('siti rahmawati') && !data.treasurerName.toLowerCase().includes('hendra wijaya')) {

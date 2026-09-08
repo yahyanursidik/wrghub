@@ -138,7 +138,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
     candidates: [
       {
         number: '01',
-        name: 'Bpk. Ir. H. Bambang Sutrisno',
+        name: 'Yahya Nursidik',
         tagline: 'Mewujudkan Komplek Aman, Asri, dan Transparan Berbasis Digital.',
         vision: 'Meningkatkan transparansi buku kas publik secara realtime, modernisasi portal satpam dengan RFID scan otomatis, serta revitalisasi taman bermain anak fasum.',
         photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',

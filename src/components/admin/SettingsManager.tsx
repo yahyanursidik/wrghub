@@ -529,8 +529,22 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = '
   const [autoReminderDays, setAutoReminderDays] = useState(() => getPersisted('wargahub_set_reminderdays', 'H-5, H-3 & H-0 Jatuh Tempo'));
 
   // ================= 7. PENGURUS INTI =================
-  const [kepalaKomplekName, setKepalaKomplekName] = useState(() => getPersisted('wargahub_set_kepala_komplek', 'Bpk. Ir. H. Bambang Sutrisno'));
-  const [rwHeadName, setRwHeadName] = useState(() => getPersisted('wargahub_set_rwheadname', 'Bpk. Ir. H. Bambang Sutrisno'));
+  const [kepalaKomplekName, setKepalaKomplekName] = useState(() => {
+    const val = getPersisted('wargahub_set_kepala_komplek', 'Yahya Nursidik');
+    if (typeof val === 'string' && val.toLowerCase().includes('bambang sutrisno')) {
+      savePersisted('wargahub_set_kepala_komplek', 'Yahya Nursidik');
+      return 'Yahya Nursidik';
+    }
+    return val || 'Yahya Nursidik';
+  });
+  const [rwHeadName, setRwHeadName] = useState(() => {
+    const val = getPersisted('wargahub_set_rwheadname', 'Yahya Nursidik');
+    if (typeof val === 'string' && val.toLowerCase().includes('bambang sutrisno')) {
+      savePersisted('wargahub_set_rwheadname', 'Yahya Nursidik');
+      return 'Yahya Nursidik';
+    }
+    return val || 'Yahya Nursidik';
+  });
   const [rwHeadPhone, setRwHeadPhone] = useState(() => getPersisted('wargahub_set_rwheadphone', '0812-3456-7890'));
   const [secretaryName, setSecretaryName] = useState(() => getPersisted('wargahub_set_secname', 'Bpk. Hendra Wijaya, S.T.'));
   const [treasurerName, setTreasurerName] = useState(() => {
@@ -2411,7 +2425,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = '
                     if (!rwHeadName || rwHeadName === kepalaKomplekName) setRwHeadName(e.target.value);
                   }}
                   required
-                  placeholder="Contoh: Bpk. Ir. H. Bambang Sutrisno"
+                  placeholder="Contoh: Yahya Nursidik"
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                 />
                 <span className="text-[10px] text-ink-muted block mt-0.5">Tercantum resmi pada tanda tangan dokumen Invoice & Kuitansi WargaHub</span>

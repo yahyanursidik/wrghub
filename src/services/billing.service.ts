@@ -113,7 +113,7 @@ export async function getInvoices(billingPeriodId?: string) {
 
         if ((!resident || resident === 'Warga' || resident === 'Penyewa') && r.notes) {
           const m = r.notes.match(/\(([^)]+)\)/);
-          if (m && !m[1].toLowerCase().includes('bambang sutrisno') && !m[1].toLowerCase().includes('kepala komplek')) {
+          if (m && !m[1].toLowerCase().includes('bambang sutrisno') && !m[1].toLowerCase().includes('yahya nursidik') && !m[1].toLowerCase().includes('kepala komplek')) {
             resident = m[1].trim();
           }
         }
