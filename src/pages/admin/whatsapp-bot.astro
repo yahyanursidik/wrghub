@@ -1,8 +1,19 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { WhatsAppBotSimulator } from '../../components/admin/WhatsAppBotSimulator';
+import { getProperties } from '../../services/property.service';
+import { getBillingPeriods, getAllInvoices } from '../../services/billing.service';
+
+const properties = await getProperties().catch(() => []);
+const allPeriods = await getBillingPeriods().catch(() => []);
+const allInvoices = await getAllInvoices().catch(() => []);
 ---
 
 <AdminLayout title="Simulator WhatsApp Bot - WargaHub" currentPath="/admin/whatsapp-bot">
-  <WhatsAppBotSimulator client:load />
+  <WhatsAppBotSimulator 
+    initialProperties={properties as any}
+    allPeriods={allPeriods as any}
+    allInvoices={allInvoices as any}
+    client:load 
+  />
 </AdminLayout>
