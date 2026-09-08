@@ -43,7 +43,10 @@ export async function getInvoices(billingPeriodId?: string) {
             bp.name as "billingPeriodName",
             i.status, i.total, i.paid_amount as "paidAmount",
             i.due_date as "dueDate", i.issued_at as "issuedAt", i.paid_at as "paidAt",
-            i.payment_method as "paymentMethod",
+            COALESCE(
+              (SELECT pm.method FROM payments pm WHERE pm.invoice_id = i.id OR (pm.property_id = i.property_id AND pm.billing_period_id = i.billing_period_id) LIMIT 1),
+              'TRANSFER'
+            ) as "paymentMethod",
             i.notes,
             p.occupancy_status as "occupancyStatus",
             p.notes as "propertyNotes",
@@ -70,7 +73,10 @@ export async function getInvoices(billingPeriodId?: string) {
             bp.name as "billingPeriodName",
             i.status, i.total, i.paid_amount as "paidAmount",
             i.due_date as "dueDate", i.issued_at as "issuedAt", i.paid_at as "paidAt",
-            i.payment_method as "paymentMethod",
+            COALESCE(
+              (SELECT pm.method FROM payments pm WHERE pm.invoice_id = i.id OR (pm.property_id = i.property_id AND pm.billing_period_id = i.billing_period_id) LIMIT 1),
+              'TRANSFER'
+            ) as "paymentMethod",
             i.notes,
             p.occupancy_status as "occupancyStatus",
             p.notes as "propertyNotes",
