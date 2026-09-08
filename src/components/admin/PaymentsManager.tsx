@@ -40,11 +40,51 @@ import {
   Wallet,
   FileCheck,
   CheckSquare,
-  Square
+  Square,
+  Plus,
+  FileText
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { ReceiptModal } from '../shared/ReceiptModal';
 import type { PaymentListItem } from '../../services/payment.service';
+
+export const POPULAR_PAYMENT_SUGGESTIONS = [
+  { name: 'Bank Syariah Indonesia (BSI)', category: 'Bank Syariah' },
+  { name: 'Bank Muamalat', category: 'Bank Syariah' },
+  { name: 'BCA Syariah', category: 'Bank Syariah' },
+  { name: 'Bank Aladin Syariah', category: 'Bank Syariah' },
+  { name: 'Bank Jago Syariah', category: 'Bank Syariah' },
+  { name: 'GoPay', category: 'E-Wallet' },
+  { name: 'DANA', category: 'E-Wallet' },
+  { name: 'OVO', category: 'E-Wallet' },
+  { name: 'ShopeePay', category: 'E-Wallet' },
+  { name: 'LinkAja', category: 'E-Wallet' },
+  { name: 'Bank Jago', category: 'Bank Digital' },
+  { name: 'SeaBank', category: 'Bank Digital' },
+  { name: 'Blu by BCA', category: 'Bank Digital' },
+  { name: 'Bank Neo Commerce', category: 'Bank Digital' },
+  { name: 'Allobank', category: 'Bank Digital' },
+  { name: 'Jenius (BTPN)', category: 'Bank Digital' },
+  { name: 'Bank Mandiri', category: 'Bank Konvensional' },
+  { name: 'Transfer Bank BCA', category: 'Bank Konvensional' },
+  { name: 'Bank BRI', category: 'Bank Konvensional' },
+  { name: 'Bank BNI', category: 'Bank Konvensional' },
+];
+
+export function formatPaymentMethod(methodStr: string): string {
+  if (!methodStr) return 'Transfer Bank / Syariah';
+  const m = methodStr.trim();
+  if (m === 'BCA_TRANSFER' || m === 'BCA') return 'Transfer Bank BCA';
+  if (m === 'MANDIRI_TRANSFER') return 'Transfer Bank Mandiri';
+  if (m === 'BRI_TRANSFER') return 'Transfer Bank BRI';
+  if (m === 'BNI_TRANSFER') return 'Transfer Bank BNI';
+  if (m === 'BSI_TRANSFER' || m === 'BSI') return 'Bank Syariah Indonesia (BSI)';
+  if (m === 'MUAMALAT' || m === 'MUAMALAT_TRANSFER') return 'Bank Muamalat (Syariah)';
+  if (m === 'CASH_KEPALA_KOMPLEK' || m.toLowerCase().includes('kepala komplek')) return 'Tunai (Diterima Kepala Komplek)';
+  if (m === 'CASH') return 'Tunai / Cash';
+  if (m === 'QRIS') return 'QRIS Dinamis';
+  return m.replace(/_/g, ' ');
+}
 
 export interface BankAccount {
   id: string;
@@ -53,7 +93,7 @@ export interface BankAccount {
   accountHolder: string;
   balance: number;
   isPrimary: boolean;
-  accountType: 'BANK_OPERASIONAL' | 'QRIS_DINAMIS' | 'KAS_TUNAI';
+  accountType: 'BANK_OPERASIONAL' | 'BANK_SYARIAH' | 'E_WALLET' | 'QRIS_DINAMIS' | 'KAS_TUNAI';
   qrisNmid?: string;
   qrisFee?: string;
   notes?: string;
@@ -77,19 +117,19 @@ interface PaymentsManagerProps {
 }
 
 const CLUSTER_PROPERTIES_FALLBACK = [
-  { code: 'Kav A', ownerName: 'Pak Verial' },
-  { code: 'Kav B', ownerName: 'Mahasiswa Polban' },
-  { code: 'Kav C', ownerName: 'Bu Rina' },
-  { code: 'Kav D', ownerName: 'Pak Rieva' },
-  { code: 'Kav E', ownerName: 'Bu Wulan' },
-  { code: 'Kav F', ownerName: 'Pak Yahya' },
-  { code: 'Kav G', ownerName: 'Pak Wisnu' },
-  { code: 'Kav H', ownerName: 'Pak Asep' },
-  { code: 'Kav I', ownerName: 'Pak Iin' },
-  { code: 'Kav J', ownerName: 'Bu Acih' },
-  { code: 'Kav K', ownerName: 'Pak Taufik' },
-  { code: 'Kav L', ownerName: 'Pak Doni' },
-  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya' },
+  { code: 'Kav A', ownerName: 'Pak Verial', residentName: 'Pak Verial', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav B', ownerName: 'Mahasiswa Polban', residentName: 'Mahasiswa Polban', statusLabel: 'Penyewa / Kontrak', isRented: true },
+  { code: 'Kav C', ownerName: 'Bu Rina (Kosong)', residentName: 'Bu Rina (Kosong)', statusLabel: 'Kosong', isRented: false },
+  { code: 'Kav D', ownerName: 'Pak Rieva', residentName: 'Pak Rieva', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav E', ownerName: 'Pak Budi', residentName: 'Pak Budi', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav F', ownerName: 'Pa Anggia', residentName: 'Pa Anggia', statusLabel: 'Penyewa / Kontrak', isRented: true },
+  { code: 'Kav G', ownerName: 'Pak Misael', residentName: 'Pak Misael', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav H', ownerName: 'Pak Fahmi Rizal', residentName: 'Pak Fahmi Rizal', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav I', ownerName: 'Pak Yahya', residentName: 'Pak Yahya', statusLabel: 'Penyewa / Kontrak', isRented: true },
+  { code: 'Kav J', ownerName: 'Bu Sofia P (Kosong)', residentName: 'Bu Sofia P (Kosong)', statusLabel: 'Kosong', isRented: false },
+  { code: 'Kav K', ownerName: 'Pak Eky', residentName: 'Pak Eky', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav L', ownerName: 'Pak Haji Ano', residentName: 'Pak Haji Ano', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya (Kosong)', residentName: 'Pak Dedi N / Pak Jaya (Kosong)', statusLabel: 'Kosong', isRented: false },
 ];
 
 export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
@@ -101,10 +141,22 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     if (initialProperties && initialProperties.length > 0) {
       const filtered = initialProperties
         .filter((p: any) => p.code && !p.code.toLowerCase().includes('dummy') && p.code !== 'A-99')
-        .map((p: any) => ({
-          code: p.code,
-          ownerName: p.ownerName || p.occupantName || `Warga ${p.code}`,
-        }));
+        .map((p: any) => {
+          const isRented = p.occupancyStatus === 'RENTED' || p.isRented;
+          const isVacant = p.occupancyStatus === 'VACANT';
+          const resident = isRented
+            ? (p.occupantName || p.currentResident || 'Penyewa')
+            : (isVacant ? `${p.ownerName || p.legalOwner || 'Warga'} (Kosong)` : (p.occupantName || p.currentResident || p.ownerName || `Warga ${p.code}`));
+          const statusLabel = isRented ? 'Penyewa / Kontrak' : (isVacant ? 'Kosong' : 'Penghuni');
+          return {
+            code: p.code,
+            residentName: resident,
+            ownerName: resident,
+            legalOwner: p.legalOwner || p.ownerName,
+            statusLabel,
+            isRented,
+          };
+        });
       if (filtered.length > 0) return filtered;
     }
     return CLUSTER_PROPERTIES_FALLBACK;
@@ -199,14 +251,35 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     }
     return [
       {
-        id: 'acc-bca-01',
-        bankName: 'Bank Central Asia (BCA)',
-        accountNumber: '8830-1928-33',
+        id: 'acc-main-01',
+        bankName: 'Bank Syariah Indonesia (BSI)',
+        accountNumber: '7142-9988-11',
         accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
         balance: 0,
         isPrimary: true,
-        accountType: 'BANK_OPERASIONAL',
-        notes: 'Rekening penerimaan utama iuran IPL, sampah & keamanan.',
+        accountType: 'BANK_SYARIAH',
+        notes: 'Rekening utama penerimaan iuran IPL warga (Syariah).',
+      },
+      {
+        id: 'acc-qris-01',
+        bankName: 'QRIS Dinamis Paguyuban',
+        accountNumber: 'NMID-ID102008891230',
+        accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
+        balance: 0,
+        isPrimary: false,
+        accountType: 'QRIS_DINAMIS',
+        qrisNmid: 'ID102008891230',
+        notes: 'Menerima pembayaran GoPay, OVO, DANA, BCA Mobile, Livin dll.',
+      },
+      {
+        id: 'acc-petty-01',
+        bankName: 'Kas Tunai Bendahara / Satpam',
+        accountNumber: 'KAS-FISIK',
+        accountHolder: 'BENDAHARA RT/RW',
+        balance: 0,
+        isPrimary: false,
+        accountType: 'KAS_TUNAI',
+        notes: 'Kas tunai darurat & uang operasional fisik.',
       }
     ];
   });
@@ -219,7 +292,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   // Navigation & SubTabs
   const [activeSubTab, setActiveSubTab] = useState<'verification' | 'manual_entry' | 'public_transparency' | 'bank_recon'>('verification');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('ALL');
-  const [periodFilter, setPeriodFilter] = useState<string>('Agustus 2026');
+  const [periodFilter, setPeriodFilter] = useState<string>('September 2026');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'code' | 'amount' | 'status' | 'method'>('date');
@@ -237,19 +310,43 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   // Modals & Drawers
   const [viewingProof, setViewingProof] = useState<PaymentListItem | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
+  const [kepalaKomplekName, setKepalaKomplekName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedK = localStorage.getItem('wargahub_set_kepala_komplek');
+        if (savedK) return JSON.parse(savedK);
+        const savedRw = localStorage.getItem('wargahub_set_rwheadname');
+        if (savedRw) return JSON.parse(savedRw);
+      } catch (e) {}
+    }
+    return 'Bpk. Ir. H. Bambang Sutrisno';
+  });
+
+  useEffect(() => {
+    const handleCommitteeUpdated = (e: any) => {
+      if (e.detail?.kepalaKomplekName) {
+        setKepalaKomplekName(e.detail.kepalaKomplekName);
+      }
+    };
+    window.addEventListener('wargahub_committee_updated', handleCommitteeUpdated);
+    return () => window.removeEventListener('wargahub_committee_updated', handleCommitteeUpdated);
+  }, []);
+
   const [showManualModal, setShowManualModal] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<PaymentListItem | null>(null);
   const [deleteReason, setDeleteReason] = useState('Koreksi Input / Pembayaran Ganda');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Bank Account Edit Modal
+  // Bank Account Edit / Add Modal
   const [showBankEditModal, setShowBankEditModal] = useState(false);
+  const [isAddingBank, setIsAddingBank] = useState(false);
   const [editingBankId, setEditingBankId] = useState<string>('');
   const [bBankName, setBBankName] = useState('');
   const [bAccountNumber, setBAccountNumber] = useState('');
   const [bAccountHolder, setBAccountHolder] = useState('');
   const [bBalance, setBBalance] = useState(0);
+  const [bAccountType, setBAccountType] = useState<BankAccount['accountType']>('BANK_SYARIAH');
   const [bQrisNmid, setBQrisNmid] = useState('');
   const [bNotes, setBNotes] = useState('');
 
@@ -258,7 +355,35 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   const [formOwnerName, setFormOwnerName] = useState(initialProperties[0]?.ownerName || '');
   const [formPeriod, setFormPeriod] = useState(new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }));
   const [formAmount, setFormAmount] = useState(250000);
-  const [formMethod, setFormMethod] = useState<'BCA_TRANSFER' | 'QRIS' | 'CASH' | 'MANDIRI_TRANSFER' | 'BRI_TRANSFER'>('BCA_TRANSFER');
+  const [formMethod, setFormMethod] = useState<string>('Bank Syariah Indonesia (BSI)');
+  const [customPaymentMethods, setCustomPaymentMethods] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_custom_payment_methods');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [showAddMethodSection, setShowAddMethodSection] = useState(false);
+  const [customMethodInput, setCustomMethodInput] = useState('');
+
+  const handleAddCustomMethod = (methodName: string) => {
+    const trimmed = methodName.trim();
+    if (!trimmed) return;
+    if (!customPaymentMethods.includes(trimmed)) {
+      const updated = [...customPaymentMethods, trimmed];
+      setCustomPaymentMethods(updated);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('wargahub_custom_payment_methods', JSON.stringify(updated));
+        } catch (e) {}
+      }
+    }
+    setFormMethod(trimmed);
+    showToast(`Metode pembayaran "${trimmed}" berhasil ditambahkan dan dipilih.`);
+  };
+
   const [formRef, setFormRef] = useState('');
   const [formPaidDate, setFormPaidDate] = useState(new Date().toISOString().slice(0, 10));
   const [formStatus, setFormStatus] = useState<'VERIFIED' | 'PENDING'>('VERIFIED');
@@ -284,7 +409,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
   // Available Periods (Descending sort)
   const availablePeriods = useMemo(() => {
-    const list: string[] = [];
+    const list: string[] = ['September 2026', 'Agustus 2026', 'Juli 2026', 'Juni 2026', 'Mei 2026'];
     payments.forEach(p => {
       if (p.periodName && !list.includes(p.periodName)) {
         list.push(p.periodName);
@@ -387,14 +512,16 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   const handleOpenEditPayment = (pay: PaymentListItem) => {
     setEditingPaymentId(pay.id);
     setFormHouseCode(pay.propertyCode);
-    setFormOwnerName(`Warga Rumah ${pay.propertyCode}`);
+    const matched = clusterProperties.find(p => p.code.toLowerCase() === pay.propertyCode.toLowerCase());
+    setFormOwnerName(matched ? (matched.residentName || matched.ownerName) : `Warga Rumah ${pay.propertyCode}`);
     setFormPeriod('Agustus 2026');
     setFormAmount(pay.amount);
-    setFormMethod(pay.method as any);
+    setFormMethod(pay.method ? formatPaymentMethod(pay.method) : 'Transfer Bank BCA');
     setFormRef(pay.reference || '');
     setFormPaidDate(pay.paidAt ? pay.paidAt.slice(0, 10) : '2026-08-28');
     setFormStatus(pay.status as any);
     setFormNotes(pay.notes || '');
+    setShowAddMethodSection(false);
     setShowManualModal(true);
   };
 
@@ -404,10 +531,11 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     const targetCode = prefillHouse || firstProp.code;
     const matched = clusterProperties.find(p => p.code.toLowerCase() === targetCode.toLowerCase());
     setFormHouseCode(targetCode);
-    setFormOwnerName(matched ? matched.ownerName : `Warga ${targetCode}`);
+    setFormOwnerName(matched ? (matched.residentName || matched.ownerName) : `Warga ${targetCode}`);
     setFormPeriod('September 2026');
     setFormAmount(250000);
-    setFormMethod('BCA_TRANSFER');
+    setFormMethod('Bank Syariah Indonesia (BSI)');
+    setShowAddMethodSection(false);
     setFormRef(`TRX-${targetCode.replace(/[^A-Z0-9]/g, '')}-${Date.now().toString().slice(-4)}`);
     setFormPaidDate(new Date().toISOString().slice(0, 10));
     setFormStatus('VERIFIED');
@@ -415,58 +543,107 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     setShowManualModal(true);
   };
 
+  // Open Add Bank Account Modal
+  const handleOpenAddBank = () => {
+    setIsAddingBank(true);
+    setEditingBankId('');
+    setBBankName('Bank Syariah Indonesia (BSI)');
+    setBAccountNumber('');
+    setBAccountHolder('PENGURUS KOMPLEK WARGAHUB');
+    setBBalance(0);
+    setBAccountType('BANK_SYARIAH');
+    setBQrisNmid('');
+    setBNotes('Rekening penerimaan iuran kas warga');
+    setShowBankEditModal(true);
+  };
+
   // Open Edit Bank Account Modal
   const handleOpenEditBank = (acc: BankAccount) => {
+    setIsAddingBank(false);
     setEditingBankId(acc.id);
     setBBankName(acc.bankName);
     setBAccountNumber(acc.accountNumber);
     setBAccountHolder(acc.accountHolder);
     setBBalance(acc.balance);
+    setBAccountType(acc.accountType || 'BANK_OPERASIONAL');
     setBQrisNmid(acc.qrisNmid || 'ID102008891230');
     setBNotes(acc.notes || '');
     setShowBankEditModal(true);
   };
 
+  const handleDeleteBank = (accId: string) => {
+    if (confirm('Apakah Anda yakin ingin menghapus rekening kas ini dari daftar?')) {
+      const updated = bankAccounts.filter(a => a.id !== accId);
+      setBankAccounts(updated);
+      savePersisted('wargahub_bank_accounts', updated);
+      showToast('Rekening kas berhasil dihapus dari daftar.');
+    }
+  };
+
   const handleSaveBankAccounts = async (e: React.FormEvent) => {
     e.preventDefault();
-    const updated = bankAccounts.map(a => {
-      if (a.id === editingBankId) {
-        return {
-          ...a,
-          bankName: bBankName,
-          accountNumber: bAccountNumber,
-          accountHolder: bAccountHolder,
-          balance: Number(bBalance),
-          qrisNmid: bQrisNmid,
-          notes: bNotes,
-        };
-      }
-      return a;
-    });
+    let updated: BankAccount[];
+    if (isAddingBank) {
+      const newAcc: BankAccount = {
+        id: `acc-custom-${Date.now()}`,
+        bankName: bBankName,
+        accountNumber: bAccountNumber,
+        accountHolder: bAccountHolder,
+        balance: Number(bBalance),
+        isPrimary: bankAccounts.length === 0,
+        accountType: bAccountType,
+        qrisNmid: bQrisNmid,
+        notes: bNotes,
+      };
+      updated = [...bankAccounts, newAcc];
+    } else {
+      updated = bankAccounts.map(a => {
+        if (a.id === editingBankId) {
+          return {
+            ...a,
+            bankName: bBankName,
+            accountNumber: bAccountNumber,
+            accountHolder: bAccountHolder,
+            balance: Number(bBalance),
+            accountType: bAccountType,
+            qrisNmid: bQrisNmid,
+            notes: bNotes,
+          };
+        }
+        return a;
+      });
+    }
 
     setBankAccounts(updated);
     savePersisted('wargahub_bank_accounts', updated);
 
     // Sync settings to backend API
+    const localCommName = typeof window !== 'undefined' ? (localStorage.getItem('wargahub_set_comm_name') || 'Komplek Grand Sariwangi') : 'Komplek Grand Sariwangi';
+    const localRtRw = typeof window !== 'undefined' ? (localStorage.getItem('wargahub_set_comm_rtrw') || 'RT 01 / RW 08') : 'RT 01 / RW 08';
+    const localAddr = typeof window !== 'undefined' ? (localStorage.getItem('wargahub_set_comm_addr') || 'Grand Sariwangi, Sariwangi, Bandung Barat') : 'Grand Sariwangi, Sariwangi, Bandung Barat';
+    const safeCommName = localCommName.toLowerCase().includes('taman sejahtera') ? 'Komplek Grand Sariwangi' : localCommName;
+    const safeRtRw = localRtRw.toLowerCase().includes('02 / rw 05') || localRtRw.toLowerCase().includes('04 / rw 09') ? 'RT 01 / RW 08' : localRtRw;
+    const safeAddr = localAddr.toLowerCase().includes('taman sejahtera') || localAddr.toLowerCase().includes('graha raya') ? 'Grand Sariwangi, Sariwangi, Bandung Barat' : localAddr;
+
     await fetch('/api/settings/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        communityName: 'Komplek Taman Sejahtera',
-        rtRw: 'RT 04 / RW 09',
-        address: 'Jl. Graha Raya No. 88',
+        communityName: safeCommName,
+        rtRw: safeRtRw,
+        address: safeAddr,
         monthlyRate: 250000,
         bankName: bBankName,
         bankAccount: bAccountNumber,
         accountHolder: bAccountHolder,
-        securityPhone: '0812-3456-7801',
-        rwHeadPhone: '0812-9988-7766',
+        securityPhone: '0812-2008-2240',
+        rwHeadPhone: '0812-3456-7890',
         balance: Number(bBalance),
       })
     }).catch(() => {});
 
     setShowBankEditModal(false);
-    showToast('Informasi rekening bank kas paguyuban berhasil diperbarui!');
+    showToast(isAddingBank ? 'Rekening / E-Wallet kas baru berhasil ditambahkan!' : 'Informasi rekening kas paguyuban berhasil diperbarui!');
   };
 
   // Save Payment (Create or Edit)
@@ -727,7 +904,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
             )}
           </div>
           <p className="text-xs text-ink-muted mt-1">
-            Verifikasi setoran bukti transfer BCA/QRIS warga, penerbitan kuitansi ber-QR code resmi, rekonsiliasi kas, dan rekapitulasi iuran terbuka.
+            Verifikasi setoran bukti transfer Bank/Syariah/E-Wallet/QRIS warga, penerbitan kuitansi ber-QR code resmi, rekonsiliasi kas, dan rekapitulasi iuran terbuka.
           </p>
         </div>
 
@@ -1059,7 +1236,24 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                             {formatRupiah(pay.amount)}
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="font-bold text-ink block">{pay.method.replace('_', ' ')}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-black text-ink text-xs">{formatPaymentMethod(pay.method)}</span>
+                              {['BSI', 'Syariah', 'Muamalat', 'Aladin'].some(s => pay.method.includes(s)) && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                                  🌙 Syariah
+                                </span>
+                              )}
+                              {['Jago', 'SeaBank', 'Blu', 'Neo', 'Allobank', 'Jenius'].some(b => pay.method.includes(b)) && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                  Digital
+                                </span>
+                              )}
+                              {['GoPay', 'OVO', 'DANA', 'ShopeePay', 'LinkAja', 'AstraPay'].some(w => pay.method.includes(w)) && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                  E-Wallet
+                                </span>
+                              )}
+                            </div>
                             <span className="font-mono text-[10px] text-ink-muted bg-canvas px-1.5 py-0.5 rounded border border-border/80 inline-block mt-0.5">
                               {pay.reference || '-'}
                             </span>
@@ -1097,27 +1291,64 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                                 <span>{isPending ? 'Verifikasi' : 'Bukti'}</span>
                               </button>
 
-                              {/* Kuitansi Resmi */}
+                              {/* Kuitansi & Invoice Resmi */}
                               {isVerified && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedReceipt({
-                                      invoiceNumber: `INV-202608-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
-                                      periodName: 'Agustus 2026',
-                                      propertyCode: pay.propertyCode,
-                                      residentName: `Warga Rumah ${pay.propertyCode}`,
-                                      amount: pay.amount,
-                                      paidAt: pay.paidAt || '28 Agustus 2026',
-                                      paymentMethod: pay.method,
-                                      referenceNumber: pay.reference || `TRX-${pay.propertyCode}`,
-                                    })
-                                  }
-                                  className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
-                                  title="Lihat / Cetak Kuitansi Resmi"
-                                >
-                                  <Printer className="w-3.5 h-3.5" /> Kuitansi
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedReceipt({
+                                        invoiceNumber: `INV-202608-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
+                                        periodName: 'Agustus 2026',
+                                        propertyCode: pay.propertyCode,
+                                        residentName: `Warga Rumah ${pay.propertyCode}`,
+                                        amount: pay.amount,
+                                        paidAt: pay.paidAt || '28 Agustus 2026',
+                                        paymentMethod: pay.method,
+                                        referenceNumber: pay.reference || `TRX-${pay.propertyCode}`,
+                                        kepalaKomplekName: kepalaKomplekName,
+                                        isInvoice: false,
+                                        items: pay.amount === 350000 ? [
+                                          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
+                                          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
+                                        ] : (pay.amount === 250000 ? [
+                                          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
+                                        ] : undefined),
+                                      })
+                                    }
+                                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
+                                    title="Lihat / Cetak Kuitansi Resmi"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" /> Kuitansi
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedReceipt({
+                                        invoiceNumber: `INV-202608-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
+                                        periodName: 'Agustus 2026',
+                                        propertyCode: pay.propertyCode,
+                                        residentName: `Warga Rumah ${pay.propertyCode}`,
+                                        amount: pay.amount,
+                                        paidAt: pay.paidAt || '28 Agustus 2026',
+                                        paymentMethod: pay.method,
+                                        referenceNumber: pay.reference || `TRX-${pay.propertyCode}`,
+                                        kepalaKomplekName: kepalaKomplekName,
+                                        isInvoice: true,
+                                        items: pay.amount === 350000 ? [
+                                          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
+                                          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
+                                        ] : (pay.amount === 250000 ? [
+                                          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
+                                        ] : undefined),
+                                      })
+                                    }
+                                    className="px-2 py-1.5 bg-canvas hover:bg-surface border border-border text-ink-muted hover:text-ink rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
+                                    title="Lihat Surat Tagihan / Invoice Resmi"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" /> Invoice
+                                  </button>
+                                </>
                               )}
 
                               <button
@@ -1301,7 +1532,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                     <div key={p.id} className="p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between shadow-2xs">
                       <div>
                         <span className="font-mono font-black text-ink text-sm block">Rumah {p.propertyCode}</span>
-                        <span className="text-[10px] text-ink-muted block">{p.method.replace('_', ' ')} • {p.reference || 'BCA Auto'}</span>
+                        <span className="text-[10px] text-ink-muted block">{formatPaymentMethod(p.method)} • {p.reference || 'Auto-Recon'}</span>
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
@@ -1354,7 +1585,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono font-black text-rose-700 tabular-nums">{formatRupiah(p.amount)}</span>
                         <a
-                          href={`https://wa.me/?text=${encodeURIComponent(`Yth. Bpk/Ibu Warga Rumah ${p.propertyCode}, menginfokan bahwa tagihan iuran IPL komplek periode Agustus 2026 sebesar ${formatRupiah(p.amount)} siap dibayarkan ke Rekening Kas BCA 8830-1928-33 a.n PENGURUS KOMPLEK. Terima kasih!`)}`}
+                          href={`https://wa.me/?text=${encodeURIComponent(`Yth. Bpk/Ibu Warga Rumah ${p.propertyCode}, menginfokan bahwa tagihan iuran IPL komplek periode Agustus 2026 sebesar ${formatRupiah(p.amount)} siap dibayarkan ke Rekening Kas Paguyuban (${primaryAccount.bankName} - ${primaryAccount.accountNumber} a.n ${primaryAccount.accountHolder}). Terima kasih!`)}`}
                           target="_blank"
                           rel="noreferrer"
                           className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-1 text-[10px] font-bold active:scale-[0.95] transition-all"
@@ -1380,7 +1611,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 3: REKONSILIASI BANK BCA & PENGATURAN REKENING KAS ================= */}
+      {/* ================= SUBTAB 3: REKONSILIASI KAS & PENGATURAN MULTI-BANK / E-WALLET ================= */}
       {activeSubTab === 'bank_recon' && (
         <div className="space-y-6 animate-in fade-in duration-150">
           {/* Header Action */}
@@ -1388,40 +1619,73 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
             <div>
               <h3 className="font-bold text-base text-ink flex items-center gap-2">
                 <Building className="w-5 h-5 text-primary-600" />
-                Rekening Kas & Integrasi Rekonsiliasi Bank BCA / QRIS
+                Rekening Kas & Integrasi Rekonsiliasi Multi-Bank / E-Wallet / QRIS
               </h3>
               <p className="text-xs text-ink-muted mt-0.5">
-                Kelola data rekening bank kas paguyuban, saldo awal kas, gateway QRIS dinamis, dan pencocokan mutasi otomatis.
+                Kelola data rekening bank kas paguyuban (Bank Syariah / Konvensional), e-wallet komunitas, saldo awal kas, gateway QRIS dinamis, dan pencocokan mutasi otomatis.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleOpenEditBank(primaryAccount)}
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>Edit Data Rekening Bank & QRIS</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenAddBank}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Tambah Rekening / E-Wallet</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenEditBank(primaryAccount)}
+                className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
+              >
+                <Edit3 className="w-4 h-4 text-primary-600" />
+                <span>Edit Rekening Utama</span>
+              </button>
+            </div>
           </div>
 
-          {/* 3 Bank / Cash Account Cards */}
+          {/* Multi-Bank / E-Wallet / Cash Account Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             {bankAccounts.map((acc) => (
               <div key={acc.id} className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-3 relative overflow-hidden">
                 <div className="flex items-center justify-between">
                   <div className="w-8 h-8 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center font-black">
-                    {acc.accountType === 'BANK_OPERASIONAL' ? <Building className="w-4 h-4" /> : acc.accountType === 'QRIS_DINAMIS' ? <QrCode className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
+                    {acc.accountType === 'BANK_SYARIAH' ? (
+                      <span className="text-sm">🌙</span>
+                    ) : acc.accountType === 'E_WALLET' ? (
+                      <Wallet className="w-4 h-4" />
+                    ) : acc.accountType === 'QRIS_DINAMIS' ? (
+                      <QrCode className="w-4 h-4" />
+                    ) : acc.accountType === 'KAS_TUNAI' ? (
+                      <Wallet className="w-4 h-4 text-amber-600" />
+                    ) : (
+                      <Building className="w-4 h-4" />
+                    )}
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${acc.isPrimary ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-                    {acc.isPrimary ? 'REKENING UTAMA' : 'KAS OPERASIONAL'}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    {acc.accountType === 'BANK_SYARIAH' && (
+                      <span className="px-2 py-0.5 rounded-full font-bold text-[9px] bg-teal-100 text-teal-800">
+                        🌙 SYARIAH
+                      </span>
+                    )}
+                    {acc.accountType === 'E_WALLET' && (
+                      <span className="px-2 py-0.5 rounded-full font-bold text-[9px] bg-blue-100 text-blue-800">
+                        💳 E-WALLET
+                      </span>
+                    )}
+                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${acc.isPrimary ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                      {acc.isPrimary ? 'REKENING UTAMA' : 'KAS OPERASIONAL'}
+                    </span>
+                  </div>
                 </div>
 
                 <div>
                   <h4 className="font-black text-sm text-ink">{acc.bankName}</h4>
                   <p className="font-mono font-bold text-primary-700 text-xs mt-0.5">{acc.accountNumber}</p>
                   <p className="text-[11px] text-ink-muted mt-0.5">a.n {acc.accountHolder}</p>
+                  {acc.notes && <p className="text-[10px] text-ink-muted italic mt-1">{acc.notes}</p>}
                 </div>
 
                 <div className="pt-2 border-t border-border flex items-center justify-between">
@@ -1429,14 +1693,26 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                     <span className="text-[10px] text-ink-muted block">Saldo Kas Terkini:</span>
                     <span className="font-black text-emerald-700 text-sm font-mono">{formatRupiah(acc.balance)}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditBank(acc)}
-                    className="p-1.5 bg-canvas hover:bg-surface border border-border text-ink rounded-lg font-bold"
-                    title="Ubah Data Rekening"
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-primary-600" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditBank(acc)}
+                      className="p-1.5 bg-canvas hover:bg-surface border border-border text-ink rounded-lg font-bold"
+                      title="Ubah Data Rekening"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-primary-600" />
+                    </button>
+                    {!acc.isPrimary && bankAccounts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBank(acc.id)}
+                        className="p-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg font-bold"
+                        title="Hapus Rekening"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -1556,20 +1832,178 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-ink block mb-1">Metode Pembayaran</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-ink block">Metode Pembayaran</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMethodSection(!showAddMethodSection)}
+                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-0.5 active:scale-[0.98] transition-all hover:underline"
+                      title="Tambah Bank Digital / E-Wallet Baru"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Tambah</span>
+                    </button>
+                  </div>
                   <select
                     value={formMethod}
-                    onChange={(e) => setFormMethod(e.target.value as any)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__ADD_NEW__') {
+                        setShowAddMethodSection(true);
+                      } else {
+                        setFormMethod(val);
+                        if ((val === 'CASH_KEPALA_KOMPLEK' || val.includes('Kepala Komplek')) && (!formNotes || formNotes.includes('Diterima'))) {
+                          let kpName = 'Bpk. Ir. H. Bambang Sutrisno';
+                          try {
+                            const savedK = typeof window !== 'undefined' ? localStorage.getItem('wargahub_set_kepala_komplek') : null;
+                            if (savedK) kpName = JSON.parse(savedK);
+                          } catch (err) {}
+                          setFormNotes(`Diterima langsung oleh Kepala Komplek (${kpName})`);
+                        }
+                      }
+                    }}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
-                    <option value="BCA_TRANSFER">Transfer Bank BCA</option>
-                    <option value="CASH">Tunai / Cash (Diterima Bendahara)</option>
-                    <option value="QRIS">QRIS Dinamis</option>
-                    <option value="MANDIRI_TRANSFER">Transfer Bank Mandiri</option>
-                    <option value="BRI_TRANSFER">Transfer Bank BRI</option>
+                    {customPaymentMethods.length > 0 && (
+                      <optgroup label="⭐ Bank / E-Wallet Kustom Anda">
+                        {customPaymentMethods.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="🌙 Bank Syariah">
+                      <option value="Bank Syariah Indonesia (BSI)">Bank Syariah Indonesia (BSI)</option>
+                      <option value="Bank Muamalat (Syariah)">Bank Muamalat</option>
+                      <option value="BCA Syariah">BCA Syariah</option>
+                      <option value="Bank Aladin Syariah">Bank Aladin Syariah</option>
+                      <option value="Bank Jago Syariah">Bank Jago Syariah</option>
+                      <option value="Bank Mega Syariah">Bank Mega Syariah</option>
+                    </optgroup>
+                    <optgroup label="💳 Dompet Digital / E-Wallet">
+                      <option value="GoPay">GoPay</option>
+                      <option value="DANA">DANA</option>
+                      <option value="OVO">OVO</option>
+                      <option value="ShopeePay">ShopeePay</option>
+                      <option value="LinkAja">LinkAja</option>
+                      <option value="AstraPay">AstraPay</option>
+                    </optgroup>
+                    <optgroup label="📱 Bank Digital">
+                      <option value="Bank Jago">Bank Jago</option>
+                      <option value="SeaBank">SeaBank</option>
+                      <option value="Blu by BCA Digital">Blu by BCA Digital</option>
+                      <option value="Bank Neo Commerce">Bank Neo Commerce (BNC)</option>
+                      <option value="Allobank">Allobank</option>
+                      <option value="Jenius (BTPN)">Jenius (BTPN)</option>
+                    </optgroup>
+                    <optgroup label="🏦 Bank Konvensional">
+                      <option value="Transfer Bank BCA">Transfer Bank BCA</option>
+                      <option value="Transfer Bank Mandiri">Transfer Bank Mandiri</option>
+                      <option value="Transfer Bank BRI">Transfer Bank BRI</option>
+                      <option value="Transfer Bank BNI">Transfer Bank BNI</option>
+                      <option value="Transfer Bank CIMB Niaga">Transfer Bank CIMB Niaga</option>
+                      <option value="Transfer Bank Permata">Transfer Bank Permata</option>
+                      <option value="Transfer Bank Danamon">Transfer Bank Danamon</option>
+                    </optgroup>
+                    <optgroup label="💵 Tunai & QRIS">
+                      <option value="Tunai (Diterima oleh Kepala Komplek)">💵 Tunai (Diterima oleh Kepala Komplek)</option>
+                      <option value="Tunai / Cash">Tunai / Cash (Diterima Bendahara)</option>
+                      <option value="QRIS Dinamis">QRIS Dinamis / Statis</option>
+                    </optgroup>
+                    {['BCA_TRANSFER', 'MANDIRI_TRANSFER', 'BRI_TRANSFER', 'CASH', 'CASH_KEPALA_KOMPLEK', 'QRIS'].includes(formMethod) && (
+                      <optgroup label="Tersimpan">
+                        <option value={formMethod}>{formatPaymentMethod(formMethod)}</option>
+                      </optgroup>
+                    )}
+                    <option value="__ADD_NEW__">➕ Tambah Bank / E-Wallet Baru...</option>
                   </select>
                 </div>
               </div>
+
+              {/* Box Tambah Metode Baru */}
+              {showAddMethodSection && (
+                <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-2xl space-y-2.5 animate-in fade-in slide-in-from-top-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-emerald-950 flex items-center gap-1.5 text-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                      Tambah Bank Digital, E-Wallet, atau Bank Lainnya
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMethodSection(false)}
+                      className="text-emerald-700 hover:text-emerald-950 text-[11px] font-bold"
+                    >
+                      ✕ Batal
+                    </button>
+                  </div>
+
+                  {/* Preset Quick Chips */}
+                  <div>
+                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block mb-1">
+                      Pilihan Cepat (Klik untuk Langsung Tambah & Pilih):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {POPULAR_PAYMENT_SUGGESTIONS.map((sug) => (
+                        <button
+                          key={sug.name}
+                          type="button"
+                          onClick={() => {
+                            handleAddCustomMethod(sug.name);
+                            setShowAddMethodSection(false);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-900 font-bold text-[10px] hover:bg-emerald-100 active:scale-[0.98] transition-all shadow-2xs inline-flex items-center gap-1"
+                        >
+                          <span>+ {sug.name}</span>
+                          <span className="text-[8px] px-1 py-0.2 bg-emerald-100 text-emerald-800 rounded font-normal">
+                            {sug.category}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Name Input */}
+                  <div>
+                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block mb-1">
+                      Atau Ketik Nama Bank / Dompet Digital Kustom:
+                    </span>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Contoh: SeaBank / Bank Jago / DANA / AstraPay"
+                        value={customMethodInput}
+                        onChange={(e) => setCustomMethodInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (customMethodInput.trim()) {
+                              handleAddCustomMethod(customMethodInput.trim());
+                              setCustomMethodInput('');
+                              setShowAddMethodSection(false);
+                            }
+                          }
+                        }}
+                        className="flex-1 p-2 bg-white border border-emerald-300 rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customMethodInput.trim()) {
+                            handleAddCustomMethod(customMethodInput.trim());
+                            setCustomMethodInput('');
+                            setShowAddMethodSection(false);
+                          }
+                        }}
+                        disabled={!customMethodInput.trim()}
+                        className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs disabled:opacity-50 active:scale-[0.98] transition-all shadow-xs shrink-0"
+                      >
+                        Simpan & Pilih
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
@@ -1625,41 +2059,94 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-black text-base text-ink flex items-center gap-2">
                 <Building className="w-5 h-5 text-primary-600" />
-                <span>Edit Informasi Rekening Kas Paguyuban</span>
+                <span>{isAddingBank ? 'Tambah Rekening Kas / E-Wallet Baru' : 'Edit Informasi Rekening Kas Paguyuban'}</span>
               </h3>
               <button onClick={() => setShowBankEditModal(false)} className="text-ink-muted hover:text-ink">✕</button>
             </div>
 
             <form onSubmit={handleSaveBankAccounts} className="space-y-3">
+              {!isAddingBank ? (
+                <div>
+                  <label className="font-bold text-ink block mb-1">Pilih Rekening Kas untuk Diedit *</label>
+                  <select
+                    value={editingBankId}
+                    onChange={(e) => {
+                      const acc = bankAccounts.find(a => a.id === e.target.value);
+                      if (acc) {
+                        setEditingBankId(acc.id);
+                        setBBankName(acc.bankName);
+                        setBAccountNumber(acc.accountNumber);
+                        setBAccountHolder(acc.accountHolder);
+                        setBBalance(acc.balance);
+                        setBAccountType(acc.accountType || 'BANK_OPERASIONAL');
+                        setBQrisNmid(acc.qrisNmid || 'ID102008891230');
+                        setBNotes(acc.notes || '');
+                      }
+                    }}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                  >
+                    {bankAccounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.bankName} ({a.accountNumber})</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-bold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>Mendaftarkan rekening bank baru / dompet digital kas komunitas</span>
+                </div>
+              )}
+
+              {/* Tipe Akun / Kategori */}
               <div>
-                <label className="font-bold text-ink block mb-1">Pilih Rekening Kas untuk Diedit *</label>
+                <label className="font-bold text-ink block mb-1">Jenis Akun Kas *</label>
                 <select
-                  value={editingBankId}
-                  onChange={(e) => {
-                    const acc = bankAccounts.find(a => a.id === e.target.value);
-                    if (acc) {
-                      setEditingBankId(acc.id);
-                      setBBankName(acc.bankName);
-                      setBAccountNumber(acc.accountNumber);
-                      setBAccountHolder(acc.accountHolder);
-                      setBBalance(acc.balance);
-                      setBQrisNmid(acc.qrisNmid || 'ID102008891230');
-                      setBNotes(acc.notes || '');
-                    }
-                  }}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                  value={bAccountType}
+                  onChange={(e: any) => setBAccountType(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs"
                 >
-                  {bankAccounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.bankName} ({a.accountNumber})</option>
-                  ))}
+                  <option value="BANK_SYARIAH">🌙 Bank Syariah (BSI, Muamalat, BCA Syariah, dll)</option>
+                  <option value="BANK_OPERASIONAL">🏦 Bank Konvensional / Giro (BCA, Mandiri, BRI, BNI)</option>
+                  <option value="E_WALLET">💳 Dompet Digital / E-Wallet (GoPay, DANA, OVO, ShopeePay)</option>
+                  <option value="QRIS_DINAMIS">📱 Gateway QRIS Dinamis</option>
+                  <option value="KAS_TUNAI">💵 Kas Tunai Fisik (Petty Cash Pos Satpam)</option>
                 </select>
               </div>
 
+              {/* Quick Presets */}
               <div>
-                <label className="font-bold text-ink block mb-1">Nama Bank / Gateway *</label>
+                <label className="text-[10px] text-ink-muted uppercase font-bold block mb-1">Pilihan Cepat Nama Bank / E-Wallet:</label>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { name: 'Bank Syariah Indonesia (BSI)', type: 'BANK_SYARIAH' as const },
+                    { name: 'Bank Muamalat', type: 'BANK_SYARIAH' as const },
+                    { name: 'BCA Syariah', type: 'BANK_SYARIAH' as const },
+                    { name: 'GoPay Kas', type: 'E_WALLET' as const },
+                    { name: 'DANA Bisnis', type: 'E_WALLET' as const },
+                    { name: 'Bank Mandiri', type: 'BANK_OPERASIONAL' as const },
+                    { name: 'Bank BCA', type: 'BANK_OPERASIONAL' as const },
+                    { name: 'Bank BRI', type: 'BANK_OPERASIONAL' as const },
+                  ].map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => {
+                        setBBankName(preset.name);
+                        setBAccountType(preset.type);
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-surface border border-border text-ink hover:border-primary-400 text-[10px] font-bold active:scale-[0.98]"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-ink block mb-1">Nama Bank / E-Wallet / Kas *</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Bank Central Asia (BCA)"
+                  placeholder="Contoh: Bank Syariah Indonesia (BSI) / GoPay Kas"
                   value={bBankName}
                   onChange={(e) => setBBankName(e.target.value)}
                   required
@@ -1669,10 +2156,10 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="font-bold text-ink block mb-1">Nomor Rekening / No Kas *</label>
+                  <label className="font-bold text-ink block mb-1">Nomor Rekening / No HP E-Wallet *</label>
                   <input
                     type="text"
-                    placeholder="8830-1928-33"
+                    placeholder="Contoh: 7142-9988-11 / 0812-xxxx"
                     value={bAccountNumber}
                     onChange={(e) => setBAccountNumber(e.target.value)}
                     required
@@ -1703,7 +2190,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                 />
               </div>
 
-              {editingBankId === 'acc-qris-01' && (
+              {(bAccountType === 'QRIS_DINAMIS' || editingBankId === 'acc-qris-01') && (
                 <div>
                   <label className="font-bold text-ink block mb-1">NMID QRIS Standar Bank Indonesia</label>
                   <input
@@ -1719,7 +2206,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                 <label className="font-bold text-ink block mb-1">Catatan Keterangan</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Rekening operasional utama iuran IPL"
+                  placeholder="Contoh: Rekening utama iuran IPL (Syariah) atau Dompet kas bendahara"
                   value={bNotes}
                   onChange={(e) => setBNotes(e.target.value)}
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
@@ -1738,7 +2225,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                   type="submit"
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
                 >
-                  Simpan Perubahan Rekening
+                  {isAddingBank ? 'Simpan Rekening Baru' : 'Simpan Perubahan Rekening'}
                 </button>
               </div>
             </form>
@@ -1866,13 +2353,15 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                     setFormHouseCode(val);
                     const matched = clusterProperties.find(p => p.code.toLowerCase() === val.toLowerCase());
                     if (matched) {
-                      setFormOwnerName(matched.ownerName);
+                      setFormOwnerName(matched.residentName || matched.ownerName);
                     }
                   }}
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 >
                   {clusterProperties.map(p => (
-                    <option key={p.code} value={p.code}>{p.code} — {p.ownerName}</option>
+                    <option key={p.code} value={p.code}>
+                      {p.code} — {p.residentName || p.ownerName} ({p.statusLabel})
+                    </option>
                   ))}
                   <option value="__CUSTOM__">➕ Ketik Unit Kustom Lainnya...</option>
                 </select>
@@ -1886,8 +2375,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                   />
                 )}
                 {formOwnerName && (
-                  <span className="text-[10px] text-ink-muted mt-1 block">
-                    Nama Warga / Pemilik: <strong className="text-ink">{formOwnerName}</strong>
+                  <span className="text-[10px] text-ink-muted mt-1 flex items-center gap-1.5">
+                    Penghuni Sekarang: <strong className="text-ink">{formOwnerName}</strong>
+                    {clusterProperties.find(p => p.code.toLowerCase() === formHouseCode.toLowerCase())?.isRented && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
+                        Penyewa / Kontrak
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
@@ -1904,20 +2398,178 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-ink block mb-1">Metode</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-ink block">Metode</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMethodSection(!showAddMethodSection)}
+                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-0.5 active:scale-[0.98] transition-all hover:underline"
+                      title="Tambah Bank Digital / E-Wallet Baru"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Tambah</span>
+                    </button>
+                  </div>
                   <select
                     value={formMethod}
-                    onChange={(e) => setFormMethod(e.target.value as any)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__ADD_NEW__') {
+                        setShowAddMethodSection(true);
+                      } else {
+                        setFormMethod(val);
+                        if ((val === 'CASH_KEPALA_KOMPLEK' || val.includes('Kepala Komplek')) && (!formNotes || formNotes.includes('Diterima'))) {
+                          let kpName = 'Bpk. Ir. H. Bambang Sutrisno';
+                          try {
+                            const savedK = typeof window !== 'undefined' ? localStorage.getItem('wargahub_set_kepala_komplek') : null;
+                            if (savedK) kpName = JSON.parse(savedK);
+                          } catch (err) {}
+                          setFormNotes(`Diterima langsung oleh Kepala Komplek (${kpName})`);
+                        }
+                      }
+                    }}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
-                    <option value="BCA_TRANSFER">Transfer Bank BCA</option>
-                    <option value="CASH">Tunai / Cash</option>
-                    <option value="QRIS">QRIS Dinamis</option>
-                    <option value="MANDIRI_TRANSFER">Transfer Mandiri</option>
-                    <option value="BRI_TRANSFER">Transfer BRI</option>
+                    {customPaymentMethods.length > 0 && (
+                      <optgroup label="⭐ Bank / E-Wallet Kustom Anda">
+                        {customPaymentMethods.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="🌙 Bank Syariah">
+                      <option value="Bank Syariah Indonesia (BSI)">Bank Syariah Indonesia (BSI)</option>
+                      <option value="Bank Muamalat (Syariah)">Bank Muamalat</option>
+                      <option value="BCA Syariah">BCA Syariah</option>
+                      <option value="Bank Aladin Syariah">Bank Aladin Syariah</option>
+                      <option value="Bank Jago Syariah">Bank Jago Syariah</option>
+                      <option value="Bank Mega Syariah">Bank Mega Syariah</option>
+                    </optgroup>
+                    <optgroup label="💳 Dompet Digital / E-Wallet">
+                      <option value="GoPay">GoPay</option>
+                      <option value="DANA">DANA</option>
+                      <option value="OVO">OVO</option>
+                      <option value="ShopeePay">ShopeePay</option>
+                      <option value="LinkAja">LinkAja</option>
+                      <option value="AstraPay">AstraPay</option>
+                    </optgroup>
+                    <optgroup label="📱 Bank Digital">
+                      <option value="Bank Jago">Bank Jago</option>
+                      <option value="SeaBank">SeaBank</option>
+                      <option value="Blu by BCA Digital">Blu by BCA Digital</option>
+                      <option value="Bank Neo Commerce">Bank Neo Commerce (BNC)</option>
+                      <option value="Allobank">Allobank</option>
+                      <option value="Jenius (BTPN)">Jenius (BTPN)</option>
+                    </optgroup>
+                    <optgroup label="🏦 Bank Konvensional">
+                      <option value="Transfer Bank BCA">Transfer Bank BCA</option>
+                      <option value="Transfer Bank Mandiri">Transfer Bank Mandiri</option>
+                      <option value="Transfer Bank BRI">Transfer Bank BRI</option>
+                      <option value="Transfer Bank BNI">Transfer Bank BNI</option>
+                      <option value="Transfer Bank CIMB Niaga">Transfer Bank CIMB Niaga</option>
+                      <option value="Transfer Bank Permata">Transfer Bank Permata</option>
+                      <option value="Transfer Bank Danamon">Transfer Bank Danamon</option>
+                    </optgroup>
+                    <optgroup label="💵 Tunai & QRIS">
+                      <option value="Tunai (Diterima oleh Kepala Komplek)">💵 Tunai (Diterima oleh Kepala Komplek)</option>
+                      <option value="Tunai / Cash">Tunai / Cash</option>
+                      <option value="QRIS Dinamis">QRIS Dinamis</option>
+                    </optgroup>
+                    {['BCA_TRANSFER', 'MANDIRI_TRANSFER', 'BRI_TRANSFER', 'CASH', 'CASH_KEPALA_KOMPLEK', 'QRIS'].includes(formMethod) && (
+                      <optgroup label="Pilihan Tersimpan">
+                        <option value={formMethod}>{formatPaymentMethod(formMethod)}</option>
+                      </optgroup>
+                    )}
+                    <option value="__ADD_NEW__">➕ Tambah Bank / E-Wallet Baru...</option>
                   </select>
                 </div>
               </div>
+
+              {/* Box Tambah Metode Baru */}
+              {showAddMethodSection && (
+                <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-2xl space-y-2.5 animate-in fade-in slide-in-from-top-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-emerald-950 flex items-center gap-1.5 text-xs">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                      Tambah Bank Digital, E-Wallet, atau Bank Lainnya
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMethodSection(false)}
+                      className="text-emerald-700 hover:text-emerald-950 text-[11px] font-bold"
+                    >
+                      ✕ Batal
+                    </button>
+                  </div>
+
+                  {/* Preset Quick Chips */}
+                  <div>
+                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block mb-1">
+                      Pilihan Cepat (Klik untuk Langsung Tambah & Pilih):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {POPULAR_PAYMENT_SUGGESTIONS.map((sug) => (
+                        <button
+                          key={sug.name}
+                          type="button"
+                          onClick={() => {
+                            handleAddCustomMethod(sug.name);
+                            setShowAddMethodSection(false);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-900 font-bold text-[10px] hover:bg-emerald-100 active:scale-[0.98] transition-all shadow-2xs inline-flex items-center gap-1"
+                        >
+                          <span>+ {sug.name}</span>
+                          <span className="text-[8px] px-1 py-0.2 bg-emerald-100 text-emerald-800 rounded font-normal">
+                            {sug.category}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Name Input */}
+                  <div>
+                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block mb-1">
+                      Atau Ketik Nama Bank / Dompet Digital Kustom:
+                    </span>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Contoh: SeaBank / Bank Jago / DANA / AstraPay"
+                        value={customMethodInput}
+                        onChange={(e) => setCustomMethodInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (customMethodInput.trim()) {
+                              handleAddCustomMethod(customMethodInput.trim());
+                              setCustomMethodInput('');
+                              setShowAddMethodSection(false);
+                            }
+                          }
+                        }}
+                        className="flex-1 p-2 bg-white border border-emerald-300 rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customMethodInput.trim()) {
+                            handleAddCustomMethod(customMethodInput.trim());
+                            setCustomMethodInput('');
+                            setShowAddMethodSection(false);
+                          }
+                        }}
+                        disabled={!customMethodInput.trim()}
+                        className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs disabled:opacity-50 active:scale-[0.98] transition-all shadow-xs shrink-0"
+                      >
+                        Simpan & Pilih
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="font-bold text-ink block mb-1">No. Referensi Transfer</label>

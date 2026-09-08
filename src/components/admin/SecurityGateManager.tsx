@@ -136,20 +136,39 @@ export const DEFAULT_GUARDS: SecurityGuard[] = [
     id: 'GUARD-001',
     nip: 'SEC.2026.2280',
     fullName: 'Pa Adri Harry',
-    role: 'Satpam Tunggal 24 Jam (Piket Gerbang & Patroli)',
+    role: 'Satpam Utama (Piket Gerbang & Patroli 24 Jam)',
     dutyCategory: 'KEAMANAN_MURNI',
-    team: 'Petugas Piket Gerbang',
+    team: 'Regu Piket Gerbang',
     phone: '0812-2008-2240',
-    emergencyContact: '-',
+    emergencyContact: '0812-3456-7801',
     certification: 'GADA_PRATAMA',
     regNumber: 'POL-REG-88201',
     assignedPost: 'Pos Gerbang Utama (Main Gate)',
     shift: 'SHIFT_24_JAM',
-    salary: 4500000,
-    nightAllowance: 500000,
+    salary: 1350000,
+    nightAllowance: 200000,
     status: 'AKTIF_BERTUGAS',
     joinDate: '2024-01-10',
-    notes: 'Piket tunggal pos gerbang & ronda berkala mandiri 14 kavling.',
+    notes: 'Piket pos gerbang & ronda berkala klaster 14 kavling.',
+  },
+  {
+    id: 'GUARD-002',
+    nip: 'SEC.2026.2281',
+    fullName: 'Pak Slamet Radiyanto',
+    role: 'Petugas Jaga & Keamanan Komplek',
+    dutyCategory: 'KEAMANAN_MURNI',
+    team: 'Regu Piket Gerbang',
+    phone: '0813-8899-2241',
+    emergencyContact: '0812-3456-7802',
+    certification: 'GADA_PRATAMA',
+    regNumber: 'POL-REG-88202',
+    assignedPost: 'Pos Gerbang Utama (Main Gate)',
+    shift: 'SHIFT_24_JAM',
+    salary: 1100000,
+    nightAllowance: 150000,
+    status: 'LEPAS_PIKET',
+    joinDate: '2024-03-01',
+    notes: 'Petugas jaga shift bergilir klaster 14 kavling.',
   }
 ];
 
@@ -843,6 +862,132 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     showToast(`🔄 Serah terima piket 24 jam berhasil! ${incomingGuard.fullName} kini bertugas aktif hingga esok pagi.`);
   };
 
+  const handleApply2ShiftPreset = () => {
+    if (guards.length < 2) {
+      showToast('Dibutuhkan minimal 2 personel satpam untuk pola 2 Shift Harian.');
+      return;
+    }
+    const guard1 = activeSoloGuard || guards[0];
+    const guard2 = guards.find(g => g.id !== guard1?.id) || guards[1];
+
+    const morningRoster: RosterSchedule = {
+      id: `ROSTER-PAGI-${Date.now()}`,
+      teamName: 'Shift Pagi (Gerbang & Patroli Siang)',
+      shiftType: 'SHIFT_PAGI',
+      shiftLabel: 'Shift Pagi (12 Jam)',
+      shiftHours: '07:00 - 19:00 WIB',
+      dutyCategory: 'KEAMANAN_MURNI',
+      assignedGuards: [
+        {
+          guardId: guard1.id,
+          guardName: guard1.fullName,
+          role: guard1.role || 'Satpam Shift Pagi',
+          assignedArea: guard1.assignedPost || 'Pos Gerbang Utama (Main Gate)',
+          specialDuty: 'Buka portal 06:00, verifikasi tamu & kurir siang, nyalakan lampu PJU 18:00 WIB'
+        }
+      ],
+      status: 'SEDANG_DINAS',
+      shiftDate: new Date().toISOString().split('T')[0],
+      notes: `Petugas shift pagi: ${guard1.fullName}. Serah terima tugas ke shift malam pukul 19:00 WIB.`
+    };
+
+    const nightRoster: RosterSchedule = {
+      id: `ROSTER-MALAM-${Date.now() + 1}`,
+      teamName: 'Shift Malam (Gerbang & Ronda Dini Hari)',
+      shiftType: 'SHIFT_MALAM',
+      shiftLabel: 'Shift Malam (12 Jam)',
+      shiftHours: '19:00 - 07:00 WIB',
+      dutyCategory: 'KEAMANAN_MURNI',
+      assignedGuards: [
+        {
+          guardId: guard2.id,
+          guardName: guard2.fullName,
+          role: guard2.role || 'Satpam Shift Malam',
+          assignedArea: guard2.assignedPost || 'Pos Gerbang Utama & Ronda 14 Kavling',
+          specialDuty: 'Gembok portal 21:00 WIB, ronda malam & dini hari 02:30 WIB, buka portal 06:00 WIB'
+        }
+      ],
+      status: 'SIAGA_SIANG',
+      shiftDate: new Date().toISOString().split('T')[0],
+      notes: `Petugas shift malam: ${guard2.fullName}. Standby dan serah terima tugas pukul 19:00 WIB.`
+    };
+
+    const updatedRosters = [morningRoster, nightRoster];
+    setRosters(updatedRosters);
+    savePersisted('wargahub_security_rosters', updatedRosters);
+
+    const updatedGuards = guards.map(g => {
+      if (g.id === guard1.id) {
+        return { ...g, status: 'AKTIF_BERTUGAS' as const, shift: 'SHIFT_PAGI' };
+      }
+      if (g.id === guard2.id) {
+        return { ...g, status: 'LEPAS_PIKET' as const, shift: 'SHIFT_MALAM' };
+      }
+      return g;
+    });
+    setGuards(updatedGuards);
+    savePersisted('wargahub_security_guards', updatedGuards);
+
+    setRosterMode('MULTI_SHIFT');
+    savePersisted('wargahub_roster_mode', 'MULTI_SHIFT');
+    showToast(`Pola 2 Shift Harian aktif: ${guard1.fullName} (Pagi 07:00-19:00) & ${guard2.fullName} (Malam 19:00-07:00).`);
+  };
+
+  const handleApply24hRotationPreset = () => {
+    const guard1 = activeSoloGuard || guards[0];
+    const guard2 = guards.find(g => g.id !== guard1?.id) || guards[1] || guard1;
+
+    if (!guard1) {
+      showToast('Data satpam belum tersedia.');
+      return;
+    }
+
+    const soloRoster: RosterSchedule = {
+      id: `ROSTER-SOLO-24H-${Date.now()}`,
+      teamName: guards.length >= 2 ? 'Piket 24 Jam Estafet Bergantian' : 'Piket Tunggal 24 Jam (Pagi s/d Pagi)',
+      shiftType: 'SHIFT_24_JAM',
+      shiftLabel: 'Shift 24 Jam (Pagi s/d Pagi)',
+      shiftHours: '07:00 - 07:00 WIB (24 Jam Penuh)',
+      dutyCategory: 'KEAMANAN_MURNI',
+      assignedGuards: [
+        {
+          guardId: guard1.id,
+          guardName: guard1.fullName,
+          role: guard1.role || 'Satpam Piket 24 Jam',
+          assignedArea: guard1.assignedPost || 'Pos Gerbang Utama & Ronda 14 Kavling',
+          specialDuty: 'Dinas 24 jam: Jaga gerbang, PJU 18:00, gembok portal 21:00, ronda dini hari 02:30'
+        }
+      ],
+      status: 'SEDANG_DINAS',
+      isSolo24Hour: true,
+      shiftDate: new Date().toISOString().split('T')[0],
+      handoverTime: '07:00 WIB',
+      nextHandoverGuardName: guard2 ? guard2.fullName : undefined,
+      notes: guards.length >= 2 && guard2.id !== guard1.id
+        ? `Sistem 2 Satpam Rotasi 24 Jam: Hari ini ${guard1.fullName} dinas 24 jam penuh. Serah terima esok pukul 07:00 WIB kepada ${guard2.fullName}.`
+        : `Piket tunggal 24 jam: ${guard1.fullName}.`
+    };
+
+    setRosters([soloRoster]);
+    savePersisted('wargahub_security_rosters', [soloRoster]);
+
+    const updatedGuards = guards.map(g => {
+      if (g.id === guard1.id) {
+        return { ...g, status: 'AKTIF_BERTUGAS' as const, shift: 'SHIFT_24_JAM' };
+      }
+      if (guard2 && g.id === guard2.id) {
+        return { ...g, status: 'LEPAS_PIKET' as const, shift: 'SHIFT_24_JAM' };
+      }
+      return g;
+    });
+    setGuards(updatedGuards);
+    savePersisted('wargahub_security_guards', updatedGuards);
+
+    setRosterMode('SOLO_24H');
+    savePersisted('wargahub_roster_mode', 'SOLO_24H');
+    showToast(`Pola 24 Jam Bergantian aktif: ${guard1.fullName} dinas hari ini, ${guard2?.fullName || 'mitra'} dinas besok.`);
+  };
+
   // ================= ROSTER HANDLERS =================
   const handleOpenAddRoster = () => {
     setEditingRosterId(null);
@@ -1260,29 +1405,36 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   const activeGuardId = activeSoloRoster?.assignedGuards[0]?.guardId;
   const activeSoloGuard = guards.find(g => g.id === activeGuardId) || guards[0];
   const nextSoloGuardName = activeSoloRoster?.nextHandoverGuardName || '';
-  const nextSoloGuardObj = guards.find(g => g.id !== activeSoloGuard?.id);
+  const nextSoloGuardObj = guards.find(g => g.id !== activeSoloGuard?.id) || (guards.length > 1 ? guards[1] : null);
 
-  // 7-Day Solo Rotation Projection
+  // 7-Day Solo / Estafet Rotation Projection (Alternating across guards)
   const soloWeekSchedule = useMemo(() => {
     const days = [];
     const now = new Date();
-    const guardName = activeSoloGuard?.fullName || 'Pa Adri Harry';
+    const primaryGuard = activeSoloGuard || guards[0];
+    const secondaryGuard = nextSoloGuardObj || (guards.length > 1 ? guards.find(g => g.id !== primaryGuard?.id) : null) || primaryGuard;
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(now);
       d.setDate(d.getDate() + i);
       const dayName = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+      
+      const currentGuard = guards.length >= 2 
+        ? (i % 2 === 0 ? primaryGuard : secondaryGuard)
+        : primaryGuard;
+
       days.push({
         index: i,
         dateLabel: dayName,
         isToday: i === 0,
         isTomorrow: i === 1,
-        guardName: guardName,
-        shiftHours: '07:00 - 07:00 WIB (24 Jam Mandiri)'
+        guardName: currentGuard?.fullName || 'Petugas Satpam',
+        guardNip: currentGuard?.nip || '',
+        shiftHours: guards.length >= 2 ? '07:00 - 07:00 WIB (24 Jam Estafet)' : '07:00 - 07:00 WIB (24 Jam Mandiri)'
       });
     }
     return days;
-  }, [activeSoloGuard?.fullName]);
+  }, [activeSoloGuard?.id, activeSoloGuard?.fullName, nextSoloGuardObj?.id, guards]);
 
   return (
     <div className="space-y-6">
@@ -1743,7 +1895,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 font-black text-[10px] uppercase tracking-wider border border-amber-500/20 flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  Rekomendasi Klaster Kecil
+                  {guards.length >= 2 ? 'Sistem 2 Personel Satpam' : 'Rekomendasi Klaster Kecil'}
                 </span>
                 <span className="text-ink-muted text-xs">• 14 Kavling (A s/d M)</span>
               </div>
@@ -1752,7 +1904,9 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                 Roster Jadwal Shift & Penugasan Area Jaga
               </h3>
               <p className="text-xs text-ink-muted mt-0.5">
-                Pengaturan rotasi dinamis satpam tunggal 24 jam (pagi s/d pagi), serah terima estafet, buku checklist tugas harian, dan mutasi pos.
+                {guards.length >= 2
+                  ? 'Pengaturan jadwal jaga 2 satpam: pilih sistem Estafet 24 Jam Bergantian (1 Hari Masuk - 1 Hari Libur) atau 2 Shift Harian (Pagi & Malam).'
+                  : 'Pengaturan rotasi dinamis satpam tunggal 24 jam (pagi s/d pagi), serah terima estafet, buku checklist tugas harian, dan mutasi pos.'}
               </p>
             </div>
 
@@ -1768,8 +1922,8 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                       : 'text-ink-muted hover:text-ink hover:bg-surface'
                   }`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Mode 1 Satpam 24 Jam</span>
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>{guards.length >= 2 ? '24 Jam Bergantian' : 'Mode 1 Satpam 24 Jam'}</span>
                 </button>
                 <button
                   type="button"
@@ -1781,7 +1935,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   }`}
                 >
                   <Users className="w-3.5 h-3.5" />
-                  <span>Multi-Shift Reguler</span>
+                  <span>{guards.length >= 2 ? '2 Shift Harian (Pagi & Malam)' : 'Multi-Shift Reguler'}</span>
                 </button>
               </div>
 
@@ -1792,17 +1946,17 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                 className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs active:scale-[0.98]"
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span>⚡ Atur Rotasi 1 Satpam 24 Jam</span>
+                <span>{guards.length >= 2 ? '⚡ Atur Rotasi 2 Satpam' : '⚡ Atur Rotasi 1 Satpam 24 Jam'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleQuickHandover24h}
                 className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs active:scale-[0.98]"
-                title="Serah terima mutasi pagi ke satpam berikutnya"
+                title="Tukar giliran tugas satpam hari ini / serah terima pagi"
               >
                 <RefreshCw className="w-3.5 h-3.5 text-emerald-700" />
-                <span>🔄 Serah Terima Pagi (Cepat)</span>
+                <span>🔄 Tukar Giliran / Estafet Pagi</span>
               </button>
 
               <button
@@ -1831,7 +1985,93 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
             </div>
           </div>
 
-          {/* ================= HERO TACTICAL CARD: 1 SATPAM TUNGGAL 24 JAM (PAGI S/D PAGI) ================= */}
+          {/* 2-Satpam Intelligent Operational Preset Bar */}
+          {guards.length >= 2 && (
+            <div className="p-4 bg-gradient-to-r from-amber-500/10 via-primary-500/10 to-teal-500/10 rounded-2xl border-2 border-primary-400/40 dark:border-primary-600/40 shadow-xs space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-primary-600 text-white font-black text-[11px] tracking-wide flex items-center gap-1.5 shadow-2xs">
+                    <Users className="w-3.5 h-3.5" />
+                    TERDETEKSI 2 SATPAM TERDAFTAR
+                  </span>
+                  <span className="text-xs font-bold text-ink">
+                    Pilih Format Pengaturan Jadwal:
+                  </span>
+                </div>
+                <div className="text-[11px] font-mono text-ink-muted">
+                  Personel: <strong className="text-ink">{guards[0]?.fullName}</strong> & <strong className="text-ink">{guards[1]?.fullName}</strong>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                {/* Opsi 1: 24 Jam Bergantian */}
+                <div 
+                  onClick={handleApply24hRotationPreset}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                    rosterMode === 'SOLO_24H'
+                      ? 'bg-amber-500/15 border-amber-500 shadow-xs ring-1 ring-amber-400'
+                      : 'bg-surface hover:bg-canvas border-border text-ink'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-black">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <strong className="text-xs font-black text-ink block">
+                          Pola 1: 24 Jam Bergantian (Estafet)
+                        </strong>
+                        <span className="text-[10px] text-ink-muted">1 Hari Masuk Dinas (24 Jam) — 1 Hari Libur / Lepas Piket</span>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-md font-extrabold text-[10px] ${
+                      rosterMode === 'SOLO_24H' ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-ink'
+                    }`}>
+                      {rosterMode === 'SOLO_24H' ? '✓ POLA AKTIF' : 'KLIK PILIH POLA INI'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-muted mt-2 leading-relaxed">
+                    Hari ini <strong>{activeSoloGuard?.fullName || guards[0]?.fullName}</strong> dinas 24 jam di pos gerbang. Besok pukul 07:00 WIB serah terima bergantian ke <strong>{nextSoloGuardObj?.fullName || guards[1]?.fullName}</strong>.
+                  </p>
+                </div>
+
+                {/* Opsi 2: 2 Shift Harian */}
+                <div 
+                  onClick={handleApply2ShiftPreset}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                    rosterMode === 'MULTI_SHIFT'
+                      ? 'bg-primary-600/15 border-primary-600 shadow-xs ring-1 ring-primary-500'
+                      : 'bg-surface hover:bg-canvas border-border text-ink'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-primary-600 text-white flex items-center justify-center font-black">
+                        <Sun className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <strong className="text-xs font-black text-ink block">
+                          Pola 2: 2 Shift Harian (Pagi & Malam)
+                        </strong>
+                        <span className="text-[10px] text-ink-muted">Shift Pagi (07:00-19:00) & Shift Malam (19:00-07:00)</span>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-md font-extrabold text-[10px] ${
+                      rosterMode === 'MULTI_SHIFT' ? 'bg-primary-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-ink'
+                    }`}>
+                      {rosterMode === 'MULTI_SHIFT' ? '✓ POLA AKTIF' : 'KLIK PILIH POLA INI'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-muted mt-2 leading-relaxed">
+                    Setiap hari pos dijaga oleh 2 satpam bergantian jam: Shift Pagi (<strong>{guards[0]?.fullName}</strong>) dan Shift Malam (<strong>{guards[1]?.fullName}</strong>).
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= HERO TACTICAL CARD: POLA 1 (24 JAM BERGANTIAN / ESTAFET) ================= */}
           {rosterMode === 'SOLO_24H' && (
             <div className="p-5 md:p-6 bg-gradient-to-br from-amber-500/5 via-surface to-surface rounded-3xl border-2 border-amber-500/30 shadow-card space-y-5">
               {/* Card Header */}
@@ -1840,18 +2080,29 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-black text-[11px] tracking-wide flex items-center gap-1.5 shadow-2xs">
                       <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                      SEDANG DINAS 24 JAM (PAGI S/D PAGI)
+                      SEDANG DINAS: {activeSoloGuard?.fullName || 'Petugas Satpam'}
                     </span>
+                    {guards.length >= 2 && nextSoloGuardObj && (
+                      <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-900 border border-blue-200 font-bold text-[11px]">
+                        LEPAS PIKET / DINAS BESOK: {nextSoloGuardObj.fullName}
+                      </span>
+                    )}
                     <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-bold text-[11px] font-mono">
-                      Jam Kerja: 07:00 WIB s/d 07:00 WIB Besok
+                      Jam Kerja: 07:00 WIB s/d 07:00 WIB Besok (24 Jam)
                     </span>
                   </div>
                   <h4 className="text-base font-black text-ink mt-2 flex items-center gap-2">
                     <Home className="w-4 h-4 text-amber-600" />
-                    <span>Sistem Pengamanan Komplek Kecil: Piket Tunggal Mandiri (1 Orang Satpam)</span>
+                    <span>
+                      {guards.length >= 2
+                        ? 'Sistem Rotasi 2 Satpam: Piket 24 Jam Bergantian (Estafet Pagi ke Pagi)'
+                        : 'Sistem Pengamanan Komplek Kecil: Piket Tunggal Mandiri (1 Orang Satpam)'}
+                    </span>
                   </h4>
                   <p className="text-xs text-ink-muted mt-0.5">
-                    Karena skala klaster kecil (14 kavling), pos pengamanan dioperasikan secara penuh oleh 1 orang satpam dari pagi hingga pagi berikutnya secara estafet.
+                    {guards.length >= 2
+                      ? `Pos gerbang 14 kavling dijaga penuh 24 jam dengan pola estafet (1 Hari Masuk Dinas - 1 Hari Libur Lepas Piket) secara bergantian antara ${activeSoloGuard?.fullName} dan ${nextSoloGuardObj?.fullName || 'mitra'}.`
+                      : 'Karena skala klaster kecil (14 kavling), pos pengamanan dioperasikan secara mandiri oleh 1 orang satpam dari pagi hingga pagi berikutnya secara estafet.'}
                   </p>
                 </div>
 
@@ -1864,221 +2115,426 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                 </div>
               </div>
 
-              {/* 2-Column Split: Active Guard & 24H Cycle Timeline */}
+              {/* 2-Column Split: Active Guard & Handover Next Guard */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-                {/* Left Column: Active Guard Profile & Handover (5 cols) */}
-                <div className="lg:col-span-5 space-y-3.5">
-                  {/* Active Guard Card */}
-                  <div className="p-4 bg-canvas/80 rounded-2xl border border-border space-y-3">
+                {/* Left Column: Guard 1 - Active Today (6 cols) */}
+                <div className="lg:col-span-6 space-y-3.5">
+                  <div className="p-4 bg-canvas/90 rounded-2xl border-2 border-emerald-500/40 shadow-xs space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="relative">
-                          <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white font-black text-lg flex items-center justify-center shadow-xs">
-                            {activeSoloGuard?.fullName?.charAt(0) || 'J'}
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-xs">
+                            {activeSoloGuard?.fullName?.charAt(0) || 'S'}
                           </div>
-                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-surface" title="Aktif di Pos" />
+                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-surface animate-pulse" title="Aktif Bertugas" />
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="px-2 py-0.2 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-200">
-                              PETUGAS HARI INI
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-black shadow-2xs">
+                              PETUGAS HARI INI (SEDANG DINAS)
+                            </span>
+                            <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-300 font-bold">
+                              07:00 - 07:00 WIB
                             </span>
                           </div>
-                          <h5 className="text-sm font-black text-ink mt-0.5">{activeSoloGuard?.fullName || 'Pak Joko Sutrisno'}</h5>
-                          <span className="text-[11px] text-ink-muted font-mono">{activeSoloGuard?.nip || 'SEC.2026.1001'} • {activeSoloGuard?.role || 'Satpam Tunggal 24 Jam'}</span>
+                          <h5 className="text-sm font-black text-ink mt-0.5">{activeSoloGuard?.fullName || 'Petugas Satpam'}</h5>
+                          <span className="text-[11px] text-ink-muted font-mono">{activeSoloGuard?.nip || 'SEC.2026.0001'} • {activeSoloGuard?.role || 'Satpam Piket 24 Jam'}</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-1.5 pt-1 text-xs">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-ink-muted">Titik Jaga Utama:</span>
+                        <span className="text-ink-muted">Titik Jaga:</span>
                         <strong className="text-ink font-semibold flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-rose-500" />
                           {activeSoloGuard?.assignedPost || 'Pos Gerbang Utama & Ronda 14 Kavling'}
                         </strong>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-ink-muted">Kontak Darurat:</span>
-                        <span className="text-ink font-mono">{activeSoloGuard?.emergencyContact || '-'}</span>
+                        <span className="text-ink-muted">Tugas Khusus:</span>
+                        <span className="text-emerald-800 dark:text-emerald-300 font-bold">
+                          Standby Gerbang, PJU 18:00, Portal 21:00, Ronda 02:30
+                        </span>
                       </div>
                     </div>
 
                     {/* Quick Call & WhatsApp Buttons */}
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <a
-                        href={`tel:${activeSoloGuard?.phone || '0812-3456-7890'}`}
+                        href={`tel:${activeSoloGuard?.phone || '0812-0000-0000'}`}
                         className="py-2 px-3 bg-surface hover:bg-canvas text-ink border border-border font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs font-mono"
                       >
                         <Phone className="w-3.5 h-3.5 text-primary-600" />
-                        <span>{activeSoloGuard?.phone || '0812-3456-7890'}</span>
+                        <span>{activeSoloGuard?.phone || '-'}</span>
                       </a>
                       <a
-                        href={`https://wa.me/${activeSoloGuard?.phone ? activeSoloGuard.phone.replace(/[^0-9]/g, '') : '6281234567890'}`}
+                        href={`https://wa.me/${activeSoloGuard?.phone ? activeSoloGuard.phone.replace(/[^0-9]/g, '') : ''}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
                       >
                         <Smartphone className="w-3.5 h-3.5" />
-                        <span>Hubungi WhatsApp</span>
+                        <span>WhatsApp</span>
                       </a>
-                    </div>
-                  </div>
-
-                  {/* Solo Guard 24h Operational Mode Box */}
-                  <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-emerald-950 flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        Sistem Piket Tunggal Mandiri (24 Jam)
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 font-black text-[10px]">
-                        1 SATPAM TETAP
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] text-emerald-900 leading-relaxed">
-                      Sesuai skala komplek (14 kavling), pos gerbang utama dijaga mandiri oleh <strong>{activeSoloGuard?.fullName || 'Pa Adri Harry'}</strong> dari pukul <strong>07:00 WIB s/d 07:00 WIB esok hari</strong> tanpa estafet pergantian orang.
-                    </p>
-
-                    <div className="pt-1 flex items-center justify-between border-t border-emerald-200/80 text-[11px] text-emerald-800 font-mono">
-                      <span>✓ Kontrol Portal & PJU Terpusat</span>
-                      <span className="font-bold">Standby Pos Gerbang</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Right Column: 24-Hour Cycle Milestones (7 cols) */}
-                <div className="lg:col-span-7 p-4 bg-canvas/80 rounded-2xl border border-border space-y-3.5">
-                  <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-amber-600" />
-                      <h5 className="font-black text-xs text-ink">Timeline Siklus Piket 24 Jam Pagi s/d Pagi (Standar Operasional Komplek)</h5>
-                    </div>
-                    <span className="text-[10px] text-ink-muted font-mono">1 Personel Bertugas Mandiri</span>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {[
-                      {
-                        time: '07:00 WIB',
-                        icon: Sun,
-                        title: 'Serah Terima Piket & Cek Inventaris Pos',
-                        desc: 'Pemeriksaan buku mutasi, HT, lampu darurat, gembok portal, dan kondisi pos.',
-                        badge: 'Waktu Masuk',
-                        badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      },
-                      {
-                        time: '08:00 - 16:00 WIB',
-                        icon: ShieldCheck,
-                        title: 'Standby Gerbang, Tamu & Kurir Paket',
-                        desc: 'Pemeriksaan akses tamu kavling A - M, ojol makanan, paket kurir, dan keamanan jalan.',
-                        badge: 'Siang Hari',
-                        badgeColor: 'bg-blue-50 text-blue-800 border-blue-200'
-                      },
-                      {
-                        time: '18:00 WIB',
-                        icon: Zap,
-                        title: 'Nyalakan Lampu Penerangan Jalan (PJU)',
-                        desc: 'Mengaktifkan saklar PJU utama di gardu dan cek lampu jalan di sepanjang kavling A - M.',
-                        badge: 'Wajib Sore',
-                        badgeColor: 'bg-amber-50 text-amber-900 border-amber-200'
-                      },
-                      {
-                        time: '21:00 WIB',
-                        icon: Moon,
-                        title: 'Gembok & Kunci Portal Utama Komplek',
-                        desc: 'Akses terbatas 1 pintu diberlakukan. Setiap tamu malam wajib lapor satpam bertugas.',
-                        badge: 'Keamanan Malam',
-                        badgeColor: 'bg-rose-50 text-rose-800 border-rose-200'
-                      },
-                      {
-                        time: '23:30 & 02:30 WIB',
-                        icon: Compass,
-                        title: 'Ronda Keliling Malam & Dini Hari (14 Kavling)',
-                        desc: 'Patroli jalan kaki bersenter keliling Kav A s/d Kav M, cek mobil di carport dan pagar.',
-                        badge: 'Ronda Dini Hari',
-                        badgeColor: 'bg-purple-50 text-purple-800 border-purple-200'
-                      },
-                      {
-                        time: '07:00 WIB (Besok)',
-                        icon: RefreshCw,
-                        title: 'Buka Portal & Serah Terima ke Petugas Berikutnya',
-                        desc: 'Padamkan PJU pagi, buka kunci portal, dan serahkan buku mutasi ke satpam pengganti.',
-                        badge: 'Serah Terima',
-                        badgeColor: 'bg-teal-50 text-teal-800 border-teal-200'
-                      }
-                    ].map((step, idx) => {
-                      const StepIcon = step.icon;
-                      return (
-                        <div key={idx} className="p-2.5 bg-surface rounded-xl border border-border/70 flex items-start gap-3 transition-colors hover:border-amber-300">
-                          <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
-                            <StepIcon className="w-3.5 h-3.5" />
+                {/* Right Column: Guard 2 - Off Today / On Duty Tomorrow (6 cols) */}
+                <div className="lg:col-span-6 space-y-3.5">
+                  {guards.length >= 2 && nextSoloGuardObj ? (
+                    <div className="p-4 bg-canvas/90 rounded-2xl border-2 border-blue-400/40 shadow-xs space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white font-black text-lg flex items-center justify-center shadow-xs">
+                              {nextSoloGuardObj.fullName.charAt(0)}
+                            </div>
+                            <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-blue-400 border-2 border-surface" title="Lepas Piket" />
                           </div>
-                          <div className="flex-1 space-y-0.5 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-xs text-ink truncate">{step.title}</span>
-                              <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border shrink-0 ${step.badgeColor}`}>
-                                {step.badge}
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 border border-blue-200 text-[10px] font-black">
+                                PETUGAS MITRA (LEPAS PIKET / DINAS BESOK)
                               </span>
                             </div>
-                            <p className="text-[11px] text-ink-muted leading-tight">{step.desc}</p>
-                            <div className="text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 pt-0.5">
-                              ⏰ {step.time}
-                            </div>
+                            <h5 className="text-sm font-black text-ink mt-0.5">{nextSoloGuardObj.fullName}</h5>
+                            <span className="text-[11px] text-ink-muted font-mono">{nextSoloGuardObj.nip} • {nextSoloGuardObj.role}</span>
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 text-xs">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-ink-muted">Jadwal Masuk Dinas:</span>
+                          <strong className="text-amber-800 dark:text-amber-300 font-black font-mono flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            Besok Pagi Pukul 07:00 WIB (24 Jam)
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-ink-muted">Status Hari Ini:</span>
+                          <span className="text-blue-700 dark:text-blue-300 font-bold">
+                            Istirahat Lepas Piket (Off) / Siaga Panggilan Darurat
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Fast Switch & Contact */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <a
+                          href={`tel:${nextSoloGuardObj.phone}`}
+                          className="py-2 px-3 bg-surface hover:bg-canvas text-ink border border-border font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs font-mono"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-blue-600" />
+                          <span>{nextSoloGuardObj.phone}</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={handleQuickHandover24h}
+                          className="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                          title="Klik jika hari ini yang bertugas adalah satpam ini"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Tukar Jadi Dinas Hari Ini</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-xs text-amber-950 flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-amber-600" />
+                          Sistem Piket Tunggal Mandiri (1 Orang)
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 font-black text-[10px]">
+                          1 SATPAM
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-900 leading-relaxed">
+                        Pos gerbang dijaga mandiri oleh <strong>{activeSoloGuard?.fullName}</strong>. Tambahkan personel satpam ke-2 pada tab <em>"Personel & Tim Jaga"</em> untuk mengaktifkan sistem rotasi estafet 2 satpam.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 24-Hour Cycle Milestones (Timeline Lengkap) */}
+              <div className="p-4 bg-canvas/80 rounded-2xl border border-border space-y-3.5">
+                <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    <h5 className="font-black text-xs text-ink">Timeline Siklus Piket 24 Jam Pagi s/d Pagi (Standar Operasional Komplek)</h5>
+                  </div>
+                  <span className="text-[10px] text-ink-muted font-mono">
+                    {guards.length >= 2 ? 'Rotasi Estafet Bergantian Setiap 07:00 WIB' : '1 Personel Bertugas Mandiri'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {[
+                    {
+                      time: '07:00 WIB',
+                      icon: Sun,
+                      title: 'Serah Terima Piket & Cek HT/Kunci',
+                      desc: guards.length >= 2
+                        ? `Serah terima mutasi pos antara ${activeSoloGuard?.fullName} & ${nextSoloGuardObj?.fullName || 'mitra'}.`
+                        : 'Pemeriksaan buku mutasi, HT, lampu darurat, gembok portal, dan kondisi pos.',
+                      badge: 'Waktu Masuk',
+                      badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    },
+                    {
+                      time: '08:00 - 16:00 WIB',
+                      icon: ShieldCheck,
+                      title: 'Standby Gerbang, Tamu & Kurir Paket',
+                      desc: 'Pemeriksaan akses tamu kavling A - M, ojol makanan, paket kurir, dan keamanan jalan.',
+                      badge: 'Siang Hari',
+                      badgeColor: 'bg-blue-50 text-blue-800 border-blue-200'
+                    },
+                    {
+                      time: '18:00 WIB',
+                      icon: Zap,
+                      title: 'Nyalakan Lampu Penerangan Jalan (PJU)',
+                      desc: 'Mengaktifkan saklar PJU utama di gardu dan cek lampu jalan di sepanjang kavling A - M.',
+                      badge: 'Wajib Sore',
+                      badgeColor: 'bg-amber-50 text-amber-900 border-amber-200'
+                    },
+                    {
+                      time: '21:00 WIB',
+                      icon: Moon,
+                      title: 'Gembok & Kunci Portal Utama Komplek',
+                      desc: 'Akses terbatas 1 pintu diberlakukan. Setiap tamu malam wajib lapor satpam bertugas.',
+                      badge: 'Keamanan Malam',
+                      badgeColor: 'bg-rose-50 text-rose-800 border-rose-200'
+                    },
+                    {
+                      time: '23:30 & 02:30 WIB',
+                      icon: Compass,
+                      title: 'Ronda Keliling Malam & Dini Hari',
+                      desc: 'Patroli jalan kaki bersenter keliling Kav A s/d Kav M, cek mobil di carport dan pagar keliling.',
+                      badge: 'Ronda Dini Hari',
+                      badgeColor: 'bg-purple-50 text-purple-800 border-purple-200'
+                    },
+                    {
+                      time: '07:00 WIB (Besok)',
+                      icon: RefreshCw,
+                      title: 'Buka Portal & Estafet ke Satpam Besok',
+                      desc: guards.length >= 2
+                        ? `Buka gembok portal, padamkan PJU, dan estafet tugas diserahkan kepada ${nextSoloGuardObj?.fullName || 'satpam pengganti'}.`
+                        : 'Padamkan PJU pagi, buka kunci portal, dan siapkan buku mutasi.',
+                      badge: 'Serah Terima',
+                      badgeColor: 'bg-teal-50 text-teal-800 border-teal-200'
+                    }
+                  ].map((step, idx) => {
+                    const StepIcon = step.icon;
+                    return (
+                      <div key={idx} className="p-2.5 bg-surface rounded-xl border border-border/70 flex items-start gap-3 transition-colors hover:border-amber-300">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                          <StepIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 space-y-0.5 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-xs text-ink truncate">{step.title}</span>
+                            <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border shrink-0 ${step.badgeColor}`}>
+                              {step.badge}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-ink-muted leading-tight">{step.desc}</p>
+                          <div className="text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400 pt-0.5">
+                            ⏰ {step.time}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 7-Day Solo Rotation Calendar / Projection (Alternating across the week) */}
+              <div className="p-4 bg-canvas/90 rounded-2xl border border-border space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary-600" />
+                    <h5 className="font-black text-xs text-ink">
+                      {guards.length >= 2
+                        ? 'Jadwal Rotasi Estafet 2 Satpam (7 Hari ke Depan — Selang-Seling Otomatis)'
+                        : 'Jadwal Rotasi Mingguan 1 Satpam Pagi-ke-Pagi (7 Hari ke Depan)'}
+                    </h5>
+                  </div>
+                  <span className="text-[10px] text-ink-muted">
+                    {guards.length >= 2 ? '1 Hari Dinas Masuk • 1 Hari Libur Lepas Piket' : 'Bergantian Setiap 24 Jam Penuh'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
+                  {soloWeekSchedule.map((day) => {
+                    const isPrimary = day.guardName === (activeSoloGuard?.fullName || guards[0]?.fullName);
+                    return (
+                      <div
+                        key={day.index}
+                        className={`p-3 rounded-xl border text-center space-y-1.5 transition-all ${
+                          day.isToday
+                            ? 'bg-amber-500/10 border-amber-400 text-ink shadow-xs ring-2 ring-amber-400'
+                            : day.isTomorrow
+                            ? 'bg-blue-500/10 border-blue-300 text-ink'
+                            : 'bg-surface/80 border-border/70 text-ink-muted'
+                        }`}
+                      >
+                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-ink-muted">
+                          {day.dateLabel}
+                        </div>
+                        <div className={`w-8 h-8 mx-auto rounded-full flex items-center justify-center font-black text-xs ${
+                          isPrimary ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-blue-100 text-blue-900 border border-blue-300'
+                        }`}>
+                          {day.guardName.charAt(0)}
+                        </div>
+                        <strong className="text-xs font-black text-ink block truncate" title={day.guardName}>
+                          {day.guardName}
+                        </strong>
+                        <span className={`inline-block px-2 py-0.5 rounded-md font-bold text-[9px] ${
+                          day.isToday
+                            ? 'bg-emerald-600 text-white'
+                            : day.isTomorrow
+                            ? 'bg-blue-600 text-white'
+                            : isPrimary
+                            ? 'bg-amber-100 text-amber-900'
+                            : 'bg-slate-200 dark:bg-slate-700 text-ink'
+                        }`}>
+                          {day.isToday ? 'Hari Ini (Dinas)' : day.isTomorrow ? 'Besok (Dinas)' : 'Dinas 24 Jam'}
+                        </span>
+                        <div className="text-[9px] font-mono text-ink-muted">
+                          07:00 - 07:00
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= HERO TACTICAL CARD: POLA 2 (2 SHIFT HARIAN: PAGI & MALAM) ================= */}
+          {rosterMode === 'MULTI_SHIFT' && (
+            <div className="p-5 md:p-6 bg-gradient-to-br from-primary-500/5 via-surface to-surface rounded-3xl border-2 border-primary-500/30 shadow-card space-y-5">
+              {/* Card Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-primary-600 text-white font-black text-[11px] tracking-wide flex items-center gap-1.5 shadow-2xs">
+                      <Sun className="w-3.5 h-3.5" />
+                      SISTEM 2 SHIFT HARIAN (PAGI & MALAM)
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-primary-50 text-primary-900 border border-primary-200 font-bold text-[11px] font-mono">
+                      Pos Dijaga 24 Jam Tanpa Jeda Kosong
+                    </span>
+                  </div>
+                  <h4 className="text-base font-black text-ink mt-2 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-primary-600" />
+                    <span>Penjadwalan 2 Shift Nonstop: Shift Pagi (12 Jam) & Shift Malam (12 Jam)</span>
+                  </h4>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    Kedua personel satpam bertugas setiap hari terbagi menjadi 2 shift kerja untuk memastikan pos gerbang selalu dijaga tanpa henti.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 bg-canvas px-3.5 py-2 rounded-2xl border border-border/80 shrink-0">
+                  <Clock className="w-4 h-4 text-primary-600 animate-pulse" />
+                  <div className="text-right">
+                    <span className="text-[10px] text-ink-muted block font-semibold">Waktu WIB Saat Ini</span>
+                    <span className="text-xs font-mono font-black text-ink">{currentWibTime}</span>
                   </div>
                 </div>
               </div>
 
-              {/* 7-Day Solo Rotation Calendar / Projection */}
-              <div className="p-4 bg-canvas/90 rounded-2xl border border-border space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-primary-600" />
-                    <h5 className="font-black text-xs text-ink">Jadwal Rotasi Mingguan 1 Satpam Pagi-ke-Pagi (7 Hari ke Depan)</h5>
+              {/* 2-Column Split: Shift Pagi & Shift Malam */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Shift Pagi Card */}
+                <div className="p-4 bg-canvas/90 rounded-2xl border-2 border-amber-400/50 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-black text-[10px] flex items-center gap-1">
+                      <Sun className="w-3.5 h-3.5" />
+                      SHIFT PAGI (12 JAM)
+                    </span>
+                    <span className="font-mono text-xs font-black text-amber-700 dark:text-amber-300">
+                      07:00 - 19:00 WIB
+                    </span>
                   </div>
-                  <span className="text-[10px] text-ink-muted">Bergantian Setiap 24 Jam Penuh</span>
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white font-black text-base flex items-center justify-center shadow-xs">
+                      {guards[0]?.fullName?.charAt(0) || 'P'}
+                    </div>
+                    <div>
+                      <h5 className="text-sm font-black text-ink">{guards[0]?.fullName || 'Petugas Shift Pagi'}</h5>
+                      <span className="text-[11px] text-ink-muted font-mono">{guards[0]?.nip || '-'} • Satpam Shift Pagi</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-xs border-t border-border/70 pt-2 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">Tugas Utama:</span>
+                      <strong className="text-ink">Buka Portal 06:00, Pantau Kurir/Tamu</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">Tugas Khusus Sore:</span>
+                      <strong className="text-amber-700 dark:text-amber-400">Nyalakan Lampu PJU 18:00 WIB</strong>
+                    </div>
+                  </div>
+
+                  <div className="pt-1">
+                    <a
+                      href={`tel:${guards[0]?.phone || ''}`}
+                      className="py-1.5 px-3 bg-surface hover:bg-canvas text-ink border border-border font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors font-mono"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-primary-600" />
+                      <span>{guards[0]?.phone || 'Hubungi Petugas'}</span>
+                    </a>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
-                  {soloWeekSchedule.map((day) => (
-                    <div
-                      key={day.index}
-                      className={`p-3 rounded-xl border text-center space-y-1.5 transition-all ${
-                        day.isToday
-                          ? 'bg-amber-500/10 border-amber-400 text-ink shadow-xs ring-1 ring-amber-400'
-                          : day.isTomorrow
-                          ? 'bg-surface border-border text-ink'
-                          : 'bg-surface/60 border-border/70 text-ink-muted'
-                      }`}
-                    >
-                      <div className="text-[10px] font-extrabold uppercase tracking-wider text-ink-muted">
-                        {day.dateLabel}
-                      </div>
-                      <div className="w-8 h-8 mx-auto rounded-full bg-amber-100 text-amber-900 flex items-center justify-center font-black text-xs">
-                        {day.guardName.charAt(0)}
-                      </div>
-                      <strong className="text-xs font-black text-ink block truncate" title={day.guardName}>
-                        {day.guardName}
-                      </strong>
-                      <span className={`inline-block px-2 py-0.5 rounded-md font-bold text-[9px] ${
-                        day.isToday
-                          ? 'bg-emerald-600 text-white'
-                          : day.isTomorrow
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-slate-200 dark:bg-slate-700 text-ink'
-                      }`}>
-                        {day.isToday ? 'Hari Ini (Aktif)' : day.isTomorrow ? 'Besok (Siaga)' : 'Terjadwal'}
-                      </span>
-                      <div className="text-[9px] font-mono text-ink-muted">
-                        07:00 - 07:00
-                      </div>
+                {/* Shift Malam Card */}
+                <div className="p-4 bg-canvas/90 rounded-2xl border-2 border-indigo-400/50 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-black text-[10px] flex items-center gap-1">
+                      <Moon className="w-3.5 h-3.5" />
+                      SHIFT MALAM (12 JAM)
+                    </span>
+                    <span className="font-mono text-xs font-black text-indigo-700 dark:text-indigo-300">
+                      19:00 - 07:00 WIB
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white font-black text-base flex items-center justify-center shadow-xs">
+                      {guards[1]?.fullName?.charAt(0) || guards[0]?.fullName?.charAt(0) || 'M'}
                     </div>
-                  ))}
+                    <div>
+                      <h5 className="text-sm font-black text-ink">{guards[1]?.fullName || guards[0]?.fullName || 'Petugas Shift Malam'}</h5>
+                      <span className="text-[11px] text-ink-muted font-mono">{guards[1]?.nip || guards[0]?.nip || '-'} • Satpam Shift Malam</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-xs border-t border-border/70 pt-2 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">Tugas Utama:</span>
+                      <strong className="text-ink">Kunci Portal 21:00, Akses Tamu Malam</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">Ronda Dini Hari:</span>
+                      <strong className="text-indigo-700 dark:text-indigo-400">Patroli Kav A-M (02:30 WIB)</strong>
+                    </div>
+                  </div>
+
+                  <div className="pt-1">
+                    <a
+                      href={`tel:${guards[1]?.phone || guards[0]?.phone || ''}`}
+                      className="py-1.5 px-3 bg-surface hover:bg-canvas text-ink border border-border font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors font-mono"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>{guards[1]?.phone || guards[0]?.phone || 'Hubungi Petugas'}</span>
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3501,7 +3957,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: ATUR ROTASI 1 SATPAM 24 JAM (PAGI S/D PAGI) ================= */}
+      {/* ================= MODAL: ATUR ROTASI SATPAM 24 JAM (PAGI S/D PAGI) ================= */}
       {showSolo24hModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in">
           <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal max-h-[90vh] overflow-y-auto space-y-4 text-xs">
@@ -3512,12 +3968,16 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                 </div>
                 <div>
                   <h3 className="font-black text-base text-ink flex items-center gap-1.5">
-                    <span>Atur Rotasi 1 Satpam 24 Jam</span>
+                    <span>{guards.length >= 2 ? 'Atur Rotasi 2 Satpam: 24 Jam Bergantian' : 'Atur Rotasi 1 Satpam 24 Jam'}</span>
                     <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-extrabold text-[10px] uppercase tracking-wider">
-                      Pagi s/d Pagi
+                      {guards.length >= 2 ? '1 Hari Masuk • 1 Hari Libur' : 'Pagi s/d Pagi'}
                     </span>
                   </h3>
-                  <p className="text-[11px] text-ink-muted">Sistem operasional tunggal komplek kecil (14 kavling)</p>
+                  <p className="text-[11px] text-ink-muted">
+                    {guards.length >= 2
+                      ? 'Sistem estafet pergantian shift setiap pukul 07:00 WIB'
+                      : 'Sistem operasional tunggal komplek kecil (14 kavling)'}
+                  </p>
                 </div>
               </div>
               <button
@@ -3532,17 +3992,19 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
             <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl text-[11px] text-amber-950 space-y-1">
               <span className="font-bold flex items-center gap-1">
                 <Zap className="w-3.5 h-3.5 text-amber-600" />
-                Ketentuan Operasional Piket Mandiri 24 Jam:
+                {guards.length >= 2 ? 'Ketentuan Operasional 2 Satpam (Rotasi 1x24 Jam Estafet):' : 'Ketentuan Operasional Piket Mandiri 24 Jam:'}
               </span>
               <p className="text-amber-900/90 leading-relaxed">
-                Hanya <strong>1 orang satpam</strong> yang berjaga penuh dari pagi hari (07:00 WIB) sampai pagi berikutnya (07:00 WIB), mencakup penjagaan pos gerbang utama, verifikasi kurir paket & tamu, menyalakan lampu PJU komplek pukul 18:00, mengunci portal pukul 21:00, dan ronda berkala 14 kavling.
+                {guards.length >= 2
+                  ? 'Kedua personel satpam berdinas bergantian selama 24 jam penuh (07:00 WIB s/d 07:00 WIB esok hari), disusul 1 hari istirahat lepas piket (off). Serah terima buku mutasi pos, HT, dan kunci portal dilakukan estafet setiap pagi pukul 07:00 WIB.'
+                  : 'Hanya 1 orang satpam yang berjaga penuh dari pagi hari (07:00 WIB) sampai pagi berikutnya (07:00 WIB), mencakup penjagaan pos gerbang utama, verifikasi kurir paket & tamu, menyalakan lampu PJU komplek pukul 18:00, mengunci portal pukul 21:00, dan ronda berkala 14 kavling.'}
               </p>
             </div>
 
             <form onSubmit={handleApplySolo24hRoster} className="space-y-3.5">
               <div>
                 <label className="font-bold text-ink block mb-1">
-                  1. Satpam yang Bertugas Hari Ini (Piket Penuh 24 Jam) *
+                  1. Satpam yang Bertugas Hari Ini (Dinas 24 Jam) *
                 </label>
                 <select
                   value={soloGuardToday}
@@ -3556,6 +4018,9 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     </option>
                   ))}
                 </select>
+                <span className="text-[10px] text-ink-muted mt-0.5 block">
+                  Petugas yang sedang aktif berjaga di pos gerbang hari ini.
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -3582,7 +4047,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
 
               <div>
                 <label className="font-bold text-ink block mb-1">
-                  2. Satpam Penerima Estafet Serah Terima Besok Pagi *
+                  2. Satpam yang Bertugas Besok Pagi (Lepas Piket Hari Ini) *
                 </label>
                 <select
                   value={soloGuardTomorrow}
@@ -3597,7 +4062,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   ))}
                 </select>
                 <span className="text-[10px] text-ink-muted mt-0.5 block">
-                  Petugas berikutnya yang akan menerima buku mutasi dan kunci gerbang esok pukul {soloHandoverTime} WIB.
+                  Petugas mitra yang beristirahat hari ini dan akan menerima estafet serah terima esok pukul {soloHandoverTime} WIB.
                 </span>
               </div>
 
@@ -3627,7 +4092,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Simpan & Aktifkan Roster 24 Jam</span>
+                  <span>{guards.length >= 2 ? 'Simpan & Aktifkan Rotasi 2 Satpam' : 'Simpan & Aktifkan Roster 24 Jam'}</span>
                 </button>
               </div>
             </form>

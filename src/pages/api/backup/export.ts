@@ -6,7 +6,7 @@ export const GET: APIRoute = async () => {
   try {
     let backupPayload: any = {
       exportTimestamp: new Date().toISOString(),
-      community: 'Komplek Perumahan Taman Sejahtera',
+      community: 'Komplek Grand Sariwangi',
       systemVersion: 'WargaHub v2.5 Enterprise Production',
       tables: {},
     };

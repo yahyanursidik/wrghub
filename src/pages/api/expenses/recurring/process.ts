@@ -12,6 +12,8 @@ const recurringItemSchema = z.object({
   accountId: z.string().default('acc-main'),
   description: z.string().optional(),
   executionDay: z.number().min(1).max(31).default(1),
+  frequency: z.enum(['MONTHLY', 'SPECIFIC_MONTH', 'YEARLY']).optional().default('MONTHLY'),
+  executionMonth: z.number().min(1).max(12).optional(),
   vendor: z.string().optional(),
 });
 
@@ -27,10 +29,21 @@ export const POST: APIRoute = async ({ request }) => {
 
     const processedItems = [];
     let totalDeducted = 0;
+    const monthNum = parseInt(validated.month.slice(5, 7), 10);
+    const yearNum = parseInt(validated.month.slice(0, 4), 10);
+    const maxDaysInMonth = new Date(yearNum, monthNum, 0).getDate();
 
     for (const item of validated.items) {
+      // If item is restricted to a specific month, check match
+      if (item.executionMonth && item.executionMonth !== monthNum) {
+        continue;
+      }
+      if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth && item.executionMonth !== monthNum) {
+        continue;
+      }
+
       // Ensure valid day for the given month
-      const safeDay = Math.min(Math.max(item.executionDay, 1), 28);
+      const safeDay = Math.min(Math.max(item.executionDay, 1), maxDaysInMonth);
       const expenseDate = `${validated.month}-${String(safeDay).padStart(2, '0')}`;
       
       const fullTitle = item.title.includes(validated.month) 

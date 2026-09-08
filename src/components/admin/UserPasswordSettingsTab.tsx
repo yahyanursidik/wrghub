@@ -288,10 +288,10 @@ export const UserPasswordSettingsTab: React.FC = () => {
 
   // WhatsApp Message Generator
   const getWaNotificationText = (user: UserItem, pwd: string) => {
-    const propName = user.propertyCode || 'Komplek Taman Sejahtera';
+    const propName = user.propertyCode || 'Komplek Grand Sariwangi';
     return (
       `*INFORMASI AKSES LOGIN WARGAHUB*\n` +
-      `Komplek Taman Sejahtera RT 02 / RW 05\n\n` +
+      `Komplek Grand Sariwangi RT 01 / RW 08\n\n` +
       `Halo Bapak/Ibu *${user.fullName}*,\n` +
       `Berikut adalah informasi akun akses Portal WargaHub Anda:\n\n` +
       `🏡 *Unit / No. Rumah:* ${propName}\n` +
@@ -299,7 +299,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
       `🔑 *Password Baru / PIN:* *${pwd}*\n\n` +
       `🌐 *Tautan Masuk Portal:*\nhttp://localhost:4321/login\n\n` +
       `_Catatan: Anda juga dapat masuk langsung menggunakan Nomor WhatsApp yang terdaftar dan password di atas. Harap simpan informasi ini dengan baik._\n\n` +
-      `Salam hangat,\n*Pengurus Komplek Taman Sejahtera*`
+      `Salam hangat,\n*Pengurus Komplek Grand Sariwangi*`
     );
   };
 

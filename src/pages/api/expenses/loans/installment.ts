@@ -6,7 +6,7 @@ const loanInstallmentSchema = z.object({
   loanId: z.string().min(1),
   staffName: z.string().optional(),
   installmentAmount: z.number().positive(),
-  paymentMethod: z.enum(['POTONG_GAJI', 'TUNAI_CASH', 'TRANSFER_BCA']).default('POTONG_GAJI'),
+  paymentMethod: z.enum(['POTONG_GAJI', 'TUNAI_CASH', 'TRANSFER_BCA', 'TRANSFER_BANK', 'EWALLET']).default('POTONG_GAJI'),
   installmentDate: z.string().default(() => new Date().toISOString().slice(0, 10)),
   notes: z.string().optional(),
 });

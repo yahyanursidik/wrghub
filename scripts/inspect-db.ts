@@ -14,13 +14,13 @@ async function main() {
     const cats = await sql`SELECT id, code, name FROM expense_categories`;
     console.log(JSON.stringify(cats, null, 2));
 
-    console.log('--- USERS ---');
-    const users = await sql`SELECT id, username, role FROM users`;
+    console.log('--- USERS WITH NAME ---');
+    const users = await sql`SELECT id, username, full_name, role FROM users WHERE role IN ('CHAIRMAN', 'SUPER_ADMIN', 'TREASURER')`;
     console.log(JSON.stringify(users, null, 2));
 
-    console.log('--- EXPENSES ---');
-    const expenses = await sql`SELECT count(*) FROM expenses`;
-    console.log('Expenses count:', expenses[0].count);
+    console.log('--- SETTINGS ---');
+    const settings = await sql`SELECT key, value FROM settings`;
+    console.log(JSON.stringify(settings, null, 2));
 
   } catch (err) {
     console.error('Error:', err);

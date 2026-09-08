@@ -8,7 +8,7 @@ const createPaymentSchema = z.object({
   ownerName: z.string().optional(),
   periodName: z.string().default('Agustus 2026'),
   amount: z.number().min(1000),
-  method: z.enum(['BCA_TRANSFER', 'QRIS', 'CASH', 'MANDIRI_TRANSFER', 'BRI_TRANSFER', 'LAINNYA']).default('BCA_TRANSFER'),
+  method: z.string().min(1).default('Transfer Bank / Syariah'),
   reference: z.string().optional(),
   proofUrl: z.string().optional(),
   paidAt: z.string().default(() => new Date().toISOString().slice(0, 10)),

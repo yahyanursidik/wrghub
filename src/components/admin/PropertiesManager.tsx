@@ -516,7 +516,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         id: editingPropertyId || `prop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
         code: formCode.trim(),
         number: formNumber || formCode,
-        address: formAddress || `Komplek Taman Sejahtera, ${formAreaName} No. ${formNumber || formCode}`,
+        address: formAddress || `Komplek Grand Sariwangi, ${formAreaName} No. ${formNumber || formCode}`,
         occupancyStatus: formOccupancy,
         ownerName: formOwner || 'Warga',
         occupantName: resolvedOcc,
@@ -2092,7 +2092,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                           {/* KOLOM KHUSUS PEMILIK UNIT (OWNER) */}
                           <td className="py-3.5 px-4">
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-extrabold text-ink text-xs">{prop.ownerName || '-'}</span>
+                              <span className="font-extrabold text-ink text-xs">{prop.legalOwner || prop.ownerName || '-'}</span>
                               <span className="text-[10px] text-ink-muted font-medium flex items-center gap-1">
                                 <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
                                 <span>Pemilik Sah</span>
@@ -3511,7 +3511,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  const content = `BIODATA SENSUS PENGHUNI - WARGAHUB\n===================================\nNama Lengkap: ${activeResidentView.fullName}\nUnit Rumah: ${activeResidentView.houseCode}\nHubungan: ${activeResidentView.relation}\nNIK: ${activeResidentView.idCard}\nNo. KK: ${activeResidentView.familyCard || '-'}\nTTL: ${activeResidentView.birthPlaceDate}\nGender: ${activeResidentView.gender}\nAgama: ${activeResidentView.religion}\nProfesi: ${activeResidentView.occupation}\nWhatsApp: ${activeResidentView.phone}\nEmail: ${activeResidentView.email || '-'}\nGol. Darah: ${activeResidentView.bloodType}\nStatus Domisili: ${activeResidentView.domicileStatus}\nKontak Darurat: ${activeResidentView.isEmergency ? 'YA' : 'TIDAK'}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPengurus Komplek Taman Sejahtera`;
+                  const content = `BIODATA SENSUS PENGHUNI - WARGAHUB\n===================================\nNama Lengkap: ${activeResidentView.fullName}\nUnit Rumah: ${activeResidentView.houseCode}\nHubungan: ${activeResidentView.relation}\nNIK: ${activeResidentView.idCard}\nNo. KK: ${activeResidentView.familyCard || '-'}\nTTL: ${activeResidentView.birthPlaceDate}\nGender: ${activeResidentView.gender}\nAgama: ${activeResidentView.religion}\nProfesi: ${activeResidentView.occupation}\nWhatsApp: ${activeResidentView.phone}\nEmail: ${activeResidentView.email || '-'}\nGol. Darah: ${activeResidentView.bloodType}\nStatus Domisili: ${activeResidentView.domicileStatus}\nKontak Darurat: ${activeResidentView.isEmergency ? 'YA' : 'TIDAK'}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPengurus Komplek Grand Sariwangi`;
                   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
@@ -4045,7 +4045,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const content = `KARTU IDENTITAS UNIT RUMAH - WARGAHUB\n=======================================\nKode Unit: ${activeProperty.code}\nAlamat: ${activeProperty.address}\nStatus Okupansi: ${activeProperty.occupancyStatus}\nPemilik Unit (Owner): ${activeProperty.ownerName || '-'}\nPenghuni (Kepala Keluarga): ${activeProperty.occupancyStatus === 'VACANT' ? 'Kosong (Belum Berpenghuni)' : (activeProperty.occupantName || activeProperty.headName || activeProperty.ownerName || '-')}\nTotal Penghuni Terdata: ${activePropertyResidents.length} Jiwa\nTotal Kendaraan Terdaftar: ${activePropertyVehicles.length} Unit\nDaya PLN: ${activePropertyUtility?.plnCapacity || '3.500 VA'}\nMeter PAM: ${activePropertyUtility?.pamMeterNo || 'PAM-88301'}\nIuran IPL: Rp ${(activePropertyUtility?.monthlyIplFee || 250000).toLocaleString('id-ID')} / bln\nStatus Bayar: ${activePropertyUtility?.paymentStatus || 'LUNAS'}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPengurus Komplek Taman Sejahtera`;
+                    const content = `KARTU IDENTITAS UNIT RUMAH - WARGAHUB\n=======================================\nKode Unit: ${activeProperty.code}\nAlamat: ${activeProperty.address}\nStatus Okupansi: ${activeProperty.occupancyStatus}\nPemilik Unit (Owner): ${activeProperty.ownerName || '-'}\nPenghuni (Kepala Keluarga): ${activeProperty.occupancyStatus === 'VACANT' ? 'Kosong (Belum Berpenghuni)' : (activeProperty.occupantName || activeProperty.headName || activeProperty.ownerName || '-')}\nTotal Penghuni Terdata: ${activePropertyResidents.length} Jiwa\nTotal Kendaraan Terdaftar: ${activePropertyVehicles.length} Unit\nDaya PLN: ${activePropertyUtility?.plnCapacity || '3.500 VA'}\nMeter PAM: ${activePropertyUtility?.pamMeterNo || 'PAM-88301'}\nIuran IPL: Rp ${(activePropertyUtility?.monthlyIplFee || 250000).toLocaleString('id-ID')} / bln\nStatus Bayar: ${activePropertyUtility?.paymentStatus || 'LUNAS'}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPengurus Komplek Grand Sariwangi`;
                     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');

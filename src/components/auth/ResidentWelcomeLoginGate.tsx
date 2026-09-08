@@ -79,7 +79,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
           </span>
         </div>
         <p className="mt-1.5 text-xs sm:text-sm text-ink-muted max-w-sm mx-auto">
-          Layanan Mandiri Warga Komplek Taman Sejahtera • Iuran Digital, E-Voting, Izin Kerja, dan Aduan Lingkungan
+          Layanan Mandiri Warga Komplek Grand Sariwangi • Iuran Digital, E-Voting, Izin Kerja, dan Aduan Lingkungan
         </p>
       </div>
 

@@ -89,7 +89,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
 
   // Dynamic branding
   const [loginTitle, setLoginTitle] = useState('WargaHub');
-  const [loginSubtitle, setLoginSubtitle] = useState('Sistem Tata Kelola & Transparansi Komplek Taman Sejahtera');
+  const [loginSubtitle, setLoginSubtitle] = useState('Sistem Tata Kelola & Transparansi Komplek Grand Sariwangi');
   const [currentTime, setCurrentTime] = useState('');
 
   // Terminal Pos Satpam PIN State
@@ -136,7 +136,14 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
       const savedTitle = localStorage.getItem('wargahub_set_login_title');
       const savedSub = localStorage.getItem('wargahub_set_login_subtitle');
       if (savedTitle) setLoginTitle(JSON.parse(savedTitle));
-      if (savedSub) setLoginSubtitle(JSON.parse(savedSub));
+      if (savedSub) {
+        const parsed = JSON.parse(savedSub);
+        if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('taman sejahtera')) {
+          setLoginSubtitle(parsed);
+        } else {
+          setLoginSubtitle('Sistem Tata Kelola & Transparansi Komplek Grand Sariwangi');
+        }
+      }
 
       const savedGuards = localStorage.getItem('wargahub_security_guards');
       if (savedGuards) {
@@ -289,7 +296,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-bold tracking-tight">SISTEM AUTENTIKASI RESMI TERPADU</span>
             <span className="hidden sm:inline opacity-40">•</span>
-            <span className="hidden sm:inline text-primary-200">Komplek Taman Sejahtera (RW 05 / RT 01-04)</span>
+            <span className="hidden sm:inline text-primary-200">Komplek Grand Sariwangi (RT 01 / RW 08)</span>
           </div>
           <div className="flex items-center gap-4 text-primary-200 font-mono">
             <span className="hidden md:inline">🕒 {currentTime || 'WIB'}</span>
@@ -333,7 +340,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
               <div className="relative rounded-2xl overflow-hidden border border-border group">
                 <img
                   src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&auto=format&fit=crop&q=80"
-                  alt="Komplek Taman Sejahtera"
+                  alt="Komplek Grand Sariwangi"
                   className="w-full h-44 sm:h-48 object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-4 text-white">
@@ -341,7 +348,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                     Kawasan Perumahan Mandiri Berkelanjutan
                   </span>
                   <p className="text-sm font-bold text-white leading-tight">
-                    Komplek Taman Sejahtera, Blok A - Blok D
+                    Komplek Grand Sariwangi, Klaster 14 Kavling
                   </p>
                   <p className="text-[11px] text-slate-300 mt-0.5">
                     Kawasan Hunian Terintegrasi • Tata Kelola Digital Transparan
@@ -1170,7 +1177,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
         <div className="flex items-center justify-center gap-2">
           <span className="font-bold text-ink">WargaHub Smart Residential OS</span>
           <span>•</span>
-          <span>Komplek Taman Sejahtera</span>
+          <span>Komplek Grand Sariwangi</span>
         </div>
         <p className="text-[11px]">
           Dikembangkan oleh{' '}
@@ -1227,8 +1234,8 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
 
             <div className="flex items-center gap-2 pt-2">
               <a
-                href={`https://api.whatsapp.com/send?phone=6281234567801&text=${encodeURIComponent(
-                  `Halo Admin WargaHub Komplek Taman Sejahtera, saya lupa kata sandi akun untuk Nomor Unit Rumah: ${identifier || '...'}. Mohon bantuan reset password. Terima kasih.`
+                href={`https://api.whatsapp.com/send?phone=6281220082240&text=${encodeURIComponent(
+                  `Halo Admin WargaHub Komplek Grand Sariwangi, saya lupa kata sandi akun untuk Nomor Unit Rumah: ${identifier || '...'}. Mohon bantuan reset password. Terima kasih.`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"

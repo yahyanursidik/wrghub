@@ -57,7 +57,7 @@ export const BackupManager: React.FC = () => {
         <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-1">
           <span className="text-xs font-semibold text-ink-muted">Entitas Terproteksi</span>
           <p className="text-base font-bold text-ink">34 Tabel Relasional</p>
-          <span className="text-[11px] text-ink-muted">120 Rumah, 240+ Invoice, Kas BCA</span>
+          <span className="text-[11px] text-ink-muted">120 Rumah, 240+ Invoice, Kas Paguyuban</span>
         </div>
 
         <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-1">
@@ -85,8 +85,8 @@ export const BackupManager: React.FC = () => {
               status: 'READY',
             },
             {
-              title: '2. Rekonsiliasi Saldo Kas Bank BCA & Buku Kas',
-              desc: 'Pastikan saldo akhir kas buku kas sama persis dengan saldo rekening koran penampung resmi iuran.',
+              title: '2. Rekonsiliasi Saldo Kas Bank & Buku Kas',
+              desc: 'Pastikan saldo akhir buku kas sama persis dengan saldo rekening koran penampung resmi iuran (Bank Syariah / Bank Nasional / E-Wallet).',
               status: 'VERIFIED',
             },
             {

@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request }) => {
           SET balance = ${validated.balance},
               bank_name = ${validated.bankName},
               account_number = ${validated.bankAccount}
-          WHERE id = 'acc-main' OR code = 'BCA-UTAMA' OR code = 'BCA_MAIN';
+          WHERE id = 'acc-main' OR code = 'BCA-UTAMA' OR code = 'BCA_MAIN' OR code = 'KAS_UTAMA' OR code = 'KAS_OPERASIONAL';
         `;
       }
 

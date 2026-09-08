@@ -2,7 +2,7 @@
 import PublicLayout from '../layouts/PublicLayout.astro';
 import { PublicDuesLedger } from '../components/public/PublicDuesLedger';
 import { getProperties } from '../services/property.service';
-import { getInvoices, getCurrentBillingPeriod, getBillingPeriods } from '../services/billing.service';
+import { getInvoices, getCurrentBillingPeriod, getBillingPeriods, getAllInvoices } from '../services/billing.service';
 
 const periodParam = Astro.url.searchParams.get('period');
 const allPeriods = await getBillingPeriods();
@@ -14,6 +14,7 @@ const targetPeriod = periodParam
 
 const properties = await getProperties();
 const invoices = targetPeriod ? await getInvoices(targetPeriod.id) : [];
+const allInvoices = await getAllInvoices();
 ---
 
 <PublicLayout title={`Rekapitulasi Iuran Warga (${targetPeriod?.name || 'Agustus 2026'}) - WargaHub`} currentPath="/rekap-iuran">
@@ -21,6 +22,8 @@ const invoices = targetPeriod ? await getInvoices(targetPeriod.id) : [];
     initialProperties={properties} 
     initialInvoices={invoices} 
     initialPeriodName={targetPeriod?.name || 'Agustus 2026'}
+    allInvoices={allInvoices}
+    allPeriods={allPeriods}
     client:load 
   />
 </PublicLayout>

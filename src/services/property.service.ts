@@ -13,8 +13,13 @@ export interface PropertyListItem {
   isActive: boolean;
   notes: string | null;
   ownerName?: string;
+  legalOwner?: string;
   occupantName?: string;
   headName?: string;
+  currentResident?: string;
+  displayResident?: string;
+  isRented?: boolean;
+  statusLabel?: string;
   residentCount?: number;
 }
 
@@ -67,7 +72,18 @@ export async function getProperties(): Promise<PropertyListItem[]> {
           resolvedOccupant = r.occupant_name || occupantFromNotes || resolvedOwner;
         }
 
-        const resCount = Number(r.resident_count || (r.occupancy_status === 'VACANT' ? 0 : 1));
+        const isRented = r.occupancy_status === 'RENTED';
+        const isVacant = r.occupancy_status === 'VACANT';
+        const currentResident = isRented
+          ? (resolvedOccupant || 'Penyewa')
+          : (isVacant ? `${resolvedOwner} (Kosong)` : (resolvedOccupant || resolvedOwner));
+
+        const displayResident = isRented
+          ? `${resolvedOccupant || 'Penyewa'} (Penyewa / Kontrak)`
+          : (isVacant ? `${resolvedOwner} (Kosong)` : `${resolvedOccupant || resolvedOwner} (Penghuni)`);
+
+        const statusLabel = isRented ? 'Penyewa / Kontrak' : (isVacant ? 'Kosong' : 'Penghuni');
+        const resCount = Number(r.resident_count || (isVacant ? 0 : 1));
 
         return {
           id: r.id,
@@ -79,9 +95,14 @@ export async function getProperties(): Promise<PropertyListItem[]> {
           occupancyStatus: r.occupancy_status,
           isActive: Boolean(r.is_active),
           notes: r.notes,
-          ownerName: resolvedOwner,
+          legalOwner: resolvedOwner,
+          ownerName: currentResident, // Selalu tampilkan penghuni sekarang (penyewa bila disewakan)
           occupantName: resolvedOccupant,
           headName: resolvedOccupant,
+          currentResident,
+          displayResident,
+          isRented,
+          statusLabel,
           residentCount: resCount,
         };
       });
@@ -119,6 +140,18 @@ export async function getProperties(): Promise<PropertyListItem[]> {
       resolvedOccupant = occMap.get(p.id) || occupantFromNotes || resolvedOwner;
     }
 
+    const isRented = p.occupancyStatus === 'RENTED';
+    const isVacant = p.occupancyStatus === 'VACANT';
+    const currentResident = isRented
+      ? (resolvedOccupant || 'Penyewa')
+      : (isVacant ? `${resolvedOwner} (Kosong)` : (resolvedOccupant || resolvedOwner));
+
+    const displayResident = isRented
+      ? `${resolvedOccupant || 'Penyewa'} (Penyewa / Kontrak)`
+      : (isVacant ? `${resolvedOwner} (Kosong)` : `${resolvedOccupant || resolvedOwner} (Penghuni)`);
+
+    const statusLabel = isRented ? 'Penyewa / Kontrak' : (isVacant ? 'Kosong' : 'Penghuni');
+
     return {
       id: p.id,
       code: p.code,
@@ -129,9 +162,14 @@ export async function getProperties(): Promise<PropertyListItem[]> {
       occupancyStatus: p.occupancyStatus,
       isActive: Boolean(p.isActive),
       notes: p.notes,
-      ownerName: resolvedOwner,
+      legalOwner: resolvedOwner,
+      ownerName: currentResident, // Selalu tampilkan penghuni sekarang (penyewa bila disewakan)
       occupantName: resolvedOccupant,
       headName: resolvedOccupant,
+      currentResident,
+      displayResident,
+      isRented,
+      statusLabel,
       residentCount: p.occupancyStatus === 'VACANT' ? 0 : 1,
     };
   });

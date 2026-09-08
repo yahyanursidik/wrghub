@@ -1,12 +1,13 @@
 ---
-import AdminLayout from '../../../layouts/AdminLayout.astro';
+import PublicLayout from '../../../layouts/PublicLayout.astro';
 import { TransparencyView } from '../../../components/transparency/TransparencyView';
 import { getPublicMonthlyReport } from '../../../services/transparency.service';
 
 const { year, month } = Astro.params;
-const reportData = await getPublicMonthlyReport(parseInt(year || '2026', 10), parseInt(month || '8', 10));
+const reportData = await getPublicMonthlyReport(parseInt(year || '2026', 10), parseInt(month || '9', 10));
 ---
 
-<AdminLayout title={`Laporan Transparansi Warga - ${reportData.periodName}`} currentPath="/transparency">
+<PublicLayout title={`Laporan Transparansi Warga - ${reportData.periodName}`} currentPath="/transparency">
   <TransparencyView initialData={reportData} client:load />
-</AdminLayout>
+</PublicLayout>
+

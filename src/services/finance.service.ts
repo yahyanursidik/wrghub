@@ -141,17 +141,21 @@ export async function recordExpense(data: {
   const expenseId = `exp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const accountId = data.accountId || 'acc-main';
 
-  // Normalize categoryId against valid DB categories: cat-keamanan, cat-kebersihan, cat-listrik, cat-pemeliharaan
-  let safeCategoryId = data.categoryId || 'cat-pemeliharaan';
+  // Normalize categoryId against Grand Sariwangi categories: cat-gaji, cat-iuran-rt, cat-iuran-rw, cat-operasional, cat-dana-kesehatan, cat-dana-tak-terduga
+  let safeCategoryId = data.categoryId || 'cat-operasional';
   const catLower = safeCategoryId.toLowerCase();
-  if (catLower === 'cat-satpam' || catLower.includes('keamanan') || catLower.includes('satpam')) {
-    safeCategoryId = 'cat-keamanan';
-  } else if (catLower === 'cat-utilitas' || catLower === 'cat-pju' || catLower.includes('listrik')) {
-    safeCategoryId = 'cat-listrik';
-  } else if (catLower.includes('kebersihan') || catLower.includes('sampah')) {
-    safeCategoryId = 'cat-kebersihan';
+  if (catLower.includes('gaji') || catLower.includes('satpam') || catLower.includes('keamanan') || catLower.includes('honor')) {
+    safeCategoryId = 'cat-gaji';
+  } else if (catLower.includes('rt') || catLower.includes('sampah') || catLower.includes('kebersihan')) {
+    safeCategoryId = 'cat-iuran-rt';
+  } else if (catLower.includes('rw') || catLower.includes('paguyuban')) {
+    safeCategoryId = 'cat-iuran-rw';
+  } else if (catLower.includes('kesehatan') || catLower.includes('bantuan') || catLower.includes('medis')) {
+    safeCategoryId = 'cat-dana-kesehatan';
+  } else if (catLower.includes('terduga') || catLower.includes('sumbangan') || catLower.includes('agustus') || catLower.includes('sosial')) {
+    safeCategoryId = 'cat-dana-tak-terduga';
   } else {
-    safeCategoryId = 'cat-pemeliharaan';
+    safeCategoryId = 'cat-operasional';
   }
 
   // Normalize recordedBy to a valid user ID (user-bendahara, user-admin, etc.)
@@ -298,6 +302,8 @@ export interface RecurringExpenseConfigItem {
   categoryName: string;
   accountId: string;
   executionDay: number;
+  frequency?: 'MONTHLY' | 'SPECIFIC_MONTH' | 'YEARLY';
+  executionMonth?: number; // 1 - 12 (contoh: 8 untuk Agustus)
   vendor?: string;
   description?: string;
   isActive: boolean;
@@ -362,6 +368,20 @@ export const DEFAULT_RECURRING_CONFIG: RecurringExpenseConfigItem[] = [
     executionDay: 1,
     vendor: 'Telkomsel / Indihome Pos',
     description: 'Paket data CCTV online gerbang, buku mutasi & ATK pos',
+    isActive: true,
+  },
+  {
+    id: 'rec-17-agustus',
+    title: 'Kegiatan Peringatan HUT RI (17 Agustusan)',
+    amount: 1500000,
+    categoryId: 'cat-pemeliharaan',
+    categoryName: 'Kegiatan Warga & Peringatan Hari Kemerdekaan',
+    accountId: 'acc-main',
+    executionDay: 11,
+    frequency: 'SPECIFIC_MONTH',
+    executionMonth: 8,
+    vendor: 'Panitia 17 Agustusan Komplek',
+    description: 'Alokasi dana kas komplek khusus setiap tanggal 11 Agustus untuk perlombaan, panggung gembira, dekorasi gapura & tasyakuran HUT RI 17 Agustus',
     isActive: true,
   },
 ];
@@ -451,7 +471,19 @@ export async function generateMonthlyRecurringExpenses(targetMonths?: string[]) 
       } catch (e) {}
     }
 
+    const monthNum = parseInt(month.slice(5, 7), 10);
+    const yearNum = parseInt(month.slice(0, 4), 10);
+    const maxDaysInMonth = new Date(yearNum, monthNum, 0).getDate();
+
     for (const item of activeItems) {
+      // Check if item has month restriction (e.g. executionMonth: 8 for August)
+      if (item.executionMonth && item.executionMonth !== monthNum) {
+        continue;
+      }
+      if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth && item.executionMonth !== monthNum) {
+        continue;
+      }
+
       // Check if already booked for this month
       const isAlreadyBooked = existingTitles.some(t => 
         t.includes(item.title.toLowerCase()) || 
@@ -459,7 +491,7 @@ export async function generateMonthlyRecurringExpenses(targetMonths?: string[]) 
       );
 
       if (!isAlreadyBooked) {
-        const safeDay = Math.min(Math.max(item.executionDay, 1), 28);
+        const safeDay = Math.min(Math.max(item.executionDay, 1), maxDaysInMonth);
         const expenseDate = `${month}-${String(safeDay).padStart(2, '0')}`;
         const title = `${item.title} (Bulan ${month})`;
 
@@ -498,5 +530,77 @@ export async function generateMonthlyRecurringExpenses(targetMonths?: string[]) 
     monthsProcessed: months,
     createdExpenses,
   };
+}
+
+export async function updateExpense(data: {
+  id: string;
+  title?: string;
+  categoryName?: string;
+  categoryId?: string;
+  amount?: number;
+  vendor?: string;
+  expenseDate?: string;
+  description?: string;
+  status?: string;
+}) {
+  let safeCategoryId = data.categoryId;
+  if (!safeCategoryId && data.categoryName) {
+    const catLower = data.categoryName.toLowerCase();
+    if (catLower.includes('gaji') || catLower.includes('satpam') || catLower.includes('keamanan') || catLower.includes('honor')) {
+      safeCategoryId = 'cat-gaji';
+    } else if (catLower.includes('rt') || catLower.includes('sampah') || catLower.includes('kebersihan')) {
+      safeCategoryId = 'cat-iuran-rt';
+    } else if (catLower.includes('rw') || catLower.includes('paguyuban')) {
+      safeCategoryId = 'cat-iuran-rw';
+    } else if (catLower.includes('kesehatan') || catLower.includes('bantuan') || catLower.includes('medis')) {
+      safeCategoryId = 'cat-dana-kesehatan';
+    } else if (catLower.includes('terduga') || catLower.includes('sumbangan') || catLower.includes('agustus') || catLower.includes('sosial')) {
+      safeCategoryId = 'cat-dana-tak-terduga';
+    } else {
+      safeCategoryId = 'cat-operasional';
+    }
+  }
+
+  if (process.env.DATABASE_URL) {
+    try {
+      if (safeCategoryId && data.title && data.amount !== undefined && data.expenseDate) {
+        await neonSql`
+          UPDATE expenses
+          SET title = ${data.title},
+              amount = ${data.amount},
+              expense_date = ${data.expenseDate},
+              category_id = ${safeCategoryId},
+              description = ${data.description || null}
+          WHERE id = ${data.id}
+        `;
+      } else if (data.amount !== undefined && data.title) {
+        await neonSql`
+          UPDATE expenses
+          SET title = ${data.title},
+              amount = ${data.amount},
+              description = ${data.description || null}
+          WHERE id = ${data.id}
+        `;
+      }
+    } catch (e) {
+      console.warn('Neon update expense error:', e);
+    }
+  }
+
+  try {
+    const updatePayload: any = {};
+    if (data.title) updatePayload.title = data.title;
+    if (data.amount !== undefined) updatePayload.amount = data.amount;
+    if (data.expenseDate) updatePayload.expenseDate = data.expenseDate;
+    if (safeCategoryId) updatePayload.categoryId = safeCategoryId;
+    if (data.description !== undefined) updatePayload.description = data.description;
+    if (Object.keys(updatePayload).length > 0) {
+      await db.update(schema.expenses).set(updatePayload).where(eq(schema.expenses.id, data.id));
+    }
+  } catch (e) {
+    console.warn('SQLite update expense error:', e);
+  }
+
+  return true;
 }
 

@@ -46,7 +46,9 @@ import {
   CreditCard,
   Layers,
   Banknote,
-  Repeat
+  Repeat,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { StaffLoansManager } from './StaffLoansManager';
@@ -162,7 +164,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const [showSocialModal, setShowSocialModal] = useState(false);
   const [socRecipient, setSocRecipient] = useState('');
   const [socType, setSocType] = useState<'SANTUNAN_KESEHATAN' | 'SANTUNAN_DUKA_CITA' | 'SANTUNAN_MUSIBAH_BENCANA' | 'BINGKISAN_THR' | 'BEASISWA_ANAK'>('SANTUNAN_KESEHATAN');
-  const [socAmount, setSocAmount] = useState(500000);
+  const [socAmount, setSocAmount] = useState(100000);
   const [socDesc, setSocDesc] = useState('');
   const [socDetails, setSocDetails] = useState('');
 
@@ -180,11 +182,12 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   // Form State for General Expense
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState('Keamanan');
+  const [formCategory, setFormCategory] = useState('Gaji');
   const [formAmount, setFormAmount] = useState('');
   const [formVendor, setFormVendor] = useState('');
   const [formExpenseDate, setFormExpenseDate] = useState(new Date().toISOString().substring(0, 10));
   const [formDescription, setFormDescription] = useState('');
+  const [formFundingSource, setFormFundingSource] = useState<'KAS_OPERASIONAL' | 'SALDO_BERJALAN'>('KAS_OPERASIONAL');
   const [savingExpense, setSavingExpense] = useState(false);
 
   // Show Toast
@@ -226,11 +229,36 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const handleOpenAddExpense = () => {
     setEditingExpenseId(null);
     setFormTitle('');
-    setFormCategory('Keamanan');
+    setFormCategory('Gaji');
     setFormAmount('');
     setFormVendor('');
     setFormExpenseDate(new Date().toISOString().substring(0, 10));
     setFormDescription('');
+    setFormFundingSource('KAS_OPERASIONAL');
+    setShowAddModal(true);
+  };
+
+  const handleOpenQuickHealthAid = () => {
+    setEditingExpenseId(null);
+    setFormTitle('Bantuan Dana Kesehatan / Obat P3K Satpam');
+    setFormCategory('Dana Kesehatan / Bantuan Satpam');
+    setFormAmount('100000');
+    setFormVendor('Pa Adri Harry / Apotek Sehat');
+    setFormExpenseDate(new Date().toISOString().substring(0, 10));
+    setFormFundingSource('SALDO_BERJALAN');
+    setFormDescription('[Ditalangi Saldo Kas Berjalan] Pengadaan obat P3K, vitamin & santunan kesehatan satpam (pagu referensi Rp 100.000, realisasi fluktuatif)');
+    setShowAddModal(true);
+  };
+
+  const handleOpenQuickUnexpectedAid = () => {
+    setEditingExpenseId(null);
+    setFormTitle('Dana Dadakan: Partisipasi / Tanggap Kebutuhan Komplek');
+    setFormCategory('Dana Tak Terduga');
+    setFormAmount('150000');
+    setFormVendor('Panitia Wilayah RW / Kelurahan / Kas Darurat');
+    setFormExpenseDate(new Date().toISOString().substring(0, 10));
+    setFormFundingSource('SALDO_BERJALAN');
+    setFormDescription('[Ditalangi Saldo Kas Berjalan] Kebutuhan mendadak komplek / sumbangan acara ditalangi dari akumulasi saldo kas berjalan');
     setShowAddModal(true);
   };
 
@@ -241,13 +269,27 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
     setFormAmount(String(exp.amount));
     setFormVendor(exp.vendor || '');
     setFormExpenseDate(exp.expenseDate);
-    setFormDescription(exp.description || '');
+    const desc = exp.description || '';
+    setFormDescription(desc);
+    if (desc.toLowerCase().includes('saldo kas berjalan') || desc.toLowerCase().includes('ditalangi saldo')) {
+      setFormFundingSource('SALDO_BERJALAN');
+    } else {
+      setFormFundingSource('KAS_OPERASIONAL');
+    }
     setShowAddModal(true);
   };
 
   const handleSaveGeneralExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingExpense(true);
+
+    let finalDescription = formDescription.trim();
+    if (formFundingSource === 'SALDO_BERJALAN') {
+      if (!finalDescription.toLowerCase().includes('saldo kas berjalan') && !finalDescription.toLowerCase().includes('ditalangi saldo')) {
+        finalDescription = finalDescription ? `[Ditalangi Saldo Kas Berjalan] ${finalDescription}` : '[Ditalangi Saldo Kas Berjalan] Ditalangi dari saldo kas cadangan komplek';
+      }
+    }
+
     try {
       if (editingExpenseId) {
         const res = await fetch('/api/expenses/update', {
@@ -260,7 +302,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
             amount: Number(formAmount),
             vendor: formVendor,
             expenseDate: formExpenseDate,
-            description: formDescription,
+            description: finalDescription,
           }),
         });
         if (res.ok) {
@@ -274,7 +316,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                     amount: Number(formAmount),
                     vendor: formVendor,
                     expenseDate: formExpenseDate,
-                    description: formDescription,
+                    description: finalDescription,
                   }
                 : exp
             )
@@ -292,14 +334,14 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
             amount: Number(formAmount),
             vendor: formVendor,
             expenseDate: formExpenseDate,
-            description: formDescription,
+            description: finalDescription,
           }),
         });
         if (res.ok) {
           const newExp: ExpenseItem = {
             id: `exp-${Date.now()}`,
             title: formTitle,
-            description: formDescription,
+            description: finalDescription,
             amount: Number(formAmount),
             expenseDate: formExpenseDate,
             categoryName: formCategory,
@@ -568,7 +610,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
               Pengeluaran, Kasbon & Pemeliharaan Fasum
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black border border-rose-200 tabular-nums">
-              Kas BCA: {formatRupiah(currentBalance)}
+              Kas Operasional: {formatRupiah(currentBalance)}
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
@@ -728,6 +770,49 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
             </button>
           </div>
 
+          {/* Talangan Saldo Kas Berjalan Banner & Quick Presets */}
+          <div className="p-4 bg-gradient-to-r from-amber-50/90 via-orange-50/50 to-canvas rounded-2xl border border-amber-200/90 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-amber-950 text-sm">
+                    Pencatatan Alokasi Saldo Kas Berjalan (Dana Dadakan & Dana Kesehatan)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300">
+                    Kas Cadangan
+                  </span>
+                </div>
+                <p className="text-amber-900 text-[11px] mt-0.5 leading-relaxed">
+                  Gunakan saldo kas akhir berjalan saat ada kebutuhan medis satpam yang fluktuatif (pagu referensi Rp 100.000 ±) atau pengeluaran dadakan darurat/sumbangan warga.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0 justify-end">
+              <button
+                type="button"
+                onClick={handleOpenQuickHealthAid}
+                className="px-3 py-2 bg-white hover:bg-rose-50 text-rose-800 hover:text-rose-900 border border-rose-200 hover:border-rose-300 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all shadow-2xs"
+                title="Catat pengeluaran obat/kesehatan satpam ditalangi saldo kas berjalan"
+              >
+                <Heart className="w-3.5 h-3.5 text-rose-600" />
+                <span>⚡ Talangi Dana Kesehatan (Rp 100rb ±)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenQuickUnexpectedAid}
+                className="px-3 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all shadow-2xs"
+                title="Catat pengeluaran tak terduga dadakan ditalangi saldo kas berjalan"
+              >
+                <AlertCircle className="w-3.5 h-3.5 text-amber-700" />
+                <span>⚡ Talangi Dana Dadakan</span>
+              </button>
+            </div>
+          </div>
+
           {/* Summary Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
@@ -781,12 +866,12 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Kategori</option>
-                <option value="Keamanan">Keamanan & Pos Satpam</option>
-                <option value="Kebersihan">Kebersihan & Sampah</option>
-                <option value="Operasional">Operasional Paguyuban</option>
-                <option value="Listrik">Listrik & Utilitas</option>
-                <option value="Pemeliharaan">Pemeliharaan Fasum</option>
-                <option value="Sosial">Santunan Sosial</option>
+                <option value="Gaji">Gaji Satpam</option>
+                <option value="Iuran RT">Iuran RT (Sampah & Kebersihan)</option>
+                <option value="Iuran RW">Iuran RW (Paguyuban Komplek)</option>
+                <option value="Operasional">Operasional (PJU & Pos Jaga)</option>
+                <option value="Dana Kesehatan">Dana Kesehatan / Bantuan Satpam</option>
+                <option value="Dana Tak Terduga">Dana Tak Terduga (Sumbangan Agustusan / Warga)</option>
               </select>
 
               <select
@@ -847,8 +932,29 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
-                          <span className="font-black text-ink block text-xs">{exp.title}</span>
-                          <span className="text-[10px] text-primary-700 font-semibold">{exp.vendor || 'Pengadaan Mandiri'}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-black text-ink block text-xs">{exp.title}</span>
+                            {(exp.description?.toLowerCase().includes('saldo kas berjalan') ||
+                              exp.description?.toLowerCase().includes('ditalangi saldo')) && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[9px] font-mono font-bold inline-flex items-center gap-1 shadow-2xs">
+                                ⚡ Ditalangi Saldo Berjalan
+                              </span>
+                            )}
+                            {(exp.categoryName?.toLowerCase().includes('kesehatan') ||
+                              exp.title?.toLowerCase().includes('kesehatan satpam')) && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-bold">
+                                Pagu Ref: Rp 100.000 (Fluktuatif)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-primary-700 font-semibold">{exp.vendor || 'Pengadaan Mandiri'}</span>
+                            {exp.description && (
+                              <span className="text-[10px] text-ink-muted truncate max-w-sm" title={exp.description}>
+                                • {exp.description}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono font-black text-rose-700 text-sm tabular-nums">
                           - {formatRupiah(exp.amount)}
@@ -1206,12 +1312,55 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
               <button onClick={() => setShowAddModal(false)} className="text-ink-muted hover:text-ink">✕</button>
             </div>
 
-            <form onSubmit={handleSaveGeneralExpense} className="space-y-3">
+            <form onSubmit={handleSaveGeneralExpense} className="space-y-3.5">
+              {/* Sumber Alokasi Kas */}
+              <div className="p-3 bg-canvas rounded-2xl border border-border space-y-2">
+                <label className="font-bold text-ink block text-[11px]">
+                  Sumber Alokasi Kas *
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFormFundingSource('KAS_OPERASIONAL')}
+                    className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
+                      formFundingSource === 'KAS_OPERASIONAL'
+                        ? 'bg-primary-600 text-white shadow-xs'
+                        : 'bg-surface hover:bg-canvas border border-border text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    <Banknote className="w-3.5 h-3.5" />
+                    <span>Kas Rutin Bulanan</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormFundingSource('SALDO_BERJALAN')}
+                    className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
+                      formFundingSource === 'SALDO_BERJALAN'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-surface hover:bg-canvas border border-border text-amber-800'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>⚡ Ditalangi Saldo Kas</span>
+                  </button>
+                </div>
+
+                {formFundingSource === 'SALDO_BERJALAN' && (
+                  <div className="p-2 bg-amber-50 rounded-xl border border-amber-200 text-[10px] text-amber-950 flex items-start gap-1.5 leading-snug">
+                    <Info className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                    <span>
+                      Ditalangi langsung dari akumulasi <strong>Saldo Kas Akhir Berjalan</strong> komplek (Kas Cadangan Warga). Sangat cocok untuk pengeluaran medis satpam yang fluktuatif atau dana dadakan darurat/kegiatan.
+                    </span>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="font-bold text-ink block mb-1">Uraian Pengeluaran *</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Honor 6 Petugas Satpam Agustus"
+                  placeholder="Contoh: Bantuan Pengobatan Medis Satpam / Santunan Acara"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   required
@@ -1227,12 +1376,12 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
-                    <option value="Keamanan">Keamanan</option>
-                    <option value="Kebersihan">Kebersihan</option>
-                    <option value="Operasional">Operasional</option>
-                    <option value="Listrik & Utilitas">Listrik & Utilitas</option>
-                    <option value="Pemeliharaan">Pemeliharaan Fasum</option>
-                    <option value="Sosial">Santunan Sosial</option>
+                    <option value="Gaji">Gaji (Satpam Pa Adri Harry & Pak Slamet)</option>
+                    <option value="Iuran RT">Iuran RT (Sampah & Kebersihan Saluran)</option>
+                    <option value="Iuran RW">Iuran RW (Paguyuban Komplek RW 08)</option>
+                    <option value="Operasional">Operasional (Listrik PJU & Air Pos Jaga)</option>
+                    <option value="Dana Kesehatan / Bantuan Satpam">Dana Kesehatan / Bantuan Satpam</option>
+                    <option value="Dana Tak Terduga">Dana Tak Terduga (Sumbangan Agustusan / Acara Kelurahan/RW)</option>
                   </select>
                 </div>
                 <div>
@@ -1246,6 +1395,73 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                   />
                 </div>
               </div>
+
+              {/* Dynamic Helper Chips for Dana Kesehatan & Dana Tak Terduga */}
+              {(formCategory.includes('Kesehatan') || formCategory.includes('Bantuan Satpam')) && (
+                <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-rose-900">Pagu Referensi: Rp 100.000 / bln</span>
+                    <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold border border-rose-200">
+                      Fluktuatif Sesuai Riil
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-rose-800 leading-tight">
+                    Pengeluaran medis/obat satpam bersifat fleksibel (kadang kurang atau lebih dari Rp 100rb). Preset cepat:
+                  </p>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {[50000, 75000, 100000, 150000, 200000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => {
+                          setFormAmount(String(amt));
+                          setFormFundingSource('SALDO_BERJALAN');
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
+                          formAmount === String(amt)
+                            ? 'bg-rose-600 text-white shadow-2xs'
+                            : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-50'
+                        }`}
+                      >
+                        {formatRupiah(amt)}{amt === 100000 ? ' (Pagu Ref)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {formCategory.includes('Terduga') && (
+                <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-amber-900">Dana Dadakan / Sumbangan Acara</span>
+                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold border border-amber-300">
+                      Ditalangi Saldo Kas
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-amber-800 leading-tight">
+                    Kebutuhan mendadak warga, sumbangan agustusan / acara kelurahan ditalangi dari saldo kas:
+                  </p>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {[50000, 100000, 150000, 200000, 300000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => {
+                          setFormAmount(String(amt));
+                          setFormFundingSource('SALDO_BERJALAN');
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
+                          formAmount === String(amt)
+                            ? 'bg-amber-600 text-white shadow-2xs'
+                            : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-50'
+                        }`}
+                      >
+                        {formatRupiah(amt)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -1532,7 +1748,11 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                   <label className="font-bold text-ink block mb-1">Jenis Bantuan</label>
                   <select
                     value={socType}
-                    onChange={(e) => setSocType(e.target.value as any)}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setSocType(val);
+                      if (val === 'SANTUNAN_KESEHATAN') setSocAmount(100000);
+                    }}
                     className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
                     <option value="SANTUNAN_KESEHATAN">Santunan Kesehatan / RS</option>
@@ -1550,6 +1770,22 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                     required
                     className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
                   />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[100000, 150000, 250000, 500000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setSocAmount(preset)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all ${
+                          socAmount === preset
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-surface hover:bg-canvas border border-border text-ink-muted'
+                        }`}
+                      >
+                        {formatRupiah(preset)}{preset === 100000 ? ' (Pagu Ref)' : ''}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

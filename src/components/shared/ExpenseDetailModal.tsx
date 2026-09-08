@@ -29,29 +29,41 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   if (!isOpen) return null;
 
   const getDetails = (cat: string): ExpenseItemDetail[] => {
-    switch (cat.toLowerCase()) {
-      case 'keamanan':
-        return [
-          { id: '1', date: '25 Agu 2026', title: 'Honorarium Petugas Satpam Regu A (2 Personil)', recipient: 'Joko S. & Bambang', amount: 8800000, invoiceRef: 'SLP-SEC-0801' },
-          { id: '2', date: '25 Agu 2026', title: 'Honorarium Petugas Satpam Regu B (2 Personil)', recipient: 'Agus W. & Rahmat', amount: 8800000, invoiceRef: 'SLP-SEC-0802' },
-        ];
-      case 'kebersihan':
-        return [
-          { id: '3', date: '24 Agu 2026', title: 'Honorarium 2 Petugas Pengangkut Sampah Komplek', recipient: 'Pak Ujang & Tim', amount: 6500000, invoiceRef: 'NOT-KBR-0824' },
-          { id: '4', date: '20 Agu 2026', title: 'Retribusi Pembuangan Sampah TPA & Pembelian Sapu/Plastik', recipient: 'Dinas LH / Toko Material', amount: 3287500, invoiceRef: 'KWT-TPA-8812' },
-        ];
-      case 'listrik':
-        return [
-          { id: '5', date: '18 Agu 2026', title: 'Tagihan Rekening PLN Penerangan Jalan Umum (PJU 4 Blok)', recipient: 'PT PLN (Persero)', amount: 5210000, invoiceRef: 'PLN-PJU-202608' },
-          { id: '6', date: '18 Agu 2026', title: 'Tagihan Listrik Pompa Air Bersih Fasum & Balai Warga', recipient: 'PT PLN (Persero)', amount: 2620000, invoiceRef: 'PLN-PMP-202608' },
-        ];
-      case 'pemeliharaan':
-      default:
-        return [
-          { id: '7', date: '22 Agu 2026', title: 'Penggantian 6 Titik Lampu LED PJU Jalan Blok C', recipient: 'Toko Listrik Terang Jaya', amount: 2450000, invoiceRef: 'NT-LT-4491' },
-          { id: '8', date: '15 Agu 2026', title: 'Perbaikan Engsel & Remote Gerbang Otomatis Timur', recipient: 'Bengkel Las & Elektro Maju', amount: 1482500, invoiceRef: 'NT-LAS-1204' },
-        ];
+    const c = cat.toLowerCase();
+    if (c.includes('gaji') || c.includes('satpam') || c.includes('keamanan') || c.includes('honor')) {
+      return [
+        { id: '1', date: '05 Sep 2026', title: 'Honor Petugas Jaga & Keamanan 24 Jam (Pa Adri Harry)', recipient: 'Pa Adri Harry', amount: 1350000, invoiceRef: 'SLP-SEC-0901' },
+        { id: '2', date: '05 Sep 2026', title: 'Honor Petugas Jaga & Keamanan Shift (Pak Slamet Radiyanto)', recipient: 'Pak Slamet Radiyanto', amount: 1100000, invoiceRef: 'SLP-SEC-0902' },
+      ];
     }
+    if (c.includes('rt') || c.includes('sampah') || c.includes('kebersihan')) {
+      return [
+        { id: '3', date: '04 Sep 2026', title: 'Iuran Retribusi RT, Armada Kebersihan & Pengangkutan Sampah LH', recipient: 'Pengurus RT 01 / Armada LH', amount: 250000, invoiceRef: 'NOT-RT01-SMPH' },
+      ];
+    }
+    if (c.includes('rw') || c.includes('paguyuban')) {
+      return [
+        { id: '4', date: '03 Sep 2026', title: 'Iuran Retribusi Paguyuban Komplek & Koordinasi Wilayah RW 08', recipient: 'Bendahara Paguyuban RW 08', amount: 100000, invoiceRef: 'KWT-RW08-PGYBN' },
+      ];
+    }
+    if (c.includes('operasional') || c.includes('listrik') || c.includes('pju')) {
+      return [
+        { id: '5', date: '06 Sep 2026', title: 'Tagihan Rekening Listrik PLN PJU Lingkungan & Air Galon Pos Jaga', recipient: 'PT PLN (Persero) & Depo Air', amount: 75000, invoiceRef: 'PLN-PJU-0926' },
+      ];
+    }
+    if (c.includes('kesehatan') || c.includes('bantuan')) {
+      return [
+        { id: '6', date: '06 Sep 2026', title: 'Dana Kesehatan / Bantuan Satpam (P3K & Pengobatan Ringan - Fluktuatif Ditalangi Saldo Berjalan)', recipient: 'Pa Adri Harry / Apotek Sehat', amount: 100000, invoiceRef: 'KWT-MED-SATPAM' },
+      ];
+    }
+    if (c.includes('terduga') || c.includes('sumbangan') || c.includes('agustus') || c.includes('acara') || c.includes('kelurahan')) {
+      return [
+        { id: '7', date: '07 Sep 2026', title: 'Dana Tak Terduga: Partisipasi Acara Kelurahan / Musyawarah RW & Agustusan', recipient: 'Panitia Wilayah RW / Kelurahan', amount: 100000, invoiceRef: 'SBG-RW-KEGIATAN' },
+      ];
+    }
+    return [
+      { id: '8', date: '05 Sep 2026', title: `Realisasi Pos Anggaran ${cat}`, recipient: 'Pengurus Komplek Grand Sariwangi', amount: totalAmount, invoiceRef: 'VCR-OPS-0901' },
+    ];
   };
 
   const items = getDetails(categoryName);

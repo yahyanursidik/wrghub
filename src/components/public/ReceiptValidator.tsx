@@ -368,7 +368,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
                       KUITANSI DIGITAL PEMBAYARAN IURAN
                     </h2>
                     <p className="text-xs text-ink-muted font-medium">
-                      Komplek Taman Sejahtera • RW 05 / RT 01-04 • Bandung
+                      Komplek Grand Sariwangi • RT 01 / RW 08 • Bandung Barat
                     </p>
                   </div>
                 </div>
@@ -929,7 +929,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
                 <h4 className="font-bold text-ink">4. Otoritas Tunggal Penerbitan</h4>
               </div>
               <p className="text-ink-muted leading-relaxed">
-                Hanya bendahara kas paguyuban dan ketua RW terautentikasi yang memiliki hak penerbitan status lunas setelah mencocokkan mutasi bank rekening BCA.
+                Hanya bendahara kas paguyuban dan ketua RW terautentikasi yang memiliki hak penerbitan status lunas setelah mencocokkan mutasi rekening kas paguyuban (Bank Syariah / Bank Nasional / E-Wallet).
               </p>
             </div>
           </div>

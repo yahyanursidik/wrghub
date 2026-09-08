@@ -156,11 +156,11 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
     {
       id: 'ANN-003',
       title: 'Rekapitulasi Iuran Warga Periode September 2026 & Petunjuk QRIS',
-      content: 'Tagihan iuran pengelolaan lingkungan (IPL & Kebersihan) bulan September telah terbit. Warga dapat menyetorkan melalui transfer Bank BCA Kas Paguyuban atau scan QRIS WargaHub. Laporan transparansi dapat diakses realtime.',
+      content: 'Tagihan iuran pengelolaan lingkungan (IPL & Kebersihan) bulan September telah terbit. Warga dapat menyetorkan melalui transfer Bank Kas Paguyuban (Bank Syariah / Bank Nasional), E-Wallet, atau scan QRIS WargaHub. Laporan transparansi dapat diakses realtime.',
       category: 'KEUANGAN',
       audience: 'ALL',
       scheduledAt: 'Jatuh Tempo: 15 September 2026',
-      location: 'Portal Online & Rekening Kas BCA',
+      location: 'Portal Online & Rekening Kas Paguyuban',
       isPinned: false,
       authorName: 'Bendahara Paguyuban',
       createdAt: '2026-09-01T10:00:00Z',
@@ -221,7 +221,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
     {
       id: 'ANN-008',
       title: 'Peringatan Waspada Penipuan Mengatasnamakan Pengurus / Petugas Tagihan Air',
-      content: 'Ditegaskan bahwa seluruh pembayaran iuran komplek HANYA dilakukan ke rekening resmi Paguyuban BCA atau QRIS resmi WargaHub. Petugas satpam dan kebersihan tidak pernah meminta uang tunai di rumah tanpa kuitansi berstempel.',
+      content: 'Ditegaskan bahwa seluruh pembayaran iuran komplek HANYA dilakukan ke rekening resmi Kas Paguyuban (Bank Syariah / Bank Nasional) atau QRIS resmi WargaHub. Petugas satpam dan kebersihan tidak pernah meminta uang tunai di rumah tanpa kuitansi berstempel.',
       category: 'DARURAT',
       scheduledAt: 'Penting & Segera',
       location: 'Papan Informasi Warga',
@@ -264,7 +264,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
       name: 'Pengingat Pembayaran Iuran Bulanan',
       category: 'KEUANGAN',
       subject: 'PENGINGAT IURAN KOMPLEK WARGAHUB',
-      content: 'Kepada Yth. Bapak/Ibu Warga Komplek,\n\nKami mengingatkan bahwa tagihan iuran bulan berjalan telah terbit. Mohon melakukan penyetoran sebelum tanggal 15 melalui transfer BCA 8830-1928-33 a.n PENGURUS KOMPLEK atau QRIS di portal WargaHub.\n\nTerima kasih atas partisipasi aktif Bapak/Ibu dalam menjaga kenyamanan komplek kita.'
+      content: 'Kepada Yth. Bapak/Ibu Warga Komplek,\n\nKami mengingatkan bahwa tagihan iuran bulan berjalan telah terbit. Mohon melakukan penyetoran sebelum tanggal 15 melalui transfer Rekening Kas Paguyuban (Bank Syariah / Bank Nasional) 8830-1928-33 a.n PENGURUS KOMPLEK atau QRIS di portal WargaHub.\n\nTerima kasih atas partisipasi aktif Bapak/Ibu dalam menjaga kenyamanan komplek kita.'
     },
     {
       id: 'TPL-02',

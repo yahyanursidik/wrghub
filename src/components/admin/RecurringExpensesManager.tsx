@@ -36,6 +36,8 @@ export interface RecurringExpenseItem {
   accountId: string;
   accountName: string;
   executionDay: number; // 1 - 31 (tanggal eksekusi rutin per bulan)
+  frequency?: 'MONTHLY' | 'SPECIFIC_MONTH' | 'YEARLY';
+  executionMonth?: number; // 1 - 12 (misal 8 untuk Agustus)
   vendor: string;
   description: string;
   isActive: boolean;
@@ -45,72 +47,85 @@ export interface RecurringExpenseItem {
 const DEFAULT_RECURRING_EXPENSES: RecurringExpenseItem[] = [
   {
     id: 'rec-01',
-    title: 'Honor Petugas Jaga & Keamanan 24 Jam (Pa Adri Harry)',
-    amount: 1800000,
-    categoryId: 'cat-keamanan',
-    categoryName: 'Keamanan & Satpam',
+    title: 'Gaji Satpam (Pa Adri Harry & Pak Slamet Radiyanto)',
+    amount: 2450000,
+    categoryId: 'cat-gaji',
+    categoryName: 'Gaji',
     accountId: 'acc-main',
-    accountName: 'BCA Utama - Operasional',
+    accountName: 'Kas Operasional Paguyuban',
     executionDay: 25,
-    vendor: 'Pa Adri Harry (Petugas Jaga)',
-    description: 'Honor bulanan penjagaan gerbang utama & kontrol keamanan 14 kavling',
+    vendor: 'Pa Adri Harry (Rp 1.350.000) & Pak Slamet Radiyanto (Rp 1.100.000)',
+    description: 'Honor bulanan 2 personil satpam piket gerbang & patroli 24 jam Komplek Grand Sariwangi',
     isActive: true,
   },
   {
     id: 'rec-02',
-    title: 'Iuran Retribusi Kebersihan & Pengangkutan Sampah',
-    amount: 600000,
-    categoryId: 'cat-kebersihan',
-    categoryName: 'Kebersihan & Sanitasi',
+    title: 'Iuran RT (Sampah Dinas LH & Kebersihan Lingkungan RT)',
+    amount: 250000,
+    categoryId: 'cat-iuran-rt',
+    categoryName: 'Iuran RT',
     accountId: 'acc-main',
-    accountName: 'BCA Utama - Operasional',
+    accountName: 'Kas Operasional Paguyuban',
     executionDay: 5,
-    vendor: 'Armada Sampah / Petugas Lingkungan',
-    description: 'Biaya pengangkutan sampah rumah tangga komplek 3x seminggu',
+    vendor: 'Kas Bendahara RT 01',
+    description: 'Pengangkutan armada sampah dinas LH, pembersihan selokan got & operasional RT',
     isActive: true,
   },
   {
     id: 'rec-03',
-    title: 'Tagihan Listrik PLN (PJU Lingkungan & Pompa Air Fasum)',
-    amount: 400000,
-    categoryId: 'cat-listrik',
-    categoryName: 'Listrik & Utilitas',
+    title: 'Iuran RW (Retribusi Paguyuban Komplek RW 08 Sariwangi)',
+    amount: 100000,
+    categoryId: 'cat-iuran-rw',
+    categoryName: 'Iuran RW',
     accountId: 'acc-main',
-    accountName: 'BCA Utama - Operasional',
+    accountName: 'Kas Operasional Paguyuban',
     executionDay: 10,
-    vendor: 'PT PLN (Persero)',
-    description: 'Penerangan jalan umum 14 titik & pompa air otomatis fasum',
+    vendor: 'Pengurus RW 08 Sariwangi',
+    description: 'Retribusi paguyuban komplek, koordinasi wilayah RW 08 dan administrasi',
     isActive: true,
   },
   {
     id: 'rec-04',
-    title: 'Pemeliharaan Taman, Potong Rumput & Drainase/Got',
-    amount: 250000,
-    categoryId: 'cat-pemeliharaan',
-    categoryName: 'Pemeliharaan Lingkungan',
+    title: 'Operasional Pos Satpam & Penerangan Jalan (PJU)',
+    amount: 75000,
+    categoryId: 'cat-operasional',
+    categoryName: 'Operasional',
     accountId: 'acc-main',
-    accountName: 'BCA Utama - Operasional',
+    accountName: 'Kas Operasional Paguyuban',
     executionDay: 15,
-    vendor: 'Pak Slamet / Tukang Taman',
-    description: 'Perawatan taman fasum, pemotongan rumput jalan & pembersihan selokan',
+    vendor: 'PLN & Galon Air Minum Pos',
+    description: 'Token listrik PLN PJU komplek, pompa air otomatis fasum & air minum galon pos satpam',
     isActive: true,
   },
   {
     id: 'rec-05',
-    title: 'Operasional Pos Satpam & Kuota Internet CCTV/Gate',
+    title: 'Dana Kesehatan / Bantuan Medis P3K Satpam',
     amount: 100000,
-    categoryId: 'cat-pemeliharaan',
-    categoryName: 'Operasional Pos Satpam',
+    categoryId: 'cat-dana-kesehatan',
+    categoryName: 'Dana Kesehatan / Bantuan Satpam',
     accountId: 'acc-main',
-    accountName: 'BCA Utama - Operasional',
+    accountName: 'Kas Operasional Paguyuban',
     executionDay: 1,
-    vendor: 'Telkomsel / Indihome Pos',
-    description: 'Paket data CCTV online gerbang, buku mutasi & ATK pos',
+    vendor: 'Kas P3K / Satpam Piket',
+    description: 'Bantuan suplemen, obat-obatan P3K jaga malam dan santunan medis darurat satpam (pagu referensi Rp 100.000, realisasi fluktuatif ditalangi saldo kas berjalan)',
+    isActive: true,
+  },
+  {
+    id: 'rec-06',
+    title: 'Dana Tak Terduga (Sumbangan Agustusan & Acara Kelurahan/RW)',
+    amount: 200000,
+    categoryId: 'cat-dana-tak-terduga',
+    categoryName: 'Dana Tak Terduga',
+    accountId: 'acc-main',
+    accountName: 'Kas Operasional Paguyuban',
+    executionDay: 11,
+    vendor: 'Panitia Agustusan HUT RI RW 08 / Kas Darurat',
+    description: 'Dana sumbangan untuk agustusan, acara sekitar kelurahan/rw, santunan warga & darurat',
     isActive: true,
   },
 ];
 
-const LOCAL_STORAGE_KEY = 'wargahub_recurring_expenses_config_v2';
+const LOCAL_STORAGE_KEY = 'wargahub_recurring_expenses_config_v3';
 
 const ALL_2026_MONTHS = [
   { value: '2026-01', label: 'Januari 2026' },
@@ -144,7 +159,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     if (initialConfig && Array.isArray(initialConfig) && initialConfig.length > 0) {
       return initialConfig.map((it: any) => ({
         ...it,
-        accountName: it.accountName || 'BCA Utama - Operasional',
+        accountName: it.accountName || 'Kas Operasional Paguyuban',
       }));
     }
     if (typeof window !== 'undefined') {
@@ -153,7 +168,16 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
+            return parsed.map((it: any) =>
+              it.id === 'rec-05' && it.amount === 50000
+                ? {
+                    ...it,
+                    amount: 100000,
+                    description:
+                      'Bantuan suplemen, obat-obatan P3K jaga malam dan santunan medis darurat satpam (pagu referensi Rp 100.000, realisasi fluktuatif ditalangi saldo kas berjalan)',
+                  }
+                : it
+            );
           }
         }
       } catch (e) {
@@ -188,8 +212,10 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
   // Form State
   const [formTitle, setFormTitle] = useState('');
   const [formAmount, setFormAmount] = useState<number | string>(1000000);
-  const [formCategory, setFormCategory] = useState('Keamanan & Satpam');
+  const [formCategory, setFormCategory] = useState('Gaji');
   const [formExecutionDay, setFormExecutionDay] = useState<number>(25);
+  const [formFrequency, setFormFrequency] = useState<'MONTHLY' | 'SPECIFIC_MONTH'>('MONTHLY');
+  const [formExecutionMonth, setFormExecutionMonth] = useState<number>(8);
   const [formAccountId, setFormAccountId] = useState('acc-main');
   const [formVendor, setFormVendor] = useState('');
   const [formDescription, setFormDescription] = useState('');
@@ -216,27 +242,45 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
   // Calculations
   const activeItems = useMemo(() => recurringItems.filter((i) => i.isActive), [recurringItems]);
   const monthlyRoutineTotal = useMemo(
-    () => activeItems.reduce((acc, curr) => acc + curr.amount, 0),
+    () => activeItems.filter((i) => i.frequency !== 'SPECIFIC_MONTH').reduce((acc, curr) => acc + curr.amount, 0),
+    [activeItems]
+  );
+  const annualRoutineTotal = useMemo(
+    () => activeItems.filter((i) => i.frequency === 'SPECIFIC_MONTH').reduce((acc, curr) => acc + curr.amount, 0),
     [activeItems]
   );
 
   // Check if item is already booked in a specific month
   const isItemBookedInMonth = (item: RecurringExpenseItem, month: string) => {
-    const key = month;
+    const monthNum = parseInt(month.slice(5, 7), 10);
+    if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth && item.executionMonth !== monthNum) {
+      return true; // Tidak berlaku untuk bulan ini
+    }
     return existingExpenseTitles.some(
-      (t) => t.toLowerCase().includes(item.title.toLowerCase()) && t.includes(key)
+      (t) => t.toLowerCase().includes(item.title.toLowerCase()) && t.includes(month)
     );
   };
 
   // Monthly breakdown: which months have how many items booked
   const monthsStatus = useMemo(() => {
     return ALL_2026_MONTHS.map((m) => {
-      const bookedCount = activeItems.filter((item) => isItemBookedInMonth(item, m.value)).length;
-      const isComplete = bookedCount >= activeItems.length && activeItems.length > 0;
+      const monthNum = parseInt(m.value.slice(5, 7), 10);
+      const applicableItems = activeItems.filter((item) => {
+        if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth) {
+          return item.executionMonth === monthNum;
+        }
+        return true;
+      });
+      const bookedCount = applicableItems.filter((item) => {
+        return existingExpenseTitles.some(
+          (t) => t.toLowerCase().includes(item.title.toLowerCase()) && t.includes(m.value)
+        );
+      }).length;
+      const isComplete = bookedCount >= applicableItems.length && applicableItems.length > 0;
       return {
         ...m,
         bookedCount,
-        totalItems: activeItems.length,
+        totalItems: applicableItems.length,
         isComplete,
       };
     });
@@ -252,7 +296,11 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
   const multiMonthTotalDeduction = useMemo(() => {
     let sum = 0;
     for (const m of selectedMonthsForGen) {
+      const monthNum = parseInt(m.slice(5, 7), 10);
       for (const item of activeItems) {
+        if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth && item.executionMonth !== monthNum) {
+          continue;
+        }
         if (!isItemBookedInMonth(item, m)) {
           sum += item.amount;
         }
@@ -270,6 +318,8 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     setFormAmount(500000);
     setFormCategory('Keamanan & Satpam');
     setFormExecutionDay(25);
+    setFormFrequency('MONTHLY');
+    setFormExecutionMonth(8);
     setFormAccountId('acc-main');
     setFormVendor('');
     setFormDescription('');
@@ -284,6 +334,8 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     setFormAmount(item.amount);
     setFormCategory(item.categoryName);
     setFormExecutionDay(item.executionDay);
+    setFormFrequency(item.frequency === 'SPECIFIC_MONTH' ? 'SPECIFIC_MONTH' : 'MONTHLY');
+    setFormExecutionMonth(item.executionMonth || 8);
     setFormAccountId(item.accountId);
     setFormVendor(item.vendor);
     setFormDescription(item.description);
@@ -305,7 +357,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     }
 
     const accountObj = accounts.find((a) => a.id === formAccountId);
-    const accountName = accountObj ? accountObj.name : 'BCA Utama - Operasional';
+    const accountName = accountObj ? accountObj.name : 'Kas Operasional Paguyuban';
 
     let nextItems: RecurringExpenseItem[];
     if (editingItemId) {
@@ -317,6 +369,8 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
               amount: numAmount,
               categoryName: formCategory,
               executionDay: Number(formExecutionDay),
+              frequency: formFrequency,
+              executionMonth: formFrequency === 'SPECIFIC_MONTH' ? Number(formExecutionMonth) : undefined,
               accountId: formAccountId,
               accountName,
               vendor: formVendor.trim(),
@@ -336,6 +390,8 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
         accountId: formAccountId,
         accountName,
         executionDay: Number(formExecutionDay),
+        frequency: formFrequency,
+        executionMonth: formFrequency === 'SPECIFIC_MONTH' ? Number(formExecutionMonth) : undefined,
         vendor: formVendor.trim(),
         description: formDescription.trim(),
         isActive: formIsActive,
@@ -514,11 +570,11 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
           </span>
         </div>
 
-        {/* KPI 2: Saldo Kas Rekening BCA */}
+        {/* KPI 2: Saldo Kas Operasional Paguyuban */}
         <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">
-              Saldo Kas BCA Saat Ini
+              Saldo Kas Operasional Saat Ini
             </span>
             <span className="p-1 rounded-lg bg-blue-50 text-blue-600">
               <Wallet className="w-3.5 h-3.5" />
@@ -609,9 +665,17 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                   >
                     {/* Tanggal Eksekusi */}
                     <td className="py-3.5 px-4 text-center">
-                      <div className="inline-flex flex-col items-center justify-center w-8 h-8 rounded-lg bg-surface border border-border shadow-2xs">
-                        <span className="text-[8px] font-mono text-ink-muted leading-none">TGL</span>
-                        <span className="font-mono font-black text-ink text-xs leading-none mt-0.5">
+                      <div className={`inline-flex flex-col items-center justify-center w-8.5 h-8.5 rounded-lg border shadow-2xs ${
+                        item.frequency === 'SPECIFIC_MONTH'
+                          ? 'bg-rose-50 border-rose-300 text-rose-800'
+                          : 'bg-surface border-border text-ink'
+                      }`}>
+                        <span className="text-[7.5px] font-mono uppercase font-bold leading-none text-ink-muted">
+                          {item.frequency === 'SPECIFIC_MONTH' && item.executionMonth === 8 ? 'AGS' : 'TGL'}
+                        </span>
+                        <span className={`font-mono font-black text-xs leading-none mt-0.5 ${
+                          item.frequency === 'SPECIFIC_MONTH' ? 'text-rose-700' : 'text-ink'
+                        }`}>
                           {item.executionDay}
                         </span>
                       </div>
@@ -619,8 +683,13 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
 
                     {/* Nama & Penerima */}
                     <td className="py-3.5 px-4">
-                      <div className="font-black text-ink text-xs flex items-center gap-1.5">
+                      <div className="font-black text-ink text-xs flex flex-wrap items-center gap-1.5">
                         <span>{item.title}</span>
+                        {item.frequency === 'SPECIFIC_MONTH' && item.executionMonth === 8 && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] bg-rose-100 text-rose-800 font-extrabold border border-rose-300 inline-flex items-center gap-1 shadow-2xs">
+                            <span>🇮🇩 Khusus 11 Agustus (Tahunan)</span>
+                          </span>
+                        )}
                         {!item.isActive && (
                           <span className="px-1.5 py-0.2 rounded text-[9px] bg-slate-200 text-slate-700 font-bold">
                             DIJEDA
@@ -657,7 +726,9 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                       <span className="font-mono font-black text-rose-700 text-xs tabular-nums block">
                         {formatRupiah(item.amount)}
                       </span>
-                      <span className="text-[9px] font-mono text-ink-muted">/ BULAN</span>
+                      <span className="text-[9px] font-mono text-ink-muted">
+                        {item.frequency === 'SPECIFIC_MONTH' ? '/ TAHUN (AGUSTUS)' : '/ BULAN'}
+                      </span>
                     </td>
 
                     {/* Status Toggle */}
@@ -743,7 +814,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
 
               <div className="space-y-1.5 font-mono text-xs">
                 <div className="flex justify-between items-center text-ink-muted">
-                  <span>Saldo Kas BCA Saat Ini:</span>
+                  <span>Saldo Kas Operasional Saat Ini:</span>
                   <span className="font-bold text-ink">{formatRupiah(currentBalance)}</span>
                 </div>
 
@@ -900,12 +971,12 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
-                    <option value="Keamanan & Satpam">Keamanan & Satpam</option>
-                    <option value="Kebersihan & Sanitasi">Kebersihan & Sanitasi</option>
-                    <option value="Listrik & Utilitas">Listrik & Utilitas</option>
-                    <option value="Pemeliharaan Lingkungan">Pemeliharaan Lingkungan</option>
-                    <option value="Operasional Kantor Pos">Operasional Kantor Pos</option>
-                    <option value="Santunan Sosial">Santunan Sosial</option>
+                    <option value="Gaji">Gaji (Satpam Pa Adri Harry & Pak Slamet)</option>
+                    <option value="Iuran RT">Iuran RT (Sampah & Kebersihan Saluran Got)</option>
+                    <option value="Iuran RW">Iuran RW (Paguyuban Komplek RW 08)</option>
+                    <option value="Operasional">Operasional (Listrik PJU & Air Pos Jaga)</option>
+                    <option value="Dana Kesehatan / Bantuan Satpam">Dana Kesehatan / Bantuan Satpam</option>
+                    <option value="Dana Tak Terduga">Dana Tak Terduga (Sumbangan Agustusan / Acara Kelurahan/RW)</option>
                   </select>
                 </div>
 
@@ -923,30 +994,114 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Tgl Eksekusi / Jatuh Tempo</label>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-ink-muted">Tiap Tgl</span>
-                    <input
-                      type="number"
-                      value={formExecutionDay}
-                      onChange={(e) =>
-                        setFormExecutionDay(Math.min(31, Math.max(1, Number(e.target.value))))
-                      }
-                      min={1}
-                      max={31}
-                      required
-                      className="w-20 p-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-ink text-center"
-                    />
-                  </div>
+              {/* Siklus Pengeluaran Rutin */}
+              <div>
+                <label className="font-bold text-ink block mb-1">Siklus Pengeluaran Rutin</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormFrequency('MONTHLY')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
+                      formFrequency === 'MONTHLY'
+                        ? 'bg-rose-50 border-rose-400 text-rose-800 shadow-2xs'
+                        : 'bg-canvas border-border text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    Setiap Bulan (Bulanan)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormFrequency('SPECIFIC_MONTH');
+                      setFormExecutionMonth(8);
+                      setFormExecutionDay(11);
+                    }}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
+                      formFrequency === 'SPECIFIC_MONTH'
+                        ? 'bg-rose-50 border-rose-400 text-rose-800 shadow-2xs'
+                        : 'bg-canvas border-border text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    Khusus Bulan Tertentu (Tahunan)
+                  </button>
                 </div>
+              </div>
 
-                <div>
+              {formFrequency === 'SPECIFIC_MONTH' ? (
+                <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
+                    <span>🇮🇩 Pengeluaran Khusus Musiman / Tahunan (cth. 17 Agustusan)</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1 text-[11px]">Bulan Pelaksanaan</label>
+                      <select
+                        value={formExecutionMonth}
+                        onChange={(e) => setFormExecutionMonth(Number(e.target.value))}
+                        className="w-full p-2 bg-white border border-rose-200 rounded-xl font-bold text-ink"
+                      >
+                        <option value={1}>Januari</option>
+                        <option value={2}>Februari</option>
+                        <option value={3}>Maret</option>
+                        <option value={4}>April</option>
+                        <option value={5}>Mei</option>
+                        <option value={6}>Juni</option>
+                        <option value={7}>Juli</option>
+                        <option value={8}>Agustus (HUT RI 17-an)</option>
+                        <option value={9}>September</option>
+                        <option value={10}>Oktober</option>
+                        <option value={11}>November</option>
+                        <option value={12}>Desember</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1 text-[11px]">Tanggal Eksekusi</label>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-ink-muted">Tgl</span>
+                        <input
+                          type="number"
+                          value={formExecutionDay}
+                          onChange={(e) => setFormExecutionDay(Math.min(31, Math.max(1, Number(e.target.value))))}
+                          min={1}
+                          max={31}
+                          required
+                          className="w-full p-2 bg-white border border-rose-200 rounded-xl font-mono font-bold text-ink text-center"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-rose-700 leading-tight">
+                    Pos ini hanya akan dibukukan pada tanggal {formExecutionDay} di bulan {['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][formExecutionMonth - 1]}.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-2">
+                {formFrequency === 'MONTHLY' && (
+                  <div>
+                    <label className="font-bold text-ink block mb-1">Tgl Eksekusi / Jatuh Tempo</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-ink-muted">Tiap Tgl</span>
+                      <input
+                        type="number"
+                        value={formExecutionDay}
+                        onChange={(e) =>
+                          setFormExecutionDay(Math.min(31, Math.max(1, Number(e.target.value))))
+                        }
+                        min={1}
+                        max={31}
+                        required
+                        className="w-20 p-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-ink text-center"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className={formFrequency === 'SPECIFIC_MONTH' ? 'col-span-2' : ''}>
                   <label className="font-bold text-ink block mb-1">Penerima Dana / Vendor</label>
                   <input
                     type="text"
-                    placeholder="Contoh: Pa Adri Harry / PLN"
+                    placeholder="Contoh: Panitia 17 Agustusan / Pa Adri Harry"
                     value={formVendor}
                     onChange={(e) => setFormVendor(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
@@ -961,7 +1116,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                   onChange={(e) => setFormAccountId(e.target.value)}
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink font-bold"
                 >
-                  <option value="acc-main">BCA Utama - Operasional (acc-main)</option>
+                  <option value="acc-main">Kas Operasional Paguyuban (acc-main)</option>
                   <option value="acc-petty">Kas Tunai / Petty Cash (acc-petty)</option>
                 </select>
               </div>

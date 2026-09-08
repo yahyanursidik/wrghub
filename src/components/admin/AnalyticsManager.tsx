@@ -425,7 +425,7 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1 leading-relaxed max-w-3xl">
-            Executive Dashboard: Evaluasi performa arus kas bulanan, disiplin iuran per blok hunian, efisiensi energi fasum, dan SLA keamanan lingkungan Komplek Taman Sejahtera.
+            Executive Dashboard: Evaluasi performa arus kas bulanan, disiplin iuran per blok hunian, efisiensi energi fasum, dan SLA keamanan lingkungan Komplek Grand Sariwangi.
           </p>
         </div>
 

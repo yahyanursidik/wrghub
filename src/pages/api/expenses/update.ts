@@ -1,9 +1,11 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { recordAuditLog } from '../../../services/audit.service';
+import { updateExpense } from '../../../services/finance.service';
 
 const updateExpenseSchema = z.object({
-  expenseId: z.string().min(1),
+  id: z.string().optional(),
+  expenseId: z.string().optional(),
   title: z.string().optional(),
   categoryName: z.string().optional(),
   amount: z.number().optional(),
@@ -17,15 +19,30 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = updateExpenseSchema.parse(body);
+    const targetId = validated.id || validated.expenseId;
+    if (!targetId) {
+      throw new Error('ID pengeluaran kas (id / expenseId) wajib disertakan');
+    }
+
+    await updateExpense({
+      id: targetId,
+      title: validated.title,
+      categoryName: validated.categoryName,
+      amount: validated.amount,
+      vendor: validated.vendor,
+      expenseDate: validated.expenseDate,
+      description: validated.description,
+      status: validated.status,
+    });
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
         actorName: 'Bendahara Komplek',
         action: 'finance.update_expense',
         entityType: 'EXPENSE',
-        entityId: validated.expenseId,
+        entityId: targetId,
         newValue: {
-          expenseId: validated.expenseId,
+          expenseId: targetId,
           title: validated.title,
           amount: validated.amount,
           category: validated.categoryName,
@@ -39,6 +56,7 @@ export const POST: APIRoute = async ({ request }) => {
         data: {
           success: true,
           ...validated,
+          id: targetId,
           updatedAt: new Date().toISOString(),
         },
         meta: {},

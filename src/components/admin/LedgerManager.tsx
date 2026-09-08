@@ -143,9 +143,10 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   const [isTransferring, setIsTransferring] = useState(false);
 
   // Bank Reconciliation State
-  const mainBankAcc = accounts.find((a) => a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.code === 'BCA-UTAMA') || accounts[0];
+  const mainBankAcc = accounts.find((a) => a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.code === 'BCA-UTAMA' || a.type === 'BANK') || accounts[0];
+  const mainBankLabel = mainBankAcc ? (mainBankAcc.bankName || mainBankAcc.name || 'Rekening Kas Utama') : 'Rekening Kas Utama';
   const [bankStatementBalance, setBankStatementBalance] = useState<number>(mainBankAcc ? mainBankAcc.balance : 0);
-  const [reconciliationMonth, setReconciliationMonth] = useState('Agustus 2026');
+  const [reconciliationMonth, setReconciliationMonth] = useState('September 2026');
   const [reconChecks, setReconChecks] = useState<{ [key: string]: boolean }>({
     checkQris: false,
     checkInterest: false,
@@ -303,7 +304,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
           direction: 'OUT',
           amount: num,
           sourceType: 'MUTASI_KAS_INTERNAL',
-          description: `Transfer keluar ke ${transferTo === 'acc-cash' ? 'Kas Tunai Bendahara' : 'Rekening BCA Utama'}: ${transferNotes}`,
+          description: `Transfer keluar ke ${accounts.find(a => a.id === transferTo)?.name || 'Rekening Tujuan'}: ${transferNotes}`,
           entryDate: new Date().toISOString().slice(0, 10),
         }),
       });
@@ -316,7 +317,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
           direction: 'IN',
           amount: num,
           sourceType: 'MUTASI_KAS_INTERNAL',
-          description: `Transfer masuk dari ${transferFrom === 'acc-cash' ? 'Kas Tunai Bendahara' : 'Rekening BCA Utama'}: ${transferNotes}`,
+          description: `Transfer masuk dari ${accounts.find(a => a.id === transferFrom)?.name || 'Rekening Sumber'}: ${transferNotes}`,
           entryDate: new Date().toISOString().slice(0, 10),
         }),
       });
@@ -457,28 +458,28 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
 
   // Download Reconciliation Statement .txt
   const handleDownloadReconStatement = () => {
-    const bcaAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
-    const systemBcaBalance = bcaAcc ? bcaAcc.balance : 0;
-    const diff = bankStatementBalance - systemBcaBalance;
+    const mainAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
+    const systemMainBalance = mainAcc ? mainAcc.balance : 0;
+    const diff = bankStatementBalance - systemMainBalance;
     const isBalanced = diff === 0;
 
-    const content = `BERITA ACARA REKONSILIASI BANK BCA & BUKU KAS - WARGAHUB\n=======================================================\nPeriode: ${reconciliationMonth}\nTanggal Cetak: ${new Date().toLocaleString(
+    const content = `BERITA ACARA REKONSILIASI KAS & BANK OPERASIONAL - WARGAHUB\n=======================================================\nPeriode: ${reconciliationMonth}\nTanggal Cetak: ${new Date().toLocaleString(
       'id-ID'
-    )}\n\nDATA SALDO KAS & BANK:\n-------------------------------------------------------\n1. Saldo Rekening Koran BCA (Fisik)   : ${formatRupiah(
+    )}\n\nDATA SALDO KAS & BANK:\n-------------------------------------------------------\n1. Saldo Rekening Koran / Mutasi (${mainBankLabel}) : ${formatRupiah(
       bankStatementBalance
-    )}\n2. Saldo Pembukuan Jurnal Sistem      : ${formatRupiah(
-      systemBcaBalance
-    )}\n3. Selisih Rekonsiliasi (Variance)     : ${formatRupiah(
+    )}\n2. Saldo Pembukuan Jurnal Sistem               : ${formatRupiah(
+      systemMainBalance
+    )}\n3. Selisih Rekonsiliasi (Variance)              : ${formatRupiah(
       diff
     )}\nSTATUS REKONSILIASI: ${
       isBalanced ? '✓ TEREKONSILIASI PENUH & SEIMBANG' : '⚠️ TERDAPAT SELISIH / ANOMALI'
-    }\n\nHASIL VERIFIKASI PEMERIKSAAN:\n-------------------------------------------------------\n- Penerimaan Setoran QRIS & Virtual Account : Sesuai Rekening Koran\n- Biaya Administrasi & Bunga Tabungan Bank   : Sesuai Buku Kas\n- Penarikan Kas Tunai Operasional Paguyuban  : Terverifikasi BKK\n- Transaksi Tertunda / Outstanding Check      : Tidak Ada\n\nMengetahui,\nKetua RW 05                      Bendahara Paguyuban`;
+    }\n\nHASIL VERIFIKASI PEMERIKSAAN:\n-------------------------------------------------------\n- Penerimaan Setoran QRIS & Bank/E-Wallet     : Sesuai Rekening Koran\n- Biaya Administrasi & Bagi Hasil/Bunga Bank  : Sesuai Buku Kas\n- Penarikan Kas Tunai Operasional Paguyuban   : Terverifikasi BKK\n- Transaksi Tertunda / Outstanding Check       : Tidak Ada\n\nMengetahui,\nKetua RW 05                      Bendahara Paguyuban`;
 
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `BERITA_ACARA_REKONSILIASI_BCA_${reconciliationMonth.replace(/\s+/g, '_')}.txt`;
+    a.download = `BERITA_ACARA_REKONSILIASI_${mainBankLabel.replace(/[^a-zA-Z0-9]/g, '_')}_${reconciliationMonth.replace(/\s+/g, '_')}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -507,7 +508,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       totalOut
     )}\n\n3. HASIL OPERASIONAL (NET SURPLUS / DEFISIT):\n   SURPLUS BERSIH BULAN BERJALAN    : ${formatRupiah(
       totalIn - totalOut
-    )}\n\n4. POSISI SALDO AKHIR KAS & BANK:\n   - Rekening Bank BCA Utama        : ${formatRupiah(
+    )}\n\n4. POSISI SALDO AKHIR KAS & BANK:\n   - Rekening Kas Utama (${mainBankLabel}) : ${formatRupiah(
       accounts.find((a) => a.id === 'acc-main')?.balance || 0
     )}\n   - Kas Tunai Bendahara            : ${formatRupiah(
       accounts.find((a) => a.id === 'acc-cash')?.balance || 0
@@ -544,7 +545,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       e.id,
       e.entryDate,
       `"${e.sourceId || ''}"`,
-      e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : 'Rekening BCA Utama',
+      e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : (mainBankAcc?.name || 'Rekening Kas Operasional'),
       e.sourceType,
       `"${e.description.replace(/"/g, '""')}"`,
       e.direction === 'IN' ? e.amount : '',
@@ -586,7 +587,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
-            Rekam mutasi kas debit/kredit secara akurat, terbitkan voucher jurnal kas, rekonsiliasi rekening koran BCA,
+            Rekam mutasi kas debit/kredit secara akurat, terbitkan voucher jurnal kas, rekonsiliasi mutasi rekening kas & bank,
             dan pantau likuiditas kas komplek secara real-time.
           </p>
         </div>
@@ -679,7 +680,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
           }`}
         >
           <Scale className="w-4 h-4" />
-          <span>Rekonsiliasi Bank BCA</span>
+          <span>Rekonsiliasi Bank & Kas</span>
         </button>
 
         <button
@@ -929,7 +930,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                         </td>
                         <td className="py-3.5 px-4">
                           <span className="px-2 py-0.5 rounded-md bg-canvas border border-border font-bold text-[10px] text-ink block w-fit">
-                            {accounts.find((a) => a.id === e.accountId)?.name || (e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : 'Rekening Bank BCA')}
+                            {accounts.find((a) => a.id === e.accountId)?.name || (e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel)}
                           </span>
                           <span className="text-[10px] text-ink-muted uppercase tracking-wider font-mono">
                             {e.sourceType.replace(/_/g, ' ')}
@@ -967,7 +968,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                const accountName = accounts.find((a) => a.id === e.accountId)?.name || (e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : 'Rekening Bank BCA');
+                                const accountName = accounts.find((a) => a.id === e.accountId)?.name || (e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel);
                                 const content = `BUKTI MUTASI JURNAL KAS RESMI - WARGAHUB\n=========================================\nNo. Referensi: ${
                                   e.sourceId || e.id
                                 }\nTanggal: ${e.entryDate}\nAkun: ${accountName}\nJenis Mutasi: ${
@@ -1108,7 +1109,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                 <span>Daftar Akun Kas & Rekening Bank Paguyuban</span>
               </h3>
               <p className="text-xs text-ink-muted mt-0.5">
-                Kelola kas tunai fisik di pos satpam/bendahara serta rekening giro bank BCA operasional warga.
+                Kelola kas tunai fisik di pos satpam/bendahara serta rekening bank dan e-wallet operasional warga.
               </p>
             </div>
             <button
@@ -1191,7 +1192,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 3: REKONSILIASI BANK BCA ================= */}
+      {/* ================= SUBTAB 3: REKONSILIASI BANK & KAS ================= */}
       {activeSubTab === 'bank_reconciliation' && (
         <div className="space-y-6 animate-in fade-in duration-150 max-w-4xl">
           <div className="p-6 bg-surface rounded-3xl border border-border shadow-card space-y-5 text-xs">
@@ -1199,10 +1200,10 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
               <div>
                 <h3 className="font-black text-base text-ink flex items-center gap-2">
                   <Scale className="w-5 h-5 text-emerald-600" />
-                  <span>Rekonsiliasi Bank & Pencocokan Rekening Koran BCA</span>
+                  <span>Rekonsiliasi Bank & Kas ({mainBankLabel})</span>
                 </h3>
                 <p className="text-xs text-ink-muted mt-0.5">
-                  Bandingkan saldo pembukuan sistem WargaHub dengan saldo rekening koran fisik Bank Central Asia (BCA).
+                  Bandingkan saldo pembukuan sistem WargaHub dengan saldo rekening koran atau mutasi fisik {mainBankLabel}.
                 </p>
               </div>
 
@@ -1218,8 +1219,8 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
 
             {/* Reconciliation Comparison Table */}
             {(() => {
-              const bcaAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
-              const systemBalance = bcaAcc ? bcaAcc.balance : 0;
+              const mainAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
+              const systemBalance = mainAcc ? mainAcc.balance : 0;
               const difference = bankStatementBalance - systemBalance;
               const isBalanced = difference === 0;
 
@@ -1228,12 +1229,12 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="p-4 bg-canvas rounded-2xl border border-border space-y-1">
                       <span className="text-[10px] font-mono uppercase font-bold text-ink-muted block">
-                        Saldo Rekening Koran Fisik BCA
+                        Saldo Rekening Koran / Mutasi Fisik
                       </span>
                       <p className="text-xl font-black font-mono text-ink tabular-nums">
                         {formatRupiah(bankStatementBalance)}
                       </p>
-                      <span className="text-[10px] text-ink-muted block">Sesuai e-Statement BCA</span>
+                      <span className="text-[10px] text-ink-muted block">Sesuai e-Statement {mainBankLabel}</span>
                     </div>
 
                     <div className="p-4 bg-canvas rounded-2xl border border-border space-y-1">
@@ -1277,15 +1278,16 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                           onChange={(e) => setReconciliationMonth(e.target.value)}
                           className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
                         >
-                          <option value="Agustus 2026">Agustus 2026</option>
                           <option value="September 2026">September 2026</option>
+                          <option value="Agustus 2026">Agustus 2026</option>
+                          <option value="Juli 2026">Juli 2026</option>
                           <option value="Oktober 2026">Oktober 2026</option>
                         </select>
                       </div>
 
                       <div>
                         <label className="font-bold text-ink block mb-1 text-[11px]">
-                          Input Saldo Rekening Koran BCA (Rp)
+                          Input Saldo Rekening Koran / Mutasi ({mainBankLabel}) (Rp)
                         </label>
                         <input
                           type="number"
@@ -1767,9 +1769,10 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
               <div className="flex justify-between">
                 <span className="text-ink-muted">Akun Pembukuan:</span>
                 <span className="font-bold text-ink">
-                  {selectedVoucher.accountId === 'acc-cash'
-                    ? 'Kas Tunai Bendahara'
-                    : 'Rekening Bank BCA Utama'}
+                  {accounts.find((a) => a.id === selectedVoucher.accountId)?.name ||
+                    (selectedVoucher.accountId === 'acc-cash'
+                      ? 'Kas Tunai Bendahara'
+                      : mainBankLabel)}
                 </span>
               </div>
               <div className="flex justify-between">

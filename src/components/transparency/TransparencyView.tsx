@@ -36,7 +36,8 @@ import {
   TrendingUp,
   FileCheck,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Heart
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import type { PublicTransparencyData } from '../../services/transparency.service';
@@ -93,12 +94,49 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   };
 
   const [data, setData] = useState<PublicTransparencyData>(initialData);
-  const [selectedMonth, setSelectedMonth] = useState(initialData.periodName || 'Agustus 2026');
+  const [selectedMonth, setSelectedMonth] = useState(initialData.periodName || 'September 2026');
   const [periodDropdown, setPeriodDropdown] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<any>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState(false);
+
+  // Dynamic Bank Info
+  const [bankInfo, setBankInfo] = useState({
+    bankName: 'Bank Kas Paguyuban (Bank Syariah / Kas Utama)',
+    accountNumber: '8830-1928-33',
+    accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedAccounts = localStorage.getItem('wargahub_bank_accounts');
+        if (savedAccounts) {
+          const list = JSON.parse(savedAccounts);
+          const primary = list.find((a: any) => a.isPrimary) || list[0];
+          if (primary) {
+            setBankInfo({
+              bankName: primary.bankName || primary.name,
+              accountNumber: primary.accountNumber,
+              accountHolder: primary.accountHolder,
+            });
+            return;
+          }
+        }
+        const savedBank = localStorage.getItem('wargahub_set_bankname');
+        const savedAcc = localStorage.getItem('wargahub_set_bankacc');
+        const savedHolder = localStorage.getItem('wargahub_set_accholder');
+        if (savedBank || savedAcc) {
+          setBankInfo((prev) => ({
+            bankName: savedBank ? JSON.parse(savedBank) : prev.bankName,
+            accountNumber: savedAcc ? JSON.parse(savedAcc) : prev.accountNumber,
+            accountHolder: savedHolder ? JSON.parse(savedHolder) : prev.accountHolder,
+          }));
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   // Digital Clock
   const [currentTime, setCurrentTime] = useState('');
@@ -200,21 +238,22 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
       { index: 6, name: 'Jun', full: 'Juni 2026', amount: 250000 },
       { index: 7, name: 'Jul', full: 'Juli 2026', amount: 250000 },
       { index: 8, name: 'Agu', full: 'Agustus 2026', amount: 250000 },
+      { index: 9, name: 'Sep', full: 'September 2026', amount: 250000 },
     ];
     const DEFAULT_KAVS = [
       { code: 'Kav A', name: 'Pak Verial', unpaid: [] },
-      { code: 'Kav B', name: 'Mahasiswa Polban', unpaid: [] },
-      { code: 'Kav C', name: 'Bu Rina', unpaid: [] },
-      { code: 'Kav D', name: 'Pak Rieva', unpaid: [] },
-      { code: 'Kav E', name: 'Pak Budi', unpaid: ['Agustus 2026'] },
-      { code: 'Kav F', name: 'Pa Anggia', unpaid: [] },
-      { code: 'Kav G', name: 'Pak Misael', unpaid: [] },
-      { code: 'Kav H', name: 'Pak Fahmi Rizal', unpaid: [] },
-      { code: 'Kav I', name: 'Pak Yahya', unpaid: [] },
-      { code: 'Kav J', name: 'Bu Sofia P', unpaid: ['Juni 2026', 'Juli 2026', 'Agustus 2026'] },
-      { code: 'Kav K', name: 'Pak Eky', unpaid: [] },
-      { code: 'Kav L', name: 'Pak Haji Ano', unpaid: [] },
-      { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', unpaid: [] },
+      { code: 'Kav B', name: 'Mahasiswa Polban', unpaid: ['September 2026'] },
+      { code: 'Kav C', name: 'Bu Rina', unpaid: ['September 2026'] },
+      { code: 'Kav D', name: 'Pak Rieva', unpaid: ['September 2026'] },
+      { code: 'Kav E', name: 'Pak Budi', unpaid: ['Agustus 2026', 'September 2026'] },
+      { code: 'Kav F', name: 'Pa Anggia', unpaid: ['September 2026'] },
+      { code: 'Kav G', name: 'Pak Misael', unpaid: ['September 2026'] },
+      { code: 'Kav H', name: 'Pak Fahmi Rizal', unpaid: ['September 2026'] },
+      { code: 'Kav I', name: 'Pak Yahya', unpaid: ['September 2026'] },
+      { code: 'Kav J', name: 'Bu Sofia P', unpaid: ['Juni 2026', 'Juli 2026', 'Agustus 2026', 'September 2026'] },
+      { code: 'Kav K', name: 'Pak Eky', unpaid: ['September 2026'] },
+      { code: 'Kav L', name: 'Pak Haji Ano', unpaid: ['September 2026'] },
+      { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', unpaid: ['September 2026'] },
     ];
     return DEFAULT_KAVS.map((k, idx) => {
       const months = MONTHS.map((m) => ({
@@ -233,7 +272,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         residentName: k.name,
         months,
         paidMonthsCount: months.filter((m) => m.isPaid).length,
-        totalMonthsCount: 8,
+        totalMonthsCount: 9,
         unpaidMonths: k.unpaid,
         totalPaidAmount: totalPaid,
         totalArrearsAmount: totalArrears,
@@ -258,9 +297,9 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   // Confirmation Form State
   const [confirmUnit, setConfirmUnit] = useState('');
   const [confirmName, setConfirmName] = useState('');
-  const [confirmPeriod, setConfirmPeriod] = useState('Agustus 2026');
+  const [confirmPeriod, setConfirmPeriod] = useState(initialData.periodName || 'September 2026');
   const [confirmAmount, setConfirmAmount] = useState('250000');
-  const [confirmMethod, setConfirmMethod] = useState<'BCA_TRF' | 'QRIS' | 'CASH'>('BCA_TRF');
+  const [confirmMethod, setConfirmMethod] = useState<'BANK_TRF' | 'EWALLET' | 'QRIS' | 'CASH'>('BANK_TRF');
   const [confirmSenderRef, setConfirmSenderRef] = useState('');
   const [confirmNotes, setConfirmNotes] = useState('');
   const [confirmFileUploaded, setConfirmFileUploaded] = useState(false);
@@ -286,6 +325,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   };
 
   const periodsList = [
+    { name: 'September 2026', year: 2026, month: 9 },
     { name: 'Agustus 2026', year: 2026, month: 8 },
     { name: 'Juli 2026', year: 2026, month: 7 },
     { name: 'Juni 2026', year: 2026, month: 6 },
@@ -293,9 +333,25 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   ];
 
   const getCategoryIcon = (name: string) => {
-    if (name.includes('Keamanan')) return <ShieldCheck className="w-4 h-4 text-emerald-700" />;
-    if (name.includes('Kebersihan')) return <Sparkles className="w-4 h-4 text-emerald-700" />;
-    if (name.includes('Listrik')) return <Zap className="w-4 h-4 text-amber-600" />;
+    const n = name.toLowerCase();
+    if (n.includes('gaji') || n.includes('satpam') || n.includes('keamanan') || n.includes('honor')) {
+      return <ShieldCheck className="w-4 h-4 text-emerald-700" />;
+    }
+    if (n.includes('rt') || n.includes('kebersihan') || n.includes('sampah')) {
+      return <Sparkles className="w-4 h-4 text-teal-700" />;
+    }
+    if (n.includes('rw') || n.includes('paguyuban')) {
+      return <Building2 className="w-4 h-4 text-indigo-700" />;
+    }
+    if (n.includes('operasional') || n.includes('listrik') || n.includes('pju')) {
+      return <Zap className="w-4 h-4 text-amber-600" />;
+    }
+    if (n.includes('kesehatan') || n.includes('bantuan') || n.includes('medis')) {
+      return <Heart className="w-4 h-4 text-rose-600" />;
+    }
+    if (n.includes('terduga') || n.includes('sumbangan') || n.includes('agustus') || n.includes('acara') || n.includes('kelurahan')) {
+      return <AlertCircle className="w-4 h-4 text-purple-600" />;
+    }
     return <Wrench className="w-4 h-4 text-sky-600" />;
   };
 
@@ -340,27 +396,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
     <div className="space-y-6 pb-16 font-sans">
       
       {/* ========================================================================= */}
-      {/* 1. TOP ANNOUNCEMENT & AUDIT SYSTEM STRIP                                  */}
-      {/* ========================================================================= */}
-      <div className="bg-primary-950 text-white text-[11px] py-2 px-4 -mx-4 sm:-mx-6 lg:-mx-8 rounded-b-2xl border-b border-primary-900/80 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-2.5 max-w-7xl mx-auto w-full justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-bold tracking-tight">LAPORAN KAS RESMI WARGA (TRANSPARANSI KEUANGAN PUBLIK)</span>
-            <span className="hidden sm:inline opacity-40">•</span>
-            <span className="hidden sm:inline text-primary-200">Terbuka & Akuntabel untuk Seluruh Warga</span>
-          </div>
-          <div className="flex items-center gap-4 text-primary-200 font-mono text-[10px]">
-            <span className="hidden md:inline">🕒 {currentTime || 'WIB'}</span>
-            <span className="px-2 py-0.5 rounded bg-primary-900 text-emerald-300 font-bold border border-primary-800">
-              Audit Kas: Lolos WTP
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. HEADER: TITLE, ACTIONS & PERIOD SELECTOR                               */}
+      {/* HEADER: TITLE, ACTIONS & PERIOD SELECTOR                                   */}
       {/* ========================================================================= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
         <div>
@@ -412,7 +448,9 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                     onClick={() => {
                       setSelectedMonth(p.name);
                       setPeriodDropdown(false);
-                      if (p.month !== 8) {
+                      if (p.month === 9 && p.year === 2026) {
+                        window.location.href = '/transparency';
+                      } else {
                         window.location.href = `/transparency/${p.year}/${p.month.toString().padStart(2, '0')}`;
                       }
                     }}
@@ -747,6 +785,14 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                     ))}
                   </div>
                 )}
+
+                {/* Edukasi Penjaminan Saldo Berjalan (Dana Dadakan & Kesehatan) */}
+                <div className="mt-3.5 p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-[11px] text-amber-950">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Catatan Alokasi Kas:</strong> Pos <strong>Dana Kesehatan Satpam</strong> (pagu referensi Rp 100.000) dan <strong>Dana Tak Terduga</strong> bersifat fluktuatif dinamis (kadang kurang atau lebih dari pagu). Kebutuhan pengobatan medis riil dan pengeluaran dadakan darurat/acara ditalangi langsung dari akumulasi <strong>Saldo Akhir Kas Berjalan</strong> komplek.
+                  </div>
+                </div>
               </div>
 
               {data.expenseBreakdown.length > 0 && (
@@ -846,7 +892,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               <Search className="w-4 h-4 text-ink-muted absolute left-3.5 top-3" />
               <input
                 type="text"
-                placeholder="Cari uraian transaksi, no voucher (cth: BCA-TRF, VCH-SEC)..."
+                placeholder="Cari uraian transaksi, no voucher (cth: TRF-BANK, QRIS, VCH-SEC)..."
                 value={ledgerSearch}
                 onChange={(e) => setLedgerSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-canvas border border-border rounded-xl text-xs font-medium text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
@@ -1550,7 +1596,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-primary-700 shrink-0" />
                 <span className="text-ink-muted">
-                  Data ini disinkronkan langsung dengan pembukuan rekening koran BCA Paguyuban per <strong>{data.lastUpdatedAt}</strong>.
+                  Data ini disinkronkan langsung dengan pembukuan rekening koran kas bank paguyuban per <strong>{data.lastUpdatedAt}</strong>.
                 </span>
               </div>
               <div className="flex items-center gap-4 text-[11px] font-bold shrink-0">
@@ -1580,7 +1626,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 Formulir Konfirmasi Pembayaran Iuran
               </h2>
               <p className="text-xs text-ink-muted mt-0.5">
-                Kirim data transfer Bank BCA atau QRIS Anda agar bendahara segera memverifikasi kuitansi lunas.
+                Kirim data transfer Bank (Syariah/Nasional), Dompet Digital (GoPay/DANA), atau QRIS Anda agar bendahara segera memverifikasi kuitansi lunas.
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
@@ -1657,24 +1703,35 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             {/* Payment Method */}
             <div>
               <label className="block font-bold text-ink mb-1.5">Metode / Saluran Pembayaran:</label>
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setConfirmMethod('BCA_TRF')}
-                  className={`py-2.5 px-3 rounded-xl border text-center font-bold transition-all ${
-                    confirmMethod === 'BCA_TRF'
+                  onClick={() => setConfirmMethod('BANK_TRF')}
+                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
+                    confirmMethod === 'BANK_TRF'
                       ? 'bg-primary-50 border-primary-500 text-primary-900 shadow-2xs'
                       : 'bg-canvas border-border text-ink-muted hover:text-ink'
                   }`}
                 >
-                  🏦 Transfer Bank BCA
+                  🌙 / 🏦 Transfer Bank / Syariah
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmMethod('EWALLET')}
+                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
+                    confirmMethod === 'EWALLET'
+                      ? 'bg-blue-50 border-blue-500 text-blue-900 shadow-2xs'
+                      : 'bg-canvas border-border text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  💳 Dompet Digital / E-Wallet
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmMethod('QRIS')}
-                  className={`py-2.5 px-3 rounded-xl border text-center font-bold transition-all ${
+                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
                     confirmMethod === 'QRIS'
-                      ? 'bg-primary-50 border-primary-500 text-primary-900 shadow-2xs'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-2xs'
                       : 'bg-canvas border-border text-ink-muted hover:text-ink'
                   }`}
                 >
@@ -1683,13 +1740,13 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setConfirmMethod('CASH')}
-                  className={`py-2.5 px-3 rounded-xl border text-center font-bold transition-all ${
+                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
                     confirmMethod === 'CASH'
-                      ? 'bg-primary-50 border-primary-500 text-primary-900 shadow-2xs'
+                      ? 'bg-amber-50 border-amber-500 text-amber-900 shadow-2xs'
                       : 'bg-canvas border-border text-ink-muted hover:text-ink'
                   }`}
                 >
-                  💵 Tunai ke Bendahara
+                  💵 Tunai ke Pengurus / Kepala Komplek
                 </button>
               </div>
             </div>
@@ -1699,7 +1756,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               <label className="block font-bold text-ink mb-1.5">Nomor Referensi / 4 Digit Akhir Rekening Pengirim:</label>
               <input
                 type="text"
-                placeholder="Contoh: BCA Ref #99214 atau rek atas nama Siti Rahmawati"
+                placeholder="Contoh: Ref BSI #99214 / GoPay / m-Banking a.n. Warga"
                 value={confirmSenderRef}
                 onChange={(e) => setConfirmSenderRef(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
@@ -1720,7 +1777,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 <UploadCloud className={`w-8 h-8 mx-auto mb-2 ${confirmFileUploaded ? 'text-emerald-600' : 'text-ink-muted'}`} />
                 {confirmFileUploaded ? (
                   <p className="text-xs font-bold text-emerald-800">
-                    ✓ Berkas Bukti Transfer Terlampir: <span className="font-mono">struk-transfer-bca.jpg</span>
+                    ✓ Berkas Bukti Transfer Terlampir: <span className="font-mono">struk-transfer-warga.jpg</span>
                   </p>
                 ) : (
                   <p className="text-xs text-ink-muted">
@@ -1796,14 +1853,14 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-surface border border-primary-200/80">
               <div className="space-y-1">
-                <span className="text-[11px] text-ink-muted">Bank Central Asia (BCA) KCP Setiabudi</span>
-                <p className="text-2xl font-black font-mono text-ink tracking-tight">8830-1928-33</p>
-                <p className="text-xs font-bold text-primary-900">a.n PENGURUS KOMPLEK WARGAHUB</p>
+                <span className="text-[11px] text-ink-muted">{bankInfo.bankName}</span>
+                <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber}</p>
+                <p className="text-xs font-bold text-primary-900">a.n {bankInfo.accountHolder}</p>
               </div>
 
               <button
                 type="button"
-                onClick={() => handleCopyAccount('8830192833')}
+                onClick={() => handleCopyAccount(bankInfo.accountNumber.replace(/[^0-9]/g, ''))}
                 className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
               >
                 {copiedAccount ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -1813,49 +1870,6 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             <p className="text-[11px] text-primary-900/80 leading-relaxed">
               ⚠️ <strong>Peringatan Penting:</strong> Pengurus komplek tidak pernah menerima pembayaran iuran melalui rekening pribadi individu selain rekening paguyuban di atas.
             </p>
-          </div>
-
-          {/* Audit Principles Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-2xl bg-canvas border border-border space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-primary-100 text-primary-800 font-black flex items-center justify-center text-xs">1</span>
-                <h4 className="font-bold text-ink">Rekonsiliasi Bank Bulanan</h4>
-              </div>
-              <p className="text-ink-muted leading-relaxed">
-                Setiap akhir bulan, seluruh mutasi rekening koran BCA disandingkan 1-per-1 dengan kuitansi bukti pengeluaran riil satpam, truk sampah, dan PLN.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-canvas border border-border space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-primary-100 text-primary-800 font-black flex items-center justify-center text-xs">2</span>
-                <h4 className="font-bold text-ink">Batasan Kas Kecil (Petty Cash)</h4>
-              </div>
-              <p className="text-ink-muted leading-relaxed">
-                Uang tunai di pos jaga dibatasi maksimal Rp 2.000.000 untuk keperluan operasional darurat (solar genset, baut palang gerbang) dengan pembukuan struk.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-canvas border border-border space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-primary-100 text-primary-800 font-black flex items-center justify-center text-xs">3</span>
-                <h4 className="font-bold text-ink">Audit Independen Triwulan</h4>
-              </div>
-              <p className="text-ink-muted leading-relaxed">
-                Tiap 3 bulan, tim penilai independen dari perwakilan warga non-pengurus melakukan inspeksi fisik terhadap saldo bank dan bukti nota.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-canvas border border-border space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-primary-100 text-primary-800 font-black flex items-center justify-center text-xs">4</span>
-                <h4 className="font-bold text-ink">Hak Akses & Transparansi Dokumen</h4>
-              </div>
-              <p className="text-ink-muted leading-relaxed">
-                Seluruh warga berhak meminta salinan bukti pengeluaran dan kwitansi belanja dengan menghubungi bendahara atau sekretaris RT.
-              </p>
-            </div>
           </div>
         </div>
       )}
@@ -1951,7 +1965,13 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               <div className="flex justify-between">
                 <span className="text-ink-muted">Metode:</span>
                 <span className="font-bold text-primary-700">
-                  {confirmMethod === 'BCA_TRF' ? 'Transfer Bank BCA' : confirmMethod === 'QRIS' ? 'QRIS Paguyuban' : 'Tunai'}
+                  {confirmMethod === 'BANK_TRF'
+                    ? 'Transfer Bank / Syariah'
+                    : confirmMethod === 'EWALLET'
+                    ? 'Dompet Digital / E-Wallet'
+                    : confirmMethod === 'QRIS'
+                    ? 'QRIS Paguyuban'
+                    : 'Tunai'}
                 </span>
               </div>
             </div>

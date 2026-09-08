@@ -75,81 +75,81 @@ export interface BudgetManagerProps {
 const DEFAULT_BUDGET_ITEMS: BudgetItem[] = [
   {
     id: 'BUD-001',
-    category: 'Operasional Keamanan & Ronda Warga (Satpam)',
-    period: 'Agustus 2026',
-    budgetAmount: 4500000,
-    actualAmount: 0,
-    percentage: 0,
-    variance: 4500000,
+    category: 'Gaji Petugas Satpam (Pa Adri Harry & Pak Slamet Radiyanto)',
+    period: 'September 2026',
+    budgetAmount: 2450000,
+    actualAmount: 2450000,
+    percentage: 100,
+    variance: 0,
     status: 'SAFE',
-    pic: 'Seksi Keamanan & Ketertiban',
-    notes: 'Alokasi honor satpam 24 jam & logistik ronda malam',
-    authCode: 'APPR-202608-01',
+    pic: 'Bendahara Komplek Grand Sariwangi',
+    notes: 'Honor bulanan 2 personil satpam piket gerbang & patroli komplek 24 jam',
+    authCode: 'APPR-202609-01',
   },
   {
     id: 'BUD-002',
-    category: 'Kebersihan Lingkungan & Retribusi Sampah',
-    period: 'Agustus 2026',
-    budgetAmount: 2500000,
-    actualAmount: 0,
-    percentage: 0,
-    variance: 2500000,
+    category: 'Iuran RT (Sampah Dinas LH & Kebersihan Saluran Got RT)',
+    period: 'September 2026',
+    budgetAmount: 250000,
+    actualAmount: 250000,
+    percentage: 100,
+    variance: 0,
     status: 'SAFE',
-    pic: 'Seksi Kebersihan & Lingkungan',
-    notes: 'Honor petugas kebersihan & retribusi angkut sampah DLH',
-    authCode: 'APPR-202608-02',
+    pic: 'Ketua RT 01 / Seksi Kebersihan',
+    notes: 'Pengangkutan armada sampah dinas LH, pembersihan got & operasional RT',
+    authCode: 'APPR-202609-02',
   },
   {
     id: 'BUD-003',
-    category: 'Pemeliharaan Penerangan Jalan Umum (PJU & Listrik)',
-    period: 'Agustus 2026',
-    budgetAmount: 1500000,
-    actualAmount: 0,
-    percentage: 0,
-    variance: 1500000,
+    category: 'Iuran RW (Retribusi Paguyuban Komplek RW 08 Sariwangi)',
+    period: 'September 2026',
+    budgetAmount: 100000,
+    actualAmount: 100000,
+    percentage: 100,
+    variance: 0,
     status: 'SAFE',
-    pic: 'Seksi Sarana & Prasarana',
-    notes: 'Beban tagihan listrik PJU, pos satpam & penggantian lampu LED',
-    authCode: 'APPR-202608-03',
+    pic: 'Pengurus Paguyuban Komplek / RW 08',
+    notes: 'Retribusi paguyuban komplek, koordinasi wilayah RW 08 dan administrasi',
+    authCode: 'APPR-202609-03',
   },
   {
     id: 'BUD-004',
-    category: 'Perawatan Taman, Drainase & Fogging',
-    period: 'Agustus 2026',
-    budgetAmount: 1200000,
-    actualAmount: 0,
-    percentage: 0,
-    variance: 1200000,
+    category: 'Operasional Pos Jaga & Penerangan Jalan (PJU)',
+    period: 'September 2026',
+    budgetAmount: 75000,
+    actualAmount: 75000,
+    percentage: 100,
+    variance: 0,
     status: 'SAFE',
-    pic: 'Seksi Lingkungan Hidup',
-    notes: 'Perawatan rumput fasum, normalisasi selokan & pencegahan DBD',
-    authCode: 'APPR-202608-04',
+    pic: 'Seksi Sarana & Prasarana',
+    notes: 'Token listrik PLN PJU komplek, pompa air fasum & air minum galon pos',
+    authCode: 'APPR-202609-04',
   },
   {
     id: 'BUD-005',
-    category: 'Kas Operasional Sekretariat RT/RW & ATK',
-    period: 'Agustus 2026',
-    budgetAmount: 800000,
-    actualAmount: 0,
-    percentage: 0,
-    variance: 800000,
+    category: 'Dana Kesehatan / Bantuan Medis Satpam',
+    period: 'September 2026',
+    budgetAmount: 100000,
+    actualAmount: 100000,
+    percentage: 100,
+    variance: 0,
     status: 'SAFE',
-    pic: 'Sekretaris / Bendahara',
-    notes: 'Kertas kuitansi, stempel, materai, dan administrasi kependudukan',
-    authCode: 'APPR-202608-05',
+    pic: 'Seksi Keamanan / P3K',
+    notes: 'Pagu referensi Rp 100.000 (realisasi fluktuatif/kadang kurang kadang lebih, ditalangi saldo kas berjalan)',
+    authCode: 'APPR-202609-05',
   },
   {
     id: 'BUD-006',
-    category: 'Santunan Sosial Warga & Hari Besar (PHBN)',
-    period: 'Agustus 2026',
-    budgetAmount: 1000000,
-    actualAmount: 0,
-    percentage: 0,
-    variance: 1000000,
+    category: 'Dana Tak Terduga (Sumbangan Agustusan & Acara Kelurahan/RW)',
+    period: 'September 2026',
+    budgetAmount: 200000,
+    actualAmount: 150000,
+    percentage: 75,
+    variance: 50000,
     status: 'SAFE',
-    pic: 'Seksi Sosial & Kerohanian',
-    notes: 'Bantuan duka cita, persalinan, dan peringatan kemerdekaan RI',
-    authCode: 'APPR-202608-06',
+    pic: 'Pengurus Komplek Grand Sariwangi',
+    notes: 'Sumbangan Agustusan HUT RI RW 08, partisipasi acara kelurahan & takziah',
+    authCode: 'APPR-202609-06',
   },
 ];
 
@@ -198,7 +198,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
   initialExpenses = [],
   initialBalance = 0,
 }) => {
-  const [period, setPeriod] = useState('Agustus 2026');
+  const [period, setPeriod] = useState('September 2026');
   const [activeSubTab, setActiveSubTab] = useState<'budget_matrix' | 'sinking_fund' | 'public_transparency' | 'manual_form'>('budget_matrix');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
@@ -252,7 +252,18 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
         const saved = localStorage.getItem('wargahub_budget_items');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((it: any) =>
+              it.id === 'BUD-005' && it.budgetAmount === 50000
+                ? {
+                    ...it,
+                    budgetAmount: 100000,
+                    actualAmount: 100000,
+                    notes: 'Pagu referensi Rp 100.000 (realisasi fluktuatif/kadang kurang kadang lebih, ditalangi saldo kas berjalan)',
+                  }
+                : it
+            );
+          }
         }
       } catch (e) {}
     }
@@ -318,12 +329,12 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
         const amt = Number(exp.amount) || 0;
 
         const isMatch =
-          (catLower.includes('keamanan') && (titleLower.includes('satpam') || descLower.includes('satpam') || expCatLower.includes('keamanan'))) ||
-          (catLower.includes('kebersihan') && (titleLower.includes('sampah') || descLower.includes('kebersihan') || expCatLower.includes('kebersihan'))) ||
-          (catLower.includes('pju') && (titleLower.includes('listrik') || titleLower.includes('pln') || descLower.includes('pju'))) ||
-          (catLower.includes('taman') && (titleLower.includes('taman') || descLower.includes('rumput') || descLower.includes('fogging'))) ||
-          (catLower.includes('atk') && (titleLower.includes('atk') || descLower.includes('kertas') || descLower.includes('administrasi'))) ||
-          (catLower.includes('sosial') && (titleLower.includes('sosial') || descLower.includes('santunan') || descLower.includes('bantuan')));
+          ((catLower.includes('gaji') || catLower.includes('satpam')) && (titleLower.includes('gaji') || titleLower.includes('satpam') || titleLower.includes('adri') || titleLower.includes('slamet') || expCatLower.includes('gaji') || expCatLower.includes('keamanan'))) ||
+          (catLower.includes('iuran rt') && (titleLower.includes('rt') || titleLower.includes('sampah') || titleLower.includes('kebersihan') || expCatLower.includes('rt') || expCatLower.includes('kebersihan'))) ||
+          (catLower.includes('iuran rw') && (titleLower.includes('rw') || titleLower.includes('paguyuban') || expCatLower.includes('rw'))) ||
+          (catLower.includes('operasional') && (titleLower.includes('operasional') || titleLower.includes('listrik') || titleLower.includes('pju') || titleLower.includes('pos') || titleLower.includes('galon') || expCatLower.includes('operasional') || expCatLower.includes('listrik'))) ||
+          (catLower.includes('kesehatan') && (titleLower.includes('kesehatan') || titleLower.includes('obat') || titleLower.includes('p3k') || titleLower.includes('medis') || expCatLower.includes('kesehatan') || expCatLower.includes('sosial'))) ||
+          (catLower.includes('tak terduga') && (titleLower.includes('terduga') || titleLower.includes('agustus') || titleLower.includes('sumbangan') || titleLower.includes('kelurahan') || expCatLower.includes('terduga') || expCatLower.includes('sosial')));
 
         if (isMatch) {
           matchedTotal += amt;

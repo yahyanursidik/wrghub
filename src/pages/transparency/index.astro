@@ -4,9 +4,12 @@ import { TransparencyView } from '../../components/transparency/TransparencyView
 import { getPublicMonthlyReport } from '../../services/transparency.service';
 
 const tab = Astro.url.searchParams.get('tab') || 'cashflow_summary';
-const reportData = await getPublicMonthlyReport(2026, 8);
+const reqYear = parseInt(Astro.url.searchParams.get('year') || '2026', 10);
+const reqMonth = parseInt(Astro.url.searchParams.get('month') || '9', 10);
+const reportData = await getPublicMonthlyReport(reqYear, reqMonth);
 ---
 
-<PublicLayout title="Laporan Transparansi Warga - WargaHub" currentPath="/transparency">
+<PublicLayout title={`Laporan Transparansi Warga (${reportData.periodName}) - WargaHub`} currentPath="/transparency">
   <TransparencyView initialData={reportData} initialTab={tab as any} client:load />
 </PublicLayout>
+

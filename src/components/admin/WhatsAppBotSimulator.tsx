@@ -64,7 +64,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
   // ================= TEMPLATE DIRECTORY & GENERATOR STATE =================
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [templateSearch, setTemplateSearch] = useState<string>('');
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('tpl-ipl-reminder');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('tpl-grand-sariwangi-dues-recap');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -75,15 +75,15 @@ export const WhatsAppBotSimulator: React.FC = () => {
   // Dynamic Variable Replacements
   const [varRecipientPhone, setVarRecipientPhone] = useState('081234567890');
   const [varResidentName, setVarResidentName] = useState('Bpk. Budi Santoso');
-  const [varHouseUnit, setVarHouseUnit] = useState('Rumah A-17 (Blok A)');
+  const [varHouseUnit, setVarHouseUnit] = useState('Kav I (Klaster 14 Kavling)');
   const [varMonthPeriod, setVarMonthPeriod] = useState('Agustus 2026');
-  const [varAmount, setVarAmount] = useState('750.000');
-  const [varBankAccount, setVarBankAccount] = useState('BCA 8830-1928-33 (PENGURUS KOMPLEK)');
-  const [varDueDate, setVarDueDate] = useState('10 Agustus 2026');
-  const [varPortalLink, setVarPortalLink] = useState('http://localhost:4321/');
+  const [varAmount, setVarAmount] = useState('250.000');
+  const [varBankAccount, setVarBankAccount] = useState('Bank Mandiri 1300024446419 (PAGUYUBAN GRAND SARIWANGI)');
+  const [varDueDate, setVarDueDate] = useState('25 Agustus 2026');
+  const [varPortalLink, setVarPortalLink] = useState('https://wrghub.vercel.app/');
   const [varEventName, setVarEventName] = useState('Musyawarah Warga Pemilihan RT/RW');
   const [varEventTime, setVarEventTime] = useState('Sabtu, 30 Agustus 2026 • Pukul 19:30 WIB');
-  const [varEventLocation, setVarEventLocation] = useState('Balai Warga Taman Sejahtera');
+  const [varEventLocation, setVarEventLocation] = useState('Balai Warga Grand Sariwangi');
   const [varGuestName, setVarGuestName] = useState('Kurir Paket / Teknisi');
   const [varCustomNotes, setVarCustomNotes] = useState('Harap konfirmasi jika sudah melakukan transfer.');
 
@@ -104,6 +104,15 @@ export const WhatsAppBotSimulator: React.FC = () => {
   const [templates, setTemplates] = useState<WATemplate[]>([
     // --- KEUANGAN & IURAN ---
     {
+      id: 'tpl-grand-sariwangi-dues-recap',
+      title: 'Update Iuran & THR Penjaga Komplek Grand Sariwangi (Grup WA)',
+      category: 'KEUANGAN',
+      targetType: 'GRUP_WARGA',
+      description: 'Laporan otomatis update untuk grup WhatsApp warga: daftar sudah bayar, belum bayar (menunggak per bulan), dan tautan transparansi rutin.',
+      tags: ['Grand Sariwangi', 'Iuran', 'THR', 'Rekap Warga', 'Lunas & Menunggak'],
+      templateText: `📢 *INFO IURAN KOMPLEK DAN THR PENJAGA KOMPLEK GRAND SARIWANGI – UPDATE UNTUK IURAN PER TANGGAL {tgl_tempo}*\n\nWilujeng wengi/pagi Bapak/Ibu warga Grand Sariwangi, mugia Allah salawasna ngajagi urang sadaya dina kasehatan, kaberkahan, sareng kabagjaan.\n\nBerikut ini adalah update iuran bulanan Komplek Grand Sariwangi pada bulan *{bulan}*, belum semuanya terkumpul:\n\n✅ *SUDAH BAYAR / LUNAS (11 Unit):*\n• Kav A — Pak Verial\n• Kav B — Mahasiswa Polban (Penyewa)\n• Kav C — Bu Rina (Kosong)\n• Kav D — Pak Rieva\n• Kav F — Pa Anggia (Penyewa)\n• Kav G — Pak Misael\n• Kav H — Pak Fahmi Rizal\n• Kav I — Pak Yahya (Penyewa)\n• Kav K — Pak Eky\n• Kav L — Pak Haji Ano\n• Kav M — Pak Dedi N / Pak Jaya (Kosong)\n\n⏳ *BELUM BAYAR / MENUNGGAK (2 Unit):*\n• Kav E — Pak Budi _(Menunggak 2 bulan: Agustus 2026, September 2026)_\n• Kav J — Bu Sofia P (Kosong) _(Menunggak 4 bulan: Juni 2026, Juli 2026, Agustus 2026, September 2026)_\n\n━━━━━━━━━━━━━━━━━━━━\n📊 *Ringkasan Status Iuran:*\n• Partisipasi: *11 dari 13 Unit* (84.6%)\n• Total Kas Terkumpul: *Rp 2.750.000*\n• Sisa Tagihan Berjalan: *Rp 500.000*\n\n🌐 *Tautan Laporan Rutin & Transparansi:*\n👉 https://wrghub.vercel.app/transparency\n👉 Rekap Warga: https://wrghub.vercel.app/rekap-iuran\n_(Warga bisa login menyusul)_\n\n💳 *Rekening Kas Resmi Paguyuban:*\nBank Mandiri: *1300024446419*\na.n. *Paguyuban Grand Sariwangi*\n_(Pengurus tidak pernah menerima pembayaran iuran melalui rekening pribadi individu)_\n\nHatur nuhun atas perhatosan, partisipasi, sareng kerja sama sadaya warga demi kanyamanan, kabersihan, sareng kaamanan lingkungan komplek urang sadaya. 🙏🌿\n\nSalam silaturahmi,\n*Pengurus Paguyuban Grand Sariwangi*\n*(Kepala Komplek: Yahya Nursidik)*`,
+    },
+    {
       id: 'tpl-ipl-reminder',
       title: 'Pengingat Tagihan Iuran Bulanan (IPL)',
       category: 'KEUANGAN',
@@ -118,8 +127,8 @@ export const WhatsAppBotSimulator: React.FC = () => {
       category: 'KEUANGAN',
       targetType: 'WARGA_INDIVIDU',
       description: 'Pemberitahuan resmi bahwa iuran bulanan telah diterima dan diverifikasi bendahara.',
-      tags: ['Kuitansi', 'Lunas', 'Verifikasi', 'BCA'],
-      templateText: `✅ *KONFIRMASI PEMBAYARAN IURAN LUNAS*\n\nKepada Yth: *{nama_warga}*\nUnit: *{nomor_unit}*\nPeriode: *{bulan}*\nJumlah Diterima: *Rp {nominal}*\nStatus: *LUNAS (TERVERIFIKASI BENDAHARA)*\n\nKuitansi digital ber-QR Code resmi dan hak akses palang gerbang RFID Anda telah otomatis diperpanjang.\n\nUnduh kuitansi resmi: {link_portal}\n\nSalam hangat,\n*Pengurus Komplek Taman Sejahtera*`,
+      tags: ['Kuitansi', 'Lunas', 'Verifikasi', 'Bank/Kas'],
+      templateText: `✅ *KONFIRMASI PEMBAYARAN IURAN LUNAS*\n\nKepada Yth: *{nama_warga}*\nUnit: *{nomor_unit}*\nPeriode: *{bulan}*\nJumlah Diterima: *Rp {nominal}*\nStatus: *LUNAS (TERVERIFIKASI BENDAHARA)*\n\nKuitansi digital ber-QR Code resmi dan hak akses palang gerbang RFID Anda telah otomatis diperpanjang.\n\nUnduh kuitansi resmi: {link_portal}\n\nSalam hangat,\n*Pengurus Komplek Grand Sariwangi*`,
     },
     {
       id: 'tpl-overdue-warning',
@@ -157,7 +166,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
       targetType: 'GRUP_WARGA',
       description: 'Broadcast peringatan darurat keamanan, kebakaran, atau evakuasi darurat komplek.',
       tags: ['Darurat', 'Panic Button', 'Satpam', 'Waspada'],
-      templateText: `🚨 *PERINGATAN DARURAT KEAMANAN KOMPLEK* 🚨\n\nPerhatian seluruh warga Komplek Taman Sejahtera!\nTelah dilaporkan insiden darurat di area sekitar *{nomor_unit}*.\n\nPetugas satpam dan tim tanggap darurat saat ini sedang menuju ke lokasi.\n\nHarap warga tetap tenang, pastikan pintu & pagar rumah terkunci, dan hubungi pos keamanan jika melihat aktivitas mencurigakan:\n📞 *Hotline Satpam:* 0811-9988-7766\n\n*Komando Keamanan Lingkungan*`,
+      templateText: `🚨 *PERINGATAN DARURAT KEAMANAN KOMPLEK* 🚨\n\nPerhatian seluruh warga Komplek Grand Sariwangi!\nTelah dilaporkan insiden darurat di area sekitar *{nomor_unit}*.\n\nPetugas satpam dan tim tanggap darurat saat ini sedang menuju ke lokasi.\n\nHarap warga tetap tenang, pastikan pintu & pagar rumah terkunci, dan hubungi pos keamanan jika melihat aktivitas mencurigakan:\n📞 *Hotline Satpam:* 0811-9988-7766\n\n*Komando Keamanan Lingkungan*`,
     },
     {
       id: 'tpl-rfid-blocked',
@@ -195,7 +204,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
       targetType: 'GRUP_WARGA',
       description: 'Pengumuman agenda pengasapan nyamuk demam berdarah dan kerja bakti lingkungan.',
       tags: ['Fogging', 'Kerja Bakti', 'DBD', 'Kesehatan'],
-      templateText: `🌿 *PEMBERITAHUAN JADWAL FOGGING NYAMUK DBD* 🦟\n\nYth. Seluruh Warga Komplek Taman Sejahtera,\n\nGuna mengantisipasi penyebaran jentik nyamuk DBD di musim penghujan, pengurus akan melaksanakan kegiatan *Fogging & Kerja Bakti Saluran Air* pada:\n\n🗓️ *Hari/Tanggal:* {tgl_acara}\n📍 *Lokasi:* Seluruh Blok A, B, C, D dan Area Kavling\n\n*Himbauan Warga:*\n- Tutup makanan/minuman dan wadah air bersih.\n- Buka jendela dan pintu pagar saat petugas melintas.\n- Amankan hewan peliharaan di tempat yang aman.\n\n*Seksi Kebersihan & Kesehatan Lingkungan*`,
+      templateText: `🌿 *PEMBERITAHUAN JADWAL FOGGING NYAMUK DBD* 🦟\n\nYth. Seluruh Warga Komplek Grand Sariwangi,\n\nGuna mengantisipasi penyebaran jentik nyamuk DBD di musim penghujan, pengurus akan melaksanakan kegiatan *Fogging & Kerja Bakti Saluran Air* pada:\n\n🗓️ *Hari/Tanggal:* {tgl_acara}\n📍 *Lokasi:* Seluruh Area Komplek Grand Sariwangi\n\n*Himbauan Warga:*\n- Tutup makanan/minuman dan wadah air bersih.\n- Buka jendela dan pintu pagar saat petugas melintas.\n- Amankan hewan peliharaan di tempat yang aman.\n\n*Seksi Kebersihan & Kesehatan Lingkungan*`,
     },
     {
       id: 'tpl-utility-outage',
@@ -215,7 +224,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
       targetType: 'GRUP_WARGA',
       description: 'Undangan resmi pertemuan tatap muka musyawarah pengurus dan seluruh kepala keluarga.',
       tags: ['Undangan', 'Musyawarah', 'Rapat', 'RT/RW'],
-      templateText: `📜 *UNDANGAN MUSYAWARAH WARGA PAGUYUBAN* 🤝\n\nKepada Yth.\nBapak/Ibu Warga Komplek Taman Sejahtera,\n\nDengan hormat, kami mengundang kehadiran Bapak/Ibu pada agenda *{nama_acara}* yang akan diselenggarakan pada:\n\n🗓️ *Waktu:* {tgl_acara}\n📍 *Tempat:* {lokasi_acara}\n📋 *Agenda Utama:* Evaluasi keamanan lingkungan, laporan keuangan, dan rencana perbaikan aspal jalan.\n\nKehadiran dan sumbang saran Bapak/Ibu sangat berarti bagi kemajuan perumahan kita tercinta.\n\n*Ketua Paguyuban & Jajaran Pengurus*`,
+      templateText: `📜 *UNDANGAN MUSYAWARAH WARGA PAGUYUBAN* 🤝\n\nKepada Yth.\nBapak/Ibu Warga Komplek Grand Sariwangi,\n\nDengan hormat, kami mengundang kehadiran Bapak/Ibu pada agenda *{nama_acara}* yang akan diselenggarakan pada:\n\n🗓️ *Waktu:* {tgl_acara}\n📍 *Tempat:* {lokasi_acara}\n📋 *Agenda Utama:* Evaluasi keamanan lingkungan, laporan keuangan, dan rencana perbaikan aspal jalan.\n\nKehadiran dan sumbang saran Bapak/Ibu sangat berarti bagi kemajuan perumahan kita tercinta.\n\n*Ketua Paguyuban & Jajaran Pengurus*`,
     },
     {
       id: 'tpl-voting-broadcast',
@@ -235,7 +244,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
       targetType: 'GRUP_WARGA',
       description: 'Pesan penyambutan hangat bagi keluarga baru yang baru pindah ke lingkungan komplek.',
       tags: ['Warga Baru', 'Sambutan', 'Sosial', 'Guyub'],
-      templateText: `🎉 *SELAMAT DATANG DI KOMPLEK TAMAN SEJAHTERA!* 🏡\n\nMari kita sambut hangat bergabungnya keluarga *{nama_warga}* yang menempati *{nomor_unit}*.\n\nSelamat datang di lingkungan yang aman, asri, dan guyub rukun. Semoga senantiasa betah, nyaman, dan penuh berkah tinggal bersama kita semua.\n\nBagi warga yang berpapasan, jangan sungkan untuk saling bertegur sapa ya! 😊\n\n*Keluarga Besar Paguyuban Warga*`,
+      templateText: `🎉 *SELAMAT DATANG DI KOMPLEK GRAND SARIWANGI!* 🏡\n\nMari kita sambut hangat bergabungnya keluarga *{nama_warga}* yang menempati *{nomor_unit}*.\n\nSelamat datang di lingkungan yang aman, asri, dan guyub rukun. Semoga senantiasa betah, nyaman, dan penuh berkah tinggal bersama kita semua.\n\nBagi warga yang berpapasan, jangan sungkan untuk saling bertegur sapa ya! 😊\n\n*Keluarga Besar Paguyuban Warga*`,
     },
     {
       id: 'tpl-condolence',
@@ -244,7 +253,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
       targetType: 'GRUP_WARGA',
       description: 'Informasi lelayu/duka cita dan informasi takziyah serta pemakaman almarhum/ah.',
       tags: ['Duka Cita', 'Lelayu', 'Takziyah', 'Kemanusiaan'],
-      templateText: `Inna lillahi wa inna ilaihi raji'un 🕯️\n\nTelah berpulang ke rahmatullah salah satu keluarga/warga kita tercinta:\n*Almarhum/Almarhumah dari keluarga {nama_warga} ({nomor_unit})*.\n\nRumah Duka: *{nomor_unit}*\nRencana Pemakaman: *{tgl_acara}*\n\nSegenap warga Komplek Taman Sejahtera turut berbelasungkawa yang sedalam-dalamnya. Semoga almarhum/ah husnul khatimah dan keluarga yang ditinggalkan diberikan ketabahan dan keikhlasan. Aamiin ya rabbal 'alamin. 🙏`,
+      templateText: `Inna lillahi wa inna ilaihi raji'un 🕯️\n\nTelah berpulang ke rahmatullah salah satu keluarga/warga kita tercinta:\n*Almarhum/Almarhumah dari keluarga {nama_warga} ({nomor_unit})*.\n\nRumah Duka: *{nomor_unit}*\nRencana Pemakaman: *{tgl_acara}*\n\nSegenap warga Komplek Grand Sariwangi turut berbelasungkawa yang sedalam-dalamnya. Semoga almarhum/ah husnul khatimah dan keluarga yang ditinggalkan diberikan ketabahan dan keikhlasan. Aamiin ya rabbal 'alamin. 🙏`,
     },
   ]);
 
@@ -450,7 +459,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
     {
       id: 'wa-1',
       sender: 'bot',
-      text: `Halo Bapak/Ibu Warga Komplek Taman Sejahtera! 🌿\n\nSelamat datang di *Layanan WhatsApp Otomatis WargaHub*.\n\nKetik angka menu untuk bantuan cepat:\n1️⃣ *Cek Tagihan & Status Iuran Rumah*\n2️⃣ *Informasi Rekening Bank BCA Resmi*\n3️⃣ *Kontak Darurat Pos Satpam 24 Jam*\n4️⃣ *Cara Booking Balai Warga & Lapangan*\n5️⃣ *Ringkasan Laporan Kas Transparansi*`,
+      text: `Halo Bapak/Ibu Warga Komplek Grand Sariwangi! 🌿\n\nSelamat datang di *Layanan WhatsApp Otomatis WargaHub*.\n\nKetik angka menu untuk bantuan cepat:\n1️⃣ *Cek Tagihan & Status Iuran Rumah*\n2️⃣ *Informasi Rekening Kas Bank / E-Wallet Resmi*\n3️⃣ *Kontak Darurat Pos Satpam 24 Jam*\n4️⃣ *Cara Booking Balai Warga & Lapangan*\n5️⃣ *Ringkasan Laporan Kas Transparansi*`,
       time: '14:20',
     },
   ]);
@@ -471,15 +480,15 @@ export const WhatsAppBotSimulator: React.FC = () => {
     const clean = text.trim();
 
     if (clean === '1' || clean.toLowerCase().includes('tagihan') || clean.toLowerCase().includes('iuran')) {
-      reply = `📋 *STATUS TAGIHAN IURAN WARGA*\n\n🏡 *Unit:* Rumah A-17 (Bpk. Budi Santoso)\n🗓️ *Periode:* Agustus 2026\n💵 *Nominal:* Rp 750.000\n✅ *Status:* *LUNAS (VERIFIED)*\n\nKuitansi digital ber-QR code dapat diunduh di portal warga: http://localhost:4321/`;
-    } else if (clean === '2' || clean.toLowerCase().includes('rekening') || clean.toLowerCase().includes('bca')) {
-      reply = `🏦 *REKENING RESMI IURAN KOMPLEK*\n\nBank: *Bank BCA (Bank Central Asia)*\nNo. Rekening: *8830-1928-33*\nAtas Nama: *PENGURUS KOMPLEK TAMAN SEJAHTERA*\nTarif Iuran: *Rp 750.000 / bulan*\n\nHarap simpan bukti transfer untuk konfirmasi di aplikasi.`;
+      reply = `📋 *STATUS TAGIHAN IURAN WARGA*\n\n🏡 *Unit:* Kavling A (Bpk. Budi Santoso)\n🗓️ *Periode:* September 2026\n💵 *Nominal:* Rp 250.000\n✅ *Status:* *LUNAS (VERIFIED)*\n\nKuitansi digital ber-QR code dapat diunduh di portal warga: http://localhost:4321/`;
+    } else if (clean === '2' || clean.toLowerCase().includes('rekening') || clean.toLowerCase().includes('bank') || clean.toLowerCase().includes('bca') || clean.toLowerCase().includes('bsi')) {
+      reply = `🏦 *REKENING RESMI IURAN KOMPLEK*\n\nBank / Saluran: *Bank Jago Syariah / BSI (Kas Paguyuban)*\nNo. Rekening: *505621101851*\nAtas Nama: *PENGURUS KOMPLEK GRAND SARIWANGI*\nTarif Iuran: *Rp 250.000 / bulan*\nQRIS: *Mendukung GoPay, DANA, BSI Mobile, Livin', dll.*\n\nHarap simpan bukti transfer untuk konfirmasi di aplikasi.`;
     } else if (clean === '3' || clean.toLowerCase().includes('satpam') || clean.toLowerCase().includes('darurat')) {
-      reply = `🚨 *KONTAK DARURAT 24 JAM*\n\n👮 *Pos Satpam Utama:* 0811-9988-7766\n👤 *Ketua RW 05:* 0812-3456-7890\n🔧 *Petugas Sarana:* 0813-8888-9999\n\nPetugas satpam siap membantu 24 jam non-stop.`;
+      reply = `🚨 *KONTAK DARURAT 24 JAM*\n\n👮 *Pos Satpam Utama:* 0812-2008-2240 (Pa Adri Harry)\n👤 *Ketua RT 01 / RW 08:* 0812-3456-7890\n🔧 *Petugas Sarana:* 0813-8888-9999\n\nPetugas satpam siap membantu 24 jam non-stop.`;
     } else if (clean === '4' || clean.toLowerCase().includes('booking') || clean.toLowerCase().includes('balai')) {
       reply = `🏟️ *PEMESANAN FASILITAS UMUM*\n\nUntuk meminjam Balai Warga atau Lapangan Olahraga, silakan isi formulir tanggal & jam pemakaian di menu *Pesan Sarana* pada aplikasi WargaHub.`;
     } else if (clean === '5' || clean.toLowerCase().includes('kas') || clean.toLowerCase().includes('transparansi')) {
-      reply = `📊 *RINGKASAN KAS BULAN AGUSTUS 2026*\n\n💰 *Total Kas BCA:* Rp 128.450.000\n📈 *Pemasukan:* Rp 64.500.000\n📉 *Pengeluaran:* Rp 39.150.000\n\nRincian nota belanja lengkap: http://localhost:4321/transparency`;
+      reply = `📊 *RINGKASAN KAS BULAN AGUSTUS 2026*\n\n💰 *Total Saldo Kas Paguyuban:* Rp 128.450.000\n📈 *Pemasukan:* Rp 64.500.000\n📉 *Pengeluaran:* Rp 39.150.000\n\nRincian nota belanja lengkap: http://localhost:4321/transparency`;
     } else {
       reply = `Maaf, pesan tidak dikenali. Ketik angka *1*, *2*, *3*, *4*, atau *5* untuk memilih menu layanan warga.`;
     }
@@ -500,7 +509,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
       {
         id: 'wa-1',
         sender: 'bot',
-        text: `Halo Bapak/Ibu Warga Komplek Taman Sejahtera! 🌿\n\nSelamat datang di *Layanan WhatsApp Otomatis WargaHub*.\n\nKetik angka menu untuk bantuan cepat:\n1️⃣ *Cek Tagihan & Status Iuran Rumah*\n2️⃣ *Informasi Rekening Bank BCA Resmi*\n3️⃣ *Kontak Darurat Pos Satpam 24 Jam*\n4️⃣ *Cara Booking Balai Warga & Lapangan*\n5️⃣ *Ringkasan Laporan Kas Transparansi*`,
+        text: `Halo Bapak/Ibu Warga Komplek Grand Sariwangi! 🌿\n\nSelamat datang di *Layanan WhatsApp Otomatis WargaHub*.\n\nKetik angka menu untuk bantuan cepat:\n1️⃣ *Cek Tagihan & Status Iuran Rumah*\n2️⃣ *Informasi Rekening Kas Bank / E-Wallet Resmi*\n3️⃣ *Kontak Darurat Pos Satpam 24 Jam*\n4️⃣ *Cara Booking Balai Warga & Lapangan*\n5️⃣ *Ringkasan Laporan Kas Transparansi*`,
         time: '14:20',
       },
     ]);
@@ -847,7 +856,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
                         <label className="font-bold text-ink block mb-1">Rekening Resmi Pengurus</label>
                         <input
                           type="text"
-                          placeholder="BCA 8830-1928-33 (PENGURUS KOMPLEK)"
+                          placeholder="Bank Syariah / Kas Utama 8830-1928-33 (PENGURUS KOMPLEK)"
                           value={varBankAccount}
                           onChange={(e) => setVarBankAccount(e.target.value)}
                           className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink font-bold"
@@ -882,7 +891,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
                         <label className="font-bold text-ink block mb-1">Lokasi Acara</label>
                         <input
                           type="text"
-                          placeholder="Balai Warga Taman Sejahtera"
+                          placeholder="Balai Warga Grand Sariwangi"
                           value={varEventLocation}
                           onChange={(e) => setVarEventLocation(e.target.value)}
                           className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-medium"
@@ -1002,7 +1011,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
                   onClick={() => handleSendBot('2')}
                   className="w-full text-left p-2.5 rounded-xl bg-canvas hover:bg-emerald-50 hover:text-emerald-900 border border-border font-semibold transition-colors flex items-center justify-between"
                 >
-                  <span>2️⃣ Rekening BCA Iuran</span>
+                  <span>2️⃣ Rekening Kas Paguyuban</span>
                   <ArrowRight className="w-3.5 h-3.5 text-ink-muted" />
                 </button>
                 <button
@@ -1167,7 +1176,7 @@ export const WhatsAppBotSimulator: React.FC = () => {
                 <label className="font-bold text-ink block mb-1">Sender Name (Nama Pengirim)</label>
                 <input
                   type="text"
-                  defaultValue="WARGAHUB OFFICIAL - KOMPLEK TAMAN SEJAHTERA"
+                  defaultValue="WARGAHUB OFFICIAL - KOMPLEK GRAND SARIWANGI"
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-bold"
                 />
               </div>

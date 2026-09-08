@@ -143,8 +143,8 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
 
   // Dynamic dashboard title & subtitle from settings
   const [dashHeading, setDashHeading] = useState('Dashboard Eksekutif Komplek');
-  const [dashSubheading, setDashSubheading] = useState('Pusat Kendali Operasional, Keuangan Kas & Layanan Warga Komplek.');
-  const [communityName, setCommunityName] = useState('Komplek Perumahan Taman Sejahtera');
+  const [dashSubheading, setDashSubheading] = useState('Pusat Kendali Operasional, Keuangan Kas & Layanan Warga Komplek Grand Sariwangi.');
+  const [communityName, setCommunityName] = useState('Komplek Grand Sariwangi');
 
   // Security gate live state
   const [gate1Open, setGate1Open] = useState(false);
@@ -239,8 +239,18 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
       const savedComm = localStorage.getItem('wargahub_set_comm_name');
       const savedUser = localStorage.getItem('wargahub_user');
       if (savedHead) setDashHeading(JSON.parse(savedHead));
-      if (savedSub) setDashSubheading(JSON.parse(savedSub));
-      if (savedComm) setCommunityName(JSON.parse(savedComm));
+      if (savedSub) {
+        const parsedS = JSON.parse(savedSub);
+        if (parsedS && !parsedS.toLowerCase().includes('taman sejahtera')) setDashSubheading(parsedS);
+      }
+      if (savedComm) {
+        const parsedC = JSON.parse(savedComm);
+        if (parsedC && typeof parsedC === 'string' && !parsedC.toLowerCase().includes('taman sejahtera')) {
+          setCommunityName(parsedC);
+        } else {
+          setCommunityName('Komplek Grand Sariwangi');
+        }
+      }
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
         setActiveUser(parsed);
@@ -648,7 +658,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
 
           {/* SWISS BENTO GRID: Core Financial & Operational Anchors */}
           <div className="grid grid-cols-12 gap-4">
-            {/* 1. Primary Anchor: Kas Operasional BCA */}
+            {/* 1. Primary Anchor: Kas Operasional Paguyuban (Bank & E-Wallet) */}
             <div className="col-span-12 lg:col-span-5 bg-surface rounded-3xl p-6 border border-border shadow-xs flex flex-col justify-between group hover:border-border transition-colors">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -660,7 +670,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                       <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-ink-muted block">
                         Saldo Kas Perbendaharaan
                       </span>
-                      <h4 className="font-bold text-ink text-sm">Rekening Operasional Bank BCA</h4>
+                      <h4 className="font-bold text-ink text-sm">Rekening Operasional Kas Paguyuban</h4>
                     </div>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-bold">
@@ -1724,7 +1734,8 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                     onChange={(e: any) => setExpMethod(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
                   >
-                    <option value="TRANSFER">Transfer Bank BCA</option>
+                    <option value="TRANSFER">Transfer Bank / Syariah</option>
+                    <option value="EWALLET">Dompet Digital / E-Wallet</option>
                     <option value="CASH">Kas Tunai (Petty Cash)</option>
                   </select>
                 </div>

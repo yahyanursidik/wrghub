@@ -12,7 +12,7 @@ const expenseSchema = z.object({
   amount: z.number().positive(),
   vendor: z.string().optional(),
   proofUrl: z.string().optional(),
-  paymentMethod: z.string().default('TRANSFER_BCA'),
+  paymentMethod: z.string().default('TRANSFER_BANK'),
   voucherNo: z.string().optional(),
   expenseDate: z.string().default(() => new Date().toISOString().substring(0, 10)),
   recordedBy: z.string().default('user-bendahara'),

@@ -49,7 +49,7 @@ export interface InstallmentRecord {
   installmentNo: number;
   amount: number;
   paymentDate: string;
-  paymentMethod: 'POTONG_GAJI' | 'TUNAI_CASH' | 'TRANSFER_BCA';
+  paymentMethod: 'POTONG_GAJI' | 'TUNAI_CASH' | 'TRANSFER_BCA' | 'TRANSFER_BANK' | 'EWALLET';
   receivedBy: string;
   notes?: string;
 }
@@ -217,12 +217,12 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   const [fTenorMonths, setFTenorMonths] = useState(2);
   const [fLoanDate, setFLoanDate] = useState(new Date().toISOString().slice(0, 10));
   const [fPurpose, setFPurpose] = useState('');
-  const [fDisbursementSource, setFDisbursementSource] = useState('Kas Operasional BCA');
+  const [fDisbursementSource, setFDisbursementSource] = useState('Kas Operasional Paguyuban');
   const [fNotes, setFNotes] = useState('');
 
   // Form State for Installment
   const [instAmount, setInstAmount] = useState<number>(250000);
-  const [instMethod, setInstMethod] = useState<'POTONG_GAJI' | 'TUNAI_CASH' | 'TRANSFER_BCA'>('POTONG_GAJI');
+  const [instMethod, setInstMethod] = useState<'POTONG_GAJI' | 'TUNAI_CASH' | 'TRANSFER_BCA' | 'TRANSFER_BANK' | 'EWALLET'>('POTONG_GAJI');
   const [instDate, setInstDate] = useState(new Date().toISOString().slice(0, 10));
   const [instNotes, setInstNotes] = useState('Potongan gaji bulan berjalan');
 
@@ -241,7 +241,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
       maxTenorMonths: 4,
       minWorkingMonths: 3,
       requiredApprovers: 'Ketua RW & Bendahara Paguyuban',
-      defaultDisbursementSource: 'Kas Operasional BCA',
+      defaultDisbursementSource: 'Kas Operasional Paguyuban',
       repaymentNotes: 'Potongan payroll dilakukan otomatis pada awal bulan berjalan saat transfer gaji.',
     });
   });
@@ -322,7 +322,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
       installmentNo: number;
       amount: number;
       paymentDate: string;
-      paymentMethod: 'POTONG_GAJI' | 'TUNAI_CASH' | 'TRANSFER_BCA';
+      paymentMethod: 'POTONG_GAJI' | 'TUNAI_CASH' | 'TRANSFER_BCA' | 'TRANSFER_BANK' | 'EWALLET';
       receivedBy: string;
       notes?: string;
       loanId: string;
@@ -376,7 +376,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
     }
     setFLoanDate(new Date().toISOString().slice(0, 10));
     setFPurpose('Keperluan Mendesak Keluarga');
-    setFDisbursementSource('Kas Operasional BCA');
+    setFDisbursementSource('Kas Operasional Paguyuban');
     setFNotes('');
     setShowAddModal(true);
   };
@@ -1698,7 +1698,8 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                   <option value="ALL">Semua Metode Pembayaran</option>
                   <option value="POTONG_GAJI">Potong Gaji Bulanan</option>
                   <option value="TUNAI_CASH">Tunai / Cash</option>
-                  <option value="TRANSFER_BCA">Transfer BCA</option>
+                  <option value="TRANSFER_BCA">Transfer Bank / Syariah</option>
+                  <option value="TRANSFER_BANK">Transfer Bank / E-Wallet</option>
                 </select>
               </div>
             </div>
@@ -1886,7 +1887,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                     }
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
-                    <option value="Kas Operasional BCA">Kas Operasional BCA</option>
+                    <option value="Kas Operasional Paguyuban">Kas Operasional Paguyuban (Bank / E-Wallet)</option>
                     <option value="Kas Tunai Pos Satpam">Kas Tunai Pos Satpam</option>
                   </select>
                   <span className="text-[10px] text-ink-muted mt-1 block">
@@ -2056,7 +2057,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                     onChange={(e) => setFDisbursementSource(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
-                    <option value="Kas Operasional BCA">Kas Operasional BCA</option>
+                    <option value="Kas Operasional Paguyuban">Kas Operasional Paguyuban (Bank / E-Wallet)</option>
                     <option value="Kas Tunai Bendahara">Kas Tunai Bendahara</option>
                   </select>
                 </div>
@@ -2167,7 +2168,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                 >
                   <option value="POTONG_GAJI">Potong Payroll Gaji Bulanan</option>
                   <option value="TUNAI_CASH">Tunai / Cash Langsung ke Bendahara</option>
-                  <option value="TRANSFER_BCA">Transfer ke Rekening Kas BCA</option>
+                  <option value="TRANSFER_BANK">Transfer ke Rekening Kas Paguyuban (Bank / Syariah / E-Wallet)</option>
                 </select>
               </div>
 

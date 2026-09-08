@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { ReceiptModal } from '../shared/ReceiptModal';
+import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
 
 interface InvoiceItem {
   id: string;
@@ -48,6 +49,8 @@ interface InvoiceItem {
   propertyCode: string;
   areaLabel?: string;
   ownerName?: string;
+  residentName?: string;
+  occupancyStatus?: string;
   billingPeriodId?: string;
   billingPeriodName?: string;
   securityFee?: number;
@@ -60,6 +63,7 @@ interface InvoiceItem {
   dueDate: string;
   issuedAt: string;
   paidAt: string | null;
+  paymentMethod?: string;
   notes?: string;
 }
 
@@ -81,31 +85,33 @@ export interface TariffComponent {
   desc: string;
 }
 
-const DEFAULT_TARIFF_COMPONENTS: TariffComponent[] = [
-  { id: 'tf-1', name: '1. Iuran Pengamanan Pos Satpam 24 Jam', fee: 150000, desc: 'Operasional pos satpam, barrier gate RFID, HT, dan pemantauan keamanan' },
-  { id: 'tf-2', name: '2. Iuran Pengangkutan Sampah & Kebersihan', fee: 50000, desc: 'Armada pengangkutan sampah dinas LH dan pemotongan rumput berkala' },
-  { id: 'tf-3', name: '3. Dana Kas Operasional & Perawatan Komplek', fee: 50000, desc: 'Penerangan jalan PJU, genset darurat, dan sarana balai warga' },
+export const GRAND_SARIWANGI_TARIFF_COMPONENTS: TariffComponent[] = [
+  { id: 'tf-rt', name: '1. Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', fee: 250000, desc: 'Armada pengangkutan sampah dinas LH, kebersihan saluran air, fasum dan operasional RT' },
+  { id: 'tf-rw', name: '2. Iuran RW (Retribusi Paguyuban & Wilayah RW)', fee: 100000, desc: 'Retribusi paguyuban komplek, koordinasi keamanan wilayah RW dan administrasi' },
 ];
 
+const DEFAULT_TARIFF_COMPONENTS: TariffComponent[] = GRAND_SARIWANGI_TARIFF_COMPONENTS;
+
 const CLUSTER_PROPERTIES_FALLBACK = [
-  { code: 'Kav A', ownerName: 'Pak Verial', area: 'Klaster 14 Kavling' },
-  { code: 'Kav B', ownerName: 'Mahasiswa Polban', area: 'Klaster 14 Kavling' },
-  { code: 'Kav C', ownerName: 'Bu Rina', area: 'Klaster 14 Kavling' },
-  { code: 'Kav D', ownerName: 'Pak Rieva', area: 'Klaster 14 Kavling' },
-  { code: 'Kav E', ownerName: 'Bu Wulan', area: 'Klaster 14 Kavling' },
-  { code: 'Kav F', ownerName: 'Pak Yahya', area: 'Klaster 14 Kavling' },
-  { code: 'Kav G', ownerName: 'Pak Wisnu', area: 'Klaster 14 Kavling' },
-  { code: 'Kav H', ownerName: 'Pak Asep', area: 'Klaster 14 Kavling' },
-  { code: 'Kav I', ownerName: 'Pak Iin', area: 'Klaster 14 Kavling' },
-  { code: 'Kav J', ownerName: 'Bu Acih', area: 'Klaster 14 Kavling' },
-  { code: 'Kav K', ownerName: 'Pak Taufik', area: 'Klaster 14 Kavling' },
-  { code: 'Kav L', ownerName: 'Pak Doni', area: 'Klaster 14 Kavling' },
-  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya', area: 'Klaster 14 Kavling' },
+  { code: 'Kav A', ownerName: 'Pak Verial', residentName: 'Pak Verial', area: 'Klaster 14 Kavling', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav B', ownerName: 'Mahasiswa Polban', residentName: 'Mahasiswa Polban', area: 'Klaster 14 Kavling', statusLabel: 'Penyewa / Kontrak', isRented: true },
+  { code: 'Kav C', ownerName: 'Bu Rina (Kosong)', residentName: 'Bu Rina (Kosong)', area: 'Klaster 14 Kavling', statusLabel: 'Kosong', isRented: false },
+  { code: 'Kav D', ownerName: 'Pak Rieva', residentName: 'Pak Rieva', area: 'Klaster 14 Kavling', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav E', ownerName: 'Pak Budi', residentName: 'Pak Budi', area: 'Klaster 14 Kavling', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav F', ownerName: 'Pa Anggia', residentName: 'Pa Anggia', area: 'Klaster 14 Kavling', statusLabel: 'Penyewa / Kontrak', isRented: true },
+  { code: 'Kav G', ownerName: 'Pak Misael', residentName: 'Pak Misael', area: 'Klaster 14 Kavling', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav H', ownerName: 'Pak Fahmi Rizal', residentName: 'Pak Fahmi Rizal', area: 'Klaster 14 Kavling', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav I', ownerName: 'Pak Yahya', residentName: 'Pak Yahya', area: 'Klaster 14 Kavling', statusLabel: 'Penyewa / Kontrak', isRented: true },
+  { code: 'Kav J', ownerName: 'Bu Sofia P (Kosong)', residentName: 'Bu Sofia P (Kosong)', area: 'Klaster 14 Kavling', statusLabel: 'Kosong', isRented: false },
+  { code: 'Kav K', ownerName: 'Pak Eky', residentName: 'Pak Eky', area: 'Klaster 14 Kavling', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav L', ownerName: 'Pak Haji Ano', residentName: 'Pak Haji Ano', area: 'Klaster 14 Kavling', statusLabel: 'Penghuni', isRented: false },
+  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya (Kosong)', residentName: 'Pak Dedi N / Pak Jaya (Kosong)', area: 'Klaster 14 Kavling', statusLabel: 'Kosong', isRented: false },
 ];
 
 interface BillingManagerProps {
   initialPeriodName: string;
   initialInvoices: InvoiceItem[];
+  allInvoices?: any[];
   initialProgress: BillingProgress;
   initialProperties?: any[];
   allPeriods?: any[];
@@ -115,6 +121,7 @@ interface BillingManagerProps {
 export const BillingManager: React.FC<BillingManagerProps> = ({
   initialPeriodName,
   initialInvoices,
+  allInvoices = [],
   initialProgress,
   initialProperties = [],
   allPeriods = [],
@@ -124,6 +131,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [invoices, setInvoices] = useState<InvoiceItem[]>(initialInvoices || []);
   const [progress, setProgress] = useState<BillingProgress>(initialProgress);
   const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   useEffect(() => {
     setInvoices(initialInvoices || []);
@@ -143,11 +151,23 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     if (initialProperties && initialProperties.length > 0) {
       const filtered = initialProperties
         .filter((p: any) => p.code && !p.code.toLowerCase().includes('dummy') && p.code !== 'A-99')
-        .map((p: any) => ({
-          code: p.code,
-          ownerName: p.ownerName || p.occupantName || `Warga ${p.code}`,
-          area: p.blockName || p.address || 'Klaster 14 Kavling',
-        }));
+        .map((p: any) => {
+          const isRented = p.occupancyStatus === 'RENTED' || p.isRented;
+          const isVacant = p.occupancyStatus === 'VACANT';
+          const resident = isRented
+            ? (p.occupantName || p.currentResident || 'Penyewa')
+            : (isVacant ? `${p.ownerName || p.legalOwner || 'Warga'} (Kosong)` : (p.occupantName || p.currentResident || p.ownerName || `Warga ${p.code}`));
+          const statusLabel = isRented ? 'Penyewa / Kontrak' : (isVacant ? 'Kosong' : 'Penghuni');
+          return {
+            code: p.code,
+            residentName: resident,
+            ownerName: resident, // Selalu prioritaskan nama penghuni sekarang / penyewa
+            legalOwner: p.legalOwner || p.ownerName,
+            statusLabel,
+            isRented,
+            area: p.blockName || p.address || 'Grand Sariwangi',
+          };
+        });
       if (filtered.length > 0) return filtered;
     }
     return CLUSTER_PROPERTIES_FALLBACK;
@@ -168,6 +188,50 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     return list;
   }, [allPeriods, initialPeriodName]);
 
+  // Computed property dues report items for WhatsApp modal
+  const reportProperties = useMemo(() => {
+    const list = clusterProperties.length > 0 ? clusterProperties : CLUSTER_PROPERTIES_FALLBACK;
+    const invMap = new Map<string, InvoiceItem>();
+    invoices.forEach((inv) => {
+      invMap.set(inv.propertyCode.toLowerCase(), inv);
+    });
+
+    return list.map((p) => {
+      const inv = invMap.get(p.code.toLowerCase());
+      const isPaid = inv?.status === 'PAID';
+      const resident = p.residentName || p.ownerName || inv?.residentName || 'Warga';
+
+      let unpaidMonths = isPaid ? 0 : 1;
+      let unpaidPeriods = isPaid ? [] : [initialPeriodName];
+
+      if (allInvoices && allInvoices.length > 0) {
+        const propAllInvs = allInvoices.filter(
+          (ai: any) =>
+            ai.propertyCode?.toLowerCase() === p.code.toLowerCase() &&
+            ai.status !== 'PAID'
+        );
+        if (propAllInvs.length > 0) {
+          unpaidMonths = propAllInvs.length;
+          unpaidPeriods = propAllInvs.map((ai: any) => ai.billingPeriodName || ai.billingPeriodId);
+        } else if (isPaid) {
+          unpaidMonths = 0;
+          unpaidPeriods = [];
+        }
+      }
+
+      return {
+        code: p.code,
+        residentName: resident,
+        isRented: p.isRented,
+        status: isPaid ? 'PAID' : 'UNPAID',
+        unpaidMonthsCount: unpaidMonths,
+        unpaidPeriodNames: unpaidPeriods,
+        monthlyRate: inv?.total || 250000,
+        totalDueAmount: (inv?.total || 250000) * (unpaidMonths || 1),
+      };
+    });
+  }, [clusterProperties, invoices, allInvoices, initialPeriodName]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'PENDING'>('ALL');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
@@ -178,19 +242,63 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Tariff Structure State (Editable & Persisted)
+  const [communityName, setCommunityName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_set_comm_name');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('taman sejahtera')) {
+            return parsed;
+          }
+        }
+      } catch (e) {}
+    }
+    return 'Grand Sariwangi';
+  });
+
+  // Tariff Structure & Mode State (Editable & Persisted)
+  const [tariffMode, setTariffMode] = useState<'FLAT' | 'DETAILED'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_set_tariff_mode');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return 'FLAT';
+  });
+
+  const [flatFee, setFlatFee] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_set_flat_fee');
+        if (saved) return Number(JSON.parse(saved)) || 250000;
+      } catch (e) {}
+    }
+    return 250000;
+  });
+
+  const [flatFeeName, setFlatFeeName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_set_flat_name');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return 'Iuran Pengelolaan Lingkungan (IPL) Bulanan Warga';
+  });
+
   const [tariffComponents, setTariffComponents] = useState<TariffComponent[]>(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('wargahub_tariff_components');
         if (saved) {
           const parsed = JSON.parse(saved);
-          const total = parsed.reduce((a: number, b: any) => a + (Number(b.fee) || 0), 0);
-          if (total === 750000) {
-            localStorage.setItem('wargahub_tariff_components', JSON.stringify(DEFAULT_TARIFF_COMPONENTS));
-            return DEFAULT_TARIFF_COMPONENTS;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const total = parsed.reduce((a: number, b: any) => a + (Number(b.fee) || 0), 0);
+            if (total === 750000) return DEFAULT_TARIFF_COMPONENTS;
+            return parsed;
           }
-          return parsed;
         }
       } catch (e) {}
     }
@@ -199,18 +307,77 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
 
   const [tariffNote, setTariffNote] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('wargahub_tariff_note') || 'Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 05 / RW 05';
+      return localStorage.getItem('wargahub_tariff_note') || 'Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 01 / RW 08 (Komplek Grand Sariwangi)';
     }
-    return 'Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 05 / RW 05';
+    return 'Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 01 / RW 08 (Komplek Grand Sariwangi)';
+  });
+
+  const [kepalaKomplekName, setKepalaKomplekName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedK = localStorage.getItem('wargahub_set_kepala_komplek');
+        if (savedK) return JSON.parse(savedK);
+        const savedRw = localStorage.getItem('wargahub_set_rwheadname');
+        if (savedRw) return JSON.parse(savedRw);
+      } catch (e) {}
+    }
+    return 'Bpk. Ir. H. Bambang Sutrisno';
   });
 
   const [showTariffModal, setShowTariffModal] = useState(false);
+  const [editableTariffMode, setEditableTariffMode] = useState<'FLAT' | 'DETAILED'>('FLAT');
+  const [editableFlatFee, setEditableFlatFee] = useState(250000);
+  const [editableFlatFeeName, setEditableFlatFeeName] = useState('Iuran Pengelolaan Lingkungan (IPL) Bulanan Warga');
   const [editableTariffs, setEditableTariffs] = useState<TariffComponent[]>(DEFAULT_TARIFF_COMPONENTS);
   const [editableTariffNote, setEditableTariffNote] = useState(tariffNote);
 
   const totalTariff = useMemo(() => {
+    if (tariffMode === 'FLAT') return flatFee;
     return tariffComponents.reduce((acc, item) => acc + (Number(item.fee) || 0), 0);
-  }, [tariffComponents]);
+  }, [tariffMode, flatFee, tariffComponents]);
+
+  // Reactive listener to keep Billing in sync if tariffs are changed in Settings
+  useEffect(() => {
+    const handleTariffsUpdated = (e: any) => {
+      if (e.detail) {
+        if (e.detail.mode) {
+          setTariffMode(e.detail.mode);
+        }
+        if (e.detail.mode === 'FLAT' && typeof e.detail.total === 'number') {
+          setFlatFee(e.detail.total);
+          setGenFee(e.detail.total);
+        }
+        const comps = e.detail.components || (Array.isArray(e.detail) ? e.detail : null);
+        if (comps && Array.isArray(comps)) {
+          setTariffComponents(comps);
+          const newTotal = e.detail.total ?? comps.reduce((sum: number, it: any) => sum + (Number(it.fee) || 0), 0);
+          setGenFee(newTotal);
+          if (comps.length === 1) {
+            setFlatFee(comps[0].fee);
+            if (comps[0].name) setFlatFeeName(comps[0].name);
+          }
+        }
+        if (e.detail.note) {
+          setTariffNote(e.detail.note);
+        }
+        if (e.detail.kepalaKomplekName) {
+          setKepalaKomplekName(e.detail.kepalaKomplekName);
+        }
+      }
+    };
+    const handleCommitteeUpdated = (e: any) => {
+      if (e.detail?.kepalaKomplekName) {
+        setKepalaKomplekName(e.detail.kepalaKomplekName);
+      }
+    };
+
+    window.addEventListener('wargahub_tariffs_updated', handleTariffsUpdated);
+    window.addEventListener('wargahub_committee_updated', handleCommitteeUpdated);
+    return () => {
+      window.removeEventListener('wargahub_tariffs_updated', handleTariffsUpdated);
+      window.removeEventListener('wargahub_committee_updated', handleCommitteeUpdated);
+    };
+  }, []);
 
   // Modal & Toast State
   const [showGenerateModal, setShowGenerateModal] = useState(false);
@@ -219,10 +386,57 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [generating, setGenerating] = useState(false);
   const [generateMsg, setGenerateMsg] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
+
+  const handleOpenInvoiceDoc = (inv: InvoiceItem, isInvoiceDoc = false) => {
+    const isReceivedByKepala =
+      inv.paymentMethod === 'CASH_KEPALA_KOMPLEK' ||
+      Boolean(inv.notes && inv.notes.toLowerCase().includes('kepala komplek'));
+
+    const resolvedMethod = isReceivedByKepala
+      ? `Tunai (Diterima oleh Kepala Komplek - ${kepalaKomplekName})`
+      : inv.paymentMethod === 'CASH'
+      ? 'Tunai (Diterima Pengurus/RT)'
+      : inv.paymentMethod === 'QRIS'
+      ? 'QRIS Komplek'
+      : inv.paymentMethod === 'EWALLET'
+      ? 'Dompet Digital / E-Wallet'
+      : (inv.paymentMethod || (inv.status === 'PAID' ? 'Transfer Bank / E-Wallet (Otomatis)' : 'Transfer Bank (Jago Syariah / BSI)'));
+
+    const matchedProp = clusterProperties.find(p => p.code.toLowerCase() === inv.propertyCode.toLowerCase());
+    const resolvedResident = inv.residentName || (inv.ownerName && !inv.ownerName.startsWith('Warga Rumah') ? inv.ownerName : null) || matchedProp?.residentName || matchedProp?.ownerName || `Warga Rumah ${inv.propertyCode}`;
+
+    setSelectedReceipt({
+      invoiceNumber: inv.invoiceNumber,
+      periodName: inv.billingPeriodName || initialPeriodName,
+      propertyCode: inv.propertyCode,
+      residentName: resolvedResident,
+      amount: inv.total,
+      paidAt: inv.paidAt || (inv.status === 'PAID' ? '15 Agustus 2026' : null),
+      dueDate: inv.dueDate,
+      status: inv.status,
+      isInvoice: isInvoiceDoc,
+      paymentMethod: resolvedMethod,
+      referenceNumber: `TRX-${inv.propertyCode}-AUTO`,
+      kepalaKomplekName: kepalaKomplekName,
+      treasurerName: 'Yahya Nursidik',
+      notes: inv.notes,
+      items: tariffMode === 'DETAILED' ? tariffComponents : (inv.total === 350000 ? [
+        { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah LH, saluran air & fasum RT' },
+        { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
+      ] : (inv.total === 250000 ? [
+        { name: 'Iuran RT (Pengangkutan Sampah, Fasum & Operasional RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & operasional RT' }
+      ] : undefined)),
+    });
+  };
   const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceItem | null>(null);
   const [deleteReason, setDeleteReason] = useState('Kesalahan Input / Keringanan Pengurus');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   // Generate batch form state
   const [genYear, setGenYear] = useState(2026);
@@ -230,66 +444,27 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [genDueDate, setGenDueDate] = useState('2026-09-10');
   const [genFee, setGenFee] = useState(250000);
 
-  // Single Invoice / Direct Iuran Form State
-  const [formPropertyMode, setFormPropertyMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
-  const [formSelectedProp, setFormSelectedProp] = useState<string>('Kav A');
-  const [formHouseCode, setFormHouseCode] = useState('Kav A');
-  const [formAreaLabel, setFormAreaLabel] = useState('Klaster 14 Kavling');
-  const [formOwnerName, setFormOwnerName] = useState('Pak Verial');
-  const [formPeriodMode, setFormPeriodMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
-  const [formPeriodName, setFormPeriodName] = useState(initialPeriodName || 'September 2026');
-  const [formSecurityFee, setFormSecurityFee] = useState(150000);
-  const [formCleaningFee, setFormCleaningFee] = useState(50000);
-  const [formSinkingFund, setFormSinkingFund] = useState(50000);
-  const [formAdditionalFee, setFormAdditionalFee] = useState(0);
-  const [formDueDate, setFormDueDate] = useState('2026-09-10');
-  const [formStatus, setFormStatus] = useState<'PAID' | 'UNPAID' | 'PENDING_VERIFICATION'>('PAID');
-  const [formPaymentMethod, setFormPaymentMethod] = useState<'CASH' | 'TRANSFER_BCA' | 'QRIS'>('CASH');
-  const [formPaidAt, setFormPaidAt] = useState(new Date().toISOString().slice(0, 10));
-  const [formNotes, setFormNotes] = useState('');
+  // Form State for Single Direct Iuran / Invoice Modal
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [savingInvoice, setSavingInvoice] = useState(false);
-
-  const handlePropertySelect = (val: string) => {
-    setFormSelectedProp(val);
-    if (val === '__CUSTOM__') {
-      setFormPropertyMode('CUSTOM');
-      setFormHouseCode('');
-      setFormOwnerName('');
-    } else {
-      setFormPropertyMode('SELECT');
-      const matched = clusterProperties.find(p => p.code.toLowerCase() === val.toLowerCase());
-      if (matched) {
-        setFormHouseCode(matched.code);
-        setFormOwnerName(matched.ownerName);
-        setFormAreaLabel(matched.area);
-      }
-    }
-  };
-
-  const handlePeriodSelect = (val: string) => {
-    if (val === '__CUSTOM__') {
-      setFormPeriodMode('CUSTOM');
-    } else {
-      setFormPeriodMode('SELECT');
-      setFormPeriodName(val);
-      const parts = val.split(' ');
-      const monthMap: Record<string, string> = {
-        'Januari': '01', 'Februari': '02', 'Maret': '03', 'April': '04',
-        'Mei': '05', 'Juni': '06', 'Juli': '07', 'Agustus': '08',
-        'September': '09', 'Oktober': '10', 'November': '11', 'Desember': '12'
-      };
-      if (parts.length === 2 && monthMap[parts[0]]) {
-        setFormDueDate(`${parts[1]}-${monthMap[parts[0]]}-10`);
-      }
-    }
-  };
-
-  // Show Toast
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+  const [formPropertyMode, setFormPropertyMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
+  const [formSelectedProp, setFormSelectedProp] = useState<string>('Kav A');
+  const [formHouseCode, setFormHouseCode] = useState<string>('Kav A');
+  const [formAreaLabel, setFormAreaLabel] = useState<string>('Klaster 14 Kavling');
+  const [formOwnerName, setFormOwnerName] = useState<string>('Pak Verial');
+  const [formPeriodMode, setFormPeriodMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
+  const [formPeriodName, setFormPeriodName] = useState<string>(initialPeriodName || 'September 2026');
+  const [formTotalAmount, setFormTotalAmount] = useState<number>(250000);
+  const [formSecurityFee, setFormSecurityFee] = useState<number>(150000);
+  const [formCleaningFee, setFormCleaningFee] = useState<number>(50000);
+  const [formSinkingFund, setFormSinkingFund] = useState<number>(50000);
+  const [formAdditionalFee, setFormAdditionalFee] = useState<number>(0);
+  const [formDueDate, setFormDueDate] = useState<string>('2026-09-10');
+  const [formStatus, setFormStatus] = useState<'PAID' | 'UNPAID' | 'PENDING_VERIFICATION' | 'VOID'>('UNPAID');
+  const [formPaymentMethod, setFormPaymentMethod] = useState<string>('CASH_KEPALA_KOMPLEK');
+  const [formPaidAt, setFormPaidAt] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [formNotes, setFormNotes] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Generate Batch
   const handleGenerateBatch = async (e: React.FormEvent) => {
@@ -329,26 +504,74 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     }
   };
 
-  // Open Add Single Invoice / Direct Iuran Modal (by Head of Complex / Admin)
   const handleOpenAddInvoice = () => {
+    handleOpenCreateInvoice();
+  };
+
+  const handlePropertySelect = (val: string) => {
+    setFormSelectedProp(val);
+    if (val === '__CUSTOM__') {
+      setFormPropertyMode('CUSTOM');
+      setFormHouseCode('');
+      setFormOwnerName('');
+    } else {
+      setFormPropertyMode('SELECT');
+      const matched = clusterProperties.find(p => p.code.toLowerCase() === val.toLowerCase());
+      if (matched) {
+        setFormHouseCode(matched.code);
+        setFormOwnerName(matched.residentName || matched.ownerName);
+        setFormAreaLabel(matched.area);
+      }
+    }
+  };
+
+  const handlePeriodSelect = (val: string) => {
+    if (val === '__CUSTOM__') {
+      setFormPeriodMode('CUSTOM');
+    } else {
+      setFormPeriodMode('SELECT');
+      setFormPeriodName(val);
+      const parts = val.split(' ');
+      const monthMap: Record<string, string> = {
+        'Januari': '01', 'Februari': '02', 'Maret': '03', 'April': '04',
+        'Mei': '05', 'Juni': '06', 'Juli': '07', 'Agustus': '08',
+        'September': '09', 'Oktober': '10', 'November': '11', 'Desember': '12'
+      };
+      if (parts.length === 2 && monthMap[parts[0]]) {
+        setFormDueDate(`${parts[1]}-${monthMap[parts[0]]}-10`);
+      }
+    }
+  };
+
+  // Recalculate Total Amount based on components if mode is DETAILED
+  useEffect(() => {
+    if (tariffMode === 'DETAILED') {
+      const sum = formSecurityFee + formCleaningFee + formSinkingFund + formAdditionalFee;
+      setFormTotalAmount(sum);
+    }
+  }, [formSecurityFee, formCleaningFee, formSinkingFund, formAdditionalFee, tariffMode]);
+
+  // Open Create Single Invoice Modal
+  const handleOpenCreateInvoice = () => {
     setEditingInvoiceId(null);
     const firstProp = clusterProperties[0] || CLUSTER_PROPERTIES_FALLBACK[0];
     setFormPropertyMode('SELECT');
     setFormSelectedProp(firstProp.code);
     setFormHouseCode(firstProp.code);
     setFormAreaLabel(firstProp.area);
-    setFormOwnerName(firstProp.ownerName);
+    setFormOwnerName(firstProp.residentName || firstProp.ownerName);
     setFormPeriodMode('SELECT');
     setFormPeriodName(initialPeriodName || 'September 2026');
+    setFormTotalAmount(250000);
     setFormSecurityFee(150000);
     setFormCleaningFee(50000);
     setFormSinkingFund(50000);
     setFormAdditionalFee(0);
     setFormDueDate('2026-09-10');
-    setFormStatus('PAID'); // Default PAID when admin inputs direct iuran payment
-    setFormPaymentMethod('CASH');
+    setFormStatus('PAID');
+    setFormPaymentMethod('CASH_KEPALA_KOMPLEK');
     setFormPaidAt(new Date().toISOString().slice(0, 10));
-    setFormNotes('Diterima langsung oleh Pengurus');
+    setFormNotes(`Diterima langsung oleh Kepala Komplek (${kepalaKomplekName})`);
     setShowCreateModal(true);
   };
 
@@ -365,18 +588,24 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     }
     setFormHouseCode(inv.propertyCode);
     setFormAreaLabel(inv.areaLabel || (inv.propertyCode.startsWith('Kav') ? 'Klaster 14 Kavling' : 'Blok A'));
-    setFormOwnerName(inv.ownerName || `Warga Rumah ${inv.propertyCode}`);
+    // Prioritaskan nama penghuni sekarang (penyewa bila disewakan)
+    const resident = matched ? (matched.residentName || matched.ownerName) : (inv.ownerName || `Warga Rumah ${inv.propertyCode}`);
+    setFormOwnerName(resident);
     setFormPeriodMode('SELECT');
     setFormPeriodName(inv.billingPeriodName || initialPeriodName);
+    setFormTotalAmount(inv.total ?? 250000);
     setFormSecurityFee(inv.securityFee ?? 150000);
     setFormCleaningFee(inv.cleaningFee ?? 50000);
     setFormSinkingFund(inv.sinkingFund ?? 50000);
     setFormAdditionalFee(inv.additionalFee ?? 0);
     setFormDueDate(inv.dueDate || '2026-09-10');
     setFormStatus(inv.status as any);
-    setFormPaymentMethod('CASH');
+    const isKepalaMethod =
+      inv.paymentMethod === 'CASH_KEPALA_KOMPLEK' ||
+      Boolean(inv.notes && inv.notes.toLowerCase().includes('kepala komplek'));
+    setFormPaymentMethod(isKepalaMethod ? 'CASH_KEPALA_KOMPLEK' : (inv.paymentMethod || 'CASH'));
     setFormPaidAt(inv.paidAt || new Date().toISOString().slice(0, 10));
-    setFormNotes(inv.notes || '');
+    setFormNotes(inv.notes || (isKepalaMethod ? `Diterima langsung oleh Kepala Komplek (${kepalaKomplekName})` : ''));
     setShowCreateModal(true);
   };
 
@@ -385,7 +614,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     e.preventDefault();
     setSavingInvoice(true);
     try {
-      const calculatedTotal = Number(formSecurityFee) + Number(formCleaningFee) + Number(formSinkingFund) + Number(formAdditionalFee);
+      const calculatedTotal = Number(formTotalAmount) || 250000;
       const cleanHouse = formHouseCode.trim();
       const payload = {
         propertyCode: cleanHouse,
@@ -393,10 +622,10 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         areaLabel: formAreaLabel,
         ownerName: formOwnerName,
         periodName: formPeriodName,
-        securityFee: Number(formSecurityFee),
-        cleaningFee: Number(formCleaningFee),
-        sinkingFund: Number(formSinkingFund),
-        additionalFee: Number(formAdditionalFee),
+        securityFee: Math.round(calculatedTotal * 0.6),
+        cleaningFee: Math.round(calculatedTotal * 0.2),
+        sinkingFund: Math.round(calculatedTotal * 0.2),
+        additionalFee: 0,
         total: calculatedTotal,
         dueDate: formDueDate,
         status: formStatus,
@@ -469,10 +698,10 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             areaLabel: formAreaLabel,
             ownerName: formOwnerName,
             billingPeriodName: formPeriodName,
-            securityFee: Number(formSecurityFee),
-            cleaningFee: Number(formCleaningFee),
-            sinkingFund: Number(formSinkingFund),
-            additionalFee: Number(formAdditionalFee),
+            securityFee: payload.securityFee,
+            cleaningFee: payload.cleaningFee,
+            sinkingFund: payload.sinkingFund,
+            additionalFee: 0,
             total: calculatedTotal,
             paidAmount: isPaid ? calculatedTotal : 0,
             dueDate: formDueDate,
@@ -516,8 +745,20 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               residentName: newInv.ownerName,
               amount: newInv.total,
               paidAt: newInv.paidAt || new Date().toISOString().slice(0, 10),
-              paymentMethod: formPaymentMethod === 'CASH' ? 'Tunai (Diterima Pengurus)' : formPaymentMethod === 'QRIS' ? 'QRIS Komplek' : 'Transfer Bank BCA',
+              paymentMethod:
+                formPaymentMethod === 'CASH_KEPALA_KOMPLEK'
+                  ? `Tunai (Diterima oleh Kepala Komplek - ${kepalaKomplekName})`
+                  : formPaymentMethod === 'CASH'
+                  ? 'Tunai (Diterima Pengurus/RT)'
+                  : formPaymentMethod === 'QRIS'
+                  ? 'QRIS Komplek'
+                  : formPaymentMethod === 'EWALLET'
+                  ? 'Dompet Digital / E-Wallet'
+                  : 'Transfer Bank / Syariah',
               referenceNumber: invData.payment?.reference || `TRX-${newInv.propertyCode}-ADM`,
+              kepalaKomplekName: kepalaKomplekName,
+              treasurerName: 'Yahya Nursidik',
+              notes: formNotes,
             });
           } else {
             setProgress(prev => ({
@@ -707,28 +948,55 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
 
   // WhatsApp Reminder Link Generator
   const getWaReminderUrl = (inv: InvoiceItem) => {
+    let bankTitle = 'Bank Syariah Indonesia (BSI)';
+    let bankNumber = '7142-9988-11';
+    let bankHolder = 'PENGURUS KOMPLEK WARGAHUB';
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_bank_accounts');
+        if (saved) {
+          const accs = JSON.parse(saved);
+          if (Array.isArray(accs) && accs.length > 0) {
+            const pri = accs.find((a: any) => a.isPrimary) || accs[0];
+            bankTitle = pri.bankName || bankTitle;
+            bankNumber = pri.accountNumber || bankNumber;
+            bankHolder = pri.accountHolder || bankHolder;
+          }
+        }
+      } catch (e) {}
+    }
+    const matched = clusterProperties.find(p => p.code.toLowerCase() === inv.propertyCode.toLowerCase());
+    const resident = inv.residentName || (inv.ownerName && !inv.ownerName.startsWith('Warga Rumah') ? inv.ownerName : null) || matched?.residentName || matched?.ownerName || '';
+    const greeting = resident ? `Halo Bapak/Ibu ${resident} (${inv.propertyCode}) 🌿` : `Halo Bapak/Ibu Warga ${inv.propertyCode} 🌿`;
     const text = encodeURIComponent(
-      `Halo Bapak/Ibu Warga ${inv.propertyCode} 🌿\n\nKami mengingatkan tagihan *Iuran Pengelolaan Lingkungan (IPL) ${initialPeriodName}*:\n\n🏡 *Unit:* ${inv.propertyCode}\n💵 *Nominal:* Rp ${inv.total?.toLocaleString('id-ID')}\n🗓️ *Jatuh Tempo:* ${inv.dueDate}\n🏦 *Rekening BCA:* 8830-1928-33 a.n PENGURUS KOMPLEK TAMAN SEJAHTERA\n\n📲 *Konfirmasi & Cek Transparansi:*\n${publicTransparencyUrl}\n\nTerima kasih atas partisipasinya menjaga kenyamanan lingkungan kita bersama. 🙏`
+      `${greeting}\n\nKami mengingatkan tagihan *Iuran Pengelolaan Lingkungan (IPL) ${initialPeriodName}*:\n\n🏡 *Unit:* ${inv.propertyCode}\n💵 *Nominal:* Rp ${inv.total?.toLocaleString('id-ID')}\n🗓️ *Jatuh Tempo:* ${inv.dueDate}\n🏦 *Rekening Kas Paguyuban:* ${bankTitle} (${bankNumber}) a.n ${bankHolder}\n\n📲 *Konfirmasi & Cek Transparansi:*\n${publicTransparencyUrl}\n\nTerima kasih atas partisipasinya menjaga kenyamanan lingkungan kita bersama. 🙏`
     );
     return `https://api.whatsapp.com/send?text=${text}`;
   };
 
   // Export CSV
   const handleExportBillingCSV = () => {
-    const headers = ['No Invoice', 'Kode Unit', 'Periode', 'IPL Keamanan', 'Kebersihan', 'Kas Komplek', 'Biaya Lain', 'Total Tagihan (Rp)', 'Status', 'Jatuh Tempo', 'Waktu Lunas'];
-    const rows = invoices.map(inv => [
-      inv.invoiceNumber,
-      inv.propertyCode,
-      `"${inv.billingPeriodName || initialPeriodName}"`,
-      inv.securityFee || 450000,
-      inv.cleaningFee || 150000,
-      inv.sinkingFund || 150000,
-      inv.additionalFee || 0,
-      inv.total,
-      inv.status,
-      inv.dueDate,
-      inv.paidAt || '-',
-    ]);
+    const headers = ['No Invoice', 'Kode Unit', 'Penghuni Sekarang', 'Status Hunian', 'Periode', 'IPL Keamanan', 'Kebersihan', 'Kas Komplek', 'Biaya Lain', 'Total Tagihan (Rp)', 'Status', 'Jatuh Tempo', 'Waktu Lunas'];
+    const rows = invoices.map(inv => {
+      const matched = clusterProperties.find(p => p.code.toLowerCase() === inv.propertyCode.toLowerCase());
+      const res = inv.residentName || (inv.ownerName && !inv.ownerName.startsWith('Warga Rumah') ? inv.ownerName : null) || matched?.residentName || matched?.ownerName || 'Warga';
+      const st = matched?.statusLabel || (inv.occupancyStatus === 'RENTED' ? 'Penyewa / Kontrak' : (inv.occupancyStatus === 'VACANT' ? 'Kosong' : 'Penghuni'));
+      return [
+        inv.invoiceNumber,
+        inv.propertyCode,
+        `"${res}"`,
+        `"${st}"`,
+        `"${inv.billingPeriodName || initialPeriodName}"`,
+        inv.securityFee || 150000,
+        inv.cleaningFee || 50000,
+        inv.sinkingFund || 50000,
+        inv.additionalFee || 0,
+        inv.total,
+        inv.status,
+        inv.dueDate,
+        inv.paidAt || '-',
+      ];
+    });
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
@@ -791,6 +1059,14 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => setShowWhatsAppModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+          >
+            <Send className="w-4 h-4" />
+            <span>📲 Laporan WA (wa.me)</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setShowGenerateModal(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
@@ -815,6 +1091,14 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={() => setShowWhatsAppModal(true)}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
+          >
+            <Send className="w-4 h-4" />
+            <span>📲 Format Laporan WA (wa.me)</span>
+          </button>
           <button
             type="button"
             onClick={handleCopyPublicLink}
@@ -903,7 +1187,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
                 {liveEfficiency}%
               </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">BANK BCA AUTO-RECONCILED</span>
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">BANK & E-WALLET AUTO-RECONCILED</span>
             </div>
           </div>
 
@@ -1025,8 +1309,29 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                             <span className="text-[10px] text-ink-muted font-medium block">{inv.billingPeriodName || initialPeriodName}</span>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="font-mono font-black text-sm text-primary-700 block">Unit {inv.propertyCode}</span>
-                            <span className="text-[10px] text-ink-muted font-medium">{inv.areaLabel || 'Taman Sejahtera'}</span>
+                            {(() => {
+                              const matched = clusterProperties.find(p => p.code.toLowerCase() === inv.propertyCode.toLowerCase());
+                              const resName = inv.residentName || (inv.ownerName && !inv.ownerName.startsWith('Warga Rumah') ? inv.ownerName : null) || matched?.residentName || matched?.ownerName;
+                              const isRented = matched?.isRented || inv.occupancyStatus === 'RENTED';
+                              return (
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-black text-sm text-primary-700">Unit {inv.propertyCode}</span>
+                                    {isRented && (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                        Penyewa
+                                      </span>
+                                    )}
+                                  </div>
+                                  {resName && (
+                                    <span className="text-xs font-bold text-ink block">{resName}</span>
+                                  )}
+                                  <span className="text-[10px] text-ink-muted font-medium block">
+                                    {inv.areaLabel && !inv.areaLabel.toLowerCase().includes('taman sejahtera') ? inv.areaLabel : (communityName || 'Grand Sariwangi')}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <p className="font-mono font-black tabular-nums text-sm text-ink">{formatRupiah(inv.total)}</p>
@@ -1055,33 +1360,44 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                           <td className="py-3.5 px-4 text-right">
                             <div className="inline-flex items-center gap-1">
                               {isPaid ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedReceipt({
-                                    invoiceNumber: inv.invoiceNumber,
-                                    periodName: inv.billingPeriodName || initialPeriodName,
-                                    propertyCode: inv.propertyCode,
-                                    residentName: inv.ownerName || `Warga Rumah ${inv.propertyCode}`,
-                                    amount: inv.total,
-                                    paidAt: inv.paidAt || '15 Agustus 2026',
-                                    paymentMethod: 'Transfer Bank BCA (Otomatis)',
-                                    referenceNumber: `TRX-${inv.propertyCode}-BCA`,
-                                  })}
-                                  className="px-2.5 py-1.5 text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
-                                  title="Lihat / Cetak Kuitansi Resmi"
-                                >
-                                  <Printer className="w-3.5 h-3.5" /> Kuitansi
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenInvoiceDoc(inv, false)}
+                                    className="px-2.5 py-1.5 text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
+                                    title="Lihat / Cetak Kuitansi Resmi"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" /> Kuitansi
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenInvoiceDoc(inv, true)}
+                                    className="px-2 py-1.5 text-ink-muted hover:text-ink bg-canvas hover:bg-surface border border-border rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
+                                    title="Lihat Surat Tagihan / Invoice Resmi"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" /> Invoice
+                                  </button>
+                                </>
                               ) : (
-                                <a
-                                  href={getWaReminderUrl(inv)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2.5 py-1.5 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
-                                  title="Kirim Pesan WhatsApp Pengingat"
-                                >
-                                  <Send className="w-3.5 h-3.5" /> Ingatkan WA
-                                </a>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenInvoiceDoc(inv, true)}
+                                    className="px-2.5 py-1.5 text-primary-800 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all shadow-2xs"
+                                    title="Buka / Cetak Surat Tagihan Invoice"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" /> Invoice
+                                  </button>
+                                  <a
+                                    href={getWaReminderUrl(inv)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1.5 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
+                                    title="Kirim Pesan WhatsApp Pengingat"
+                                  >
+                                    <Send className="w-3.5 h-3.5" /> Ingatkan WA
+                                  </a>
+                                </>
                               )}
 
                               <button
@@ -1316,7 +1632,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               </div>
             </div>
             <a
-              href="/admin/settings?tab=financial"
+              href="/admin/settings?tab=finances"
               className="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-[0.98] transition-all"
             >
               <span>Pengaturan Komplek</span>
@@ -1333,6 +1649,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  setEditableTariffMode(tariffMode);
+                  setEditableFlatFee(flatFee);
+                  setEditableFlatFeeName(flatFeeName);
                   setEditableTariffs([...tariffComponents]);
                   setEditableTariffNote(tariffNote);
                   setShowTariffModal(true);
@@ -1340,7 +1659,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 className="px-3 py-1.5 bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 self-start sm:self-auto active:scale-[0.98] transition-all"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Struktur Tarif</span>
+                <span>Edit Tarif & Mode</span>
               </button>
             </div>
 
@@ -1348,25 +1667,63 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               {tariffNote} sebesar <strong>{formatRupiah(totalTariff)} / unit rumah per bulan</strong>.
             </p>
 
-            <div className="space-y-2.5">
-              {tariffComponents.map((item, idx) => (
-                <div key={item.id || idx} className="p-3.5 bg-canvas rounded-2xl border border-border flex items-center justify-between gap-3">
+            {/* Dynamic Rendering Based on Active Tariff Mode */}
+            {tariffMode === 'FLAT' ? (
+              <div className="space-y-3">
+                <div className="p-4 bg-canvas rounded-2xl border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h4 className="font-bold text-ink text-xs">{item.name}</h4>
-                    <p className="text-[11px] text-ink-muted mt-0.5">{item.desc}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-200">
+                        Tarif Tunggal Langsung (All-in)
+                      </span>
+                      <span className="text-[10px] text-ink-muted">14 Kavling Klaster</span>
+                    </div>
+                    <h4 className="font-black text-ink text-sm mt-1">{flatFeeName}</h4>
+                    <p className="text-[11px] text-ink-muted mt-0.5">
+                      Tagihan bulanan dibuat langsung bulat tanpa pecahan pos satpam/kebersihan/kas terpisah (Sesuai kesepakatan klaster).
+                    </p>
                   </div>
-                  <span className="font-mono font-black text-primary-700 text-sm shrink-0">{formatRupiah(item.fee)}</span>
+                  <div className="text-left sm:text-right shrink-0">
+                    <span className="font-mono font-black text-primary-800 text-xl tabular-nums block">
+                      {formatRupiah(flatFee)} <span className="text-xs font-normal text-ink-muted">/ bln</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
+                      Aktif Sesuai Kesepakatan
+                    </span>
+                  </div>
                 </div>
-              ))}
 
-              <div className="p-4 bg-primary-50 rounded-2xl border border-primary-200 flex items-center justify-between">
-                <div>
-                  <h4 className="font-black text-primary-900 text-xs">Total Iuran Standar Per Unit</h4>
-                  <p className="text-[11px] text-primary-800">Diterbitkan otomatis setiap tanggal 1 awal bulan</p>
+                <div className="p-4 bg-primary-50 rounded-2xl border border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-black text-primary-900 text-xs">Total Iuran Standar Per Unit (14 Kavling)</h4>
+                    <p className="text-[11px] text-primary-800 mt-0.5">
+                      Akumulasi potensi penerimaan kas: 14 unit × {formatRupiah(flatFee)} = <strong>{formatRupiah(flatFee * 14)} / bulan</strong>
+                    </p>
+                  </div>
+                  <span className="font-mono font-black text-primary-900 text-base">{formatRupiah(flatFee)} / bln</span>
                 </div>
-                <span className="font-mono font-black text-primary-900 text-base">{formatRupiah(totalTariff)} / bln</span>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-2.5">
+                {tariffComponents.map((item, idx) => (
+                  <div key={item.id || idx} className="p-3.5 bg-canvas rounded-2xl border border-border flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="font-bold text-ink text-xs">{item.name}</h4>
+                      <p className="text-[11px] text-ink-muted mt-0.5">{item.desc}</p>
+                    </div>
+                    <span className="font-mono font-black text-primary-700 text-sm shrink-0">{formatRupiah(item.fee)}</span>
+                  </div>
+                ))}
+
+                <div className="p-4 bg-primary-50 rounded-2xl border border-primary-200 flex items-center justify-between">
+                  <div>
+                    <h4 className="font-black text-primary-900 text-xs">Total Iuran Standar Per Unit</h4>
+                    <p className="text-[11px] text-primary-800">Diterbitkan otomatis setiap tanggal 1 awal bulan</p>
+                  </div>
+                  <span className="font-mono font-black text-primary-900 text-base">{formatRupiah(totalTariff)} / bln</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1517,13 +1874,20 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                     >
                       {clusterProperties.map((p) => (
                         <option key={p.code} value={p.code}>
-                          {p.code} — {p.ownerName} ({p.area})
+                          {p.code} — {p.residentName || p.ownerName} ({p.statusLabel ? `${p.statusLabel} • ` : ''}{p.area})
                         </option>
                       ))}
                       <option value="__CUSTOM__">➕ Ketik Unit Kustom Lainnya...</option>
                     </select>
                     <div className="mt-2 flex items-center justify-between px-2 text-[11px] text-ink-muted">
-                      <span>Pemilik: <strong className="text-ink">{formOwnerName}</strong></span>
+                      <span className="flex items-center gap-1.5">
+                        Penghuni Sekarang: <strong className="text-ink">{formOwnerName}</strong>
+                        {clusterProperties.find(p => p.code.toLowerCase() === formHouseCode.toLowerCase())?.isRented && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
+                            Penyewa / Kontrak
+                          </span>
+                        )}
+                      </span>
                       <span>Area: <strong className="text-ink">{formAreaLabel}</strong></span>
                     </div>
                   </div>
@@ -1541,10 +1905,10 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-ink block mb-1 text-[11px]">Nama Warga / Pemilik</label>
+                      <label className="font-bold text-ink block mb-1 text-[11px]">Nama Penghuni Sekarang (Penyewa / Kontrak)</label>
                       <input
                         type="text"
-                        placeholder="Contoh: Pak Verial"
+                        placeholder="Contoh: Pak Yahya"
                         value={formOwnerName}
                         onChange={(e) => setFormOwnerName(e.target.value)}
                         className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
@@ -1642,12 +2006,22 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                       <label className="font-bold text-emerald-950 block mb-1 text-[11px]">Metode Penyerahan Iuran:</label>
                       <select
                         value={formPaymentMethod}
-                        onChange={(e) => setFormPaymentMethod(e.target.value as any)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormPaymentMethod(val as any);
+                          if (val === 'CASH_KEPALA_KOMPLEK' && (!formNotes || formNotes.includes('Diterima langsung'))) {
+                            setFormNotes(`Diterima langsung oleh Kepala Komplek (${kepalaKomplekName})`);
+                          } else if (val === 'CASH' && (!formNotes || formNotes.includes('Diterima langsung'))) {
+                            setFormNotes('Diterima langsung oleh Pengurus / RT');
+                          }
+                        }}
                         className="w-full p-2 bg-white border border-emerald-300 rounded-xl font-bold text-emerald-950 text-xs"
                       >
+                        <option value="CASH_KEPALA_KOMPLEK">💵 Tunai (Diterima oleh Kepala Komplek)</option>
                         <option value="CASH">💵 Tunai (Diterima Pengurus/RT)</option>
-                        <option value="TRANSFER_BCA">🏦 Transfer Bank BCA (acc-main)</option>
-                        <option value="QRIS">📱 QRIS Statis Komplek</option>
+                        <option value="TRANSFER_BANK">🌙 / 🏦 Transfer Bank (BSI / BCA / Mandiri / BRI)</option>
+                        <option value="EWALLET">💳 Dompet Digital / E-Wallet (GoPay / DANA / OVO)</option>
+                        <option value="QRIS">📱 QRIS Statis / Dinamis</option>
                       </select>
                     </div>
                     <div>
@@ -1663,63 +2037,39 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                   <div className="flex items-center gap-2 text-[11px] text-emerald-800 font-semibold bg-emerald-100/70 p-2 rounded-xl">
                     <Check className="w-4 h-4 text-emerald-700 shrink-0" />
                     <span>
-                      Saldo Kas BCA Operasional akan otomatis bertambah sebesar{' '}
-                      <strong>{formatRupiah(Number(formSecurityFee) + Number(formCleaningFee) + Number(formSinkingFund) + Number(formAdditionalFee))}</strong>
+                      {formPaymentMethod === 'CASH_KEPALA_KOMPLEK' ? (
+                        <>
+                          Uang tunai diserahkan dan <strong>diterima oleh Kepala Komplek ({kepalaKomplekName})</strong>. Saldo Kas Paguyuban otomatis bertambah <strong>{formatRupiah(formTotalAmount)}</strong>.
+                        </>
+                      ) : (
+                        <>
+                          Saldo Kas Operasional Paguyuban akan otomatis bertambah sebesar{' '}
+                          <strong>{formatRupiah(formTotalAmount)}</strong>
+                        </>
+                      )}
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* Rincian Komponen Iuran */}
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-ink text-xs">Rincian Komponen Tarif Iuran:</span>
-                  <span className="text-[10px] text-ink-muted">Standar Klaster: Rp 250.000 / bln</span>
+              {/* Nominal Tagihan / Iuran */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-bold text-ink text-xs">Nominal Tagihan / Iuran (Rp) *</label>
+                  <span className="text-[11px] text-ink-muted">Standar Klaster: Rp 250.000 / bln</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-ink-muted block text-[10px] mb-0.5">IPL Satpam & Keamanan 24 Jam (Rp)</label>
-                    <input
-                      type="number"
-                      value={formSecurityFee}
-                      onChange={(e) => setFormSecurityFee(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-ink-muted block text-[10px] mb-0.5">Kebersihan & Sampah LH (Rp)</label>
-                    <input
-                      type="number"
-                      value={formCleaningFee}
-                      onChange={(e) => setFormCleaningFee(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-ink-muted block text-[10px] mb-0.5">Kas Operasional & Fasum (Rp)</label>
-                    <input
-                      type="number"
-                      value={formSinkingFund}
-                      onChange={(e) => setFormSinkingFund(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-ink-muted block text-[10px] mb-0.5">Biaya Tambahan / Denda (Rp)</label>
-                    <input
-                      type="number"
-                      value={formAdditionalFee}
-                      onChange={(e) => setFormAdditionalFee(Number(e.target.value))}
-                      className="w-full p-1.5 bg-surface border border-border rounded-lg font-mono text-ink font-bold text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-border flex items-center justify-between">
-                  <span className="font-black text-ink text-xs">Total Iuran:</span>
-                  <span className="font-mono font-black text-base text-emerald-700">
-                    {formatRupiah(Number(formSecurityFee) + Number(formCleaningFee) + Number(formSinkingFund) + Number(formAdditionalFee))}
-                  </span>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-xs text-ink-muted font-mono">Rp</span>
+                  <input
+                    type="number"
+                    value={formTotalAmount}
+                    onChange={(e) => setFormTotalAmount(Number(e.target.value))}
+                    required
+                    min={0}
+                    step={1000}
+                    placeholder="250000"
+                    className="w-full pl-10 pr-3 py-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-base text-ink focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-600 transition-all"
+                  />
                 </div>
               </div>
 
@@ -1845,6 +2195,34 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               </button>
             </div>
 
+            {/* Mode Switcher Inside Modal */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-canvas rounded-xl border border-border">
+              <button
+                type="button"
+                onClick={() => setEditableTariffMode('FLAT')}
+                className={`py-2 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  editableTariffMode === 'FLAT'
+                    ? 'bg-primary-600 text-white shadow-2xs'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Tarif Tunggal Langsung</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditableTariffMode('DETAILED')}
+                className={`py-2 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  editableTariffMode === 'DETAILED'
+                    ? 'bg-primary-600 text-white shadow-2xs'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Rincian Komponen Pos</span>
+              </button>
+            </div>
+
             <div className="space-y-3">
               <div>
                 <label className="font-bold text-ink block mb-1">Dasar Kesepakatan / Catatan Musyawarah:</label>
@@ -1857,91 +2235,163 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="font-bold text-ink block">Komponen Pos Iuran:</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newId = `tf-${Date.now()}`;
-                      setEditableTariffs([
-                        ...editableTariffs,
-                        { id: newId, name: `${editableTariffs.length + 1}. Komponen Baru`, fee: 50000, desc: 'Deskripsi peruntukan iuran' },
-                      ]);
-                    }}
-                    className="px-2 py-1 bg-primary-50 hover:bg-primary-100 text-primary-700 font-bold rounded-lg text-[10px] inline-flex items-center gap-1 active:scale-[0.95] transition-all"
-                  >
-                    <PlusCircle className="w-3 h-3" /> Tambah Pos
-                  </button>
-                </div>
+              {editableTariffMode === 'FLAT' ? (
+                <div className="p-3.5 bg-canvas rounded-2xl border border-border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-ink text-xs">Konfigurasi Nominal Tunggal (All-in):</span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+                      Rekomendasi Klaster
+                    </span>
+                  </div>
 
-                <div className="space-y-2.5">
-                  {editableTariffs.map((item, idx) => (
-                    <div key={item.id} className="p-3 bg-canvas rounded-2xl border border-border space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <input
-                          type="text"
-                          value={item.name}
-                          onChange={(e) => {
-                            const updated = [...editableTariffs];
-                            updated[idx].name = e.target.value;
-                            setEditableTariffs(updated);
-                          }}
-                          placeholder="Nama Komponen Pos"
-                          className="flex-1 p-1.5 bg-surface border border-border rounded-lg text-xs font-bold text-ink"
-                        />
-                        {editableTariffs.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditableTariffs(editableTariffs.filter((_, i) => i !== idx));
-                            }}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Hapus Pos Ini"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-ink-muted block mb-1">Nama Tagihan</label>
+                    <input
+                      type="text"
+                      value={editableFlatFeeName}
+                      onChange={(e) => setEditableFlatFeeName(e.target.value)}
+                      className="w-full p-2 bg-surface border border-border rounded-xl text-xs font-bold text-ink"
+                    />
+                  </div>
 
+                  <div>
+                    <label className="text-[11px] font-bold text-ink-muted block mb-1">Nominal Iuran Bulanan Per Unit (Rp)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 font-mono text-xs font-bold text-ink-muted">Rp</span>
                       <input
-                        type="text"
-                        value={item.desc}
-                        onChange={(e) => {
-                          const updated = [...editableTariffs];
-                          updated[idx].desc = e.target.value;
-                          setEditableTariffs(updated);
-                        }}
-                        placeholder="Keterangan alokasi/peruntukan biaya"
-                        className="w-full p-1.5 bg-surface border border-border rounded-lg text-[11px] text-ink-muted"
+                        type="number"
+                        min="0"
+                        step="5000"
+                        value={editableFlatFee}
+                        onChange={(e) => setEditableFlatFee(Math.max(0, Number(e.target.value) || 0))}
+                        className="w-full pl-9 pr-3 py-2 bg-surface border border-border rounded-xl font-mono text-base font-black text-primary-800 text-right tabular-nums"
                       />
-
-                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
-                        <span className="text-[11px] font-bold text-ink-muted">Nominal (Rp):</span>
-                        <input
-                          type="number"
-                          value={item.fee}
-                          onChange={(e) => {
-                            const updated = [...editableTariffs];
-                            updated[idx].fee = Number(e.target.value) || 0;
-                            setEditableTariffs(updated);
-                          }}
-                          className="w-32 p-1.5 bg-surface border border-border rounded-lg text-right font-mono font-bold text-primary-700 text-xs"
-                        />
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-1.5">
+                      <span className="text-[10px] font-bold text-ink-muted">Preset Cepat:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { val: 250000, label: 'Rp 250.000 (RT Grand Sariwangi)' },
+                          { val: 350000, label: 'Rp 350.000 (RT + RW)' },
+                          { val: 200000, label: 'Rp 200.000' },
+                          { val: 150000, label: 'Rp 150.000' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.val}
+                            type="button"
+                            onClick={() => setEditableFlatFee(preset.val)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
+                              editableFlatFee === preset.val
+                                ? 'bg-primary-600 text-white shadow-xs'
+                                : 'bg-surface hover:bg-canvas border border-border text-ink-muted'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <label className="font-bold text-ink block text-xs">Komponen Pos Iuran:</label>
+                      <button
+                        type="button"
+                        onClick={() => setEditableTariffs(JSON.parse(JSON.stringify(GRAND_SARIWANGI_TARIFF_COMPONENTS)))}
+                        className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 active:scale-[0.98] transition-all"
+                        title="Terapkan Pos Khusus Grand Sariwangi: RT Rp 250.000 + RW Rp 100.000"
+                      >
+                        ⭐ Preset Grand Sariwangi (RT 250k + RW 100k)
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newId = `tf-${Date.now()}`;
+                        setEditableTariffs([
+                          ...editableTariffs,
+                          { id: newId, name: `${editableTariffs.length + 1}. Komponen Baru`, fee: 50000, desc: 'Deskripsi peruntukan iuran' },
+                        ]);
+                      }}
+                      className="px-2 py-1 bg-primary-50 hover:bg-primary-100 text-primary-700 font-bold rounded-lg text-[10px] inline-flex items-center gap-1 active:scale-[0.95] transition-all self-start sm:self-auto"
+                    >
+                      <PlusCircle className="w-3 h-3" /> Tambah Pos
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {editableTariffs.map((item, idx) => (
+                      <div key={item.id} className="p-3 bg-canvas rounded-2xl border border-border space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => {
+                              const updated = [...editableTariffs];
+                              updated[idx].name = e.target.value;
+                              setEditableTariffs(updated);
+                            }}
+                            placeholder="Nama Komponen Pos"
+                            className="flex-1 p-1.5 bg-surface border border-border rounded-lg text-xs font-bold text-ink"
+                          />
+                          {editableTariffs.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditableTariffs(editableTariffs.filter((_, i) => i !== idx));
+                              }}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Hapus Pos Ini"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <input
+                          type="text"
+                          value={item.desc}
+                          onChange={(e) => {
+                            const updated = [...editableTariffs];
+                            updated[idx].desc = e.target.value;
+                            setEditableTariffs(updated);
+                          }}
+                          placeholder="Keterangan alokasi/peruntukan biaya"
+                          className="w-full p-1.5 bg-surface border border-border rounded-lg text-[11px] text-ink-muted"
+                        />
+
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
+                          <span className="text-[11px] font-bold text-ink-muted">Nominal (Rp):</span>
+                          <input
+                            type="number"
+                            value={item.fee}
+                            onChange={(e) => {
+                              const updated = [...editableTariffs];
+                              updated[idx].fee = Number(e.target.value) || 0;
+                              setEditableTariffs(updated);
+                            }}
+                            className="w-32 p-1.5 bg-surface border border-border rounded-lg text-right font-mono font-bold text-primary-700 text-xs"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Total Summary Preview */}
               <div className="p-3.5 bg-primary-50 rounded-2xl border border-primary-200 flex items-center justify-between">
                 <div>
                   <h4 className="font-black text-primary-900 text-xs">Total Iuran Baru Per Unit</h4>
-                  <p className="text-[10px] text-primary-700">Dihitung otomatis dari akumulasi pos di atas</p>
+                  <p className="text-[10px] text-primary-700">
+                    {editableTariffMode === 'FLAT' ? 'Model satu nominal langsung (All-in)' : 'Akumulasi komponen pos di atas'}
+                  </p>
                 </div>
                 <span className="font-mono font-black text-primary-900 text-sm">
-                  {formatRupiah(editableTariffs.reduce((sum, item) => sum + (Number(item.fee) || 0), 0))} / bln
+                  {formatRupiah(editableTariffMode === 'FLAT' ? editableFlatFee : editableTariffs.reduce((sum, item) => sum + (Number(item.fee) || 0), 0))} / bln
                 </span>
               </div>
             </div>
@@ -1957,17 +2407,50 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  const newTotal = editableTariffs.reduce((sum, item) => sum + (Number(item.fee) || 0), 0);
-                  setTariffComponents(editableTariffs);
+                  const isFlat = editableTariffMode === 'FLAT';
+                  const newTotal = isFlat ? editableFlatFee : editableTariffs.reduce((sum, item) => sum + (Number(item.fee) || 0), 0);
+                  const effectiveComps = isFlat
+                    ? [{ id: 'tf-flat', name: editableFlatFeeName, fee: editableFlatFee, desc: 'Iuran standar bulanan warga (All-in)' }]
+                    : editableTariffs;
+
+                  setTariffMode(editableTariffMode);
+                  setFlatFee(editableFlatFee);
+                  setFlatFeeName(editableFlatFeeName);
+                  setTariffComponents(effectiveComps);
                   setTariffNote(editableTariffNote);
                   setGenFee(newTotal);
+
                   if (typeof window !== 'undefined') {
-                    localStorage.setItem('wargahub_tariff_components', JSON.stringify(editableTariffs));
+                    localStorage.setItem('wargahub_set_tariff_mode', JSON.stringify(editableTariffMode));
+                    localStorage.setItem('wargahub_set_flat_fee', JSON.stringify(editableFlatFee));
+                    localStorage.setItem('wargahub_set_flat_name', JSON.stringify(editableFlatFeeName));
+                    if (!isFlat) {
+                      localStorage.setItem('wargahub_detailed_tariff_components', JSON.stringify(editableTariffs));
+                    }
+                    localStorage.setItem('wargahub_tariff_components', JSON.stringify(effectiveComps));
                     localStorage.setItem('wargahub_tariff_note', editableTariffNote);
-                    localStorage.setItem('wargahub_set_fee', String(newTotal));
+                    localStorage.setItem('wargahub_set_fee', JSON.stringify(String(newTotal)));
+
+                    // Synchronize legacy keys to avoid conflicting values in older views
+                    const secComp = effectiveComps.find(c => c.name.toLowerCase().includes('satpam') || c.name.toLowerCase().includes('aman'))?.fee ?? (isFlat ? Math.round(newTotal * 0.6) : 150000);
+                    const trshComp = effectiveComps.find(c => c.name.toLowerCase().includes('sampah') || c.name.toLowerCase().includes('bersih'))?.fee ?? (isFlat ? Math.round(newTotal * 0.2) : 50000);
+                    const resComp = effectiveComps.find(c => c.name.toLowerCase().includes('kas') || c.name.toLowerCase().includes('perawatan') || c.name.toLowerCase().includes('fasum'))?.fee ?? (isFlat ? Math.round(newTotal * 0.2) : 50000);
+
+                    localStorage.setItem('wargahub_set_trash_fee', JSON.stringify(String(trshComp)));
+                    localStorage.setItem('wargahub_set_security_fee', JSON.stringify(String(secComp)));
+                    localStorage.setItem('wargahub_set_reserve_fee', JSON.stringify(String(resComp)));
+
+                    window.dispatchEvent(new CustomEvent('wargahub_tariffs_updated', {
+                      detail: {
+                        mode: editableTariffMode,
+                        components: effectiveComps,
+                        total: newTotal,
+                        note: editableTariffNote,
+                      }
+                    }));
                   }
                   setShowTariffModal(false);
-                  showToast('Struktur tarif IPL dan nominal iuran berhasil diperbarui!');
+                  showToast('Struktur tarif IPL dan nominal iuran berhasil diperbarui & disinkronkan!');
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
               >
@@ -1986,6 +2469,23 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           data={selectedReceipt}
         />
       )}
+
+      {/* WhatsApp Broadcast Dues Report Modal */}
+      <WhatsAppDuesReportModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        initialPeriodName={initialPeriodName}
+        availablePeriods={availablePeriods}
+        properties={reportProperties}
+        bankInfo={{
+          bankName: 'Bank Mandiri',
+          accountNumber: '1300024446419',
+          accountHolder: 'Paguyuban Grand Sariwangi',
+        }}
+        transparencyUrl="https://wrghub.vercel.app/transparency"
+        rekapUrl="https://wrghub.vercel.app/rekap-iuran"
+        kepalaKomplekName={kepalaKomplekName}
+      />
     </div>
   );
 };

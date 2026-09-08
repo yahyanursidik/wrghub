@@ -126,8 +126,8 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
     {
       id: 'msg-1',
       sender: 'ai',
-      text: 'Halo! Saya **Warga AI**, asisten cerdas Komplek Taman Sejahtera. Ada yang bisa saya bantu terkait tagihan iuran, pemesanan balai warga, nomor satpam, atau aduan lingkungan?',
-      suggestedActions: ['Cek Rekening BCA', 'Status Tagihan Saya', 'Kontak Satpam 24 Jam', 'Pesan Balai Warga'],
+      text: 'Halo! Saya **Warga AI**, asisten cerdas Komplek Grand Sariwangi. Ada yang bisa saya bantu terkait tagihan iuran, jadwal sampah, nomor satpam, atau aduan lingkungan?',
+      suggestedActions: ['Cek Rekening Kas Paguyuban', 'Status Tagihan Saya', 'Kontak Satpam 24 Jam', 'Pesan Balai Warga'],
       time: 'Baru saja',
     },
   ]);
@@ -294,7 +294,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
                   Warga AI
                   <span className="px-1.5 py-0.2 bg-emerald-400/30 text-emerald-100 text-[10px] rounded font-semibold">Aktif</span>
                 </h3>
-                <p className="text-[11px] text-surface/80">Asisten Cerdas Komplek Taman Sejahtera</p>
+                <p className="text-[11px] text-surface/80">Asisten Cerdas Komplek Grand Sariwangi</p>
               </div>
             </div>
 

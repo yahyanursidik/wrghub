@@ -29,6 +29,8 @@ const itemSchema = z.object({
   categoryName: z.string().default('Operasional'),
   accountId: z.string().default('acc-main'),
   executionDay: z.number().min(1).max(31).default(1),
+  frequency: z.enum(['MONTHLY', 'SPECIFIC_MONTH', 'YEARLY']).optional().default('MONTHLY'),
+  executionMonth: z.number().min(1).max(12).optional(),
   vendor: z.string().optional(),
   description: z.string().optional(),
   isActive: z.boolean().default(true),
