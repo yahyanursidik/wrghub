@@ -83,8 +83,7 @@ export function generateWhatsAppDuesReportText(options: GenerateWhatsAppDuesRepo
     lines.push('_Belum ada pembayaran terverifikasi untuk periode ini._');
   } else {
     paidList.forEach((p) => {
-      const rentedBadge = p.isRented ? ' (Penyewa)' : '';
-      lines.push(`• *${p.code}* — ${p.residentName || 'Warga'}${rentedBadge}`);
+      lines.push(`• *${p.code}* — ${p.residentName || 'Warga'}`);
     });
   }
   lines.push('');
@@ -94,7 +93,6 @@ export function generateWhatsAppDuesReportText(options: GenerateWhatsAppDuesRepo
     lines.push('🎉 *Alhamdulillah seluruh warga telah menyelesaikan iuran periode ini (100% Lunas)!*');
   } else {
     unpaidList.forEach((p) => {
-      const rentedBadge = p.isRented ? ' (Penyewa)' : '';
       const months = p.unpaidMonthsCount && p.unpaidMonthsCount > 1 
         ? `${p.unpaidMonthsCount} bulan` 
         : '1 bulan';
@@ -104,7 +102,7 @@ export function generateWhatsAppDuesReportText(options: GenerateWhatsAppDuesRepo
         periodDetail = `: ${p.unpaidPeriodNames.join(', ')}`;
       }
 
-      lines.push(`• *${p.code}* — ${p.residentName || 'Warga'}${rentedBadge} _(Menunggak ${months}${periodDetail})_`);
+      lines.push(`• *${p.code}* — ${p.residentName || 'Warga'} _(Menunggak ${months}${periodDetail})_`);
     });
   }
   lines.push('');

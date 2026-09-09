@@ -447,10 +447,10 @@ export const WhatsAppDuesReportModal: React.FC<WhatsAppDuesReportModalProps> = (
             <Info className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
               <p className="font-bold text-ink">
-                Status nama penghuni otomatis menyesuaikan penghuni riil / penyewa:
+                Nama penghuni riil tampil langsung:
               </p>
               <p className="text-[11px]">
-                Kavling sewa (Kav B, F, I) otomatis menampilkan nama penyewa (Mahasiswa Polban, Pa Anggia, Pak Yahya) bukan pemilik kavling. Keterangan jumlah bulan menunggak otomatis dikalkulasi dari buku kas pengurus.
+                Kavling yang disewakan (Kav B, F, I) langsung menampilkan nama penghuni yang menempati (Mahasiswa Polban, Pa Anggia, Pak Yahya) secara sopan dan privat tanpa label status sewa.
               </p>
             </div>
           </div>

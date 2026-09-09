@@ -799,14 +799,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                       </td>
 
                       <td className="py-3.5 px-4 font-bold text-ink">
-                        <div className="flex items-center gap-1.5">
-                          <span>{p.ownerName}</span>
-                          {p.isRented && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
-                              Penyewa / Kontrak
-                            </span>
-                          )}
-                        </div>
+                        <span>{p.ownerName}</span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
@@ -1082,13 +1075,8 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-ink-muted">Penghuni Sekarang:</span>
-                <span className="font-bold text-ink inline-flex items-center gap-1.5">
+                <span className="font-bold text-ink">
                   {selectedReceipt.ownerName}
-                  {selectedReceipt.isRented && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
-                      Penyewa / Kontrak
-                    </span>
-                  )}
                 </span>
               </div>
               <div className="flex justify-between">
