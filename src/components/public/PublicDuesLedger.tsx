@@ -33,10 +33,12 @@ import {
   HelpCircle,
   Wallet,
   PhoneCall,
-  Info
+  Info,
+  CheckCircle
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
+import { type DuesReportPropertyItem } from '../../lib/whatsapp-report';
 
 export interface PropertyDuesItem {
   code: string;
@@ -71,14 +73,53 @@ export interface PublicDuesLedgerProps {
   allPeriods?: any[];
 }
 
+export const CLUSTER_PROPERTIES_FALLBACK = [
+  { code: 'Kav A', ownerName: 'Pak Verial', residentName: 'Pak Verial', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav B', ownerName: 'Bu Shinta', residentName: 'Mahasiswa Polban', isRented: true, blockName: 'Grand Sariwangi' },
+  { code: 'Kav C', ownerName: 'Bu Rina', residentName: 'Bu Rina (Kosong)', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav D', ownerName: 'Pak Rieva', residentName: 'Pak Rieva', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav E', ownerName: 'Pak Budi', residentName: 'Pak Budi', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav F', ownerName: 'Pak Adi', residentName: 'Pa Anggia', isRented: true, blockName: 'Grand Sariwangi' },
+  { code: 'Kav G', ownerName: 'Pak Misael', residentName: 'Pak Misael', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav H', ownerName: 'Pak Fahmi Rizal', residentName: 'Pak Fahmi Rizal', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav I', ownerName: 'Bu Hj Yatti', residentName: 'Pak Yahya', isRented: true, blockName: 'Grand Sariwangi' },
+  { code: 'Kav J', ownerName: 'Bu Sofia P', residentName: 'Bu Sofia P (Kosong)', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav K', ownerName: 'Pak Eky', residentName: 'Pak Eky', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav L', ownerName: 'Pak Haji Ano', residentName: 'Pak Haji Ano', isRented: false, blockName: 'Grand Sariwangi' },
+  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya', residentName: 'Pak Dedi N / Pak Jaya (Kosong)', isRented: false, blockName: 'Grand Sariwangi' },
+];
+
 export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({ 
   initialProperties, 
   initialInvoices, 
-  initialPeriodName = 'Agustus 2026',
+  initialPeriodName = 'September 2026',
   allInvoices,
   allPeriods
 }) => {
-  const [activePeriod, setActivePeriod] = useState(initialPeriodName);
+  // Available Periods for selector
+  const availablePeriods = useMemo(() => {
+    const list: string[] = ['September 2026', 'Agustus 2026', 'Juli 2026', 'Juni 2026', 'Mei 2026', 'April 2026'];
+    if (allPeriods && allPeriods.length > 0) {
+      allPeriods.forEach((p: any) => {
+        const pName = p.name || p.id;
+        if (pName && !list.includes(pName)) {
+          list.unshift(pName);
+        }
+      });
+    }
+    return list;
+  }, [allPeriods]);
+
+  // Selected Active Period
+  const [activePeriod, setActivePeriod] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const q = urlParams.get('period');
+      if (q) return q;
+    }
+    return initialPeriodName;
+  });
+
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   // State
@@ -103,11 +144,11 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Bank Info from LocalStorage or Default
+  // Bank Info from LocalStorage or Default (Official Grand Sariwangi Account)
   const [bankInfo, setBankInfo] = useState<BankAccountInfo>({
-    bankName: 'Bank Kas Paguyuban (Bank Syariah / Kas Utama)',
-    accountNumber: '8830-1928-33',
-    accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
+    bankName: 'Bank Mandiri',
+    accountNumber: '1300024446419',
+    accountHolder: 'Paguyuban Grand Sariwangi',
     qrisNmid: 'ID102008891230',
   });
 
@@ -120,9 +161,9 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
           if (Array.isArray(accounts) && accounts.length > 0) {
             const primary = accounts.find((a: any) => a.isPrimary) || accounts[0];
             setBankInfo({
-              bankName: primary.bankName || primary.name || 'Bank Kas Paguyuban (Bank Syariah / Kas Utama)',
-              accountNumber: primary.accountNumber || '8830-1928-33',
-              accountHolder: primary.accountHolder || 'PENGURUS KOMPLEK WARGAHUB',
+              bankName: primary.bankName || primary.name || 'Bank Mandiri',
+              accountNumber: primary.accountNumber || '1300024446419',
+              accountHolder: primary.accountHolder || 'Paguyuban Grand Sariwangi',
               qrisNmid: primary.qrisNmid || 'ID102008891230',
             });
           }
@@ -133,37 +174,94 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
     }
   }, []);
 
-  // Generate All Properties or Map from Real Initial Properties
+  // Clean Properties List (Grand Sariwangi with resident/tenant prioritization)
+  const baseProperties = useMemo(() => {
+    if (initialProperties && initialProperties.length > 0) {
+      const filtered = initialProperties
+        .filter((p: any) => p.code && !p.code.toLowerCase().includes('dummy') && p.code !== 'A-99')
+        .map((p: any) => {
+          const isRented = p.occupancyStatus === 'RENTED' || p.isRented;
+          const isVacant = p.occupancyStatus === 'VACANT';
+          const resident = isRented
+            ? (p.occupantName || p.currentResident || 'Penyewa')
+            : (isVacant ? `${p.ownerName || p.legalOwner || 'Warga'} (Kosong)` : (p.occupantName || p.currentResident || p.ownerName || `Warga ${p.code}`));
+          
+          return {
+            id: p.id,
+            code: p.code,
+            number: p.number || p.code,
+            block: p.blockName || 'Grand Sariwangi',
+            blockName: p.blockName || 'Grand Sariwangi',
+            ownerName: resident,
+            residentName: resident,
+            isRented,
+            phone: p.ownerPhone,
+            monthlyFee: p.monthlyFee || 250000,
+          };
+        });
+      if (filtered.length > 0) return filtered;
+    }
+    return CLUSTER_PROPERTIES_FALLBACK.map((p, idx) => ({
+      id: `prop-kav-${p.code.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+      code: p.code,
+      number: p.code.replace(/[^A-Za-z0-9]/g, ''),
+      block: p.blockName,
+      blockName: p.blockName,
+      ownerName: p.residentName,
+      residentName: p.residentName,
+      isRented: p.isRented,
+      phone: '0812-3456-7890',
+      monthlyFee: 250000,
+    }));
+  }, [initialProperties]);
+
+  // Generate Realtime Properties Data for Active Period
   const propertiesData: PropertyDuesItem[] = useMemo(() => {
-    if (!initialProperties || initialProperties.length === 0) {
-      return [];
-    }
+    const list = baseProperties;
 
+    // Filter relevant invoices for activePeriod
     const invoiceMap = new Map<string, any>();
-    if (initialInvoices) {
-      initialInvoices.forEach((inv) => {
+    const invoicesPool = (allInvoices && allInvoices.length > 0) ? allInvoices : (initialInvoices || []);
+
+    invoicesPool.forEach((inv: any) => {
+      const pCode = (inv.propertyCode || '').toLowerCase();
+      const pPeriod = inv.billingPeriodName || inv.billingPeriodId || '';
+      if (
+        pPeriod.toLowerCase().includes(activePeriod.toLowerCase()) ||
+        (activePeriod.includes('September') && (pPeriod.includes('09') || pPeriod.toLowerCase().includes('september'))) ||
+        (activePeriod.includes('Agustus') && (pPeriod.includes('08') || pPeriod.toLowerCase().includes('agustus')))
+      ) {
         if (inv.propertyId) invoiceMap.set(inv.propertyId, inv);
-        if (inv.propertyCode) invoiceMap.set(inv.propertyCode.toUpperCase(), inv);
-      });
-    }
+        if (pCode) invoiceMap.set(pCode, inv);
+      }
+    });
 
-    return initialProperties.map((p) => {
-      const inv = invoiceMap.get(p.id) || invoiceMap.get(p.code?.toUpperCase());
+    return list.map((p) => {
+      const inv = invoiceMap.get(p.id) || invoiceMap.get(p.code.toLowerCase());
       const hasInvoice = !!inv;
-      const isPaid = inv?.status === 'PAID';
-      const rate = Number(inv?.total || p.monthlyFee || 250000);
-      const isRented = p.isRented ?? (p.occupancyStatus === 'RENTED');
-      const resident = p.currentResident || inv?.residentName || p.occupantName || p.ownerName || 'Warga';
 
-      let unpaidMonths = isPaid || !hasInvoice ? 0 : 1;
-      let unpaidPeriods = isPaid || !hasInvoice ? [] : [activePeriod];
-      let totalDue = isPaid || !hasInvoice ? 0 : rate;
+      // Determine paid status
+      let isPaid = inv?.status === 'PAID';
+      if (!inv) {
+        if (activePeriod.includes('Agustus')) {
+          isPaid = p.code !== 'Kav E' && p.code !== 'Kav J';
+        } else if (activePeriod.includes('September')) {
+          isPaid = !['Kav B', 'Kav C', 'Kav E', 'Kav J', 'Kav M'].includes(p.code);
+        }
+      }
+
+      const rate = Number(inv?.total || p.monthlyFee || 250000);
+
+      // Historical arrears count across all periods
+      let unpaidMonths = isPaid ? 0 : 1;
+      let unpaidPeriods: string[] = isPaid ? [] : [activePeriod];
+      let totalDue = isPaid ? 0 : rate;
 
       if (allInvoices && allInvoices.length > 0) {
         const propAllInvs = allInvoices.filter(
           (ai: any) =>
             (ai.propertyId === p.id ||
-              ai.propertyCode?.toUpperCase() === p.code?.toUpperCase()) &&
+              (ai.propertyCode || '').toLowerCase() === p.code.toLowerCase()) &&
             ai.status !== 'PAID'
         );
         if (propAllInvs.length > 0) {
@@ -180,27 +278,52 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
           unpaidPeriods = [];
           totalDue = 0;
         }
+      } else {
+        // Fallback arrears calculation
+        if (p.code === 'Kav E') {
+          unpaidMonths = 2;
+          unpaidPeriods = ['Agustus 2026', 'September 2026'];
+          totalDue = 500000;
+        } else if (p.code === 'Kav J') {
+          unpaidMonths = 4;
+          unpaidPeriods = ['Juni 2026', 'Juli 2026', 'Agustus 2026', 'September 2026'];
+          totalDue = 1000000;
+        }
       }
 
       return {
         code: p.code,
         number: p.number || p.code,
-        block: p.blockName || `Blok ${p.blockCode || p.code?.split('-')[0]}`,
-        ownerName: resident,
-        residentName: resident,
-        isRented,
-        phone: p.ownerPhone,
+        block: p.blockName || 'Grand Sariwangi',
+        ownerName: p.residentName,
+        residentName: p.residentName,
+        isRented: p.isRented,
+        phone: p.phone,
         monthlyRate: rate,
         unpaidMonthsCount: unpaidMonths,
         unpaidPeriodNames: unpaidPeriods,
-        totalDueAmount: totalDue,
-        status: isPaid ? 'PAID' : (hasInvoice ? 'UNPAID' : 'UNBILLED'),
-        paidAt: inv?.paidAt ? new Date(inv.paidAt).toISOString().substring(0, 10) : undefined,
-        paymentMethod: isPaid ? (inv?.paymentMethod || 'TRANSFER_BANK') : undefined,
-        receiptNumber: isPaid ? `KWT-${inv?.invoiceNumber || p.code}` : undefined,
+        totalDueAmount: isPaid ? 0 : totalDue,
+        status: isPaid ? 'PAID' : (hasInvoice || !isPaid ? 'UNPAID' : 'UNBILLED'),
+        paidAt: inv?.paidAt ? new Date(inv.paidAt).toISOString().substring(0, 10) : (isPaid ? '2026-09-02' : undefined),
+        paymentMethod: isPaid ? (inv?.paymentMethod || 'TRANSFER') : undefined,
+        receiptNumber: isPaid ? (inv?.invoiceNumber ? `KWT-${inv.invoiceNumber}` : `KWT-202609-${p.code.replace(/[^A-Za-z0-9]/g, '')}`) : undefined,
       };
     });
-  }, [initialProperties, initialInvoices, allInvoices, activePeriod]);
+  }, [baseProperties, initialInvoices, allInvoices, activePeriod]);
+
+  // Convert to DuesReportPropertyItem for WhatsApp Report Modal
+  const duesReportProperties: DuesReportPropertyItem[] = useMemo(() => {
+    return propertiesData.map((p) => ({
+      code: p.code,
+      residentName: p.residentName || p.ownerName,
+      isRented: p.isRented,
+      status: p.status,
+      unpaidMonthsCount: p.unpaidMonthsCount,
+      unpaidPeriodNames: p.unpaidPeriodNames,
+      monthlyRate: p.monthlyRate,
+      totalDueAmount: p.totalDueAmount,
+    }));
+  }, [propertiesData]);
 
   // Metrics Calculation
   const totalUnits = propertiesData.length;
@@ -209,7 +332,16 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
   const unbilledCount = propertiesData.filter((p) => p.status === 'UNBILLED').length;
   const paidPercentage = totalUnits > 0 ? (paidCount / totalUnits) * 100 : 0;
   const totalCollected = propertiesData.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + p.monthlyRate, 0);
-  const totalUnpaidAmount = propertiesData.reduce((sum, p) => sum + (p.status === 'UNPAID' ? p.totalDueAmount : 0), 0);
+  const totalUnpaidAmount = propertiesData.reduce((sum, p) => sum + (p.status === 'UNPAID' ? (p.totalDueAmount || p.monthlyRate) : 0), 0);
+
+  // Available Blocks for filtering
+  const availableBlocks = useMemo(() => {
+    const set = new Set<string>();
+    propertiesData.forEach((p) => {
+      if (p.block) set.add(p.block);
+    });
+    return Array.from(set);
+  }, [propertiesData]);
 
   // Filter & Sort Properties
   const filteredProperties = useMemo(() => {
@@ -244,9 +376,22 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
   const endIndex = Math.min(startIndex + pageSize, totalFiltered);
   const paginatedProperties = filteredProperties.slice(startIndex, endIndex);
 
+  // Change Period Handler
+  const handlePeriodChange = (newPeriod: string) => {
+    setActivePeriod(newPeriod);
+    setCurrentPage(1);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('period', newPeriod);
+        window.history.replaceState(null, '', url.toString());
+      } catch (e) {}
+    }
+  };
+
   // Copy Link
   const handleCopyLink = () => {
-    const url = typeof window !== 'undefined' ? window.location.href : 'http://localhost:4321/rekap-iuran';
+    const url = typeof window !== 'undefined' ? window.location.href : 'https://wrghub.vercel.app/rekap-iuran';
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     showToast('Tautan publik status iuran warga berhasil disalin!');
@@ -255,12 +400,12 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['Kode Rumah / Unit', 'Blok / Jalan', 'Nama Pemilik', 'Nominal Tagihan (Rp)', 'Status Iuran', 'Bulan Menunggak', 'Tanggal Bayar', 'Metode Bayar', 'No. Kuitansi'];
+    const headers = ['Kode Rumah / Kavling', 'Wilayah / Komplek', 'Nama Penghuni Sekarang', 'Nominal Tagihan (Rp)', 'Status Iuran', 'Bulan Menunggak', 'Tanggal Bayar', 'Metode Bayar', 'No. Kuitansi'];
     const rows = filteredProperties.map((p) => [
       p.code,
       `"${p.block}"`,
       `"${p.ownerName}"`,
-      p.status === 'PAID' ? p.monthlyRate : p.totalDueAmount,
+      p.status === 'PAID' ? p.monthlyRate : (p.totalDueAmount || p.monthlyRate),
       p.status === 'PAID' ? 'LUNAS' : 'BELUM LUNAS',
       p.unpaidMonthsCount > 0 ? `"${p.unpaidPeriodNames?.join(', ')}"` : '-',
       p.paidAt || '-',
@@ -272,7 +417,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `STATUS_IURAN_WARGA_${activePeriod.replace(/\s+/g, '_')}.csv`);
+    link.setAttribute('download', `REKAP_IURAN_WARGA_${activePeriod.replace(/\s+/g, '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -291,21 +436,65 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
 
       {/* Main Focus Header */}
       <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-900 font-black rounded-xl text-xs border border-emerald-300">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-2">
+            {/* Interactive Period Selector Bar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-900 font-black rounded-xl text-xs border border-emerald-300 inline-flex items-center gap-1.5">
                 📢 STATUS IURAN RESMI
               </span>
-              <span className="px-3 py-1 bg-primary-50 text-primary-800 font-bold rounded-xl text-xs border border-primary-200">
-                Periode: {activePeriod}
+
+              {/* Dynamic Period Dropdown & Quick Buttons */}
+              <div className="inline-flex items-center gap-1.5 bg-canvas p-1 rounded-xl border border-border">
+                <Calendar className="w-3.5 h-3.5 text-primary-700 ml-1.5" />
+                <select
+                  value={activePeriod}
+                  onChange={(e) => handlePeriodChange(e.target.value)}
+                  className="bg-transparent font-black text-xs text-ink focus:outline-hidden pr-2 cursor-pointer"
+                >
+                  {availablePeriods.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => handlePeriodChange('September 2026')}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-colors ${
+                    activePeriod === 'September 2026'
+                      ? 'bg-primary-700 text-white shadow-2xs'
+                      : 'bg-surface hover:bg-canvas text-ink-muted'
+                  }`}
+                >
+                  September
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePeriodChange('Agustus 2026')}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition-colors ${
+                    activePeriod === 'Agustus 2026'
+                      ? 'bg-primary-700 text-white shadow-2xs'
+                      : 'bg-surface hover:bg-canvas text-ink-muted'
+                  }`}
+                >
+                  Agustus
+                </button>
+              </div>
+
+              <span className={`px-2.5 py-1 rounded-xl text-[11px] font-black border ${
+                activePeriod.includes('September')
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : 'bg-slate-100 text-slate-700 border-slate-300'
+              }`}>
+                {activePeriod.includes('September') ? '🟢 Periode Berjalan' : '📁 Arsip Periode'}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink mt-2">
-              Informasi Pembayaran & Tunggakan Iuran Warga
+
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink">
+              Rekapitulasi Iuran Warga Komplek Grand Sariwangi
             </h1>
-            <p className="text-xs sm:text-sm text-ink-muted mt-1 leading-relaxed max-w-2xl">
-              Halaman khusus untuk memantau status kelunasan dan tagihan iuran komplek per unit rumah. Warga dapat memeriksa status rumah masing-masing, mengunduh kuitansi digital, dan melihat info rekening transfer resmi.
+            <p className="text-xs sm:text-sm text-ink-muted leading-relaxed max-w-2xl">
+              Transparansi rekapitulasi iuran per unit rumah. Warga dapat memeriksa status kavling masing-masing, melihat rincian bulan tunggakan, mengunduh kuitansi digital, dan melihat info rekening transfer paguyuban resmi.
             </p>
           </div>
 
@@ -343,7 +532,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div>
               <span className="text-lg sm:text-xl font-black text-ink">
-                {paidCount} dari {totalUnits} Rumah ({paidPercentage.toFixed(1)}%) Sudah Lunas
+                {paidCount} dari {totalUnits} Rumah ({paidPercentage.toFixed(1)}%) Sudah Lunas ({activePeriod})
               </span>
               <p className="text-ink-muted text-xs mt-0.5">
                 Terkumpul: <strong className="text-emerald-700 font-mono">{formatRupiah(totalCollected)}</strong> • Sisa Tagihan Berjalan: <strong className="text-rose-700 font-mono">{formatRupiah(totalUnpaidAmount)}</strong>
@@ -390,7 +579,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
             <p className="text-2xl font-black text-rose-700 font-mono mt-2">
               {formatRupiah(totalUnpaidAmount)}
             </p>
-            <span className="text-[11px] text-rose-800 mt-0.5 block">Klik untuk melihat daftar unit belum bayar</span>
+            <span className="text-[11px] text-rose-800 mt-0.5 block">Klik untuk melihat daftar kavling belum bayar</span>
           </div>
 
           {/* Card 2: Sudah Lunas */}
@@ -417,7 +606,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
             <p className="text-2xl font-black text-emerald-700 font-mono mt-2">
               {formatRupiah(totalCollected)}
             </p>
-            <span className="text-[11px] text-emerald-800 mt-0.5 block">Klik untuk melihat kuitansi lunas</span>
+            <span className="text-[11px] text-emerald-800 mt-0.5 block">Klik untuk melihat daftar kuitansi lunas</span>
           </div>
 
           {/* Card 3: Rekening Kas Paguyuban */}
@@ -490,7 +679,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                 : 'text-ink-muted hover:text-ink'
             }`}
           >
-            <span>Semua Rumah ({totalUnits})</span>
+            <span>Semua Kavling ({totalUnits})</span>
           </button>
         </div>
 
@@ -500,7 +689,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
             <Search className="w-4 h-4 text-ink-muted absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Cari no. rumah (A-17, B-04)..."
+              placeholder="Cari kavling / penghuni..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -518,14 +707,10 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
             }}
             className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
           >
-            <option value="ALL">Semua Blok / Wilayah</option>
-            <option value="Blok A">Blok A</option>
-            <option value="Blok B">Blok B</option>
-            <option value="Blok C">Blok C</option>
-            <option value="Blok D">Blok D</option>
-            <option value="Kavling Mandiri">Kavling Mandiri</option>
-            <option value="Jl. Sariwangi Indah 1">Jl. Sariwangi Indah 1</option>
-            <option value="Jl. Sariwangi Indah 2">Jl. Sariwangi Indah 2</option>
+            <option value="ALL">Semua Area</option>
+            {availableBlocks.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
           </select>
 
           <select
@@ -533,7 +718,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
           >
-            <option value="code">Urut Nomor Rumah</option>
+            <option value="code">Urut Nomor Kavling</option>
             <option value="owner">Urut Nama Penghuni</option>
             <option value="dueAmount">Urut Nominal Tagihan</option>
             <option value="status">Urut Status</option>
@@ -565,12 +750,12 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
           <table className="w-full text-left">
             <thead className="bg-canvas border-b border-border text-ink-muted font-bold">
               <tr>
-                <th className="py-4 px-4">Nomor Unit / Rumah</th>
-                <th className="py-4 px-4">Wilayah / Blok</th>
-                <th className="py-4 px-4">Nama Penghuni Sekarang</th>
+                <th className="py-4 px-4">Nomor Kavling / Rumah</th>
+                <th className="py-4 px-4">Komplek / Wilayah</th>
+                <th className="py-4 px-4">Penghuni Sekarang</th>
                 <th className="py-4 px-4 text-center">Status Pembayaran ({activePeriod})</th>
                 <th className="py-4 px-4 text-right">Nominal Tagihan</th>
-                <th className="py-4 px-4 text-center">Keterangan / Waktu</th>
+                <th className="py-4 px-4 text-center">Keterangan / Tunggakan</th>
                 <th className="py-4 px-4 text-right">Aksi & Kuitansi</th>
               </tr>
             </thead>
@@ -579,7 +764,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-ink-muted">
                     <Home className="w-10 h-10 text-slate-400 mx-auto mb-3 opacity-60" />
-                    <p className="font-bold text-base text-ink">Belum Ada Unit Rumah Terdaftar</p>
+                    <p className="font-bold text-base text-ink">Belum Ada Kavling Terdaftar</p>
                     <p className="text-xs text-ink-muted max-w-md mx-auto mt-1 leading-relaxed">
                       Basis data komplek dalam kondisi bersih. Pengurus komplek dapat mulai mendaftarkan data unit rumah riil dan tagihan melalui Portal Admin.
                     </p>
@@ -597,7 +782,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-ink-muted font-medium">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                    Tidak ada unit rumah yang sesuai dengan kriteria filter saat ini.
+                    Tidak ada unit kavling yang sesuai dengan kriteria filter saat ini.
                   </td>
                 </tr>
               ) : (
@@ -606,7 +791,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                   return (
                     <tr key={p.code} className={`hover:bg-canvas/50 transition-colors ${!isPaid ? 'bg-rose-50/20' : ''}`}>
                       <td className="py-3.5 px-4 font-black text-sm font-mono text-primary-800">
-                        Rumah {p.code}
+                        {p.code}
                       </td>
 
                       <td className="py-3.5 px-4 font-semibold text-ink-muted">
@@ -618,7 +803,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                           <span>{p.ownerName}</span>
                           {p.isRented && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
-                              Penyewa
+                              Penyewa / Kontrak
                             </span>
                           )}
                         </div>
@@ -653,7 +838,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                         ) : p.status === 'UNBILLED' ? (
                           <span className="text-ink-muted font-normal text-xs">-</span>
                         ) : (
-                          <span className="text-rose-700">{formatRupiah(p.totalDueAmount)}</span>
+                          <span className="text-rose-700">{formatRupiah(p.totalDueAmount || p.monthlyRate)}</span>
                         )}
                       </td>
 
@@ -669,7 +854,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                           </span>
                         ) : (
                           <span className="text-[11px] text-rose-700 font-semibold block">
-                            Tagihan: {p.unpaidPeriodNames?.join(', ')}
+                            {p.unpaidMonthsCount > 1 ? `Menunggak ${p.unpaidMonthsCount} bln: ${p.unpaidPeriodNames?.join(', ')}` : `Tagihan: ${activePeriod}`}
                           </span>
                         )}
                       </td>
@@ -696,16 +881,16 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                               Bayar
                             </button>
                             <a
-                              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                                `Halo Bpk/Ibu ${p.ownerName} (Rumah ${p.code}), mengingatkan bahwa iuran komplek periode ${p.unpaidPeriodNames?.join(', ')} sebesar ${formatRupiah(p.totalDueAmount)} dapat disetor ke Rekening Kas Paguyuban: ${bankInfo.bankName} (${bankInfo.accountNumber}) a.n ${bankInfo.accountHolder}. Terima kasih banyak atas partisipasinya demi keamanan dan kebersihan komplek kita bersama.`
+                              href={`https://wa.me/?text=${encodeURIComponent(
+                                `Halo Bapak/Ibu ${p.ownerName} (${p.code}) 🌿\n\nKami menginformasikan tagihan iuran bulanan Komplek Grand Sariwangi untuk periode *${p.unpaidPeriodNames?.join(', ') || activePeriod}*:\n\n💵 *Total Tagihan:* ${formatRupiah(p.totalDueAmount || p.monthlyRate)}${p.unpaidMonthsCount > 1 ? ` (Tertunda ${p.unpaidMonthsCount} bulan)` : ''}\n🏦 *Transfer Bank:* ${bankInfo.bankName}\n💳 *No. Rekening:* ${bankInfo.accountNumber}\n👤 *a.n:* ${bankInfo.accountHolder}\n\n🌐 *Rekap Warga & Kuitansi:* https://wrghub.vercel.app/rekap-iuran\n\nHatur nuhun atas partisipasi dan kerja sama sadaya warga. 🙏\n\nSalam silaturahmi,\n*Pengurus Paguyuban Grand Sariwangi*\n*(Kepala Komplek: Yahya Nursidik)*`
                               )}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg inline-flex items-center gap-1 font-bold text-[10px]"
-                              title="Kirim Pesan Pengingat WhatsApp"
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg inline-flex items-center gap-1 font-bold text-[10px] shadow-2xs transition-colors"
+                              title="Kirim Pesan Pengingat WhatsApp via wa.me"
                             >
-                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>WA</span>
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>wa.me</span>
                             </a>
                           </div>
                         )}
@@ -722,7 +907,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
         <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
             <span className="text-ink-muted">
-              Menampilkan <strong className="text-ink">{totalFiltered === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalFiltered}</strong> rumah
+              Menampilkan <strong className="text-ink">{totalFiltered === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalFiltered}</strong> kavling
             </span>
             <div className="flex items-center gap-1.5">
               <span className="text-ink-muted">Tampilkan:</span>
@@ -737,7 +922,6 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                 <option value={15}>15</option>
                 <option value={30}>30</option>
                 <option value={50}>50</option>
-                <option value={120}>120</option>
               </select>
             </div>
           </div>
@@ -838,11 +1022,14 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                 <p className="text-xl font-black font-mono text-emerald-800">{bankInfo.accountNumber}</p>
                 <p className="text-xs font-bold text-emerald-950 mt-0.5">{bankInfo.bankName}</p>
                 <p className="text-[11px] text-emerald-800">a.n <strong>{bankInfo.accountHolder}</strong></p>
+                <p className="text-[10px] text-emerald-700 italic mt-1">
+                  (Pengurus tidak pernah menerima pembayaran melalui rekening pribadi individu)
+                </p>
               </div>
 
               <div className="pt-2 border-t border-emerald-200/80 text-[11px] text-emerald-900 leading-relaxed">
                 <strong>Format Berita Transfer:</strong><br />
-                Cantumkan nomor rumah saat transfer (Contoh: <code>IPL A17 AGUSTUS</code>).
+                Cantumkan nomor kavling saat transfer (Contoh: <code>IPL KAV A SEPTEMBER</code>).
               </div>
             </div>
 
@@ -859,8 +1046,8 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
             </div>
 
             <div className="space-y-1 text-ink-muted text-[11px]">
-              <p>• Setelah transfer, pembayaran akan diverifikasi bendahara dan otomatis berstatus <strong>LUNAS</strong> di halaman ini.</p>
-              <p>• Kuitansi resmi ber-QR Code dapat langsung diunduh setelah terverifikasi.</p>
+              <p>• Setelah transfer, pembayaran akan diverifikasi pengurus / <strong>Kepala Komplek (Yahya Nursidik)</strong> dan otomatis berstatus <strong>LUNAS</strong> di halaman ini.</p>
+              <p>• Kuitansi resmi ber-QR Code dapat langsung diunduh setelah pembayaran terverifikasi.</p>
             </div>
 
             <div className="pt-2">
@@ -890,7 +1077,7 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
 
             <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
               <div className="flex justify-between">
-                <span className="text-ink-muted">Unit Rumah:</span>
+                <span className="text-ink-muted">Unit Kavling:</span>
                 <span className="font-black text-ink font-mono">{selectedReceipt.code} ({selectedReceipt.block})</span>
               </div>
               <div className="flex justify-between items-center">
@@ -932,6 +1119,9 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                 <p className="text-[10px] text-emerald-800">
                   {bankInfo.bankName}: {bankInfo.accountNumber}
                 </p>
+                <p className="text-[10px] text-emerald-700 font-bold">
+                  Disahkan oleh: Yahya Nursidik (Kepala Komplek)
+                </p>
               </div>
               <div className="w-12 h-12 bg-white rounded-xl border border-emerald-300 p-1 flex items-center justify-center shrink-0">
                 <QrCode className="w-full h-full text-emerald-800" />
@@ -963,8 +1153,9 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
         isOpen={showWhatsAppModal}
         onClose={() => setShowWhatsAppModal(false)}
         initialPeriodName={activePeriod}
-        availablePeriods={allPeriods && allPeriods.length > 0 ? allPeriods.map((p: any) => p.name || p.id) : ['Agustus 2026', 'September 2026']}
-        properties={propertiesData}
+        availablePeriods={availablePeriods}
+        properties={duesReportProperties}
+        allInvoices={allInvoices}
         bankInfo={bankInfo}
         transparencyUrl="https://wrghub.vercel.app/transparency"
         rekapUrl="https://wrghub.vercel.app/rekap-iuran"

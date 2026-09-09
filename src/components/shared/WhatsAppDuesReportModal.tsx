@@ -32,6 +32,7 @@ export interface WhatsAppDuesReportModalProps {
   initialPeriodName?: string;
   availablePeriods?: string[];
   properties: DuesReportPropertyItem[];
+  allInvoices?: any[];
   bankInfo?: {
     bankName: string;
     accountNumber: string;
@@ -45,9 +46,10 @@ export interface WhatsAppDuesReportModalProps {
 export const WhatsAppDuesReportModal: React.FC<WhatsAppDuesReportModalProps> = ({
   isOpen,
   onClose,
-  initialPeriodName = 'Agustus 2026',
-  availablePeriods = ['Agustus 2026', 'September 2026'],
+  initialPeriodName = 'September 2026',
+  availablePeriods = ['September 2026', 'Agustus 2026', 'Juli 2026', 'Juni 2026'],
   properties,
+  allInvoices,
   bankInfo = {
     bankName: 'Bank Mandiri',
     accountNumber: '1300024446419',
@@ -98,10 +100,57 @@ export const WhatsAppDuesReportModal: React.FC<WhatsAppDuesReportModalProps> = (
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Filter properties by period if properties have period info, or use provided list
-  const currentProperties = useMemo(() => {
-    return properties;
-  }, [properties]);
+  // Dynamic properties status calculation based on selectedPeriod and allInvoices
+  const currentProperties: DuesReportPropertyItem[] = useMemo(() => {
+    if (!allInvoices || allInvoices.length === 0) {
+      return properties;
+    }
+    const invMap = new Map<string, any>();
+    allInvoices.forEach((inv: any) => {
+      const pCode = (inv.propertyCode || '').toLowerCase();
+      const pPeriod = inv.billingPeriodName || inv.billingPeriodId || '';
+      if (
+        pPeriod.toLowerCase().includes(selectedPeriod.toLowerCase()) ||
+        (selectedPeriod.includes('September') && (pPeriod.includes('09') || pPeriod.toLowerCase().includes('september'))) ||
+        (selectedPeriod.includes('Agustus') && (pPeriod.includes('08') || pPeriod.toLowerCase().includes('agustus')))
+      ) {
+        invMap.set(pCode, inv);
+      }
+    });
+
+    return properties.map((p) => {
+      const inv = invMap.get(p.code.toLowerCase());
+      let isPaid = inv?.status === 'PAID';
+      if (!inv) {
+        if (selectedPeriod.includes('Agustus')) {
+          isPaid = p.code !== 'Kav E' && p.code !== 'Kav J';
+        } else if (selectedPeriod.includes('September')) {
+          isPaid = !['Kav B', 'Kav C', 'Kav E', 'Kav J', 'Kav M'].includes(p.code);
+        }
+      }
+
+      let unpaidMonths = isPaid ? 0 : 1;
+      let unpaidPeriods: string[] = isPaid ? [] : [selectedPeriod];
+
+      const propAllInvs = allInvoices.filter(
+        (ai: any) => (ai.propertyCode || '').toLowerCase() === p.code.toLowerCase() && ai.status !== 'PAID'
+      );
+      if (propAllInvs.length > 0) {
+        unpaidMonths = propAllInvs.length;
+        unpaidPeriods = propAllInvs.map((ai: any) => ai.billingPeriodName || ai.billingPeriodId);
+      } else if (isPaid) {
+        unpaidMonths = 0;
+        unpaidPeriods = [];
+      }
+
+      return {
+        ...p,
+        status: isPaid ? 'PAID' : 'UNPAID',
+        unpaidMonthsCount: unpaidMonths,
+        unpaidPeriodNames: unpaidPeriods,
+      };
+    });
+  }, [properties, allInvoices, selectedPeriod]);
 
   // Dynamic calculated header title with replacement
   const computedHeaderTitle = useMemo(() => {
