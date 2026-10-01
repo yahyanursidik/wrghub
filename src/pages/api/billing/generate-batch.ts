@@ -18,8 +18,10 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json();
     const { year, month, name, dueDate, feeAmount, createdBy } = batchSchema.parse(body);
 
-    const periodId = `period-${year}-${month.toString().padStart(2, '0')}`;
-    const periodCode = `${year}${month.toString().padStart(2, '0')}`;
+    const monthStr = month.toString().padStart(2, '0');
+    const periodId = `period-${year}-${monthStr}`;
+    const periodCode = `${year}${monthStr}`;
+    const issuedDate = `${year}-${monthStr}-01`;
 
     if (process.env.DATABASE_URL) {
       // 1. Create or ensure billing period in Neon PostgreSQL
@@ -29,18 +31,46 @@ export const POST: APIRoute = async ({ request }) => {
         ON CONFLICT (id) DO UPDATE SET name = ${name}, due_date = ${dueDate};
       `;
 
-      // 2. Fetch all properties
-      const properties = await neonSql`SELECT id, code FROM properties WHERE is_active = true ORDER BY code ASC`;
+      // 2. Fetch all active properties (excluding inactive test properties)
+      const properties = await neonSql`
+        SELECT id, code, address FROM properties 
+        WHERE is_active = true AND code NOT ILIKE '%dummy%' AND code != 'A-99'
+        ORDER BY code ASC
+      `;
 
-      // 3. Generate invoices for all properties
+      let newlyGenerated = 0;
+      let alreadyExisting = 0;
+      let alreadyPaid = 0;
+
+      // 3. Generate invoices for all properties with strict duplicate checks
       for (const prop of properties) {
-        const invId = `inv-${prop.code.toLowerCase()}-${periodCode}`;
-        const invNumber = `INV-${periodCode}-${prop.code.replace('-', '')}`;
+        const codeSlug = prop.code.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        const codeClean = prop.code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        const invId = `inv-${year}-${monthStr}-${codeSlug}`;
+        const invNumber = `INV-${periodCode}-${codeClean}`;
+
+        // Check if an invoice already exists for this property in this billing period
+        const existing = await neonSql`
+          SELECT id, status, paid_amount FROM invoices 
+          WHERE property_id = ${prop.id} AND billing_period_id = ${periodId}
+          LIMIT 1
+        `;
+
+        if (existing.length > 0) {
+          alreadyExisting++;
+          if (existing[0].status === 'PAID') {
+            alreadyPaid++;
+          }
+          // Do NOT overwrite or duplicate existing invoice (especially not paid ones!)
+          continue;
+        }
+
+        // Insert new invoice safely
         await neonSql`
           INSERT INTO invoices (
             id, property_id, billing_period_id, invoice_number, status, subtotal, total, paid_amount, due_date, issued_at
           ) VALUES (
-            ${invId}, ${prop.id}, ${periodId}, ${invNumber}, 'UNPAID', ${feeAmount}, ${feeAmount}, 0, ${dueDate}, ${new Date().toISOString().substring(0, 10)}
+            ${invId}, ${prop.id}, ${periodId}, ${invNumber}, 'UNPAID', ${feeAmount}, ${feeAmount}, 0, ${dueDate}, ${issuedDate}
           )
           ON CONFLICT (id) DO NOTHING;
         `;
@@ -49,6 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
           VALUES (${'item-' + invId}, ${invId}, 'fee-ipl', ${'Iuran IPL ' + name}, ${feeAmount})
           ON CONFLICT (id) DO NOTHING;
         `;
+        newlyGenerated++;
       }
 
       await recordAuditLog({
@@ -57,15 +88,29 @@ export const POST: APIRoute = async ({ request }) => {
         action: 'billing.generate_batch',
         entityType: 'BILLING_PERIOD',
         entityId: periodId,
-        newValue: { periodName: name, totalInvoices: properties.length, feeAmount },
+        newValue: { 
+          periodName: name, 
+          totalProperties: properties.length, 
+          newlyGenerated, 
+          alreadyExisting, 
+          alreadyPaid, 
+          feeAmount 
+        },
       });
+
+      const message = newlyGenerated > 0
+        ? `Berhasil menerbitkan ${newlyGenerated} tagihan baru periode ${name}.${alreadyPaid > 0 ? ` (${alreadyPaid} kavling sudah lunas sebelumnya)` : ''}`
+        : `Seluruh ${properties.length} unit kavling sudah memiliki tagihan periode ${name}.${alreadyPaid > 0 ? ` (${alreadyPaid} kavling sudah tercatat lunas)` : ''}`;
 
       return new Response(
         JSON.stringify({
           data: {
             periodId,
-            totalGenerated: properties.length,
-            message: `Tagihan periode ${name} berhasil dibuat untuk ${properties.length} unit rumah.`,
+            totalProperties: properties.length,
+            newlyGenerated,
+            alreadyExisting,
+            alreadyPaid,
+            message,
           },
           meta: {},
           error: null,

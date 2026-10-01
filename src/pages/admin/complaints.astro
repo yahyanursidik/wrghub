@@ -3,7 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { ComplaintsManager } from '../../components/admin/ComplaintsManager';
 import { getComplaints } from '../../services/complaint.service';
 
-const complaints = await getComplaints();
+const complaints = await getComplaints().catch(() => []);
 ---
 
 <AdminLayout title="Aduan Warga - WargaHub" currentPath="/admin/complaints">

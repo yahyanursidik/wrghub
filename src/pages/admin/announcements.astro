@@ -4,8 +4,10 @@ import { AnnouncementsManager } from '../../components/admin/AnnouncementsManage
 import { getAnnouncements } from '../../services/announcement.service';
 import { getProperties } from '../../services/property.service';
 
-const announcements = await getAnnouncements().catch(() => []);
-const properties = await getProperties().catch(() => []);
+const [announcements, properties] = await Promise.all([
+  getAnnouncements().catch(() => []),
+  getProperties().catch(() => [])
+]);
 const tab = Astro.url.searchParams.get('tab') || 'announcements';
 ---
 

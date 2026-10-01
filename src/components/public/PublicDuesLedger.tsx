@@ -71,6 +71,7 @@ export interface PublicDuesLedgerProps {
   initialPeriodName?: string;
   allInvoices?: any[];
   allPeriods?: any[];
+  initialBankInfo?: BankAccountInfo;
 }
 
 export const CLUSTER_PROPERTIES_FALLBACK = [
@@ -94,7 +95,8 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
   initialInvoices, 
   initialPeriodName = 'September 2026',
   allInvoices,
-  allPeriods
+  allPeriods,
+  initialBankInfo,
 }) => {
   // Available Periods for selector
   const availablePeriods = useMemo(() => {
@@ -144,12 +146,14 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Bank Info from LocalStorage or Default (Official Grand Sariwangi Account)
-  const [bankInfo, setBankInfo] = useState<BankAccountInfo>({
-    bankName: 'Bank Mandiri',
-    accountNumber: '1300024446419',
-    accountHolder: 'Paguyuban Grand Sariwangi',
-    qrisNmid: 'ID102008891230',
+  // Bank Info from initialBankInfo (Database), LocalStorage, or Default
+  const [bankInfo, setBankInfo] = useState<BankAccountInfo>(() => {
+    return initialBankInfo || {
+      bankName: 'Jago Syariah',
+      accountNumber: '505621101851',
+      accountHolder: 'Yahya Nursidik',
+      qrisNmid: 'ID102008891230',
+    };
   });
 
   useEffect(() => {
@@ -161,12 +165,25 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
           if (Array.isArray(accounts) && accounts.length > 0) {
             const primary = accounts.find((a: any) => a.isPrimary) || accounts[0];
             setBankInfo({
-              bankName: primary.bankName || primary.name || 'Bank Mandiri',
-              accountNumber: primary.accountNumber || '1300024446419',
-              accountHolder: primary.accountHolder || 'Paguyuban Grand Sariwangi',
+              bankName: primary.bankName || primary.name || 'Jago Syariah',
+              accountNumber: primary.accountNumber || '505621101851',
+              accountHolder: primary.accountHolder || 'Yahya Nursidik',
               qrisNmid: primary.qrisNmid || 'ID102008891230',
             });
+            return;
           }
+        }
+        const savedBank = localStorage.getItem('wargahub_set_bankname');
+        const savedAcc = localStorage.getItem('wargahub_set_bankacc');
+        const savedHolder = localStorage.getItem('wargahub_set_accholder');
+        const savedQris = localStorage.getItem('wargahub_set_qris');
+        if (savedBank || savedAcc) {
+          setBankInfo((prev) => ({
+            bankName: savedBank ? JSON.parse(savedBank) : prev.bankName,
+            accountNumber: savedAcc ? JSON.parse(savedAcc) : prev.accountNumber,
+            accountHolder: savedHolder ? JSON.parse(savedHolder) : prev.accountHolder,
+            qrisNmid: savedQris ? JSON.parse(savedQris) : prev.qrisNmid,
+          }));
         }
       } catch (e) {
         console.warn(e);
@@ -940,17 +957,16 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
             </button>
 
             <div className="flex items-center gap-1 px-2">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum = safeCurrentPage - 2 + i;
-                if (pageNum < 1) pageNum = i + 1;
-                if (pageNum > totalPages) return null;
-
-                return (
+              {(() => {
+                const maxButtons = 5;
+                const startPage = Math.max(1, Math.min(safeCurrentPage - Math.floor(maxButtons / 2), Math.max(1, totalPages - maxButtons + 1)));
+                const pageCount = Math.min(maxButtons, totalPages);
+                return Array.from({ length: pageCount }, (_, i) => startPage + i).map((pageNum) => (
                   <button
                     key={pageNum}
                     type="button"
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                    className={`w-7 h-7 rounded-lg text-xs font-bold transition-all active:scale-[0.98] ${
                       safeCurrentPage === pageNum
                         ? 'bg-primary-600 text-white shadow-xs'
                         : 'bg-surface border border-border text-ink hover:bg-canvas'
@@ -958,8 +974,8 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
                   >
                     {pageNum}
                   </button>
-                );
-              })}
+                ));
+              })()}
             </div>
 
             <button

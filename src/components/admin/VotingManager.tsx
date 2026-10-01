@@ -764,7 +764,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                     `Total Partisipasi: ${election.totalVoted}/${election.totalEligible} Rumah (${election.turnout}%)\n\n` +
                     `• Kandidat #01 (${election.candidates[0].name}): ${election.candidates[0].votes} Suara (${election.candidates[0].percentage}%)\n` +
                     `• Kandidat #02 (${election.candidates[1].name}): ${election.candidates[1].votes} Suara (${election.candidates[1].percentage}%)\n\n` +
-                    `Pantau perolehan suara realtime: http://localhost:4321/warga\n- Panitia Pemilu WargaHub`
+                    `Pantau perolehan suara realtime: ${typeof window !== 'undefined' ? `${window.location.origin}/warga` : 'https://wrghub.vercel.app/warga'}\n- Panitia Pemilu WargaHub`
                   )}`}
                   target="_blank"
                   rel="noreferrer"
@@ -1147,7 +1147,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                           <div className="inline-flex items-center gap-1">
                             <a
                               href={`https://api.whatsapp.com/send?phone=${v.phone.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(
-                                `Halo ${v.residentName} (Rumah ${v.propertyCode}), kami dari Panitia Pemilu WargaHub mengingatkan untuk menggunakan hak suara Anda dalam Pemilihan Ketua RW 05 periode 2026-2029.\n\nSilakan akses portal E-Voting: http://localhost:4321/warga\nTerima kasih!`
+                                `Halo ${v.residentName} (Rumah ${v.propertyCode}), kami dari Panitia Pemilu WargaHub mengingatkan untuk menggunakan hak suara Anda dalam Pemilihan Ketua RW 05 periode 2026-2029.\n\nSilakan akses portal E-Voting: ${typeof window !== 'undefined' ? `${window.location.origin}/warga` : 'https://wrghub.vercel.app/warga'}\nTerima kasih!`
                               )}`}
                               target="_blank"
                               rel="noreferrer"

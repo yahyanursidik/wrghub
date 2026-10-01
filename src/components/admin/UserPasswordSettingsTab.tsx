@@ -54,6 +54,11 @@ export const UserPasswordSettingsTab: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Quick Table Actions State
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [copiedCredentialId, setCopiedCredentialId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+
   // Edit Password Modal State
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -61,6 +66,23 @@ export const UserPasswordSettingsTab: React.FC = () => {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [copiedWa, setCopiedWa] = useState(false);
+
+  // Grand Sariwangi Official Kavling Catalog
+  const KAVLING_CATALOG = [
+    { code: 'Kav A', name: 'Pak Verial', phone: '082316485044' },
+    { code: 'Kav B', name: 'Mahasiswa Polban', phone: '081234567802' },
+    { code: 'Kav C', name: 'Bu Rina', phone: '081234567803' },
+    { code: 'Kav D', name: 'Pak Rieva', phone: '081234567804' },
+    { code: 'Kav E', name: 'Pak Budi', phone: '0811238689' },
+    { code: 'Kav F', name: 'Pa Anggia', phone: '081234567806' },
+    { code: 'Kav G', name: 'Pak Misael', phone: '081234567807' },
+    { code: 'Kav H', name: 'Pak Fahmi Rizal', phone: '081234567808' },
+    { code: 'Kav I', name: 'Pak Yahya', phone: '085722003303' },
+    { code: 'Kav J', name: 'Bu Sofia P', phone: '081234567810' },
+    { code: 'Kav K', name: 'Pak Eky', phone: '081234567811' },
+    { code: 'Kav L', name: 'Pak Haji Ano', phone: '081234567812' },
+    { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', phone: '081234567813' },
+  ];
 
   // Create User Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -97,6 +119,59 @@ export const UserPasswordSettingsTab: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Toggle visible password per row
+  const toggleShowPassword = (id: string) => {
+    setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // 1-Click Copy Credential
+  const handleCopyCredential = (u: UserItem) => {
+    const pwd = u.passwordHash || 'warga123';
+    const text = `Username: ${u.username} | Password: ${pwd} (Unit: ${u.propertyCode || '-'}, Nama: ${u.fullName})`;
+    navigator.clipboard.writeText(text);
+    setCopiedCredentialId(u.id);
+    showToast(`✓ Kredensial ${u.fullName} (${u.propertyCode || u.username}) disalin!`);
+    setTimeout(() => setCopiedCredentialId(null), 2500);
+  };
+
+  // 1-Click Quick Reset to Default warga123
+  const handleQuickResetDefault = async (u: UserItem) => {
+    const targetName = u.fullName || u.username;
+    const confirmed = window.confirm(`Reset password ${targetName} (${u.propertyCode || u.username}) ke default "warga123"?`);
+    if (!confirmed) return;
+
+    setResettingId(u.id);
+    try {
+      const res = await fetch('/api/users/update-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: u.id,
+          newPassword: 'warga123',
+          actorName: 'Admin Pengurus Komplek',
+          reason: `Quick reset to default warga123 via table`
+        })
+      });
+
+      const json = await res.json();
+      if (res.ok && json.data?.success) {
+        setUsers(prev => prev.map(item => item.id === u.id ? { ...item, passwordHash: 'warga123' } : item));
+        showToast(`✓ Password ${targetName} berhasil di-reset ke default "warga123"`);
+      } else {
+        showToast(json.error || 'Gagal mereset password.');
+      }
+    } catch (e) {
+      showToast('Terjadi kesalahan jaringan.');
+    } finally {
+      setResettingId(null);
+    }
+  };
+
+  // PIN 6-digit Generator
+  const generatePin6Digit = () => {
+    return String(Math.floor(100000 + Math.random() * 900000));
   };
 
   // Fetch users from API
@@ -289,6 +364,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
   // WhatsApp Message Generator
   const getWaNotificationText = (user: UserItem, pwd: string) => {
     const propName = user.propertyCode || 'Komplek Grand Sariwangi';
+    const loginUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : 'https://wrghub.vercel.app/login';
     return (
       `*INFORMASI AKSES LOGIN WARGAHUB*\n` +
       `Komplek Grand Sariwangi RT 01 / RW 08\n\n` +
@@ -297,7 +373,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
       `🏡 *Unit / No. Rumah:* ${propName}\n` +
       `👤 *ID / Username Login:* ${user.propertyCode || user.username}\n` +
       `🔑 *Password Baru / PIN:* *${pwd}*\n\n` +
-      `🌐 *Tautan Masuk Portal:*\nhttp://localhost:4321/login\n\n` +
+      `🌐 *Tautan Masuk Portal:*\n${loginUrl}\n\n` +
       `_Catatan: Anda juga dapat masuk langsung menggunakan Nomor WhatsApp yang terdaftar dan password di atas. Harap simpan informasi ini dengan baik._\n\n` +
       `Salam hangat,\n*Pengurus Komplek Grand Sariwangi*`
     );
@@ -472,7 +548,78 @@ export const UserPasswordSettingsTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Search & Filters */}
+        {/* Quick Role Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setRoleFilter('ALL')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
+              roleFilter === 'ALL'
+                ? 'bg-primary-600 text-white shadow-xs'
+                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
+            }`}
+          >
+            <span>Semua Akun</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              roleFilter === 'ALL' ? 'bg-white/25 text-white' : 'bg-zinc-200 text-zinc-700'
+            }`}>
+              {users.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRoleFilter('RESIDENT')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
+              roleFilter === 'RESIDENT'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
+            }`}
+          >
+            <span>Warga Kavling</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              roleFilter === 'RESIDENT' ? 'bg-white/25 text-white' : 'bg-indigo-100 text-indigo-800'
+            }`}>
+              {users.filter(u => ['HOUSEHOLD_HEAD', 'RESIDENT', 'HOUSE_OWNER'].includes(u.role)).length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRoleFilter('SECURITY')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
+              roleFilter === 'SECURITY'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
+            }`}
+          >
+            <span>Petugas Satpam</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              roleFilter === 'SECURITY' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {users.filter(u => u.role === 'SECURITY').length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRoleFilter('OFFICER')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
+              roleFilter === 'OFFICER'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
+            }`}
+          >
+            <span>Pengurus Komplek</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              roleFilter === 'OFFICER' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-800'
+            }`}>
+              {users.filter(u => ['CHAIRMAN', 'TREASURER', 'SECRETARY', 'SUPER_ADMIN', 'RESIDENT_ADMIN'].includes(u.role)).length}
+            </span>
+          </button>
+        </div>
+
+        {/* Search & Status Filters */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
@@ -487,23 +634,11 @@ export const UserPasswordSettingsTab: React.FC = () => {
 
           <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
             <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-            >
-              <option value="ALL">Semua Peran / Role</option>
-              <option value="RESIDENT">Warga & Penghuni Kavling</option>
-              <option value="SECURITY">Petugas Satpam Pos</option>
-              <option value="MAINTENANCE">Teknisi & Kebersihan</option>
-              <option value="OFFICER">Pengurus Inti & Admin</option>
-            </select>
-
-            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
             >
-              <option value="ALL">Semua Status</option>
+              <option value="ALL">Semua Status Akun</option>
               <option value="ACTIVE">Aktif (Dapat Login)</option>
               <option value="INACTIVE">Nonaktif</option>
             </select>
@@ -518,8 +653,8 @@ export const UserPasswordSettingsTab: React.FC = () => {
                 <th className="py-3 px-4">No. Rumah / Kavling</th>
                 <th className="py-3 px-4">Nama Lengkap & Kontak</th>
                 <th className="py-3 px-4">Username & Peran</th>
-                <th className="py-3 px-4">Status Password</th>
-                <th className="py-3 px-4 text-right">Aksi Password</th>
+                <th className="py-3 px-4">Password & Akses</th>
+                <th className="py-3 px-4 text-right">Aksi Manajemen</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -539,6 +674,10 @@ export const UserPasswordSettingsTab: React.FC = () => {
               ) : (
                 filteredUsers.map((u) => {
                   const isKavling = (u.propertyCode || '').toUpperCase().startsWith('KAV');
+                  const isPwdVisible = !!visiblePasswords[u.id];
+                  const currentPassword = u.passwordHash || 'warga123';
+                  const isResetting = resettingId === u.id;
+
                   return (
                     <tr key={u.id} className="hover:bg-canvas/60 transition-colors group">
                       <td className="py-3 px-4">
@@ -553,8 +692,8 @@ export const UserPasswordSettingsTab: React.FC = () => {
                             {u.propertyCode || 'Non-Rumah'}
                           </span>
                           {isKavling && (
-                            <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">
-                              Area Kavling
+                            <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider hidden sm:inline">
+                              Kavling
                             </span>
                           )}
                         </div>
@@ -575,7 +714,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
                               <span>{u.phone}</span>
                             </a>
                           ) : (
-                            <span>{u.email}</span>
+                            <span>{u.email || '-'}</span>
                           )}
                         </div>
                       </td>
@@ -590,40 +729,79 @@ export const UserPasswordSettingsTab: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-ink-muted tracking-widest bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-200">
-                            ••••••••
+                        <div className="flex items-center gap-1.5">
+                          <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md border tracking-wider transition-colors ${
+                            isPwdVisible 
+                              ? 'bg-amber-50 text-amber-900 border-amber-300' 
+                              : 'bg-zinc-100 text-zinc-700 border-zinc-200'
+                          }`}>
+                            {isPwdVisible ? currentPassword : '••••••••'}
                           </span>
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                            Aktif
-                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleShowPassword(u.id)}
+                            className="p-1 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas transition-colors"
+                            title={isPwdVisible ? "Sembunyikan password" : "Intip password"}
+                          >
+                            {isPwdVisible ? (
+                              <EyeOff className="w-3.5 h-3.5 text-amber-700" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-800" />
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCredential(u)}
+                            className="p-1 rounded-lg text-ink-muted hover:text-primary-700 hover:bg-primary-50 transition-colors"
+                            title="Salin kredensial (Username & Password)"
+                          >
+                            {copiedCredentialId === u.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5 text-zinc-500 hover:text-primary-600" />
+                            )}
+                          </button>
                         </div>
                         <span className="text-[10px] text-ink-muted mt-0.5 block">
-                          Login via No. Rumah / WA didukung
+                          Bisa login via: No. Rumah / No. WA / Username
                         </span>
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(u)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-primary-50 text-primary-800 border border-primary-300 hover:bg-primary-600 hover:text-white transition-all active:scale-[0.98]"
-                            title="Edit atau Reset Password"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-primary-50 text-primary-800 border border-primary-300 hover:bg-primary-600 hover:text-white transition-all active:scale-[0.98]"
+                            title="Ubah Password atau Buat PIN Baru"
                           >
                             <KeyRound className="w-3.5 h-3.5" />
-                            <span>Edit Password</span>
+                            <span>Ubah</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleQuickResetDefault(u)}
+                            disabled={isResetting}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-bold bg-zinc-100 hover:bg-amber-100 text-zinc-700 hover:text-amber-900 border border-zinc-200 hover:border-amber-300 transition-all active:scale-[0.98]"
+                            title="Reset cepat ke default (warga123)"
+                          >
+                            <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin text-amber-700' : 'text-zinc-500'}`} />
+                            <span className="hidden md:inline">Reset Default</span>
                           </button>
 
                           {u.phone && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopyWa(u, u.passwordHash || 'warga123')}
+                            <a
+                              href={getWaLink(u, currentPassword)}
+                              target="_blank"
+                              rel="noreferrer"
                               className="inline-flex items-center gap-1 p-1.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-all"
-                              title="Salin Pesan Format WhatsApp"
+                              title="Kirim Kredensial via WhatsApp"
                             >
                               <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                            </button>
+                            </a>
                           )}
                         </div>
                       </td>
@@ -730,22 +908,31 @@ export const UserPasswordSettingsTab: React.FC = () => {
                 </div>
 
                 {/* Password Generator Helpers */}
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setNewPassword(generatePin6Digit())}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-all inline-flex items-center gap-1 active:scale-[0.98]"
+                  >
+                    <Smartphone className="w-3 h-3 text-amber-600" />
+                    <span>PIN 6 Digit (Mudah Warga)</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setNewPassword(generateRandomPassword())}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all inline-flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all inline-flex items-center gap-1 active:scale-[0.98]"
                   >
                     <Sparkles className="w-3 h-3 text-purple-600" />
-                    <span>Acak Password Baru</span>
+                    <span>Acak Kuat</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setNewPassword('warga123')}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 hover:bg-zinc-200 transition-all"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 hover:bg-zinc-200 transition-all active:scale-[0.98]"
                   >
-                    Gunakan Default (warga123)
+                    Default (warga123)
                   </button>
                 </div>
               </div>
@@ -848,6 +1035,35 @@ export const UserPasswordSettingsTab: React.FC = () => {
 
             {/* Modal Form */}
             <form onSubmit={handleSubmitCreateUser} className="p-6 space-y-4">
+              {/* Kavling Quick Selector */}
+              <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl space-y-1.5">
+                <label className="text-xs font-bold text-indigo-950 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-700" />
+                    Pilih Kavling Terdaftar (Grand Sariwangi)
+                  </span>
+                  <span className="text-[10px] text-indigo-700 font-bold">Auto-Fill Praktis</span>
+                </label>
+                <select
+                  onChange={(e) => {
+                    const selected = KAVLING_CATALOG.find(k => k.code === e.target.value);
+                    if (selected) {
+                      setCreatePropCode(selected.code);
+                      setCreateFullName(selected.name);
+                      setCreatePhone(selected.phone);
+                      handlePropCodeChange(selected.code);
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-ink focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Pilih Kavling untuk Isi Otomatis --</option>
+                  {KAVLING_CATALOG.map(k => (
+                    <option key={k.code} value={k.code}>{k.code} - {k.name} ({k.phone})</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Role Selection */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-ink">Peran / Kategori Akun</label>
@@ -922,15 +1138,25 @@ export const UserPasswordSettingsTab: React.FC = () => {
               {/* Password */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-ink flex items-center justify-between">
-                  <span>Password Awal</span>
-                  <button
-                    type="button"
-                    onClick={() => setCreatePassword(generateRandomPassword())}
-                    className="text-[10px] text-purple-600 font-bold hover:underline inline-flex items-center gap-1"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    Acak Password
-                  </button>
+                  <span>Password Awal / PIN</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCreatePassword(generatePin6Digit())}
+                      className="text-[10px] text-amber-700 font-bold hover:underline inline-flex items-center gap-1"
+                    >
+                      <Smartphone className="w-3 h-3" />
+                      PIN 6 Digit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreatePassword(generateRandomPassword())}
+                      className="text-[10px] text-purple-600 font-bold hover:underline inline-flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Acak Kata
+                    </button>
+                  </div>
                 </label>
                 <div className="relative">
                   <input

@@ -575,7 +575,8 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
 
   // Helper WhatsApp broadcast message generator
   const getWhatsAppBroadcastUrl = (ann: AnnouncementItem) => {
-    const text = `📢 *PENGUMUMAN KOMPLEK WARGAHUB*\n\n*${ann.title.toUpperCase()}*\n\n${ann.content}\n\n${ann.scheduledAt ? '🗓️ *Waktu:* ' + ann.scheduledAt + '\n' : ''}${ann.location ? '📍 *Lokasi:* ' + ann.location + '\n' : ''}\nPengurus Komplek WargaHub\n_Tautan Portal:_ http://localhost:4321/warga`;
+    const portalUrl = typeof window !== 'undefined' ? `${window.location.origin}/warga` : 'https://wrghub.vercel.app/warga';
+    const text = `📢 *PENGUMUMAN KOMPLEK WARGAHUB*\n\n*${ann.title.toUpperCase()}*\n\n${ann.content}\n\n${ann.scheduledAt ? '🗓️ *Waktu:* ' + ann.scheduledAt + '\n' : ''}${ann.location ? '📍 *Lokasi:* ' + ann.location + '\n' : ''}\nPengurus Komplek WargaHub\n_Tautan Portal:_ ${portalUrl}`;
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
   };
 

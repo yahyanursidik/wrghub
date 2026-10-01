@@ -3,7 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { AuditManager } from '../../components/admin/AuditManager';
 import { getAuditLogs } from '../../services/audit.service';
 
-const logs = await getAuditLogs(100);
+const logs = await getAuditLogs(100).catch(() => []);
 ---
 
 <AdminLayout title="Jejak Audit & Keamanan - WargaHub" currentPath="/admin/audit">

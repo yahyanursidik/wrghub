@@ -8,6 +8,7 @@ import {
   User,
   Lock,
   ArrowRight,
+  ArrowLeft,
   CheckCircle2,
   AlertCircle,
   Eye,
@@ -287,6 +288,248 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
     }, 800);
   };
 
+  // =========================================================================
+  // DEDICATED STREAMLINED ADMIN LOGIN VIEW (PORTAL=ADMIN)
+  // Clean, focused, minimal, professional backoffice sign-in without distraction
+  // =========================================================================
+  if (activePortal === 'admin') {
+    return (
+      <div className="min-h-screen bg-canvas text-ink flex flex-col justify-between selection:bg-primary-100 selection:text-primary-900 font-sans p-4 sm:p-6 lg:p-8">
+        {/* Top Header / Back Link */}
+        <div className="max-w-md w-full mx-auto flex items-center justify-between">
+          <a
+            href="/"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-ink-muted hover:text-ink transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Beranda Warga</span>
+          </a>
+
+          <a
+            href="/transparency"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-700 hover:text-primary-800 transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Transparansi Kas</span>
+          </a>
+        </div>
+
+        {/* Main Admin Login Card */}
+        <div className="max-w-md w-full mx-auto my-auto py-8">
+          <div className="bg-surface rounded-3xl p-7 sm:p-9 border border-border shadow-card space-y-6">
+            {/* Brand Logo & Title */}
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-primary-600 text-white flex items-center justify-center mx-auto shadow-sm">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-primary-50 text-primary-800 border border-primary-200 mb-1">
+                  Backoffice Pengurus
+                </span>
+                <h1 className="text-2xl font-black text-ink tracking-tight">
+                  Login Administrator
+                </h1>
+                <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+                  Kelola data warga, iuran IPL, kas keuangan, dan operasional lingkungan komplek.
+                </p>
+              </div>
+            </div>
+
+            {/* Error & Success Messages */}
+            {errorMsg && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                <span className="font-medium">{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center gap-2.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span className="font-bold">{successMsg}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1.5">
+                  Username atau Email
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-muted">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Contoh: admin"
+                    autoFocus
+                    required
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs sm:text-sm text-ink placeholder:text-ink-muted focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 focus:border-primary-600 transition-all font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-ink">
+                    Kata Sandi
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPasswordModal(true)}
+                    className="text-[11px] font-semibold text-primary-700 hover:text-primary-800 hover:underline"
+                  >
+                    Lupa Password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-muted">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => setIsCapsLockOn(e.getModifierState('CapsLock'))}
+                    placeholder="••••••••"
+                    required
+                    className="w-full pl-10 pr-10 py-2.5 bg-canvas border border-border rounded-xl text-xs sm:text-sm text-ink placeholder:text-ink-muted focus:outline-hidden focus:ring-2 focus:ring-primary-500/20 focus:border-primary-600 transition-all font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-ink-muted hover:text-ink"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {isCapsLockOn && (
+                  <p className="text-[10px] text-amber-600 font-semibold mt-1">
+                    ⚠️ Caps Lock sedang aktif
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-ink-muted hover:text-ink">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-border text-primary-600 focus:ring-primary-500 w-3.5 h-3.5"
+                  />
+                  <span>Ingat sesi saya di perangkat ini</span>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Memverifikasi Kredensial...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Masuk ke Dashboard Pengurus</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Quick Demo Fill Pill (Discrete & Helpful) */}
+            <div className="pt-2 border-t border-border/80 flex items-center justify-between text-[11px] text-ink-muted">
+              <span>Akun Demo: <strong className="text-ink">admin</strong> / <strong className="text-ink">admin123</strong></span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIdentifier('admin');
+                  setPassword('admin123');
+                  setErrorMsg('');
+                }}
+                className="text-primary-700 font-bold hover:underline"
+              >
+                Isi Otomatis
+              </button>
+            </div>
+
+            {/* Switch to Resident Portal */}
+            <div className="p-3 bg-canvas rounded-2xl border border-border text-center text-xs">
+              <span className="text-ink-muted">Bukan pengurus komplek? </span>
+              <a
+                href="/login?portal=resident"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActivePortal('resident');
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('portal', 'resident');
+                    window.history.replaceState({}, '', url.toString());
+                  }
+                }}
+                className="font-bold text-primary-700 hover:text-primary-800 hover:underline inline-block"
+              >
+                Masuk ke Portal Warga →
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="max-w-md w-full mx-auto text-center text-xs text-ink-muted py-2">
+          <span>WargaHub Smart Residential • Grand Sariwangi</span>
+        </div>
+
+        {/* Forgot Password Modal */}
+        {showForgotPasswordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4 text-xs">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="font-black text-sm text-ink flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-primary-600" />
+                  <span>Bantuan Kata Sandi Pengurus</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPasswordModal(false)}
+                  className="p-1 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-2 text-ink-muted leading-relaxed">
+                <p>
+                  Untuk alasan keamanan data warga dan kas paguyuban, pemulihan kata sandi pengurus dilakukan melalui verifikasi internal.
+                </p>
+                <div className="p-3 bg-canvas rounded-2xl border border-border space-y-1">
+                  <span className="font-bold text-ink block">Kontak Administrator Utama:</span>
+                  <p className="text-[11px]">Sekretaris Paguyuban: <strong>0812-3456-7890</strong></p>
+                  <p className="text-[11px]">Email Resmi: <strong>admin@wargahub.id</strong></p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowForgotPasswordModal(false)}
+                className="w-full py-2.5 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-canvas text-ink flex flex-col justify-between selection:bg-primary-100 selection:text-primary-900 font-sans">
       {/* TOP NOTIFICATION & REAL-TIME SYSTEM STRIP */}
@@ -515,14 +758,11 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setActivePortal('admin');
-                      setErrorMsg('');
+                      if (typeof window !== 'undefined') {
+                        window.location.href = '/login?portal=admin';
+                      }
                     }}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-                      activePortal === 'admin'
-                        ? 'bg-surface text-primary-700 shadow-xs border border-border/80 font-black'
-                        : 'text-ink-muted hover:text-ink'
-                    }`}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all text-ink-muted hover:text-ink"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
                     <span>Pengurus & RT</span>
@@ -551,30 +791,22 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary-800 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-200">
                       {activePortal === 'resident'
                         ? 'Portal Layanan Warga Mandiri'
-                        : activePortal === 'admin'
-                        ? 'Backoffice Pengurus & Dewan RT/RW'
                         : 'Akses Petugas Keamanan Gerbang'}
                     </span>
                     <h2 className="text-xl font-black text-ink mt-1.5">
                       {activePortal === 'resident'
                         ? 'Masuk ke Portal Rumah Warga'
-                        : activePortal === 'admin'
-                        ? 'Otorisasi Pengurus Komplek'
                         : 'Masuk Pos Keamanan & Gerbang'}
                     </h2>
                     <p className="text-xs text-ink-muted mt-0.5">
                       {activePortal === 'resident'
                         ? 'Ketik nomor unit rumah (misal: A-17) atau username warga Anda.'
-                        : activePortal === 'admin'
-                        ? 'Akses operasional keuangan, verifikasi transfer, dan data warga komplek.'
                         : 'Terminal pos satpam, buku tamu, pemindaian QR pass & kontrol palang gerbang.'}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-2xl bg-canvas border border-border flex items-center justify-center text-primary-700 shrink-0">
                     {activePortal === 'resident' ? (
                       <Home className="w-6 h-6" />
-                    ) : activePortal === 'admin' ? (
-                      <ShieldCheck className="w-6 h-6" />
                     ) : (
                       <Car className="w-6 h-6" />
                     )}
@@ -589,8 +821,6 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                       <label className="text-xs font-bold text-ink">
                         {activePortal === 'resident'
                           ? 'Nomor Rumah / Username Warga'
-                          : activePortal === 'admin'
-                          ? 'Username / Email Pengurus'
                           : 'ID Petugas Satpam / NIP'}
                       </label>
                       <span className="text-[11px] text-ink-muted">
@@ -607,8 +837,6 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                         placeholder={
                           activePortal === 'resident'
                             ? 'Contoh: A-17 atau warga_a17'
-                            : activePortal === 'admin'
-                            ? 'Contoh: ketua atau bendahara'
                             : 'Contoh: satpam'
                         }
                         value={identifier}
@@ -692,7 +920,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <>
-                        <span>Masuk ke {activePortal === 'resident' ? 'Portal Warga' : activePortal === 'admin' ? 'Dashboard Pengurus' : 'Terminal Pos Satpam'}</span>
+                        <span>Masuk ke {activePortal === 'resident' ? 'Portal Warga' : 'Terminal Pos Satpam'}</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}

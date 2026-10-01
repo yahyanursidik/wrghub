@@ -125,7 +125,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const [expenses, setExpenses] = useState<ExpenseItem[]>(initialExpenses);
   const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
   const [activeSubTab, setActiveSubTab] = useState<
-    'expenses_list' | 'recurring_expenses' | 'staff_loans' | 'social_aid' | 'fasum_projects' | 'public_transparency'
+    'expenses_list' | 'recurring_expenses' | 'staff_loans' | 'social_aid' | 'fasum_projects'
   >('expenses_list');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -583,7 +583,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const paginatedExpenses = filteredAndSortedExpenses.slice(startIndex, endIndex);
 
   // Copy Public Link
-  const publicTransparencyUrl = 'http://localhost:4321/transparency';
+  const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'https://wrghub.vercel.app/transparency';
   const handleCopyPublicLink = () => {
     navigator.clipboard.writeText(publicTransparencyUrl);
     setCopiedLink(true);
@@ -711,7 +711,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
           { id: 'staff_loans', label: 'Kasbon & Pinjaman Petugas (Satpam)', icon: Banknote, count: `${staffLoans.length} Petugas` },
           { id: 'social_aid', label: 'Dana Santunan & Kesehatan Petugas', icon: HeartHandshake, count: `${socialAids.length} Agenda` },
           { id: 'fasum_projects', label: 'Dana Cat Komplek & Perbaikan Alat', icon: Paintbrush, count: `${maintenanceProjects.length} Proyek` },
-          { id: 'public_transparency', label: 'Rekapitulasi Iuran Warga (Lunas vs Belum)', icon: Eye },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -1223,80 +1222,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                 ))}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 5: REKAPITULASI IURAN TRANSPARANSI ================= */}
-      {activeSubTab === 'public_transparency' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4 text-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-              <div>
-                <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-emerald-600" />
-                  <span>Rekapitulasi Iuran Transparansi Warga Terbuka (Agustus 2026)</span>
-                </h3>
-                <p className="text-ink-muted mt-0.5">
-                  Laporan ringkas status setoran kas warga komplek yang disinkronisasi ke portal publik transparansi.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const content = `LAPORAN PENGELUARAN DAN TRANSPARANSI KAS - AGUSTUS 2026\n================================================\nTotal Pengeluaran Rutin: ${formatRupiah(totalExpense)}\nTotal Piutang Kasbon Petugas: ${formatRupiah(totalActiveLoans)}\nTotal Realisasi Dana Santunan: ${formatRupiah(totalSocialGranted)}\nTotal Proyek Fasum: ${formatRupiah(totalProjectsBudget)}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}`;
-                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `REKAP_PENGELUARAN_KAS_${new Date().toISOString().slice(0, 10)}.txt`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    showToast('Laporan transparansi kas berhasil diunduh.');
-                  }}
-                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
-                >
-                  <Download className="w-3.5 h-3.5 text-primary-600" />
-                  <span>Unduh Rekap (.txt)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyPublicLink}
-                  className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Salin Tautan Publik</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-black text-emerald-950 text-sm">SETORAN IURAN TERVERIFIKASI</span>
-                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-black">
-                    TERKUMPUL
-                  </span>
-                </div>
-                <p className="font-mono font-black text-emerald-800 text-xl tabular-nums">Rp 0</p>
-                <p className="text-[11px] text-emerald-700">Total penerimaan iuran yang telah diverifikasi dan masuk rekening kas resmi.</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-2xl border border-border space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-black text-slate-900 text-sm">TAGIHAN BELUM TERBIT / TERTUNDA</span>
-                  <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded text-[10px] font-mono font-black">
-                    STATUS RIIL
-                  </span>
-                </div>
-                <p className="font-mono font-black text-slate-800 text-xl tabular-nums">Rp 0</p>
-                <p className="text-[11px] text-slate-600">Belum ada tagihan tertunggak yang tercatat untuk periode ini.</p>
-              </div>
-            </div>
           </div>
         </div>
       )}

@@ -4,7 +4,7 @@ export const GET: APIRoute = async () => {
   return new Response(null, {
     status: 302,
     headers: {
-      Location: '/transparency/2026/09',
+      Location: '/transparency/2026/10',
     },
   });
 };

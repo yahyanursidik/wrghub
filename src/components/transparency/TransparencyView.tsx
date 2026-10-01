@@ -37,7 +37,8 @@ import {
   FileCheck,
   X,
   AlertTriangle,
-  Heart
+  Heart,
+  Users
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import type { PublicTransparencyData } from '../../services/transparency.service';
@@ -94,18 +95,18 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   };
 
   const [data, setData] = useState<PublicTransparencyData>(initialData);
-  const [selectedMonth, setSelectedMonth] = useState(initialData.periodName || 'September 2026');
+  const [selectedMonth, setSelectedMonth] = useState(initialData.periodName || 'Oktober 2026');
   const [periodDropdown, setPeriodDropdown] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<any>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState(false);
 
-  // Dynamic Bank Info
+  // Dynamic Bank Info (Sourced from Real Community Profile / Database)
   const [bankInfo, setBankInfo] = useState({
-    bankName: 'Bank Kas Paguyuban (Bank Syariah / Kas Utama)',
-    accountNumber: '8830-1928-33',
-    accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
+    bankName: initialData.bankInfo?.bankName || 'Bank Mandiri',
+    accountNumber: initialData.bankInfo?.accountNumber || '1300024446419',
+    accountHolder: initialData.bankInfo?.accountHolder || 'Paguyuban Grand Sariwangi',
   });
 
   useEffect(() => {
@@ -115,11 +116,11 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         if (savedAccounts) {
           const list = JSON.parse(savedAccounts);
           const primary = list.find((a: any) => a.isPrimary) || list[0];
-          if (primary) {
+          if (primary && primary.accountNumber && primary.accountNumber !== 'BCA_MAIN' && primary.accountNumber !== '8830-1928-33') {
             setBankInfo({
               bankName: primary.bankName || primary.name,
               accountNumber: primary.accountNumber,
-              accountHolder: primary.accountHolder,
+              accountHolder: primary.accountHolder || 'Paguyuban Grand Sariwangi',
             });
             return;
           }
@@ -128,11 +129,14 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         const savedAcc = localStorage.getItem('wargahub_set_bankacc');
         const savedHolder = localStorage.getItem('wargahub_set_accholder');
         if (savedBank || savedAcc) {
-          setBankInfo((prev) => ({
-            bankName: savedBank ? JSON.parse(savedBank) : prev.bankName,
-            accountNumber: savedAcc ? JSON.parse(savedAcc) : prev.accountNumber,
-            accountHolder: savedHolder ? JSON.parse(savedHolder) : prev.accountHolder,
-          }));
+          const parsedAcc = savedAcc ? JSON.parse(savedAcc) : null;
+          if (parsedAcc && parsedAcc !== 'BCA_MAIN' && parsedAcc !== '8830-1928-33') {
+            setBankInfo((prev) => ({
+              bankName: savedBank ? JSON.parse(savedBank) : prev.bankName,
+              accountNumber: parsedAcc || prev.accountNumber,
+              accountHolder: savedHolder ? JSON.parse(savedHolder) : prev.accountHolder,
+            }));
+          }
         }
       } catch (e) {}
     }
@@ -171,7 +175,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
     setConfirmUnit(propertyCode);
     setConfirmName(residentName);
     setConfirmAmount(amount.toString());
-    setConfirmPeriod(period || 'Agustus 2026');
+    setConfirmPeriod(period || (initialData.periodName || 'Oktober 2026'));
     handleTabChange('citizen_confirm');
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -217,10 +221,31 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         unpaidMonths: code === 'Kav J' ? ['Juni 2026', 'Juli 2026', 'Agustus 2026'] : ['Agustus 2026'],
         arrearsAmount: code === 'Kav J' ? 750000 : 250000,
         paidMonthsCount: code === 'Kav J' ? 5 : 7,
+        isCurrentMonthPaid: code !== 'Kav J',
       }));
     }
     return [];
   }, [data.unpaidDetailedList, data.unpaidHouses]);
+
+  const resolvedCurrentMonthUnpaid = useMemo(() => {
+    if (data.currentMonthUnpaidList && data.currentMonthUnpaidList.length > 0) {
+      return data.currentMonthUnpaidList.map((u) => ({
+        ...u,
+        residentName: getCleanResidentName(u.propertyCode, u.residentName),
+      }));
+    }
+    return resolvedUnpaidList.filter((u) => !u.isCurrentMonthPaid);
+  }, [data.currentMonthUnpaidList, resolvedUnpaidList]);
+
+  const resolvedPastArrears = useMemo(() => {
+    if (data.pastArrearsList && data.pastArrearsList.length > 0) {
+      return data.pastArrearsList.map((u) => ({
+        ...u,
+        residentName: getCleanResidentName(u.propertyCode, u.residentName),
+      }));
+    }
+    return resolvedUnpaidList.filter((u) => u.isCurrentMonthPaid);
+  }, [data.pastArrearsList, resolvedUnpaidList]);
 
   const resolvedHouseholdDues = useMemo(() => {
     if (data.householdDuesList && data.householdDuesList.length > 0) {
@@ -239,24 +264,27 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
       { index: 7, name: 'Jul', full: 'Juli 2026', amount: 250000 },
       { index: 8, name: 'Agu', full: 'Agustus 2026', amount: 250000 },
       { index: 9, name: 'Sep', full: 'September 2026', amount: 250000 },
+      { index: 10, name: 'Okt', full: 'Oktober 2026', amount: 250000 },
     ];
+    const isOct = (data.month || 10) === 10;
     const DEFAULT_KAVS = [
       { code: 'Kav A', name: 'Pak Verial', unpaid: [] },
-      { code: 'Kav B', name: 'Mahasiswa Polban', unpaid: ['September 2026'] },
-      { code: 'Kav C', name: 'Bu Rina', unpaid: ['September 2026'] },
-      { code: 'Kav D', name: 'Pak Rieva', unpaid: ['September 2026'] },
-      { code: 'Kav E', name: 'Pak Budi', unpaid: ['Agustus 2026', 'September 2026'] },
-      { code: 'Kav F', name: 'Pa Anggia', unpaid: ['September 2026'] },
-      { code: 'Kav G', name: 'Pak Misael', unpaid: ['September 2026'] },
-      { code: 'Kav H', name: 'Pak Fahmi Rizal', unpaid: ['September 2026'] },
-      { code: 'Kav I', name: 'Pak Yahya', unpaid: ['September 2026'] },
-      { code: 'Kav J', name: 'Bu Sofia P', unpaid: ['Juni 2026', 'Juli 2026', 'Agustus 2026', 'September 2026'] },
-      { code: 'Kav K', name: 'Pak Eky', unpaid: ['September 2026'] },
-      { code: 'Kav L', name: 'Pak Haji Ano', unpaid: ['September 2026'] },
-      { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', unpaid: ['September 2026'] },
+      { code: 'Kav B', name: 'Mahasiswa Polban', unpaid: isOct ? ['Oktober 2026'] : [] },
+      { code: 'Kav C', name: 'Bu Rina', unpaid: isOct ? ['Oktober 2026'] : [] },
+      { code: 'Kav D', name: 'Pak Rieva', unpaid: [] },
+      { code: 'Kav E', name: 'Pak Budi', unpaid: [] },
+      { code: 'Kav F', name: 'Pa Anggia', unpaid: isOct ? ['Oktober 2026'] : [] },
+      { code: 'Kav G', name: 'Pak Misael', unpaid: isOct ? ['Oktober 2026'] : [] },
+      { code: 'Kav H', name: 'Pak Fahmi Rizal', unpaid: [] },
+      { code: 'Kav I', name: 'Pak Yahya', unpaid: [] },
+      { code: 'Kav J', name: 'Bu Sofia P', unpaid: isOct ? ['Juni 2026', 'Juli 2026', 'Agustus 2026', 'September 2026', 'Oktober 2026'] : ['Juni 2026', 'Juli 2026', 'Agustus 2026', 'September 2026'] },
+      { code: 'Kav K', name: 'Pak Eky', unpaid: isOct ? ['Oktober 2026'] : [] },
+      { code: 'Kav L', name: 'Pak Haji Ano', unpaid: isOct ? ['Oktober 2026'] : [] },
+      { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', unpaid: isOct ? ['Oktober 2026'] : [] },
     ];
+    const activeMonths = MONTHS.slice(0, data.month || 10);
     return DEFAULT_KAVS.map((k, idx) => {
-      const months = MONTHS.map((m) => ({
+      const months = activeMonths.map((m) => ({
         monthIndex: m.index,
         monthCode: m.index.toString().padStart(2, '0'),
         monthName: m.name,
@@ -272,11 +300,12 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         residentName: k.name,
         months,
         paidMonthsCount: months.filter((m) => m.isPaid).length,
-        totalMonthsCount: 9,
+        totalMonthsCount: data.month || 10,
         unpaidMonths: k.unpaid,
         totalPaidAmount: totalPaid,
         totalArrearsAmount: totalArrears,
         isFullyPaid: k.unpaid.length === 0,
+        isCurrentMonthPaid: !k.unpaid.includes(data.periodName || 'Oktober 2026'),
       };
     });
   }, [data.householdDuesList]);
@@ -294,10 +323,20 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
     });
   }, [resolvedHouseholdDues, duesFilter, duesSearch]);
 
+  // Citizen Quick Checker State (Default: Kav E / Pak Budi)
+  const [checkedKavling, setCheckedKavling] = useState<string>('Kav E');
+  const checkedKavlingData = useMemo(() => {
+    return (
+      resolvedHouseholdDues.find((h) => h.propertyCode === checkedKavling) ||
+      resolvedHouseholdDues.find((h) => h.propertyCode === 'Kav E') ||
+      resolvedHouseholdDues[0]
+    );
+  }, [resolvedHouseholdDues, checkedKavling]);
+
   // Confirmation Form State
   const [confirmUnit, setConfirmUnit] = useState('');
   const [confirmName, setConfirmName] = useState('');
-  const [confirmPeriod, setConfirmPeriod] = useState(initialData.periodName || 'September 2026');
+  const [confirmPeriod, setConfirmPeriod] = useState(initialData.periodName || 'Oktober 2026');
   const [confirmAmount, setConfirmAmount] = useState('250000');
   const [confirmMethod, setConfirmMethod] = useState<'BANK_TRF' | 'EWALLET' | 'QRIS' | 'CASH'>('BANK_TRF');
   const [confirmSenderRef, setConfirmSenderRef] = useState('');
@@ -325,6 +364,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   };
 
   const periodsList = [
+    { name: 'Oktober 2026', year: 2026, month: 10 },
     { name: 'September 2026', year: 2026, month: 9 },
     { name: 'Agustus 2026', year: 2026, month: 8 },
     { name: 'Juli 2026', year: 2026, month: 7 },
@@ -356,7 +396,30 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   };
 
   // Realistic Public Ledger Mutasi Kas
-  const sampleLedgerEntries: LedgerEntry[] = useMemo(() => [], []);
+  const sampleLedgerEntries: LedgerEntry[] = useMemo(() => (initialData.ledgerEntries || []), [initialData.ledgerEntries]);
+
+  // Export CSV handler
+  const handleExportLedgerCSV = () => {
+    if (typeof window === 'undefined') return;
+    const headers = ['Tanggal', 'No. Voucher / Ref', 'Uraian Transaksi', 'Kategori Pos', 'Arus Kas', 'Nominal (Rp)', 'Status Verifikasi'];
+    const rows = filteredLedger.map((row) => [
+      `"${row.date}"`,
+      `"${row.voucherRef}"`,
+      `"${row.description.replace(/"/g, '""')}"`,
+      `"${row.category}"`,
+      row.type === 'INCOME' ? 'MASUK' : 'KELUAR',
+      row.amount,
+      row.reconciled ? 'TERVERIFIKASI' : 'PENDING',
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Mutasi_Kas_${(selectedMonth || 'Oktober_2026').replace(/\s+/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Filtered Ledger
   const filteredLedger = useMemo(() => {
@@ -418,6 +481,19 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
 
         {/* Right Action Buttons */}
         <div className="flex items-center gap-2.5 self-start md:self-auto">
+          {/* Print / Cetak PDF Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') window.print();
+            }}
+            title="Cetak atau simpan laporan sebagai PDF"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas active:scale-[0.98] border border-border rounded-2xl text-xs font-bold text-ink shadow-2xs transition-all"
+          >
+            <Download className="w-3.5 h-3.5 text-primary-700" />
+            <span className="hidden sm:inline">Cetak / PDF</span>
+          </button>
+
           {/* Share Button */}
           <button
             type="button"
@@ -448,11 +524,11 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                     onClick={() => {
                       setSelectedMonth(p.name);
                       setPeriodDropdown(false);
-                      if (p.month === 9 && p.year === 2026) {
-                        window.location.href = '/transparency';
-                      } else {
-                        window.location.href = `/transparency/${p.year}/${p.month.toString().padStart(2, '0')}`;
-                      }
+                      const targetPath = (p.month === 10 && p.year === 2026)
+                        ? '/transparency'
+                        : `/transparency/${p.year}/${p.month.toString().padStart(2, '0')}`;
+                      const currentTabParam = activeTab !== 'cashflow_summary' ? `?tab=${activeTab}` : '';
+                      window.location.href = `${targetPath}${currentTabParam}`;
                     }}
                     className={`w-full text-left px-4 py-2.5 text-xs font-bold flex items-center justify-between ${
                       selectedMonth === p.name ? 'bg-primary-50 text-primary-700 font-black' : 'text-ink hover:bg-canvas'
@@ -481,8 +557,28 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               : 'text-ink-muted hover:text-ink hover:bg-canvas'
           }`}
         >
-          <TrendingUp className="w-3.5 h-3.5" />
-          <span>Ringkasan Arus Kas</span>
+          <Home className="w-3.5 h-3.5" />
+          <span>Ringkasan Warga</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('dues_breakdown')}
+          className={`flex-1 min-w-[135px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'dues_breakdown'
+              ? 'bg-primary-600 text-white shadow-xs'
+              : 'text-ink-muted hover:text-ink hover:bg-canvas'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          <span>Status 14 Kavling</span>
+          {resolvedUnpaidList.length > 0 && (
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeTab === 'dues_breakdown' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-700'
+            }`}>
+              {resolvedUnpaidList.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -496,26 +592,6 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         >
           <Layers className="w-3.5 h-3.5" />
           <span>Buku Mutasi Kas</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('dues_breakdown')}
-          className={`flex-1 min-w-[145px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'dues_breakdown'
-              ? 'bg-primary-600 text-white shadow-xs'
-              : 'text-ink-muted hover:text-ink hover:bg-canvas'
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5" />
-          <span>Status Iuran & Tunggakan</span>
-          {resolvedUnpaidList.length > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-              activeTab === 'dues_breakdown' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-700'
-            }`}>
-              {resolvedUnpaidList.length}
-            </span>
-          )}
         </button>
 
         <button
@@ -541,322 +617,468 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
-          <span>Akuntabilitas & Kas</span>
+          <span>Rekening & SOP Kas</span>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* SUBTAB 1: CASHFLOW SUMMARY & PARTICIPATION (DEFAULT VIEW)                 */}
+      {/* SUBTAB 1: CITIZEN-FIRST FAST GLANCE VIEW (RINGKASAN WARGA)                */}
       {/* ========================================================================= */}
       {activeTab === 'cashflow_summary' && (
         <div className="space-y-6 animate-in fade-in">
-          {/* Top Banner: Participation Rate */}
-          <div className="bg-surface rounded-3xl p-6 sm:p-7 border border-border shadow-card flex flex-col justify-between">
-            <div>
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-ink tracking-tight tabular-nums">
-                  {data.paidProperties} dari {data.totalProperties} unit rumah
+          {/* 1. HERO 3 ANGKA KAS UTAMA WARGA */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Card 1: Partisipasi / Kepatuhan Iuran Warga */}
+            <div className="bg-surface rounded-3xl p-6 border-2 border-primary-200/90 shadow-card flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary-900 font-mono">
+                  Kepatuhan Iuran Warga
                 </span>
-                <span className="text-2xl sm:text-3xl font-black text-primary-600 tracking-tight">
-                  telah membayar
-                </span>
+                <div className="w-10 h-10 rounded-2xl bg-primary-50 border border-primary-200 text-primary-700 flex items-center justify-center">
+                  <Users className="w-5 h-5" />
+                </div>
               </div>
-              <p className="text-xs sm:text-sm text-ink-muted mt-1.5">
-                Tingkat partisipasi iuran pemeliharaan lingkungan (*IPL*) pada periode {data.periodName}.
+              <div>
+                <p className="text-3xl font-black text-ink tracking-tight tabular-nums">
+                  {data.paidProperties} <span className="text-xl font-bold text-ink-muted">/ {data.totalProperties} Kavling</span>
+                </p>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 mt-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{data.paidPercentage.toFixed(0)}% Kavling Telah Lunas Terverifikasi</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
+                Data real-time kepatuhan setoran iuran kebersihan & keamanan warga Grand Sariwangi periode {selectedMonth}.
               </p>
             </div>
 
-            <div className="mt-6 space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="flex-1 bg-canvas rounded-full h-3.5 overflow-hidden border border-border/60">
-                  <div
-                    className="bg-primary-600 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${data.paidPercentage}%` }}
-                  />
-                </div>
-                <span className="text-base font-black text-ink tabular-nums">
-                  {data.paidPercentage.toFixed(1).replace('.', ',')}%
+            {/* Card 2: Iuran Masuk Periode Ini */}
+            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 font-mono">
+                  Iuran Masuk ({selectedMonth})
                 </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-6 text-xs text-ink-muted pt-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-primary-600" />
-                  <span>Lunas: <strong className="text-ink font-bold">{data.paidProperties} rumah</strong></span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  <span>Belum Terkonfirmasi: <strong className="text-ink font-bold">{data.unpaidProperties} rumah</strong></span>
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center">
+                  <ArrowDownCircle className="w-5 h-5" />
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* 6 KPI Cards Row */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-            {/* Card 1: Total Rumah */}
-            <div className="bg-surface rounded-2xl p-4.5 border border-border shadow-card flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center mb-2.5">
-                <Home className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold text-ink-muted">Total Rumah</span>
-              <span className="text-2xl font-black text-ink mt-0.5 tabular-nums">{data.totalProperties}</span>
-              <span className="text-[10px] text-ink-muted font-medium mt-0.5">Unit Terdata</span>
-            </div>
-
-            {/* Card 2: Lunas */}
-            <div className="bg-surface rounded-2xl p-4.5 border border-border shadow-card flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-2.5">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold text-ink-muted">Lunas</span>
-              <span className="text-2xl font-black text-emerald-700 mt-0.5 tabular-nums">{data.paidProperties}</span>
-              <span className="text-[10px] text-emerald-800 font-bold mt-0.5">{data.paidPercentage.toFixed(1).replace('.', ',')}% Tercapai</span>
-            </div>
-
-            {/* Card 3: Belum */}
-            <div className="bg-surface rounded-2xl p-4.5 border border-border shadow-card flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-2.5">
-                <Hourglass className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold text-ink-muted">Tertunda</span>
-              <span className="text-2xl font-black text-amber-700 mt-0.5 tabular-nums">{data.unpaidProperties}</span>
-              <span className="text-[10px] text-amber-800 font-bold mt-0.5">{data.unpaidPercentage.toFixed(1).replace('.', ',')}% Belum Bayar</span>
-            </div>
-
-            {/* Card 4: Pemasukan */}
-            <div className="bg-surface rounded-2xl p-4.5 border border-border shadow-card flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-2.5">
-                <ArrowDownCircle className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold text-ink-muted">Pemasukan Riil</span>
-              <span className="text-base font-black text-ink mt-0.5 tabular-nums truncate w-full">{formatRupiah(data.income)}</span>
-              <span className="text-[10px] text-emerald-700 font-bold mt-0.5">Total Diterima</span>
-            </div>
-
-            {/* Card 5: Pengeluaran */}
-            <div className="bg-surface rounded-2xl p-4.5 border border-border shadow-card flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center mb-2.5">
-                <ArrowUpCircle className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold text-ink-muted">Pengeluaran Riil</span>
-              <span className="text-base font-black text-ink mt-0.5 tabular-nums truncate w-full">{formatRupiah(data.expense)}</span>
-              <span className="text-[10px] text-rose-700 font-bold mt-0.5">Biaya Terbayar</span>
-            </div>
-
-            {/* Card 6: Saldo Akhir */}
-            <div className="bg-surface rounded-2xl p-4.5 border border-border shadow-card flex flex-col items-center text-center">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center mb-2.5">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-bold text-ink-muted">Saldo Kas Akhir</span>
-              <span className="text-base font-black text-primary-700 mt-0.5 tabular-nums truncate w-full">{formatRupiah(data.closingBalance)}</span>
-              <span className="text-[10px] text-indigo-800 font-bold mt-0.5">Kas Siap Pakai</span>
-            </div>
-          </div>
-
-          {/* 3 Bottom Columns Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-            {/* Column 1: Rumah Belum Iuran */}
-            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-base font-black text-ink">Daftar Unit Belum Iuran</h3>
-                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
-                    resolvedUnpaidList.length > 0 
-                      ? 'bg-rose-50 text-rose-800 border-rose-200' 
-                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  }`}>
-                    {resolvedUnpaidList.length} Unit
-                  </span>
-                </div>
-                <p className="text-xs text-ink-muted">
-                  Unit yang masih memiliki tunggakan pada periode berjalan {data.periodName}.
+                <p className="text-3xl font-black text-ink tracking-tight tabular-nums">
+                  {formatRupiah(data.income)}
                 </p>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-primary-700 mt-2">
+                  <Home className="w-4 h-4 shrink-0" />
+                  <span>{data.paidProperties} dari {data.totalProperties} Kavling Telah Masuk ({data.paidPercentage.toFixed(0)}%)</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
+                Penerimaan iuran warga yang telah diverifikasi dan masuk ke rekening kas koran paguyuban.
+              </p>
+            </div>
 
-                {resolvedUnpaidList.length === 0 ? (
-                  <div className="mt-4 p-5 text-center bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-1.5">
-                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-                    <p className="text-xs font-bold text-emerald-950">Semua Unit Telah Lunas!</p>
-                    <p className="text-[11px] text-emerald-800 leading-relaxed">
-                      Tidak ada tunggakan iuran warga untuk periode {data.periodName}.
-                    </p>
+            {/* Card 3: Biaya Operasional Berjalan */}
+            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-800 font-mono">
+                  Belanja Kas Berjalan
+                </span>
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-center">
+                  <ArrowUpCircle className="w-5 h-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-3xl font-black text-ink tracking-tight tabular-nums">
+                  {formatRupiah(data.expense)}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-ink-muted mt-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Honor Satpam 24 Jam, Sampah & Fasum</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
+                Total pembiayaan operasional komplek yang telah dibayarkan oleh bendahara pada periode berjalan.
+              </p>
+            </div>
+          </div>
+
+          {/* 2. FITUR UNGGULAN: 🔍 CEK STATUS IURAN KAVLING SAYA */}
+          <div className="bg-surface rounded-3xl p-6 sm:p-7 border-2 border-primary-200 shadow-card space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-md bg-primary-100 text-primary-900 text-[10px] font-mono font-black uppercase tracking-wider border border-primary-200">
+                    Fitur Cepat Warga
+                  </span>
+                  <span className="text-xs text-ink-muted">Pilih Kavling Anda</span>
+                </div>
+                <h2 className="text-xl font-black text-ink mt-1">
+                  🔍 Cek Status Iuran Kavling Saya ({selectedMonth})
+                </h2>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Klik nomor kavling rumah Anda di bawah ini untuk melihat konfirmasi pelunasan, nomor rekening, atau bukti pembayaran.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('citizen_confirm')}
+                  className="px-3.5 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
+                >
+                  <FileCheck className="w-3.5 h-3.5" />
+                  <span>Form Konfirmasi Mandiri</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Kavling Selection Pills */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider block">
+                Pilih No. Kavling Hunian (Kav A s/d Kav M):
+              </span>
+              <div className="grid grid-cols-4 sm:grid-cols-7 lg:grid-cols-13 gap-1.5">
+                {resolvedHouseholdDues.map((item) => {
+                  const isSelected = checkedKavling === item.propertyCode;
+                  const isCurrentPaid = item.isCurrentMonthPaid;
+
+                  return (
+                    <button
+                      key={item.propertyCode}
+                      type="button"
+                      onClick={() => setCheckedKavling(item.propertyCode)}
+                      className={`p-2.5 rounded-2xl text-center transition-all flex flex-col items-center gap-1 active:scale-[0.96] border ${
+                        isSelected
+                          ? 'bg-primary-600 text-white border-primary-700 shadow-md ring-2 ring-primary-300'
+                          : isCurrentPaid
+                          ? 'bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900 border-emerald-200'
+                          : 'bg-canvas hover:bg-amber-50 text-ink border-border'
+                      }`}
+                    >
+                      <span className="text-xs font-black tracking-tight">
+                        {item.propertyCode.replace('Kav ', '')}
+                      </span>
+                      <span className={`text-[9px] font-bold px-1 rounded-sm ${
+                        isSelected
+                          ? 'bg-white/20 text-white'
+                          : isCurrentPaid
+                          ? 'text-emerald-700'
+                          : 'text-amber-800'
+                      }`}>
+                        {isCurrentPaid ? '✓ Lunas' : 'Menunggu'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Dynamic Status Card for Selected Kavling */}
+            {checkedKavlingData && (
+              <div className="animate-in fade-in zoom-in-95 duration-150">
+                {checkedKavlingData.isCurrentMonthPaid ? (
+                  /* KAVLING LUNAS CARD */
+                  <div className="p-5 sm:p-6 rounded-3xl bg-emerald-50/70 border-2 border-emerald-300 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-300">
+                        <CheckCircle2 className="w-8 h-8" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-black uppercase tracking-wider border border-emerald-300">
+                            ✓ LUNAS TERVERIFIKASI
+                          </span>
+                          <span className="text-xs font-bold text-emerald-800">
+                            Periode: {selectedMonth}
+                          </span>
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-black text-ink">
+                          {checkedKavlingData.residentName} ({checkedKavlingData.propertyCode})
+                        </h3>
+                        <p className="text-xs text-emerald-950 leading-relaxed max-w-xl">
+                          Alhamdulillah, iuran pemeliharaan lingkungan (IPL) sebesar <strong>Rp 250.000</strong> telah diterima dan dicatat lunas di kas paguyuban. Terima kasih atas partisipasi Bapak/Ibu dalam menjaga keamanan 24 jam dan kebersihan komplek kita!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLedgerSearch(checkedKavlingData.propertyCode);
+                          handleTabChange('public_ledger');
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-100/50 text-emerald-900 border border-emerald-300 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] flex items-center justify-center gap-1.5"
+                      >
+                        <Layers className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Lihat di Buku Kas</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') window.print();
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs active:scale-[0.98] flex items-center justify-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Unduh Bukti</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="mt-4 space-y-2.5">
-                    {resolvedUnpaidList.map((item) => (
-                      <div
-                        key={item.propertyCode}
-                        className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200/90 flex flex-col gap-2 transition-all hover:bg-rose-50"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-xl bg-rose-100 text-rose-800 font-black text-xs flex items-center justify-center border border-rose-300">
-                              {item.propertyCode.replace('Kav ', '')}
-                            </span>
-                            <div>
-                              <h4 className="text-xs font-black text-ink">{item.propertyCode}</h4>
-                              <p className="text-[10px] text-ink-muted">{item.residentName}</p>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200">
-                            {item.unpaidMonths.length} Bln Tertunda
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1 border-t border-rose-200/60 text-xs">
-                          <span className="text-[11px] text-rose-900 font-medium">
-                            {item.unpaidMonths.map((m) => m.split(' ')[0]).join(', ')}
-                          </span>
-                          <span className="font-black text-rose-700 tabular-nums">
-                            {formatRupiah(item.arrearsAmount)}
-                          </span>
-                        </div>
+                  /* KAVLING BELUM BAYAR CARD */
+                  <div className="p-5 sm:p-6 rounded-3xl bg-amber-50/80 border-2 border-amber-300 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
+                        <Hourglass className="w-8 h-8" />
                       </div>
-                    ))}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider border border-amber-300">
+                            ⏳ MENUNGGU PEMBAYARAN
+                          </span>
+                          <span className="text-xs font-bold text-amber-900">
+                            Jatuh Tempo: 10 {selectedMonth.split(' ')[0]} 2026
+                          </span>
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-black text-ink">
+                          {checkedKavlingData.residentName} ({checkedKavlingData.propertyCode})
+                        </h3>
+                        <p className="text-xs text-amber-950 leading-relaxed max-w-xl">
+                          Iuran pemeliharaan lingkungan ({selectedMonth}) sebesar <strong>Rp 250.000</strong> belum tercatat masuk. Jika Anda sudah transfer, mohon konfirmasi agar status unit langsung lunas.
+                        </p>
+                        {checkedKavlingData.unpaidMonths && checkedKavlingData.unpaidMonths.length > 1 && (
+                          <p className="text-[11px] text-rose-800 font-bold mt-1">
+                            Catatan tunggakan sebelumnya: {checkedKavlingData.unpaidMonths.join(', ')} (Total: {formatRupiah(checkedKavlingData.totalArrearsAmount)})
+                          </p>
+                        )}
+                      </div>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleTabChange('dues_breakdown')}
-                      className="w-full mt-1 py-2 px-3 rounded-xl bg-canvas hover:bg-primary-50 border border-border hover:border-primary-300 text-primary-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
-                    >
-                      <span>Buka Matriks Lengkap Seluruh Kavling</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount(bankInfo.accountNumber.replace(/[^0-9]/g, ''))}
+                        className="px-4 py-2.5 rounded-xl bg-white hover:bg-amber-100/50 text-amber-950 border border-amber-300 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] flex items-center justify-center gap-1.5"
+                      >
+                        {copiedAccount ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-amber-700" />}
+                        <span>{copiedAccount ? 'Tersalin!' : 'Salin No. Rekening'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleQuickConfirm(
+                            checkedKavlingData.propertyCode,
+                            checkedKavlingData.residentName,
+                            checkedKavlingData.totalArrearsAmount || 250000,
+                            selectedMonth
+                          )
+                        }
+                        className="px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-all shadow-xs active:scale-[0.98] flex items-center justify-center gap-1.5"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Konfirmasi Bayar</span>
+                      </button>
+
+                      <a
+                        href={`https://api.whatsapp.com/send?phone=6281234567802&text=${encodeURIComponent(
+                          `Halo Bendahara Komplek Grand Sariwangi, konfirmasi iuran ${checkedKavlingData.propertyCode} (${checkedKavlingData.residentName}) periode ${selectedMonth}. Mohon info rekening kas untuk transfer.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs active:scale-[0.98] flex items-center justify-center gap-1.5"
+                        title="Chat Bendahara via WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">WhatsApp</span>
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>
+            )}
+          </div>
 
-              <div className="mt-6 p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-start gap-2.5">
-                <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-900 leading-relaxed">
-                  Sudah transfer? Silakan gunakan subtab <button onClick={() => handleTabChange('citizen_confirm')} className="font-bold underline">Konfirmasi Bayar</button> agar status unit langsung lunas.
-                </p>
-              </div>
-            </div>
-
-            {/* Column 2: Penggunaan Dana */}
-            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between">
+          {/* 3. ALOKASI PENGELUARAN RIIL & KOTAK REKENING RESMI PAGUYUBAN */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            {/* Kolom 1: Alokasi Pengeluaran Riil Warga */}
+            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between space-y-4">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-base font-black text-ink">Alokasi Pengeluaran Riil</h3>
-                  {data.expenseBreakdown.length > 0 && <span className="text-[11px] font-bold text-primary-700">Klik untuk Nota</span>}
-                </div>
-                <p className="text-xs text-ink-muted">
-                  Rincian alokasi belanja kas operasional pada {data.periodName}.
-                </p>
-
-                {data.expenseBreakdown.length === 0 ? (
-                  <div className="mt-4 p-5 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-1.5">
-                    <Wallet className="w-8 h-8 text-ink-muted/40 mx-auto" />
-                    <p className="text-xs font-bold text-ink">Belum Ada Pengeluaran Kas</p>
-                    <p className="text-[11px] text-ink-muted leading-relaxed">
-                      Belum ada pos pengeluaran operasional yang dibukukan untuk periode {data.periodName}.
+                <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                  <div>
+                    <h3 className="text-base font-black text-ink">
+                      Uang Iuran Warga Dipakai Kemana Saja?
+                    </h3>
+                    <p className="text-xs text-ink-muted mt-0.5">
+                      Rincian alokasi belanja kas komplek pada periode {selectedMonth}.
                     </p>
                   </div>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    {data.expenseBreakdown.map((item) => (
+                  {data.expenseBreakdown.length > 0 && (
+                    <span className="text-[11px] font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-200">
+                      Transparan 100%
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {data.expenseBreakdown.length === 0 ? (
+                    <div className="p-4 text-center bg-canvas rounded-2xl border border-dashed border-border text-xs text-ink-muted">
+                      Belum ada pos pengeluaran yang dibukukan untuk periode ini.
+                    </div>
+                  ) : (
+                    data.expenseBreakdown.map((item) => (
                       <div
                         key={item.name}
                         onClick={() => setSelectedExpenseCategory(item)}
-                        className="p-2.5 rounded-2xl bg-canvas hover:bg-primary-50/70 border border-border hover:border-primary-300 transition-all cursor-pointer group active:scale-[0.98]"
+                        className="p-3 rounded-2xl bg-canvas hover:bg-primary-50/70 border border-border hover:border-primary-300 transition-all cursor-pointer group active:scale-[0.98]"
                         title="Klik untuk melihat bukti nota dan kuitansi belanja"
                       >
                         <div className="flex items-center justify-between text-xs font-bold text-ink">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-surface border border-border flex items-center justify-center">
                               {getCategoryIcon(item.name)}
                             </div>
-                            <span className="group-hover:text-primary-700">{item.name}</span>
+                            <div>
+                              <span className="group-hover:text-primary-700 block">{item.name}</span>
+                              <span className="text-[10px] text-ink-muted font-normal">
+                                {item.percentage}% dari total belanja kas
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 tabular-nums">
-                            <span className="text-ink-muted font-normal">{item.percentage}%</span>
-                            <span className="text-ink font-black">{formatRupiah(item.amount)}</span>
+                          <div className="text-right">
+                            <span className="text-ink font-black block tabular-nums">{formatRupiah(item.amount)}</span>
+                            <span className="text-[10px] text-primary-700 font-bold group-hover:underline">
+                              Lihat Nota →
+                            </span>
                           </div>
                         </div>
-                        <div className="mt-2 bg-border/40 rounded-full h-1.5 overflow-hidden">
+                        <div className="mt-2.5 bg-border/40 rounded-full h-1.5 overflow-hidden">
                           <div
-                            className="bg-primary-600 h-full rounded-full"
+                            className="bg-primary-600 h-full rounded-full transition-all duration-300"
                             style={{ width: `${item.percentage}%` }}
                           />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Edukasi Penjaminan Saldo Berjalan (Dana Dadakan & Kesehatan) */}
-                <div className="mt-3.5 p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-[11px] text-amber-950">
-                  <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    <strong>Catatan Alokasi Kas:</strong> Pos <strong>Dana Kesehatan Satpam</strong> (pagu referensi Rp 100.000) dan <strong>Dana Tak Terduga</strong> bersifat fluktuatif dinamis (kadang kurang atau lebih dari pagu). Kebutuhan pengobatan medis riil dan pengeluaran dadakan darurat/acara ditalangi langsung dari akumulasi <strong>Saldo Akhir Kas Berjalan</strong> komplek.
-                  </div>
+                    ))
+                  )}
                 </div>
               </div>
 
               {data.expenseBreakdown.length > 0 && (
-                <div className="mt-5">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedExpenseCategory(data.expenseBreakdown[0])}
-                    className="w-full py-2.5 px-4 rounded-xl border border-primary-600 text-primary-700 hover:bg-primary-50 font-bold text-xs transition-all text-center flex items-center justify-center gap-1.5 shadow-2xs active:scale-[0.98]"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Lihat Detail Nota & Bukti Belanja</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedExpenseCategory(data.expenseBreakdown[0])}
+                  className="w-full py-2.5 px-4 rounded-xl border border-primary-600 text-primary-700 hover:bg-primary-50 font-bold text-xs transition-all text-center flex items-center justify-center gap-1.5 shadow-2xs active:scale-[0.98]"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Buka Kuitansi & Nota Belanja Kas Operasional</span>
+                </button>
               )}
             </div>
 
-            {/* Column 3: Ringkasan Neraca & Mobile QR */}
-            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between space-y-5">
-              <div>
-                <h3 className="text-base font-black text-ink">Ringkasan Neraca Kas</h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Rekonsiliasi saldo berjalan kas operasional {data.periodName}.
+            {/* Kolom 2: Rekening Resmi Paguyuban & Neraca Kas */}
+            <div className="space-y-6 flex flex-col justify-between">
+              {/* Kotak Rekening Resmi Tunggal */}
+              <div className="p-6 rounded-3xl bg-primary-50/80 border-2 border-primary-300 shadow-card space-y-4">
+                <div className="flex items-center justify-between border-b border-primary-200/80 pb-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-primary-700" />
+                    <span className="text-xs font-black uppercase tracking-wider text-primary-950">
+                      Rekening Resmi Kas Paguyuban
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300">
+                    Akun Resmi Tunggal
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-surface border border-primary-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-ink-muted">{bankInfo.bankName}</span>
+                    <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber}</p>
+                    <p className="text-xs font-bold text-primary-900">a.n {bankInfo.accountHolder}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyAccount(bankInfo.accountNumber.replace(/[^0-9]/g, ''))}
+                    className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+                  >
+                    {copiedAccount ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedAccount ? 'Tersalin!' : 'Salin Rekening'}</span>
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-primary-950 leading-relaxed">
+                  ⚠️ <strong>Pemberitahuan Warga:</strong> Seluruh pembayaran iuran warga hanya disetorkan ke rekening kas resmi di atas. Pengurus tidak pernah menerima transfer melalui rekening pribadi pengurus ataupun rekening satpam.
                 </p>
-
-                <div className="mt-4 space-y-2 text-xs">
-                  <div className="flex items-center justify-between py-1.5 border-b border-border/70">
-                    <span className="text-ink-muted">Saldo Awal Bulan</span>
-                    <span className="font-bold text-ink tabular-nums">{formatRupiah(data.openingBalance)}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1.5 border-b border-border/70">
-                    <span className="text-ink-muted">Total Pemasukan Iuran</span>
-                    <span className="font-bold text-emerald-700 tabular-nums">+ {formatRupiah(data.income)}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1.5 border-b border-border/70">
-                    <span className="text-ink-muted">Total Pengeluaran Kas</span>
-                    <span className="font-bold text-rose-700 tabular-nums">- {formatRupiah(data.expense)}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-primary-50 border border-primary-200 mt-2">
-                    <span className="font-black text-primary-950">Saldo Akhir Berjalan</span>
-                    <span className="font-black text-primary-900 text-sm tabular-nums">{formatRupiah(data.closingBalance)}</span>
-                  </div>
-                </div>
               </div>
 
-              {/* QR Code section */}
-              <div className="p-3.5 rounded-2xl bg-canvas border border-border flex items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <h4 className="text-xs font-black text-ink">Akses Laporan di Ponsel</h4>
-                  <p className="text-[11px] text-ink-muted leading-tight">
-                    Pindai QR ini untuk membuka laporan transparansi di smartphone warga.
+              {/* Transparansi Publik & Akses Mobile QR */}
+              <div className="p-5 rounded-3xl bg-surface border border-border shadow-card flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center gap-1.5 text-primary-900 font-black">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="text-xs uppercase tracking-wide">Portal Transparansi Terbuka</span>
+                  </div>
+                  <p className="text-[11px] text-ink-muted leading-relaxed">
+                    Seluruh catatan mutasi dan kepatuhan iuran disajikan terbuka secara berkala bagi seluruh warga paguyuban.
                   </p>
-                </div>
-                {data.qrCodeDataUrl ? (
-                  <img
-                    src={data.qrCodeDataUrl}
-                    alt="QR Code Laporan Transparansi"
-                    className="w-16 h-16 rounded-xl border border-border p-1 bg-white shrink-0 shadow-2xs"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-xl bg-surface border border-border flex items-center justify-center shrink-0">
-                    <QrCode className="w-8 h-8 text-ink-muted" />
+                  <div className="pt-1 flex items-center gap-2 text-[11px]">
+                    <span className="font-bold text-ink">Periode Laporan:</span>
+                    <span className="font-mono px-2 py-0.5 rounded bg-primary-50 text-primary-800 font-bold border border-primary-200">
+                      {selectedMonth}
+                    </span>
                   </div>
-                )}
+                </div>
+
+                <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center gap-3 shrink-0">
+                  <div className="space-y-0.5 text-right">
+                    <p className="text-xs font-black text-ink">Buka di HP</p>
+                    <p className="text-[10px] text-ink-muted">Pindai QR ini</p>
+                  </div>
+                  {data.qrCodeDataUrl ? (
+                    <img
+                      src={data.qrCodeDataUrl}
+                      alt="QR Code Laporan Transparansi"
+                      className="w-14 h-14 rounded-xl border border-border p-1 bg-white shrink-0 shadow-2xs"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-surface border border-border flex items-center justify-center shrink-0">
+                      <QrCode className="w-6 h-6 text-ink-muted" />
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+          </div>
+
+          {/* 4. FOOTER TAUTAN CEPAT AUDIT & DETAIL */}
+          <div className="p-4 bg-canvas rounded-2xl border border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary-600 shrink-0" />
+              <span className="text-ink-muted">
+                Ingin melihat rincian akuntansi kasir lebih dalam atau status seluruh kavling?
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleTabChange('public_ledger')}
+                className="px-3 py-1.5 rounded-xl bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs transition-colors flex items-center gap-1"
+              >
+                <span>Buku Mutasi Kas</span>
+                <ArrowRight className="w-3 h-3 text-primary-600" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('dues_breakdown')}
+                className="px-3 py-1.5 rounded-xl bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs transition-colors flex items-center gap-1"
+              >
+                <span>Status 14 Kavling</span>
+                <ArrowRight className="w-3 h-3 text-primary-600" />
+              </button>
             </div>
           </div>
         </div>
@@ -900,6 +1122,21 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+              <select
+                value={ledgerCategoryFilter}
+                onChange={(e) => setLedgerCategoryFilter(e.target.value)}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500 shrink-0"
+              >
+                <option value="ALL">Semua Pos Kategori</option>
+                <option value="Pemasukan IPL">Pemasukan IPL</option>
+                <option value="Gaji">Gaji Petugas Jaga</option>
+                <option value="Iuran RT">Iuran RT & Kebersihan</option>
+                <option value="Iuran RW">Iuran RW</option>
+                <option value="Operasional">Operasional Pos</option>
+                <option value="Dana Kesehatan">Dana Kesehatan / Medis</option>
+                <option value="Dana Tak Terduga">Dana Tak Terduga</option>
+              </select>
+
               <button
                 type="button"
                 onClick={() => setLedgerTypeFilter('ALL')}
@@ -933,6 +1170,16 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               >
                 - Keluar (DB)
               </button>
+
+              <button
+                type="button"
+                onClick={handleExportLedgerCSV}
+                title="Unduh data mutasi kas format CSV"
+                className="px-3 py-2 bg-canvas hover:bg-surface border border-border text-ink rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0"
+              >
+                <Download className="w-3.5 h-3.5 text-primary-700" />
+                <span className="hidden sm:inline">Ekspor CSV</span>
+              </button>
             </div>
           </div>
 
@@ -945,14 +1192,13 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                   <th className="py-3.5 px-4">Uraian Transaksi</th>
                   <th className="py-3.5 px-4">Kategori Pos</th>
                   <th className="py-3.5 px-4 text-right">Nominal (Rp)</th>
-                  <th className="py-3.5 px-4 text-right">Saldo Kas</th>
                   <th className="py-3.5 px-4 text-center">Status Audit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
                 {filteredLedger.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-14 text-center text-ink-muted">
+                    <td colSpan={5} className="py-14 text-center text-ink-muted">
                       <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                         <FileText className="w-8 h-8 text-ink-muted/40 mx-auto" />
                         <span className="font-bold text-ink text-sm">Belum Ada Transaksi Kas Tercatat</span>
@@ -989,10 +1235,6 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right tabular-nums font-bold text-ink">
-                        {formatRupiah(row.balance)}
-                      </td>
-
                       <td className="py-3.5 px-4 text-center">
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                           <Check className="w-3 h-3 text-emerald-600" />
@@ -1021,9 +1263,9 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               </span>
             </div>
             <div>
-              <span className="text-ink-muted block">Saldo Kas Terkonfirmasi:</span>
-              <span className="text-sm font-black text-primary-800 tabular-nums">
-                {formatRupiah(data.closingBalance)}
+              <span className="text-ink-muted block">Arus Bersih Periode Ini:</span>
+              <span className={`text-sm font-black tabular-nums ${(filteredLedger.filter((e) => e.type === 'INCOME').reduce((sum, e) => sum + e.amount, 0) - filteredLedger.filter((e) => e.type === 'EXPENSE').reduce((sum, e) => sum + e.amount, 0)) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {formatRupiah(filteredLedger.filter((e) => e.type === 'INCOME').reduce((sum, e) => sum + e.amount, 0) - filteredLedger.filter((e) => e.type === 'EXPENSE').reduce((sum, e) => sum + e.amount, 0))}
               </span>
             </div>
           </div>
@@ -1158,9 +1400,20 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                           <div>
                             <div className="flex items-center gap-2">
                               <h4 className="text-base font-black text-ink">{house.propertyCode}</h4>
-                              <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold text-[10px] border border-rose-200">
-                                {house.unpaidMonths.length} Bln Menunggak
-                              </span>
+                              {house.isCurrentMonthPaid ? (
+                                <>
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-black text-[10px] border border-emerald-300">
+                                    ✓ {data.periodName} Lunas
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px] border border-amber-300">
+                                    {house.unpaidMonths.length} Bln Riwayat Lalu
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold text-[10px] border border-rose-200">
+                                  {house.unpaidMonths.length} Bln Menunggak
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs font-bold text-ink-muted mt-0.5">
                               Penghuni: <span className="text-ink font-black">{house.residentName}</span>
@@ -1183,7 +1436,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                             Bulan Yang Belum Terbayar:
                           </span>
                           <span className="text-[11px] font-mono font-bold text-rose-700">
-                            {house.paidMonthsCount} dari 8 Bulan Lunas
+                            {house.paidMonthsCount} dari {data.month || 9} Bulan Lunas
                           </span>
                         </div>
 
@@ -1205,13 +1458,13 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                         <div className="flex justify-between text-[11px] text-ink-muted">
                           <span>Kepatuhan Pembayaran</span>
                           <span className="font-bold text-ink">
-                            {((house.paidMonthsCount / 8) * 100).toFixed(0)}%
+                            {((house.paidMonthsCount / (data.month || 9)) * 100).toFixed(0)}%
                           </span>
                         </div>
                         <div className="h-2 rounded-full bg-border/50 overflow-hidden">
                           <div
                             className="h-full bg-rose-500 rounded-full"
-                            style={{ width: `${(house.paidMonthsCount / 8) * 100}%` }}
+                            style={{ width: `${(house.paidMonthsCount / (data.month || 9)) * 100}%` }}
                           />
                         </div>
                       </div>
@@ -1264,10 +1517,10 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                   Matriks Transparansi Pembayaran
                 </span>
                 <h3 className="text-xl font-black text-ink mt-1">
-                  Rincian Bulan Terbayar Seluruh Kavling (Jan – Agu 2026)
+                  Rincian Bulan Terbayar Seluruh Kavling (Jan – {selectedMonth || data.periodName})
                 </h3>
                 <p className="text-xs text-ink-muted mt-0.5">
-                  Setiap tanda centang hijau (<span className="text-emerald-700 font-bold">✓ Jan - Agu</span>) menunjukkan iuran pada bulan bersangkutan telah lunas dan tercatat di kas resmi.
+                  Setiap tanda centang hijau (<span className="text-emerald-700 font-bold">✓ Jan - {(selectedMonth || data.periodName).split(' ')[0]}</span>) menunjukkan iuran pada bulan bersangkutan telah lunas dan tercatat di kas resmi.
                 </p>
               </div>
 
@@ -1351,7 +1604,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                   <tr className="border-b border-border bg-canvas text-ink-muted font-bold text-[11px]">
                     <th className="py-3.5 px-4 w-44">Kavling & Penghuni</th>
                     <th className="py-3.5 px-3 text-center w-36">Status</th>
-                    <th className="py-3.5 px-4 text-center">Rincian Bulan Terbayar (Jan – Agu 2026)</th>
+                    <th className="py-3.5 px-4 text-center">Rincian Bulan Terbayar (Jan – {selectedMonth || data.periodName})</th>
                     <th className="py-3.5 px-4 text-right w-32">Total Masuk</th>
                     <th className="py-3.5 px-4 text-right w-28">Tunggakan</th>
                     <th className="py-3.5 px-3 text-center w-28">Tindakan</th>
@@ -1404,7 +1657,15 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                           {item.isFullyPaid ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                               <Check className="w-3 h-3 text-emerald-600" />
-                              Lunas (8 Bln)
+                              Lunas Penuh ({item.totalMonthsCount || data.month || 9} Bln)
+                            </span>
+                          ) : item.isCurrentMonthPaid ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-300"
+                              title={`Iuran ${selectedMonth} sudah lunas. Menunggak bulan: ${item.unpaidMonths.join(', ')}`}
+                            >
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              ✓ {(selectedMonth || data.periodName).split(' ')[0]} Lunas ({item.unpaidMonths.length} Bln Lalu)
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
@@ -1518,6 +1779,10 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                       {item.isFullyPaid ? (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
                           ✓ Lunas Penuh
+                        </span>
+                      ) : item.isCurrentMonthPaid ? (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300">
+                          ✓ {(selectedMonth || data.periodName).split(' ')[0]} Lunas ({item.unpaidMonths.length} Bln Lalu)
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200">
@@ -1645,10 +1910,10 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Unit Code */}
               <div>
-                <label className="block font-bold text-ink mb-1.5">Nomor Unit Rumah / Blok:</label>
+                <label className="block font-bold text-ink mb-1.5">Nomor Unit Rumah / Kavling:</label>
                 <input
                   type="text"
-                  placeholder="Contoh: A-17, B-04, C-11"
+                  placeholder="Contoh: Kav E, Kav A, Kav J"
                   value={confirmUnit}
                   onChange={(e) => setConfirmUnit(e.target.value)}
                   required
@@ -1679,10 +1944,12 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                   onChange={(e) => setConfirmPeriod(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
                 >
-                  <option value="Agustus 2026">Agustus 2026 (Bulan Ini)</option>
+                  <option value="Oktober 2026">Oktober 2026 (Bulan Berjalan)</option>
+                  <option value="September 2026">September 2026</option>
+                  <option value="Agustus 2026">Agustus 2026</option>
                   <option value="Juli 2026">Juli 2026</option>
                   <option value="Juni 2026">Juni 2026</option>
-                  <option value="September 2026 (Di Muka)">September 2026 (Di Muka)</option>
+                  <option value="November 2026 (Di Muka)">November 2026 (Di Muka)</option>
                 </select>
               </div>
 
@@ -1691,7 +1958,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 <label className="block font-bold text-ink mb-1.5">Nominal Transfer (Rp):</label>
                 <input
                   type="number"
-                  placeholder="750000"
+                  placeholder="250000"
                   value={confirmAmount}
                   onChange={(e) => setConfirmAmount(e.target.value)}
                   required

@@ -8,10 +8,12 @@ import {
   getRecurringExpensesConfig 
 } from '../../services/finance.service';
 
-const expenses = await getExpenses();
-const accounts = await getAccounts();
-const mainBalance = await getMainAccountBalance();
-const recurringConfig = await getRecurringExpensesConfig();
+const [expenses, accounts, mainBalance, recurringConfig] = await Promise.all([
+  getExpenses().catch(() => []),
+  getAccounts().catch(() => []),
+  getMainAccountBalance().catch(() => 0),
+  getRecurringExpensesConfig().catch(() => []),
+]);
 ---
 
 <AdminLayout title="Pengeluaran & Kas - WargaHub" currentPath="/admin/expenses">

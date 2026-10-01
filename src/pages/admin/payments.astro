@@ -5,9 +5,11 @@ import { getPayments } from '../../services/payment.service';
 import { getAccounts } from '../../services/finance.service';
 import { getProperties } from '../../services/property.service';
 
-const payments = await getPayments().catch(() => []);
-const accounts = await getAccounts().catch(() => []);
-const properties = await getProperties().catch(() => []);
+const [payments, accounts, properties] = await Promise.all([
+  getPayments().catch(() => []),
+  getAccounts().catch(() => []),
+  getProperties().catch(() => []),
+]);
 ---
 
 <AdminLayout title="Pembayaran & Verifikasi - WargaHub" currentPath="/admin/payments">

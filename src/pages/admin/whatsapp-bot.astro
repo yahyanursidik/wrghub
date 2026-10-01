@@ -4,9 +4,11 @@ import { WhatsAppBotSimulator } from '../../components/admin/WhatsAppBotSimulato
 import { getProperties } from '../../services/property.service';
 import { getBillingPeriods, getAllInvoices } from '../../services/billing.service';
 
-const properties = await getProperties().catch(() => []);
-const allPeriods = await getBillingPeriods().catch(() => []);
-const allInvoices = await getAllInvoices().catch(() => []);
+const [properties, allPeriods, allInvoices] = await Promise.all([
+  getProperties().catch(() => []),
+  getBillingPeriods().catch(() => []),
+  getAllInvoices().catch(() => []),
+]);
 ---
 
 <AdminLayout title="Simulator WhatsApp Bot - WargaHub" currentPath="/admin/whatsapp-bot">

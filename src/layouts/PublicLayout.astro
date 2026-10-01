@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from 'astro:transitions';
 import '../styles/global.css';
 
 interface Props {
@@ -16,6 +17,7 @@ const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran Wa
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
+    <ClientRouter />
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -77,7 +79,7 @@ const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran Wa
           </div>
         </a>
 
-        <!-- Public Navigation Links -->
+        <!-- Public Desktop Navigation Links -->
         <nav class="hidden md:flex items-center gap-1">
           <a
             href="/"
@@ -90,7 +92,7 @@ const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran Wa
           <a
             href="/rekap-iuran"
             class={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-              currentPath === '/rekap-iuran' || currentPath === '/rekapitulasi' ? 'bg-primary-600 text-white shadow-xs' : 'text-ink-muted hover:text-ink hover:bg-canvas'
+              currentPath === '/rekap-iuran' || currentPath === '/rekapitulasi' || currentPath === '/iuran' ? 'bg-primary-600 text-white shadow-xs' : 'text-ink-muted hover:text-ink hover:bg-canvas'
             }`}
           >
             📋 Rekapitulasi Iuran
@@ -98,7 +100,7 @@ const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran Wa
           <a
             href="/transparency"
             class={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-              currentPath === '/transparency' ? 'bg-primary-50 text-primary-700' : 'text-ink-muted hover:text-ink hover:bg-canvas'
+              currentPath === '/transparency' || currentPath === '/transparancy' ? 'bg-primary-50 text-primary-700' : 'text-ink-muted hover:text-ink hover:bg-canvas'
             }`}
           >
             📊 Laporan Kas Terbuka
@@ -116,21 +118,76 @@ const { title, description = 'Portal Publik Transparansi & Rekapitulasi Iuran Wa
         <div class="flex items-center gap-2">
           <a
             href="/login"
-            class="px-4 py-2 bg-surface hover:bg-canvas border border-border rounded-xl text-xs font-bold text-ink shadow-xs transition-colors"
+            class="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-surface hover:bg-canvas border border-border rounded-xl text-xs font-bold text-ink shadow-xs transition-colors flex items-center gap-1.5"
           >
-            🔐 Login Pengurus
+            <span>🔐</span>
+            <span class="hidden sm:inline">Login Pengurus</span>
+            <span class="sm:hidden">Masuk</span>
           </a>
         </div>
       </div>
     </header>
 
-    <!-- Main Content Container -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <!-- Main Content Container with bottom padding for mobile bar -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-8">
       <slot />
     </main>
 
+    <!-- Public Mobile Bottom App Bar -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-md border-t border-border px-2 py-1.5 flex items-center justify-around shadow-lg">
+      <a
+        href="/"
+        class={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+          currentPath === '/' ? 'text-primary-700 font-bold bg-primary-50/80' : 'text-ink-muted hover:text-ink'
+        }`}
+      >
+        <span class="text-base">📱</span>
+        <span class="text-[10px]">Beranda</span>
+      </a>
+      <a
+        href="/rekap-iuran"
+        class={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+          currentPath === '/rekap-iuran' || currentPath === '/rekapitulasi' || currentPath === '/iuran'
+            ? 'text-primary-700 font-bold bg-primary-50/80'
+            : 'text-ink-muted hover:text-ink'
+        }`}
+      >
+        <span class="text-base">📋</span>
+        <span class="text-[10px]">Rekap</span>
+      </a>
+      <a
+        href="/transparency"
+        class={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+          currentPath === '/transparency' || currentPath === '/transparancy'
+            ? 'text-primary-700 font-bold bg-primary-50/80'
+            : 'text-ink-muted hover:text-ink'
+        }`}
+      >
+        <span class="text-base">📊</span>
+        <span class="text-[10px]">Kas Terbuka</span>
+      </a>
+      <a
+        href="/kuitansi"
+        class={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+          currentPath === '/kuitansi' ? 'text-primary-700 font-bold bg-primary-50/80' : 'text-ink-muted hover:text-ink'
+        }`}
+      >
+        <span class="text-base">🧾</span>
+        <span class="text-[10px]">Kuitansi</span>
+      </a>
+      <a
+        href="/login"
+        class={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+          currentPath.startsWith('/login') ? 'text-primary-700 font-bold bg-primary-50/80' : 'text-ink-muted hover:text-ink'
+        }`}
+      >
+        <span class="text-base">🔐</span>
+        <span class="text-[10px]">Pengurus</span>
+      </a>
+    </nav>
+
     <!-- Public Footer -->
-    <footer class="bg-surface border-t border-border mt-auto py-6">
+    <footer class="bg-surface border-t border-border mt-auto py-6 mb-14 md:mb-0">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-muted">
         <div class="flex items-center gap-2">
           <span class="font-bold text-ink">WargaHub Smart Residential</span>

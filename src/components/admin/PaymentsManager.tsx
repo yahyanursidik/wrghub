@@ -290,13 +290,32 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   );
 
   // Navigation & SubTabs
-  const [activeSubTab, setActiveSubTab] = useState<'verification' | 'manual_entry' | 'public_transparency' | 'bank_recon'>('verification');
+  const [activeSubTab, setActiveSubTab] = useState<'verification' | 'history' | 'manual_counter' | 'receiving_channels'>('verification');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('ALL');
   const [periodFilter, setPeriodFilter] = useState<string>('September 2026');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'code' | 'amount' | 'status' | 'method'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // URL query params auto-sync (e.g. from Billing invoices)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const statusParam = params.get('status');
+      const searchParam = params.get('search');
+      const tabParam = params.get('tab');
+      if (statusParam && ['ALL', 'PENDING', 'VERIFIED', 'REJECTED'].includes(statusParam)) {
+        setStatusFilter(statusParam as any);
+      }
+      if (searchParam) {
+        setSearch(searchParam);
+      }
+      if (tabParam && ['verification', 'history', 'manual_counter', 'receiving_channels'].includes(tabParam)) {
+        setActiveSubTab(tabParam as any);
+      }
+    }
+  }, []);
 
   // Multi-Selection State for Bulk Actions
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
@@ -306,6 +325,24 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Subtab 2: History (Riwayat Kuitansi) State
+  const [receiptSearch, setReceiptSearch] = useState('');
+  const [receiptMethodFilter, setReceiptMethodFilter] = useState('ALL');
+
+  // Subtab 3: Manual Counter (POS Tunai Satpam) State
+  const [counterHouseCode, setCounterHouseCode] = useState(initialProperties[0]?.code || 'Kav A');
+  const [counterAmount, setCounterAmount] = useState(250000);
+  const [counterPeriod, setCounterPeriod] = useState('September 2026');
+  const [counterCollector, setCounterCollector] = useState('Pos Satpam (Petugas Jaga)');
+  const [counterPayerName, setCounterPayerName] = useState('');
+  const [counterRef, setCounterRef] = useState(`KAS-TUNAI-${Date.now().toString().slice(-6)}`);
+  const [counterNotes, setCounterNotes] = useState('Penerimaan tunai iuran warga di pos satpam');
+  const [counterProcessing, setCounterProcessing] = useState(false);
+
+  // Subtab 4: Receiving Channels State
+  const [copiedBankAcc, setCopiedBankAcc] = useState<string | null>(null);
+  const [copiedBroadcast, setCopiedBroadcast] = useState(false);
 
   // Modals & Drawers
   const [viewingProof, setViewingProof] = useState<PaymentListItem | null>(null);
@@ -511,6 +548,184 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
       showToast('Terjadi kesalahan verifikasi massal.');
     } finally {
       setBulkProcessing(false);
+    }
+  };
+
+  // Verified Receipts Computed List (for Subtab 2: History)
+  const verifiedReceipts = useMemo(() => {
+    return payments
+      .filter((p) => p.status === 'VERIFIED')
+      .filter((p) => {
+        const query = receiptSearch.toLowerCase().trim();
+        const matchedProp = clusterProperties.find((cp) => cp.code.toLowerCase() === p.propertyCode.toLowerCase());
+        const resident = (matchedProp?.residentName || matchedProp?.ownerName || '').toLowerCase();
+        const receiptNo = `KWT-${(p.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${p.propertyCode.replace(/[^A-Z0-9]/g, '')}-${p.id.slice(-4)}`.toLowerCase();
+
+        const matchSearch =
+          !query ||
+          p.propertyCode.toLowerCase().includes(query) ||
+          resident.includes(query) ||
+          receiptNo.includes(query) ||
+          (p.reference && p.reference.toLowerCase().includes(query));
+
+        let matchMethod = true;
+        if (receiptMethodFilter !== 'ALL') {
+          if (receiptMethodFilter === 'SYARIAH') {
+            matchMethod = ['BSI', 'Syariah', 'Muamalat', 'Aladin'].some((s) => p.method.includes(s));
+          } else if (receiptMethodFilter === 'CASH') {
+            matchMethod = p.method.toLowerCase().includes('tunai') || p.method.toLowerCase().includes('cash');
+          } else if (receiptMethodFilter === 'QRIS') {
+            matchMethod = p.method.toLowerCase().includes('qris');
+          } else if (receiptMethodFilter === 'TRANSFER') {
+            matchMethod = p.method.toLowerCase().includes('transfer') || p.method.toLowerCase().includes('bca') || p.method.toLowerCase().includes('mandiri');
+          }
+        }
+
+        return matchSearch && matchMethod;
+      })
+      .sort((a, b) => (b.paidAt || '').localeCompare(a.paidAt || ''));
+  }, [payments, receiptSearch, receiptMethodFilter, clusterProperties]);
+
+  // WhatsApp Message Generator for Receipt & Confirmation
+  const getPaymentWaUrl = (pay: PaymentListItem) => {
+    const kav = pay.propertyCode;
+    const matched = clusterProperties.find((p) => p.code.toLowerCase() === kav.toLowerCase());
+    const name = matched ? (matched.residentName || matched.ownerName) : `Warga ${kav}`;
+    const receiptNo = `KWT-${(pay.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${kav.replace(/[^A-Z0-9]/g, '')}-${pay.id.slice(-4)}`;
+
+    if (pay.status === 'VERIFIED') {
+      const text = `*KUITANSI PEMBAYARAN IURAN RESMI*\n` +
+        `*Komplek Grand Sariwangi*\n` +
+        `---------------------------------------\n` +
+        `No. Kuitansi: ${receiptNo}\n` +
+        `Kode Unit: Rumah ${kav}\n` +
+        `Atas Nama: ${name}\n` +
+        `Periode: ${pay.periodName || 'September 2026'}\n` +
+        `Nominal: ${formatRupiah(pay.amount)}\n` +
+        `Metode: ${formatPaymentMethod(pay.method)}\n` +
+        `No. Referensi: ${pay.reference || '-'}\n` +
+        `Waktu Lunas: ${pay.paidAt}\n` +
+        `Status: *TERVERIFIKASI LUNAS ✓*\n` +
+        `---------------------------------------\n` +
+        `Terima kasih atas partisipasi Bpk/Ibu ${name} dalam menjaga kebersihan, ketertiban, dan operasional lingkungan kita.\n\n` +
+        `Hormat kami,\n` +
+        `Bendahara & Pengurus Komplek Grand Sariwangi`;
+      return `https://wa.me/?text=${encodeURIComponent(text)}`;
+    } else {
+      const text = `Halo Bpk/Ibu ${name} (Rumah ${kav}), menginfokan bahwa bukti pembayaran iuran IPL sebesar ${formatRupiah(pay.amount)} telah kami terima dan sedang dalam antrean verifikasi bendahara. Terima kasih!`;
+      return `https://wa.me/?text=${encodeURIComponent(text)}`;
+    }
+  };
+
+  // WhatsApp Broadcast Text for Receiving Channels
+  const broadcastWaText = `*INFORMASI REKENING RESMI IURAN IPL WARGA*\n` +
+    `*Komplek Grand Sariwangi (RT 01 / RW 08)*\n` +
+    `---------------------------------------\n` +
+    `Bapak/Ibu warga Grand Sariwangi yang kami hormati,\n` +
+    `Berikut saluran resmi pembayaran Iuran Pengelolaan Lingkungan (IPL) komplek:\n\n` +
+    `1. *Transfer Bank Syariah (Utama)*:\n` +
+    `   Bank: Bank Syariah Indonesia (BSI)\n` +
+    `   No. Rekening: 7142-9988-11\n` +
+    `   Atas Nama: PENGURUS KOMPLEK WARGAHUB\n` +
+    `   Kode Bank: 451\n\n` +
+    `2. *QRIS Dinamis Paguyuban*:\n` +
+    `   Scan kode QRIS melalui portal warga https://wrghub.vercel.app/resident atau stiker di pos satpam.\n\n` +
+    `3. *Setoran Tunai Fisik*:\n` +
+    `   Dapat diserahkan langsung ke Petugas Pos Satpam 24 Jam atau ke rumah Bendahara Komplek (disertai kuitansi tunai resmi).\n\n` +
+    `*Catatan*: Mohon sertakan kode kavling (contoh: "Kav A") pada berita transfer demi kelancaran pencatatan kas.\n\n` +
+    `Terima kasih atas kerja sama dan kedisiplinan seluruh warga.\n` +
+    `Pengurus RT/RW Komplek Grand Sariwangi`;
+
+  // Quick POS Counter Submission
+  const handleQuickCounterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCounterProcessing(true);
+    try {
+      const matched = clusterProperties.find((p) => p.code.toLowerCase() === counterHouseCode.toLowerCase());
+      const resident = counterPayerName || (matched ? (matched.residentName || matched.ownerName) : `Warga ${counterHouseCode}`);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const generatedRef = counterRef || `KAS-TUNAI-${Date.now().toString().slice(-6)}`;
+
+      await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyCode: counterHouseCode.toUpperCase(),
+          ownerName: resident,
+          periodName: counterPeriod,
+          amount: Number(counterAmount),
+          method: `Tunai (Diterima ${counterCollector})`,
+          reference: generatedRef,
+          paidAt: todayStr,
+          status: 'VERIFIED',
+          notes: `${counterNotes} (Petugas: ${counterCollector})`,
+        }),
+      }).catch(() => {});
+
+      const newPay: PaymentListItem = {
+        id: `pay-${Date.now()}`,
+        invoiceId: `inv-${Date.now()}`,
+        propertyCode: counterHouseCode.toUpperCase(),
+        amount: Number(counterAmount),
+        method: `Tunai (Diterima ${counterCollector})`,
+        reference: generatedRef,
+        proofUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
+        proofFileUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
+        status: 'VERIFIED',
+        paidAt: todayStr,
+        notes: `${counterNotes} (Petugas: ${counterCollector})`,
+        verifiedAt: new Date().toISOString(),
+      };
+
+      const updated = [newPay, ...payments];
+      updatePaymentsState(updated);
+
+      // Auto update cash in petty cash account
+      const petty = bankAccounts.find((a) => a.accountType === 'KAS_TUNAI') || bankAccounts[0];
+      if (petty) {
+        const nextAccounts = bankAccounts.map((a) =>
+          a.id === petty.id ? { ...a, balance: a.balance + Number(counterAmount) } : a
+        );
+        setBankAccounts(nextAccounts);
+        savePersisted('wargahub_bank_accounts', nextAccounts);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('wargahub_payment_verified', {
+            detail: { propertyCode: counterHouseCode.toUpperCase(), amount: Number(counterAmount), periodName: counterPeriod },
+          })
+        );
+      }
+
+      showToast(`Setoran tunai ${counterHouseCode} sebesar ${formatRupiah(counterAmount)} berhasil dicatat & kuitansi terbit!`);
+
+      // Open Receipt Modal right away for quick print or WhatsApp share
+      setSelectedReceipt({
+        invoiceNumber: `INV-${counterPeriod.replace(/\s+/g, '').toUpperCase()}-${counterHouseCode.replace(/[^A-Z0-9]/g, '')}`,
+        periodName: counterPeriod,
+        propertyCode: counterHouseCode,
+        residentName: resident,
+        amount: Number(counterAmount),
+        paidAt: todayStr,
+        paymentMethod: `Tunai (Diterima ${counterCollector})`,
+        referenceNumber: generatedRef,
+        kepalaKomplekName: kepalaKomplekName,
+        isInvoice: false,
+        items: Number(counterAmount) === 350000 ? [
+          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
+          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
+        ] : (Number(counterAmount) === 250000 ? [
+          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
+        ] : undefined),
+      });
+
+      setCounterRef(`KAS-TUNAI-${Date.now().toString().slice(-6)}`);
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal mencatat setoran tunai.');
+    } finally {
+      setCounterProcessing(false);
     }
   };
 
@@ -854,7 +1069,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   const paginatedPayments = filteredAndSorted.slice(startIndex, endIndex);
 
   // Copy Public Link
-  const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'http://localhost:4321/transparency';
+  const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'https://wrghub.vercel.app/transparency';
   const handleCopyPublicLink = () => {
     navigator.clipboard.writeText(publicTransparencyUrl);
     setCopiedLink(true);
@@ -901,81 +1116,60 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-black tracking-tight text-ink flex items-center gap-2">
               <CreditCard className="w-6 h-6 text-emerald-600" />
-              Pembayaran & Verifikasi Iuran
+              Verifikasi Pembayaran & Kasir Kas
             </h1>
-            {pendingCount > 0 && (
+            {pendingCount > 0 ? (
               <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-black border border-amber-300 animate-pulse">
-                {pendingCount} Menunggu Verifikasi
+                {pendingCount} Perlu Ditinjau
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+                Semua Bersih ✓
               </span>
             )}
           </div>
           <p className="text-xs text-ink-muted mt-1">
-            Verifikasi setoran bukti transfer Bank/Syariah/E-Wallet/QRIS warga, penerbitan kuitansi ber-QR code resmi, rekonsiliasi kas, dan rekapitulasi iuran terbuka.
+            Verifikasi setoran bukti transfer Bank/Syariah/QRIS warga, penerbitan kuitansi ber-QR code resmi, loket kasir tunai pos satpam, dan kanal pembayaran resmi paguyuban.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/transparency"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-2xs active:scale-[0.98] transition-all"
+            title="Buka portal transparansi iuran publik"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-primary-600" />
+            <span>Portal Publik ↗</span>
+          </a>
           <button
             type="button"
             onClick={handleExportPaymentsCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-2xs active:scale-[0.98] transition-all"
           >
-            <Download className="w-4 h-4 text-emerald-600" />
-            <span>Ekspor Mutasi (CSV)</span>
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Ekspor CSV</span>
           </button>
           <button
             type="button"
-            onClick={() => handleOpenCreatePayment()}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+            onClick={() => setActiveSubTab('manual_counter')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span>Catat Pembayaran Manual</span>
+            <Wallet className="w-3.5 h-3.5" />
+            <span>+ Loket Kasir Tunai</span>
           </button>
         </div>
       </div>
 
-      {/* Public Transparency Share Callout Banner */}
-      <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-            <Share2 className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="font-bold text-emerald-950 text-sm">Tautan Publik Rekapitulasi Iuran Warga (Bulan Aktif)</h4>
-            <p className="text-emerald-800 text-[11px] mt-0.5">
-              Bagikan tautan ini ke grup WhatsApp warga agar warga dapat melihat secara mandiri daftar rumah yang sudah lunas dan yang belum bayar secara terbuka.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <button
-            type="button"
-            onClick={handleCopyPublicLink}
-            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-          >
-            {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-            <span>Salin Link Publik</span>
-          </button>
-          <a
-            href={publicTransparencyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>Buka Halaman Publik</span>
-          </a>
-        </div>
-      </div>
-
-      {/* 4 Sub-Tabs Navigation */}
+      {/* 4 Clean Sub-Tabs Navigation */}
       <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'verification', label: 'Verifikasi Pembayaran Masuk', icon: Hourglass, count: `${pendingCount} Menunggu` },
-          { id: 'public_transparency', label: 'Rekapitulasi Transparansi Warga (Lunas vs Belum)', icon: Eye, count: `${verifiedCount} Lunas` },
-          { id: 'bank_recon', label: 'Rekonsiliasi Bank & Rekening Kas', icon: Building },
-          { id: 'manual_entry', label: 'Catat Setoran Manual / Tunai', icon: PlusCircle },
+          { id: 'verification', label: 'Antrean Verifikasi Bukti', icon: Hourglass, count: `${pendingCount} Menunggu` },
+          { id: 'history', label: 'Riwayat Kuitansi Kas Resmi', icon: Receipt, count: `${verifiedReceipts.length} Kuitansi` },
+          { id: 'manual_counter', label: 'Loket Kasir Tunai / Pos Satpam', icon: Wallet },
+          { id: 'receiving_channels', label: 'Kanal Rekening Penerimaan', icon: Building },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -1357,6 +1551,16 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                                 </>
                               )}
 
+                              <a
+                                href={getPaymentWaUrl(pay)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
+                                title="Kirim Notifikasi / Kuitansi WhatsApp ke Warga"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                              </a>
+
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditPayment(pay)}
@@ -1428,17 +1632,16 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                 </button>
 
                 <div className="flex items-center gap-1 px-2">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum = safeCurrentPage - 2 + i;
-                    if (pageNum < 1) pageNum = i + 1;
-                    if (pageNum > totalPages) return null;
-
-                    return (
+                  {(() => {
+                    const maxButtons = 5;
+                    const startPage = Math.max(1, Math.min(safeCurrentPage - Math.floor(maxButtons / 2), Math.max(1, totalPages - maxButtons + 1)));
+                    const pageCount = Math.min(maxButtons, totalPages);
+                    return Array.from({ length: pageCount }, (_, i) => startPage + i).map((pageNum) => (
                       <button
                         key={pageNum}
                         type="button"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors active:scale-[0.98] ${
                           safeCurrentPage === pageNum
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-surface border border-border text-ink hover:bg-canvas'
@@ -1446,8 +1649,8 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                       >
                         {pageNum}
                       </button>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
 
                 <button
@@ -1474,18 +1677,18 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 2: REKAPITULASI TRANSPARANSI WARGA ================= */}
-      {activeSubTab === 'public_transparency' && (
+      {/* ================= SUBTAB 2: RIWAYAT KUITANSI KAS RESMI ================= */}
+      {activeSubTab === 'history' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
               <div>
                 <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-emerald-600" />
-                  Status Rekapitulasi Iuran Warga Terbuka (Agustus 2026)
+                  <Receipt className="w-5 h-5 text-emerald-600" />
+                  Riwayat Kuitansi Kas & Tanda Terima Resmi
                 </h3>
                 <p className="text-xs text-ink-muted mt-0.5">
-                  Menampilkan unit rumah yang telah diverifikasi lunas dan unit yang masih belum bayar pada periode aktif.
+                  Arsip seluruh bukti kuitansi setoran iuran warga yang telah diverifikasi dan sah dibukukan ke dalam kas paguyuban.
                 </p>
               </div>
 
@@ -1493,294 +1696,209 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const content = `LAPORAN TRANSPARANSI IURAN WARGA - AGUSTUS 2026\n================================================\nTotal Terverifikasi Lunas: ${verifiedCount} Unit (${formatRupiah(totalVerifiedAmount)})\n\nDaftar Unit Lunas:\n${payments.filter(p => p.status === 'VERIFIED').map(p => `- Rumah ${p.propertyCode}: ${formatRupiah(p.amount)} (${p.paidAt})`).join('\n')}\n\nDaftar Unit Belum Lunas:\n${payments.filter(p => p.status !== 'VERIFIED').map(p => `- Rumah ${p.propertyCode}: ${formatRupiah(p.amount)} [${p.status}]`).join('\n')}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}`;
-                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `REKAP_TRANSPARANSI_IURAN_${new Date().toISOString().slice(0, 10)}.txt`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    showToast('Laporan transparansi berhasil diunduh.');
+                    const headers = ['No Kuitansi', 'Unit', 'Warga', 'Nominal', 'Metode', 'Referensi', 'Tanggal Terbit'];
+                    const rows = verifiedReceipts.map((p) => {
+                      const matched = clusterProperties.find((cp) => cp.code.toLowerCase() === p.propertyCode.toLowerCase());
+                      const res = matched ? (matched.residentName || matched.ownerName) : `Warga ${p.propertyCode}`;
+                      const receiptNo = `KWT-${(p.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${p.propertyCode.replace(/[^A-Z0-9]/g, '')}-${p.id.slice(-4)}`;
+                      return [receiptNo, `"${p.propertyCode}"`, `"${res}"`, p.amount, `"${p.method}"`, `"${p.reference || '-'}"`, `"${p.paidAt}"`];
+                    });
+                    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', encodedUri);
+                    link.setAttribute('download', `REKAP_KUITANSI_KAS_WARGA_${new Date().toISOString().slice(0, 10)}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showToast('Data riwayat kuitansi berhasil diekspor ke CSV.');
                   }}
-                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
+                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-2xs active:scale-[0.98] transition-all"
                 >
-                  <Download className="w-3.5 h-3.5 text-primary-600" />
-                  <span>Unduh Laporan (.txt)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyPublicLink}
-                  className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Salin Tautan Publik</span>
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Unduh Rekap Kuitansi (CSV)</span>
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              {/* LUNAS SECTION */}
-              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-black text-emerald-950 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    Unit Sudah Lunas ({verifiedCount} Unit)
-                  </h4>
-                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-black">
-                    TERVERIFIKASI
-                  </span>
-                </div>
-                <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1">
-                  {payments.filter((p) => p.status === 'VERIFIED').map((p) => (
-                    <div key={p.id} className="p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between shadow-2xs">
-                      <div>
-                        <span className="font-mono font-black text-ink text-sm block">Rumah {p.propertyCode}</span>
-                        <span className="text-[10px] text-ink-muted block">{formatPaymentMethod(p.method)} • {p.reference || 'Auto-Recon'}</span>
-                      </div>
-                      <div className="text-right flex items-center gap-2">
-                        <div>
-                          <span className="font-mono font-black text-emerald-700 block">{formatRupiah(p.amount)}</span>
-                          <span className="text-[9px] font-mono text-emerald-600">Lunas {p.paidAt}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedReceipt({
-                              invoiceNumber: `INV-202608-${p.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
-                              periodName: 'Agustus 2026',
-                              propertyCode: p.propertyCode,
-                              residentName: `Warga Rumah ${p.propertyCode}`,
-                              amount: p.amount,
-                              paidAt: p.paidAt || '28 Agustus 2026',
-                              paymentMethod: p.method,
-                              referenceNumber: p.reference || `TRX-${p.propertyCode}`,
-                            })
-                          }
-                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg active:scale-[0.95] transition-all"
-                          title="Cetak Kuitansi"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {/* Metrics Snapshot */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3.5 bg-canvas/70 rounded-2xl border border-border">
+                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted">Total Kuitansi Sah</span>
+                <p className="text-xl font-black font-mono text-ink mt-0.5">{verifiedReceipts.length} Kuitansi</p>
+                <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">Tercatat di pembukuan</span>
               </div>
-
-              {/* BELUM LUNAS SECTION WITH WHATSAPP REMINDER */}
-              <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-200 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-black text-rose-950 flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-rose-600" />
-                    Unit Menunggu Verifikasi / Belum Bayar
-                  </h4>
-                  <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-mono font-black">
-                    DALAM PROSES
-                  </span>
-                </div>
-                <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1">
-                  {payments.filter((p) => p.status !== 'VERIFIED').map((p) => (
-                    <div key={p.id} className="p-3 bg-white rounded-xl border border-rose-200 flex items-center justify-between shadow-2xs">
-                      <div>
-                        <span className="font-mono font-black text-ink text-sm block">Rumah {p.propertyCode}</span>
-                        <span className="text-[10px] text-ink-muted font-mono block">Status: <strong>{p.status}</strong></span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-black text-rose-700 tabular-nums">{formatRupiah(p.amount)}</span>
-                        <a
-                          href={`https://wa.me/?text=${encodeURIComponent(`Yth. Bpk/Ibu Warga Rumah ${p.propertyCode}, menginfokan bahwa tagihan iuran IPL komplek periode Agustus 2026 sebesar ${formatRupiah(p.amount)} siap dibayarkan ke Rekening Kas Paguyuban (${primaryAccount.bankName} - ${primaryAccount.accountNumber} a.n ${primaryAccount.accountHolder}). Terima kasih!`)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-1 text-[10px] font-bold active:scale-[0.95] transition-all"
-                          title="Kirim Pengingat WhatsApp"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>WA</span>
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenCreatePayment(p.propertyCode)}
-                          className="px-2.5 py-1 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg text-[10px] active:scale-[0.95] transition-all"
-                        >
-                          Bayar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="p-3.5 bg-canvas/70 rounded-2xl border border-border">
+                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted">Total Dana Kas Diterima</span>
+                <p className="text-xl font-black font-mono text-emerald-700 mt-0.5">{formatRupiah(totalVerifiedAmount)}</p>
+                <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">Lunas terverifikasi</span>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 3: REKONSILIASI KAS & PENGATURAN MULTI-BANK / E-WALLET ================= */}
-      {activeSubTab === 'bank_recon' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Header Action */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="font-bold text-base text-ink flex items-center gap-2">
-                <Building className="w-5 h-5 text-primary-600" />
-                Rekening Kas & Integrasi Rekonsiliasi Multi-Bank / E-Wallet / QRIS
-              </h3>
-              <p className="text-xs text-ink-muted mt-0.5">
-                Kelola data rekening bank kas paguyuban (Bank Syariah / Konvensional), e-wallet komunitas, saldo awal kas, gateway QRIS dinamis, dan pencocokan mutasi otomatis.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleOpenAddBank}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Tambah Rekening / E-Wallet</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenEditBank(primaryAccount)}
-                className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
-              >
-                <Edit3 className="w-4 h-4 text-primary-600" />
-                <span>Edit Rekening Utama</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Multi-Bank / E-Wallet / Cash Account Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            {bankAccounts.map((acc) => (
-              <div key={acc.id} className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-3 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center font-black">
-                    {acc.accountType === 'BANK_SYARIAH' ? (
-                      <span className="text-sm">🌙</span>
-                    ) : acc.accountType === 'E_WALLET' ? (
-                      <Wallet className="w-4 h-4" />
-                    ) : acc.accountType === 'QRIS_DINAMIS' ? (
-                      <QrCode className="w-4 h-4" />
-                    ) : acc.accountType === 'KAS_TUNAI' ? (
-                      <Wallet className="w-4 h-4 text-amber-600" />
-                    ) : (
-                      <Building className="w-4 h-4" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {acc.accountType === 'BANK_SYARIAH' && (
-                      <span className="px-2 py-0.5 rounded-full font-bold text-[9px] bg-teal-100 text-teal-800">
-                        🌙 SYARIAH
-                      </span>
-                    )}
-                    {acc.accountType === 'E_WALLET' && (
-                      <span className="px-2 py-0.5 rounded-full font-bold text-[9px] bg-blue-100 text-blue-800">
-                        💳 E-WALLET
-                      </span>
-                    )}
-                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${acc.isPrimary ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-                      {acc.isPrimary ? 'REKENING UTAMA' : 'KAS OPERASIONAL'}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-black text-sm text-ink">{acc.bankName}</h4>
-                  <p className="font-mono font-bold text-primary-700 text-xs mt-0.5">{acc.accountNumber}</p>
-                  <p className="text-[11px] text-ink-muted mt-0.5">a.n {acc.accountHolder}</p>
-                  {acc.notes && <p className="text-[10px] text-ink-muted italic mt-1">{acc.notes}</p>}
-                </div>
-
-                <div className="pt-2 border-t border-border flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-ink-muted block">Saldo Kas Terkini:</span>
-                    <span className="font-black text-emerald-700 text-sm font-mono">{formatRupiah(acc.balance)}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditBank(acc)}
-                      className="p-1.5 bg-canvas hover:bg-surface border border-border text-ink rounded-lg font-bold"
-                      title="Ubah Data Rekening"
-                    >
-                      <Edit3 className="w-3.5 h-3.5 text-primary-600" />
-                    </button>
-                    {!acc.isPrimary && bankAccounts.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteBank(acc.id)}
-                        className="p-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg font-bold"
-                        title="Hapus Rekening"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Live Bank Feed Auto-Matching Table */}
-          <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-4 text-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-sm text-ink flex items-center gap-2">
-                  <FileCheck className="w-4 h-4 text-emerald-600" />
-                  Riwayat Feed Mutasi Bank & Auto-Reconciliation
-                </h4>
-                <p className="text-ink-muted text-[11px] mt-0.5">
-                  Sistem otomatis mencocokkan mutasi rekening koran dengan tagihan rumah warga berdasarkan nominal dan berita transfer.
+              <div className="p-3.5 bg-canvas/70 rounded-2xl border border-border">
+                <span className="text-[10px] font-mono uppercase font-bold text-ink-muted">Rata-Rata Pembayaran</span>
+                <p className="text-xl font-black font-mono text-ink mt-0.5">
+                  {formatRupiah(verifiedReceipts.length > 0 ? Math.round(totalVerifiedAmount / verifiedReceipts.length) : 250000)}
                 </p>
+                <span className="text-[10px] text-ink-muted font-bold block mt-0.5">per transaksi terbit</span>
               </div>
-              <span className="px-3 py-1 bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 rounded-xl">
-                Tingkat Kecocokan: 100% (Auto-Matched)
-              </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-border bg-canvas text-ink-muted font-bold">
-                    <th className="py-3 px-4">Waktu Mutasi</th>
-                    <th className="py-3 px-4">Keterangan Transaksi</th>
-                    <th className="py-3 px-4">Tipe</th>
-                    <th className="py-3 px-4">Nominal</th>
-                    <th className="py-3 px-4">Unit Terhubung</th>
-                    <th className="py-3 px-4 text-center">Status Rekon</th>
+            {/* Search and Filters */}
+            <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 text-ink-muted absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Cari nomor kuitansi, kode kavling, nama warga, atau no. referensi bank..."
+                  value={receiptSearch}
+                  onChange={(e) => setReceiptSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted/70 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                />
+              </div>
+
+              <select
+                value={receiptMethodFilter}
+                onChange={(e) => setReceiptMethodFilter(e.target.value)}
+                className="w-full sm:w-auto px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:outline-none"
+              >
+                <option value="ALL">Semua Saluran Pembayaran</option>
+                <option value="SYARIAH">🌙 Bank Syariah (BSI)</option>
+                <option value="QRIS">📱 QRIS Dinamis</option>
+                <option value="CASH">💵 Kas Tunai Pos Satpam / Bendahara</option>
+                <option value="TRANSFER">🏦 Transfer Bank</option>
+              </select>
+            </div>
+
+            {/* Table of Official Receipts */}
+            <div className="overflow-x-auto rounded-2xl border border-border shadow-2xs">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-canvas border-b border-border text-ink-muted font-bold text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4 font-mono">No. Kuitansi Resmi</th>
+                    <th className="py-3 px-4">Kavling & Warga</th>
+                    <th className="py-3 px-4">Periode</th>
+                    <th className="py-3 px-4 font-mono text-right">Nominal</th>
+                    <th className="py-3 px-4">Saluran & Referensi</th>
+                    <th className="py-3 px-4 font-mono">Waktu Lunas</th>
+                    <th className="py-3 px-4 text-right">Aksi Kuitansi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {statementFeeds.length === 0 ? (
+                  {verifiedReceipts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-ink-muted">
-                        <Building className="w-8 h-8 mx-auto mb-2 text-ink-muted/50" />
-                        <p className="font-bold text-sm text-ink">Belum ada mutasi rekening bank terdeteksi</p>
-                        <p className="text-[11px] mt-1">Mutasi dari bank atau settlement QRIS akan otomatis muncul di sini untuk rekonsiliasi.</p>
+                      <td colSpan={7} className="py-12 text-center text-ink-muted">
+                        <Receipt className="w-8 h-8 mx-auto text-ink-muted/40 mb-2" />
+                        <p className="font-bold text-sm text-ink">Tidak ada kuitansi yang cocok dengan filter</p>
+                        <p className="text-xs text-ink-muted mt-0.5">Coba ubah kata kunci pencarian atau bersihkan filter.</p>
                       </td>
                     </tr>
                   ) : (
-                    statementFeeds.map(feed => (
-                      <tr key={feed.id} className="hover:bg-canvas/50">
-                        <td className="py-3 px-4 font-mono text-ink-muted">{feed.date}</td>
-                        <td className="py-3 px-4 font-bold text-ink">{feed.description}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded font-black font-mono text-[10px] ${feed.type === 'CR' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                            {feed.type === 'CR' ? '+ KREDIT (MASUK)' : '- DEBIT (KELUAR)'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 font-black font-mono text-ink">{formatRupiah(feed.amount)}</td>
-                        <td className="py-3 px-4 font-bold text-primary-700">{feed.matchedHouse ? `Rumah ${feed.matchedHouse}` : '-'}</td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-bold text-[10px]">
-                            ✓ MATCHED
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    verifiedReceipts.map((pay) => {
+                      const matched = clusterProperties.find((cp) => cp.code.toLowerCase() === pay.propertyCode.toLowerCase());
+                      const resident = matched ? (matched.residentName || matched.ownerName) : `Warga ${pay.propertyCode}`;
+                      const receiptNo = `KWT-${(pay.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}-${pay.id.slice(-4)}`;
+
+                      return (
+                        <tr key={pay.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                          <td className="py-3.5 px-4 font-mono font-bold text-emerald-800">
+                            <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded-md">
+                              {receiptNo}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-mono font-black text-ink block">Rumah {pay.propertyCode}</span>
+                            <span className="text-[11px] text-ink-muted">{resident}</span>
+                          </td>
+                          <td className="py-3.5 px-4 font-medium text-ink">
+                            {pay.periodName || 'September 2026'}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-black tabular-nums text-emerald-700 text-right text-sm">
+                            {formatRupiah(pay.amount)}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-xs flex items-center gap-1">
+                              <span>{formatPaymentMethod(pay.method)}</span>
+                            </div>
+                            <span className="font-mono text-[10px] text-ink-muted bg-canvas px-1.5 py-0.5 rounded border border-border inline-block mt-0.5">
+                              Ref: {pay.reference || '-'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-ink-muted text-[11px]">
+                            {pay.paidAt}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedReceipt({
+                                    invoiceNumber: `INV-${(pay.periodName || '2026').replace(/\s+/g, '').toUpperCase()}-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
+                                    periodName: pay.periodName || 'September 2026',
+                                    propertyCode: pay.propertyCode,
+                                    residentName: resident,
+                                    amount: pay.amount,
+                                    paidAt: pay.paidAt || '28 September 2026',
+                                    paymentMethod: pay.method,
+                                    referenceNumber: pay.reference || receiptNo,
+                                    kepalaKomplekName: kepalaKomplekName,
+                                    isInvoice: false,
+                                    items: pay.amount === 350000 ? [
+                                      { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
+                                      { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
+                                    ] : (pay.amount === 250000 ? [
+                                      { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
+                                    ] : undefined),
+                                  })
+                                }
+                                className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 active:scale-[0.98] transition-all"
+                                title="Buka & Cetak Kuitansi Resmi"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Cetak</span>
+                              </button>
+
+                              <a
+                                href={getPaymentWaUrl(pay)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] inline-flex items-center gap-1 active:scale-[0.98] transition-all"
+                                title="Kirim Ulang Kuitansi Resmi ke WhatsApp Warga"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>Kirim WA</span>
+                              </a>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedReceipt({
+                                    invoiceNumber: `INV-${(pay.periodName || '2026').replace(/\s+/g, '').toUpperCase()}-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
+                                    periodName: pay.periodName || 'September 2026',
+                                    propertyCode: pay.propertyCode,
+                                    residentName: resident,
+                                    amount: pay.amount,
+                                    paidAt: pay.paidAt || '28 September 2026',
+                                    paymentMethod: pay.method,
+                                    referenceNumber: pay.reference || receiptNo,
+                                    kepalaKomplekName: kepalaKomplekName,
+                                    isInvoice: true,
+                                    items: pay.amount === 350000 ? [
+                                      { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
+                                      { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
+                                    ] : (pay.amount === 250000 ? [
+                                      { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
+                                    ] : undefined),
+                                  })
+                                }
+                                className="px-2 py-1.5 bg-canvas hover:bg-surface border border-border text-ink-muted hover:text-ink rounded-lg font-bold text-[11px] inline-flex items-center gap-1 active:scale-[0.98] transition-all"
+                                title="Lihat Surat Tagihan / Invoice"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1789,274 +1907,375 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 4: CATAT MANUAL PEMBAYARAN ================= */}
-      {activeSubTab === 'manual_entry' && (
-        <div className="space-y-4 max-w-2xl animate-in fade-in duration-150">
-          <div className="p-6 bg-surface rounded-3xl border border-border shadow-card space-y-4 text-xs">
-            <h3 className="font-black text-base text-ink flex items-center gap-2">
-              <PlusCircle className="w-5 h-5 text-emerald-600" />
-              Catat Penerimaan Setoran Iuran Manual / Tunai
-            </h3>
-            <p className="text-ink-muted">
-              Gunakan formulir ini untuk mencatat pembayaran tunai yang diterima langsung oleh bendahara atau transfer manual yang belum masuk sistem.
-            </p>
-
-            <form onSubmit={handleSavePayment} className="space-y-3">
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Kode Unit Rumah *</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: A-17 / B-04 / KAV-02"
-                    value={formHouseCode}
-                    onChange={(e) => setFormHouseCode(e.target.value)}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nama Pembayar</label>
-                  <input
-                    type="text"
-                    placeholder="Budi Santoso"
-                    value={formOwnerName}
-                    onChange={(e) => setFormOwnerName(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  />
-                </div>
+      {/* ================= SUBTAB 3: LOKET KASIR TUNAI / POS SATPAM ================= */}
+      {activeSubTab === 'manual_counter' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+              <div>
+                <h3 className="font-black text-base text-ink flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-emerald-600" />
+                  Loket Kasir Penerimaan Tunai / Pos Satpam
+                </h3>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Pencatatan setoran uang tunai langsung dari warga di pos keamanan atau ke bendahara, otomatis melunasi tagihan dan menerbitkan kuitansi seketika.
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nominal Iuran (Rp) *</label>
-                  <input
-                    type="number"
-                    value={formAmount}
-                    onChange={(e) => setFormAmount(Number(e.target.value))}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold font-mono text-ink"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-ink block">Metode Pembayaran</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddMethodSection(!showAddMethodSection)}
-                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-0.5 active:scale-[0.98] transition-all hover:underline"
-                      title="Tambah Bank Digital / E-Wallet Baru"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>+ Tambah</span>
-                    </button>
-                  </div>
-                  <select
-                    value={formMethod}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '__ADD_NEW__') {
-                        setShowAddMethodSection(true);
-                      } else {
-                        setFormMethod(val);
-                        if ((val === 'CASH_KEPALA_KOMPLEK' || val.includes('Kepala Komplek')) && (!formNotes || formNotes.includes('Diterima'))) {
-                          let kpName = 'Yahya Nursidik';
-                          try {
-                            const savedK = typeof window !== 'undefined' ? localStorage.getItem('wargahub_set_kepala_komplek') : null;
-                            if (savedK) {
-                              const parsed = JSON.parse(savedK);
-                              if (parsed && typeof parsed === 'string' && !parsed.toLowerCase().includes('bambang sutrisno')) kpName = parsed;
-                            }
-                          } catch (err) {}
-                          setFormNotes(`Diterima langsung oleh Kepala Komplek (${kpName})`);
-                        }
-                      }
-                    }}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    {customPaymentMethods.length > 0 && (
-                      <optgroup label="⭐ Bank / E-Wallet Kustom Anda">
-                        {customPaymentMethods.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    <optgroup label="🌙 Bank Syariah">
-                      <option value="Bank Syariah Indonesia (BSI)">Bank Syariah Indonesia (BSI)</option>
-                      <option value="Bank Muamalat (Syariah)">Bank Muamalat</option>
-                      <option value="BCA Syariah">BCA Syariah</option>
-                      <option value="Bank Aladin Syariah">Bank Aladin Syariah</option>
-                      <option value="Bank Jago Syariah">Bank Jago Syariah</option>
-                      <option value="Bank Mega Syariah">Bank Mega Syariah</option>
-                    </optgroup>
-                    <optgroup label="💳 Dompet Digital / E-Wallet">
-                      <option value="GoPay">GoPay</option>
-                      <option value="DANA">DANA</option>
-                      <option value="OVO">OVO</option>
-                      <option value="ShopeePay">ShopeePay</option>
-                      <option value="LinkAja">LinkAja</option>
-                      <option value="AstraPay">AstraPay</option>
-                    </optgroup>
-                    <optgroup label="📱 Bank Digital">
-                      <option value="Bank Jago">Bank Jago</option>
-                      <option value="SeaBank">SeaBank</option>
-                      <option value="Blu by BCA Digital">Blu by BCA Digital</option>
-                      <option value="Bank Neo Commerce">Bank Neo Commerce (BNC)</option>
-                      <option value="Allobank">Allobank</option>
-                      <option value="Jenius (BTPN)">Jenius (BTPN)</option>
-                    </optgroup>
-                    <optgroup label="🏦 Bank Konvensional">
-                      <option value="Transfer Bank BCA">Transfer Bank BCA</option>
-                      <option value="Transfer Bank Mandiri">Transfer Bank Mandiri</option>
-                      <option value="Transfer Bank BRI">Transfer Bank BRI</option>
-                      <option value="Transfer Bank BNI">Transfer Bank BNI</option>
-                      <option value="Transfer Bank CIMB Niaga">Transfer Bank CIMB Niaga</option>
-                      <option value="Transfer Bank Permata">Transfer Bank Permata</option>
-                      <option value="Transfer Bank Danamon">Transfer Bank Danamon</option>
-                    </optgroup>
-                    <optgroup label="💵 Tunai & QRIS">
-                      <option value="Tunai (Diterima oleh Kepala Komplek)">💵 Tunai (Diterima oleh Kepala Komplek)</option>
-                      <option value="Tunai / Cash">Tunai / Cash (Diterima Bendahara)</option>
-                      <option value="QRIS Dinamis">QRIS Dinamis / Statis</option>
-                    </optgroup>
-                    {['BCA_TRANSFER', 'MANDIRI_TRANSFER', 'BRI_TRANSFER', 'CASH', 'CASH_KEPALA_KOMPLEK', 'QRIS'].includes(formMethod) && (
-                      <optgroup label="Tersimpan">
-                        <option value={formMethod}>{formatPaymentMethod(formMethod)}</option>
-                      </optgroup>
-                    )}
-                    <option value="__ADD_NEW__">➕ Tambah Bank / E-Wallet Baru...</option>
-                  </select>
-                </div>
-              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl font-mono font-bold text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Loket Siap Melayani
+              </span>
+            </div>
 
-              {/* Box Tambah Metode Baru */}
-              {showAddMethodSection && (
-                <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 rounded-2xl space-y-2.5 animate-in fade-in slide-in-from-top-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-emerald-950 flex items-center gap-1.5 text-xs">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                      Tambah Bank Digital, E-Wallet, atau Bank Lainnya
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddMethodSection(false)}
-                      className="text-emerald-700 hover:text-emerald-950 text-[11px] font-bold"
-                    >
-                      ✕ Batal
-                    </button>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {/* POS FORM */}
+              <div className="lg:col-span-7 space-y-4">
+                <form onSubmit={handleQuickCounterSubmit} className="space-y-4 text-xs">
+                  {/* Step 1: Select Unit */}
+                  <div className="p-4 bg-canvas/70 rounded-2xl border border-border space-y-2.5">
+                    <label className="font-black text-ink block text-xs flex items-center justify-between">
+                      <span>1. Pilih Unit Rumah / Kavling Warga:</span>
+                      <span className="text-[10px] font-mono text-ink-muted">14 Kavling Grand Sariwangi</span>
+                    </label>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {clusterProperties.map((p) => {
+                        const isSelected = counterHouseCode.toLowerCase() === p.code.toLowerCase();
+                        return (
+                          <button
+                            key={p.code}
+                            type="button"
+                            onClick={() => {
+                              setCounterHouseCode(p.code);
+                              setCounterPayerName(p.residentName || p.ownerName);
+                            }}
+                            className={`p-2 rounded-xl text-left border transition-all active:scale-[0.98] ${
+                              isSelected
+                                ? 'bg-slate-900 text-white border-slate-900 shadow-2xs font-bold'
+                                : 'bg-surface hover:bg-canvas border-border text-ink font-medium'
+                            }`}
+                          >
+                            <span className="font-black font-mono block text-xs">{p.code}</span>
+                            <span className="text-[10px] truncate block opacity-90">{p.residentName || p.ownerName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Preset Quick Chips */}
-                  <div>
-                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block mb-1">
-                      Pilihan Cepat (Klik untuk Langsung Tambah & Pilih):
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {POPULAR_PAYMENT_SUGGESTIONS.map((sug) => (
+                  {/* Step 2: Quick Amount Presets */}
+                  <div className="p-4 bg-canvas/70 rounded-2xl border border-border space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-black text-ink block text-xs">
+                        2. Nominal Pembayaran Uang Tunai:
+                      </label>
+                      <span className="font-mono font-black text-sm text-emerald-700">
+                        {formatRupiah(counterAmount)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { label: '1 Bulan (Iuran RT)', amount: 250000 },
+                        { label: '1 Bulan (RT + RW)', amount: 350000 },
+                        { label: '2 Bulan Pelunasan', amount: 500000 },
+                        { label: 'Triwulan (3 Bulan)', amount: 750000 },
+                        { label: 'Semester (6 Bulan)', amount: 1500000 },
+                        { label: '1 Tahun Penuh', amount: 3000000 },
+                      ].map((preset) => (
                         <button
-                          key={sug.name}
+                          key={preset.label}
                           type="button"
-                          onClick={() => {
-                            handleAddCustomMethod(sug.name);
-                            setShowAddMethodSection(false);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-900 font-bold text-[10px] hover:bg-emerald-100 active:scale-[0.98] transition-all shadow-2xs inline-flex items-center gap-1"
+                          onClick={() => setCounterAmount(preset.amount)}
+                          className={`p-2 rounded-xl border text-center transition-all active:scale-[0.98] ${
+                            counterAmount === preset.amount
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-black'
+                              : 'bg-surface hover:bg-canvas border-border text-ink font-bold'
+                          }`}
                         >
-                          <span>+ {sug.name}</span>
-                          <span className="text-[8px] px-1 py-0.2 bg-emerald-100 text-emerald-800 rounded font-normal">
-                            {sug.category}
-                          </span>
+                          <span className="block text-xs font-mono">{formatRupiah(preset.amount)}</span>
+                          <span className="text-[9px] opacity-80 block">{preset.label}</span>
                         </button>
                       ))}
                     </div>
-                  </div>
 
-                  {/* Custom Name Input */}
-                  <div>
-                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block mb-1">
-                      Atau Ketik Nama Bank / Dompet Digital Kustom:
-                    </span>
-                    <div className="flex gap-2">
+                    <div className="pt-1">
+                      <span className="text-[10px] text-ink-muted font-bold block mb-1">Atau Ketik Nominal Kustom (Rp):</span>
                       <input
-                        type="text"
-                        placeholder="Contoh: SeaBank / Bank Jago / DANA / AstraPay"
-                        value={customMethodInput}
-                        onChange={(e) => setCustomMethodInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (customMethodInput.trim()) {
-                              handleAddCustomMethod(customMethodInput.trim());
-                              setCustomMethodInput('');
-                              setShowAddMethodSection(false);
-                            }
-                          }
-                        }}
-                        className="flex-1 p-2 bg-white border border-emerald-300 rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        type="number"
+                        value={counterAmount}
+                        onChange={(e) => setCounterAmount(Number(e.target.value))}
+                        required
+                        className="w-full p-2.5 bg-surface border border-border rounded-xl font-mono font-bold text-ink text-sm focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (customMethodInput.trim()) {
-                            handleAddCustomMethod(customMethodInput.trim());
-                            setCustomMethodInput('');
-                            setShowAddMethodSection(false);
-                          }
-                        }}
-                        disabled={!customMethodInput.trim()}
-                        className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs disabled:opacity-50 active:scale-[0.98] transition-all shadow-xs shrink-0"
-                      >
-                        Simpan & Pilih
-                      </button>
                     </div>
                   </div>
-                </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-bold text-ink block mb-1">No. Referensi Bank / Nota</label>
-                  <input
-                    type="text"
-                    placeholder="TRX-A17-8891"
-                    value={formRef}
-                    onChange={(e) => setFormRef(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Tanggal Pembayaran *</label>
-                  <input
-                    type="date"
-                    value={formPaidDate}
-                    onChange={(e) => setFormPaidDate(e.target.value)}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-medium text-ink"
-                  />
-                </div>
+                  {/* Step 3: Receiver & Period */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-ink block mb-1">Periode Pembayaran:</label>
+                      <select
+                        value={counterPeriod}
+                        onChange={(e) => setCounterPeriod(e.target.value)}
+                        className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                      >
+                        {availablePeriods.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-ink block mb-1">Petugas Penerima Uang Fisik:</label>
+                      <select
+                        value={counterCollector}
+                        onChange={(e) => setCounterCollector(e.target.value)}
+                        className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                      >
+                        <option value="Pos Satpam (Petugas Jaga)">Pos Satpam (Petugas Jaga)</option>
+                        <option value="Bendahara RT (Hendra Wijaya)">Bendahara RT (Hendra Wijaya)</option>
+                        <option value="Kepala Komplek (Yahya Nursidik)">Kepala Komplek (Yahya Nursidik)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Extra Notes */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-ink block mb-1">Nama Penyetor (Opsional):</label>
+                      <input
+                        type="text"
+                        placeholder="Bpk/Ibu Warga"
+                        value={counterPayerName}
+                        onChange={(e) => setCounterPayerName(e.target.value)}
+                        className="w-full p-2.5 bg-canvas border border-border rounded-xl font-medium text-ink"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-ink block mb-1">No. Bukti / Nota Tunai:</label>
+                      <input
+                        type="text"
+                        value={counterRef}
+                        onChange={(e) => setCounterRef(e.target.value)}
+                        className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* SUBMIT BUTTON */}
+                  <button
+                    type="submit"
+                    disabled={counterProcessing}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-sm rounded-2xl shadow-xs transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-5 h-5" />
+                    <span>{counterProcessing ? 'Membukukan Setoran...' : 'Terima Uang Tunai & Terbitkan Kuitansi Seketika'}</span>
+                  </button>
+                </form>
               </div>
 
+              {/* LIVE TICKET / POS PREVIEW */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="p-5 bg-canvas rounded-2xl border border-border space-y-4 text-xs">
+                  <div className="flex items-center justify-between border-b border-border pb-3">
+                    <span className="font-black text-ink text-sm flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-primary-600" />
+                      Ringkasan Nota Loket Fisik
+                    </span>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-mono font-bold text-[10px]">
+                      KAS TUNAI
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 bg-surface p-4 rounded-xl border border-border/80">
+                    <div className="flex justify-between items-center">
+                      <span className="text-ink-muted">Kode Unit:</span>
+                      <strong className="font-mono text-primary-700 text-sm">Rumah {counterHouseCode}</strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-ink-muted">Penghuni / Pemilik:</span>
+                      <span className="font-bold text-ink">
+                        {counterPayerName || clusterProperties.find((p) => p.code.toLowerCase() === counterHouseCode.toLowerCase())?.residentName || 'Warga'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-ink-muted">Periode Iuran:</span>
+                      <span className="font-semibold text-ink">{counterPeriod}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-ink-muted">Petugas Penerima:</span>
+                      <span className="font-semibold text-ink">{counterCollector}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-t border-border pt-2">
+                      <span className="font-bold text-ink">Nominal Diterima:</span>
+                      <strong className="font-mono font-black text-emerald-700 text-base">
+                        {formatRupiah(counterAmount)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Guard Operational Instructions */}
+                  <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200/80 text-[11px] text-amber-950 space-y-1.5">
+                    <span className="font-bold flex items-center gap-1 text-amber-900">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                      SOP Penerimaan Tunai di Pos Satpam:
+                    </span>
+                    <ol className="list-decimal pl-4 space-y-0.5 text-amber-900/90 font-medium">
+                      <li>Hitung fisik uang tunai di hadapan warga yang menyetor.</li>
+                      <li>Pastikan nominal pembayaran telah sesuai.</li>
+                      <li>Tekan tombol hijau untuk mencatat dan membuka kuitansi.</li>
+                      <li>Cetak kuitansi atau kirim konfirmasi WA ke nomor warga.</li>
+                      <li>Simpan uang tunai di kotak kas pos satpam untuk disetor ke bendahara.</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUBTAB 4: KANAL REKENING PENERIMAAN ================= */}
+      {activeSubTab === 'receiving_channels' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
               <div>
-                <label className="font-bold text-ink block mb-1">Catatan Tambahan</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Iuran IPL + sumbangan kebersihan fasum"
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                />
+                <h3 className="font-black text-base text-ink flex items-center gap-2">
+                  <Building className="w-5 h-5 text-primary-600" />
+                  Kanal Pembayaran Resmi Warga Komplek
+                </h3>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Informasi rekening perbankan, gateway QRIS, dan petunjuk resmi yang dibagikan kepada warga komplek Grand Sariwangi.
+                </p>
               </div>
 
-              <button
-                type="submit"
-                disabled={savingPayment}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-xs transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-              >
-                <Check className="w-4 h-4" />
-                <span>{savingPayment ? 'Menyimpan...' : 'Simpan Pembayaran & Terbitkan Kuitansi'}</span>
-              </button>
-            </form>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenAddBank}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors active:scale-[0.98]"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Tambah Kanal Rekening</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Official Channels Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              {bankAccounts.map((acc) => {
+                const isCopied = copiedBankAcc === acc.id;
+                return (
+                  <div key={acc.id} className="p-5 bg-canvas/60 rounded-2xl border border-border shadow-2xs space-y-3 relative overflow-hidden flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="w-8 h-8 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center font-black">
+                          {acc.accountType === 'BANK_SYARIAH' ? (
+                            <span className="text-sm">🌙</span>
+                          ) : acc.accountType === 'QRIS_DINAMIS' ? (
+                            <QrCode className="w-4 h-4" />
+                          ) : acc.accountType === 'KAS_TUNAI' ? (
+                            <Wallet className="w-4 h-4 text-amber-600" />
+                          ) : (
+                            <Building className="w-4 h-4" />
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {acc.accountType === 'BANK_SYARIAH' && (
+                            <span className="px-2 py-0.5 rounded-full font-bold text-[9px] bg-teal-100 text-teal-800">
+                              🌙 SYARIAH
+                            </span>
+                          )}
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${acc.isPrimary ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                            {acc.isPrimary ? 'REKENING UTAMA' : 'KAS OPERASIONAL'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-black text-sm text-ink">{acc.bankName}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="font-mono font-black text-primary-700 text-sm">{acc.accountNumber}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(acc.accountNumber);
+                              setCopiedBankAcc(acc.id);
+                              showToast(`Nomor rekening ${acc.bankName} berhasil disalin!`);
+                              setTimeout(() => setCopiedBankAcc(null), 2500);
+                            }}
+                            className="p-1 bg-surface hover:bg-canvas border border-border rounded-md text-ink active:scale-[0.95] transition-all"
+                            title="Salin Nomor Rekening"
+                          >
+                            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-ink-muted" />}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-ink-muted mt-0.5">a.n <strong>{acc.accountHolder}</strong></p>
+                        {acc.notes && <p className="text-[10px] text-ink-muted italic mt-1">{acc.notes}</p>}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-border flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-ink-muted block">Saldo Kas Terkini:</span>
+                        <span className="font-black text-emerald-700 text-sm font-mono">{formatRupiah(acc.balance)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditBank(acc)}
+                          className="px-2.5 py-1.5 bg-surface hover:bg-canvas border border-border text-ink rounded-lg font-bold inline-flex items-center gap-1 text-[11px]"
+                        >
+                          <Edit3 className="w-3 h-3 text-primary-600" />
+                          <span>Edit</span>
+                        </button>
+                        {!acc.isPrimary && bankAccounts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBank(acc.id)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-bold"
+                            title="Hapus Rekening"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Ready-to-Send WhatsApp Broadcast Card */}
+            <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 text-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-2">
+                <span className="font-black text-emerald-950 flex items-center gap-1.5 text-sm">
+                  <Share2 className="w-4 h-4 text-emerald-600" />
+                  Format Pesan Siaran WhatsApp (Broadcast ke Grup Warga)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(broadcastWaText);
+                    setCopiedBroadcast(true);
+                    showToast('Format pesan pengumuman rekening berhasil disalin!');
+                    setTimeout(() => setCopiedBroadcast(false), 2500);
+                  }}
+                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-2xs active:scale-[0.98] transition-all self-start sm:self-auto"
+                >
+                  {copiedBroadcast ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedBroadcast ? 'Tersalin ke Clipboard!' : 'Salin Format Siap Kirim'}</span>
+                </button>
+              </div>
+
+              <div className="p-3 bg-white rounded-xl border border-emerald-200 text-emerald-950 font-mono text-[11px] whitespace-pre-line leading-relaxed overflow-x-auto">
+                {broadcastWaText}
+              </div>
+            </div>
           </div>
         </div>
       )}

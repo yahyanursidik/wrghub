@@ -6,15 +6,33 @@ import { getProperties } from '../../services/property.service';
 import { getMainAccountBalance } from '../../services/finance.service';
 
 const periodParam = Astro.url.searchParams.get('period');
-const allPeriods = await getBillingPeriods();
+const [
+  allPeriods,
+  allInvoices,
+  properties,
+  currentBalance
+] = await Promise.all([
+  getBillingPeriods().catch(() => []),
+  getAllInvoices().catch(() => []),
+  getProperties().catch(() => []),
+  getMainAccountBalance().catch(() => 0),
+]);
 
+// Prefer requested periodParam, then current month period (e.g. period-2026-10), then latest open period, then first
+const now = new Date();
+const currentMonthPeriodId = `period-${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
 const currentPeriod = periodParam
   ? allPeriods.find((p: any) => p.id === periodParam || p.name === periodParam)
-  : (allPeriods.find((p: any) => p.id === 'period-2026-09') || allPeriods.find((p: any) => p.id === 'period-2026-08') || await getCurrentBillingPeriod());
+  : (allPeriods.find((p: any) => p.id === currentMonthPeriodId) || allPeriods.find((p: any) => p.id === 'period-2026-10') || allPeriods.find((p: any) => p.status === 'OPEN') || allPeriods[0]);
 
-const invoices = currentPeriod ? await getInvoices(currentPeriod.id) : [];
-const allInvoices = await getAllInvoices();
-const progress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
+const [invoices, progress] = currentPeriod
+  ? await Promise.all([
+      getInvoices(currentPeriod.id).catch(() => []),
+      getBillingProgress(currentPeriod.id).catch(() => null),
+    ])
+  : [[], null];
+
+const safeProgress = progress || {
   total: 0,
   paidCount: 0,
   unpaidCount: 0,
@@ -24,21 +42,18 @@ const progress = currentPeriod ? await getBillingProgress(currentPeriod.id) : {
   unpaidAmount: 0,
   monthlyRatePerHouse: 250000,
 };
-
-const properties = await getProperties().catch(() => []);
-const currentBalance = await getMainAccountBalance();
 ---
 
 <AdminLayout title="Iuran & Billing - WargaHub" currentPath="/admin/billing">
   <BillingManager
-    initialPeriodName={currentPeriod?.name || 'September 2026'}
+    initialPeriodId={currentPeriod?.id || 'period-2026-10'}
+    initialPeriodName={currentPeriod?.name || 'Oktober 2026'}
     initialInvoices={invoices as any}
     allInvoices={allInvoices as any}
-    initialProgress={progress}
+    initialProgress={safeProgress}
     initialProperties={properties as any}
     allPeriods={allPeriods as any}
     initialBalance={currentBalance}
     client:load
   />
 </AdminLayout>
-

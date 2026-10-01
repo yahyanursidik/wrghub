@@ -32,14 +32,25 @@ export const POST: APIRoute = async ({ request }) => {
       if (match) {
         verificationResult.propertyCode = match[1].replace(/(\D+)(\d+)/, '$1-$2');
       }
-    } else if (validated.qrPayload.toUpperCase().includes('GUEST') || validated.qrPayload.toUpperCase().includes('TAMU')) {
+    } else if (
+      validated.qrPayload.toUpperCase().includes('PASS') ||
+      validated.qrPayload.toUpperCase().includes('GUEST') ||
+      validated.qrPayload.toUpperCase().includes('TAMU')
+    ) {
+      let propCode = 'Kav E';
+      let resName = 'Warga Komplek';
+      const houseMatch = validated.qrPayload.match(/Rumah\s+([A-Za-z0-9\s-]+?)(?:\s*-\s*(.+))?$/i);
+      if (houseMatch) {
+        propCode = houseMatch[1]?.trim() || propCode;
+        resName = houseMatch[2]?.trim() || resName;
+      }
       verificationResult = {
         isValid: true,
         type: 'VISITOR_PASS',
-        title: 'Visitor Pass Tamu Terverifikasi',
-        propertyCode: 'B-07',
-        residentName: 'Tamu Keluarga Hendra Wijaya',
-        periodName: 'Akses Masuk 1x 24 Jam',
+        title: 'Pas Tamu / Akses Gerbang Digital',
+        propertyCode: propCode,
+        residentName: resName,
+        periodName: 'Akses Masuk Gerbang 1x 24 Jam',
         amount: 0,
         status: 'IZIN MASUK DITERBITKAN',
         verifiedAt: new Date().toISOString(),

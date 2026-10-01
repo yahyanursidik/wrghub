@@ -3,8 +3,10 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { FacilitiesManager } from '../../components/admin/FacilitiesManager';
 import { getFacilities, getMaintenanceRequests } from '../../services/facility.service';
 
-const facilities = await getFacilities();
-const maintenanceRequests = await getMaintenanceRequests();
+const [facilities, maintenanceRequests] = await Promise.all([
+  getFacilities().catch(() => []),
+  getMaintenanceRequests().catch(() => []),
+]);
 const tab = Astro.url.searchParams.get('tab') || 'facilities';
 ---
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Search,
   Bell,
@@ -18,7 +18,26 @@ import {
   Users,
   Sparkles,
   AlertCircle,
-  FolderOpen
+  FolderOpen,
+  Home,
+  Receipt,
+  FileMinus,
+  Wallet,
+  Clock,
+  Car,
+  Hammer,
+  Gauge,
+  KeyRound,
+  Banknote,
+  Truck,
+  Vote,
+  Megaphone,
+  Calendar,
+  X,
+  ArrowRight,
+  PlusCircle,
+  QrCode,
+  Smartphone
 } from 'lucide-react';
 import type { UserSession } from '../../types/auth';
 
@@ -57,6 +76,36 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<'all' | 'finance' | 'complaint' | 'security'>('all');
+
+  // Command Palette & Global Search Modal State
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchCategory, setSearchCategory] = useState<'ALL' | 'NAV' | 'HOUSE' | 'ACTION'>('ALL');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Global Keyboard Shortcut: Cmd/Ctrl + K or Slash to toggle search modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchModalOpen((prev) => !prev);
+      } else if (e.key === 'Escape' && searchModalOpen) {
+        setSearchModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchModalOpen]);
+
+  useEffect(() => {
+    if (searchModalOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    } else {
+      setSearchQuery('');
+    }
+  }, [searchModalOpen]);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -126,12 +175,77 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     return n.category === activeCategory;
   });
 
+  // Indexed searchable items for Command Palette
+  const commandItems = useMemo(() => [
+    // 1. Navigation items
+    { id: 'nav-dashboard', title: 'Ringkasan Dashboard Backoffice', subtitle: 'Pusat kontrol dan ringkasan eksekutif komplek', category: 'NAV', url: '/admin', icon: Home, keywords: ['beranda', 'home', 'dashboard', 'admin'] },
+    { id: 'nav-props', title: 'Data Rumah & Kavling', subtitle: 'Manajemen master kavling A s/d M, luas & spesifikasi fisik', category: 'NAV', url: '/admin/properties', icon: Home, keywords: ['rumah', 'kavling', 'blok', 'unit'] },
+    { id: 'nav-occupants', title: 'Data Penghuni', subtitle: 'Daftar kepala keluarga, penyewa, kontak & jumlah jiwa', category: 'NAV', url: '/admin/properties?tab=occupants', icon: Users, keywords: ['penghuni', 'warga', 'keluarga', 'kontrak'] },
+    { id: 'nav-owners', title: 'Data Pemilik Rumah', subtitle: 'Informasi legal kepemilikan unit dan sertifikat', category: 'NAV', url: '/admin/properties?tab=owners', icon: UserCircle2, keywords: ['pemilik', 'owner', 'legal'] },
+    { id: 'nav-vehicles', title: 'Data Kendaraan & RFID', subtitle: 'Plat nomor mobil/motor warga dan kartu akses gerbang', category: 'NAV', url: '/admin/properties?tab=vehicles', icon: Car, keywords: ['kendaraan', 'mobil', 'motor', 'plat', 'rfid'] },
+    { id: 'nav-permits', title: 'Izin Renovasi & Pekerja', subtitle: 'Surat izin perbaikan bangunan dan daftar tukang', category: 'NAV', url: '/admin/properties?tab=permits', icon: Hammer, keywords: ['renovasi', 'izin', 'pekerja', 'tukang'] },
+    { id: 'nav-analytics-prop', title: 'Utilitas & Okupansi', subtitle: 'Pencatatan meteran air, token listrik & analitik hunian', category: 'NAV', url: '/admin/properties?tab=analytics', icon: Gauge, keywords: ['utilitas', 'meteran', 'pam', 'pln', 'air'] },
+    { id: 'nav-billing', title: 'Iuran Warga (IPL)', subtitle: 'Tagihan bulanan, status lunas/tertunda & reminder WA', category: 'NAV', url: '/admin/billing', icon: Receipt, keywords: ['iuran', 'ipl', 'tagihan', 'invoice'] },
+    { id: 'nav-payments', title: 'Pembayaran & Verifikasi', subtitle: 'Bukti transfer warga, validasi kas & cetak kuitansi', category: 'NAV', url: '/admin/payments', icon: CreditCard, keywords: ['pembayaran', 'transfer', 'bayar', 'kuitansi', 'validasi'] },
+    { id: 'nav-expenses', title: 'Pengeluaran Kas Operasional', subtitle: 'Catatan belanja, voucher kas keluar & bukti nota', category: 'NAV', url: '/admin/expenses', icon: FileMinus, keywords: ['pengeluaran', 'biaya', 'belanja', 'nota'] },
+    { id: 'nav-staff-loans', title: 'Buku Kasbon & Gaji Awal', subtitle: 'Pinjaman dinas satpam & cicilan potong honor bulanan', category: 'NAV', url: '/admin/staff-loans', icon: Banknote, keywords: ['kasbon', 'pinjaman', 'gaji', 'satpam'] },
+    { id: 'nav-ledger', title: 'Kas & Buku Besar', subtitle: 'Mutasi arus kas, saldo rekening bank & rekonsiliasi', category: 'NAV', url: '/admin/ledger', icon: Wallet, keywords: ['buku besar', 'ledger', 'kas', 'saldo', 'bank'] },
+    { id: 'nav-budget', title: 'Anggaran APB & Sinking Fund', subtitle: 'Realisasi anggaran tahunan dan dana cadangan darurat', category: 'NAV', url: '/admin/budget', icon: Clock, keywords: ['apb', 'anggaran', 'budget', 'sinking fund', 'cadangan'] },
+    { id: 'nav-analytics', title: 'Analitik & Tren Finansial', subtitle: 'Kepatuhan pembayaran per blok & visualisasi metrik', category: 'NAV', url: '/admin/analytics', icon: Clock, keywords: ['analitik', 'grafik', 'tren', 'kepatuhan'] },
+    { id: 'nav-security', title: 'Pos Satpam & Gerbang Digital', subtitle: 'Buku tamu, verifikasi QR pass, jadwal ronda & inventaris', category: 'NAV', url: '/admin/security-gate', icon: ShieldCheck, keywords: ['satpam', 'pos', 'gerbang', 'patroli', 'ronda', 'tamu', 'pass'] },
+    { id: 'nav-cleaning', title: 'Tim Kebersihan & Armada TPS', subtitle: 'Jadwal angkut sampah dinas LH, rute & armada kebersihan', category: 'NAV', url: '/admin/cleaning-staff', icon: Truck, keywords: ['kebersihan', 'sampah', 'tps', 'taman', 'got'] },
+    { id: 'nav-complaints', title: 'Aduan & Keluhan Warga', subtitle: 'Pelaporan fasilitas rusak, kebisingan & tindak lanjut', category: 'NAV', url: '/admin/complaints', icon: MessageCircle, keywords: ['aduan', 'keluhan', 'laporan', 'rusak'] },
+    { id: 'nav-facilities', title: 'Sarana & Fasilitas Fasum', subtitle: 'Balai warga, lapangan olahraga, kolam renang & booking', category: 'NAV', url: '/admin/facilities', icon: Building, keywords: ['fasum', 'balai', 'lapangan', 'booking', 'fasilitas'] },
+    { id: 'nav-announcements', title: 'Pengumuman Resmi', subtitle: 'Broadcast informasi penting, himbauan & siaran massal', category: 'NAV', url: '/admin/announcements', icon: Megaphone, keywords: ['pengumuman', 'broadcast', 'surat', 'info'] },
+    { id: 'nav-voting', title: 'E-Voting & Polling Musyawarah', subtitle: 'Pemilihan ketua RT/komplek & jajak pendapat warga', category: 'NAV', url: '/admin/voting', icon: Vote, keywords: ['voting', 'polling', 'pemilihan', 'suara'] },
+    { id: 'nav-whatsapp', title: 'Bot & Template WhatsApp', subtitle: 'Simulator pesan otomatis, cek tagihan & template broadcast', category: 'NAV', url: '/admin/whatsapp-bot', icon: MessageCircle, keywords: ['whatsapp', 'bot', 'wa', 'template', 'pesan'] },
+    { id: 'nav-passwords', title: 'Manajemen Akun & Password', subtitle: 'Daftar kredensial warga, reset PIN & proteksi akun', category: 'NAV', url: '/admin/settings?tab=passwords', icon: KeyRound, keywords: ['password', 'akun', 'pin', 'kredensial', 'reset'] },
+    { id: 'nav-documents', title: 'Arsip Dokumen Legal', subtitle: 'AD/ART, tata tertib, SK kepengurusan & formulir PDF', category: 'NAV', url: '/admin/documents', icon: FolderOpen, keywords: ['dokumen', 'arsip', 'sk', 'tatib', 'ad/art'] },
+    { id: 'nav-audit', title: 'Jejak Audit & Keamanan', subtitle: 'Log riwayat seluruh aksi admin dan rekonsiliasi data', category: 'NAV', url: '/admin/audit', icon: ShieldCheck, keywords: ['audit', 'log', 'riwayat', 'keamanan'] },
+    { id: 'nav-backup', title: 'Backup & Pencadangan Data', subtitle: 'Ekspor database JSON/CSV & restorasi cadangan sistem', category: 'NAV', url: '/admin/backup', icon: FolderOpen, keywords: ['backup', 'cadangan', 'ekspor', 'restore'] },
+    { id: 'nav-settings', title: 'Pengaturan Sistem & Komunitas', subtitle: 'Profil paguyuban, rekening resmi & tarif IPL', category: 'NAV', url: '/admin/settings', icon: Settings, keywords: ['pengaturan', 'settings', 'profil', 'rekening', 'tarif'] },
+
+    // 2. Kavling Warga
+    { id: 'house-kav-a', title: 'Kav A - Pak Verial', subtitle: 'Unit Terisi • Lunas Penuh 9 Bulan', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav a', 'verial'] },
+    { id: 'house-kav-b', title: 'Kav B - Mahasiswa Polban', subtitle: 'Unit Sewa/Kontrak • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav b', 'polban', 'kontrak', 'sewa'] },
+    { id: 'house-kav-c', title: 'Kav C - Bu Rina', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav c', 'rina'] },
+    { id: 'house-kav-d', title: 'Kav D - Pak Rieva', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav d', 'rieva'] },
+    { id: 'house-kav-e', title: 'Kav E - Pak Budi', subtitle: 'Unit Terisi • Lunas Penuh (Tertib Iuran)', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav e', 'budi', 'endang'] },
+    { id: 'house-kav-f', title: 'Kav F - Pa Anggia', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav f', 'anggia'] },
+    { id: 'house-kav-g', title: 'Kav G - Pak Misael', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav g', 'misael'] },
+    { id: 'house-kav-h', title: 'Kav H - Pak Fahmi Rizal', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav h', 'fahmi', 'rizal'] },
+    { id: 'house-kav-i', title: 'Kav I - Pak Yahya', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav i', 'yahya'] },
+    { id: 'house-kav-j', title: 'Kav J - Bu Sofia P (Kosong)', subtitle: 'Unit Kosong • Menunggak 4 Bulan', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Tertunda', badgeColor: 'bg-rose-100 text-rose-800 border-rose-300', keywords: ['kav j', 'sofia', 'kosong'] },
+    { id: 'house-kav-k', title: 'Kav K - Pak Eky', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav k', 'eky'] },
+    { id: 'house-kav-l', title: 'Kav L - Pak Haji Ano', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav l', 'ano', 'haji'] },
+    { id: 'house-kav-m', title: 'Kav M - Pak Dedi N / Pak Jaya', subtitle: 'Unit Terisi • Lunas September 2026', category: 'HOUSE', url: '/admin/properties', icon: Home, badge: 'Lunas', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300', keywords: ['kav m', 'dedi', 'jaya'] },
+
+    // 3. Quick Actions
+    { id: 'act-new-payment', title: 'Catat Pembayaran Iuran Baru', subtitle: 'Input setoran transfer warga atau pembayaran tunai', category: 'ACTION', url: '/admin/payments', icon: PlusCircle, badge: 'Aksi', badgeColor: 'bg-blue-100 text-blue-800 border-blue-300', keywords: ['catat', 'bayar', 'setor', 'input bayar'] },
+    { id: 'act-new-expense', title: 'Buat Pengeluaran Kas Baru', subtitle: 'Catat pengeluaran operasional atau pembelian material', category: 'ACTION', url: '/admin/expenses', icon: PlusCircle, badge: 'Aksi', badgeColor: 'bg-blue-100 text-blue-800 border-blue-300', keywords: ['pengeluaran', 'belanja', 'input pengeluaran'] },
+    { id: 'act-verify-pass', title: 'Scan & Verifikasi Pas Tamu Gerbang', subtitle: 'Validasi QR tamu atau kuitansi warga di Pos Satpam', category: 'ACTION', url: '/admin/security-gate', icon: QrCode, badge: 'Satpam', badgeColor: 'bg-purple-100 text-purple-800 border-purple-300', keywords: ['scan', 'verifikasi', 'qr', 'pass', 'tamu'] },
+    { id: 'act-public-transparency', title: 'Buka Portal Transparansi Publik', subtitle: 'Laporan real-time kas & iuran yang dapat diakses publik', category: 'ACTION', url: '/transparency', icon: ExternalLink, badge: 'Publik', badgeColor: 'bg-teal-100 text-teal-800 border-teal-300', keywords: ['transparansi', 'publik', 'kas'] },
+    { id: 'act-resident-mobile', title: 'Buka Portal Warga Mandiri (Mobile)', subtitle: 'Pratinjau antarmuka warga smartphone 24 jam', category: 'ACTION', url: '/warga', icon: Smartphone, badge: 'Warga', badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300', keywords: ['portal warga', 'mobile', 'warga'] },
+  ], []);
+
+  const filteredCommandItems = useMemo(() => {
+    return commandItems.filter((item) => {
+      if (searchCategory !== 'ALL' && item.category !== searchCategory) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      const matchTitle = item.title.toLowerCase().includes(q);
+      const matchSubtitle = item.subtitle.toLowerCase().includes(q);
+      const matchKeywords = item.keywords?.some((k) => k.toLowerCase().includes(q));
+      return matchTitle || matchSubtitle || matchKeywords;
+    });
+  }, [commandItems, searchQuery, searchCategory]);
+
   return (
     <header className="h-16 px-6 sm:px-8 bg-surface border-b border-border flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Global Search Bar */}
       <div className="w-80 sm:w-96 max-w-md">
         <button
-          onClick={onSearchClick}
+          onClick={onSearchClick || (() => setSearchModalOpen(true))}
           type="button"
           className="w-full flex items-center gap-2.5 px-3.5 py-2 bg-canvas/70 hover:bg-canvas border border-border rounded-xl text-xs sm:text-sm text-ink-muted transition-colors text-left group shadow-2xs"
         >
@@ -440,6 +554,139 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           )}
         </div>
       </div>
+
+      {/* ================= GLOBAL SEARCH & COMMAND PALETTE (CMD+K) MODAL ================= */}
+      {searchModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setSearchModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl bg-surface rounded-3xl shadow-modal border border-border overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150 text-ink"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Search Input Bar */}
+            <div className="p-4 border-b border-border bg-canvas/40 flex items-center gap-3">
+              <Search className="w-5 h-5 text-primary-600 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Ketik untuk mencari menu, rumah, warga, atau aksi..."
+                className="w-full bg-transparent text-sm sm:text-base font-semibold text-ink placeholder:text-ink-muted focus:outline-hidden"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-1 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas text-xs"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <kbd className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold text-ink-muted bg-surface border border-border rounded-md shadow-2xs">
+                  ESC untuk tutup
+                </kbd>
+                <button
+                  type="button"
+                  onClick={() => setSearchModalOpen(false)}
+                  className="p-1.5 rounded-xl text-ink-muted hover:text-ink hover:bg-canvas transition-colors sm:hidden"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border bg-canvas/20 text-xs overflow-x-auto no-scrollbar">
+              {[
+                { id: 'ALL', label: 'Semua Hasil' },
+                { id: 'NAV', label: '📌 Menu Navigasi' },
+                { id: 'HOUSE', label: '🏡 Kavling & Warga' },
+                { id: 'ACTION', label: '⚡ Aksi Cepat' },
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={() => setSearchCategory(pill.id as any)}
+                  className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-colors ${
+                    searchCategory === pill.id
+                      ? 'bg-primary-600 text-white shadow-2xs'
+                      : 'text-ink-muted hover:text-ink hover:bg-canvas border border-transparent'
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Results List */}
+            <div className="flex-1 overflow-y-auto modern-scrollbar divide-y divide-border/60 p-2">
+              {filteredCommandItems.length === 0 ? (
+                <div className="py-12 text-center text-ink-muted space-y-2">
+                  <Search className="w-8 h-8 text-ink-muted/40 mx-auto" />
+                  <p className="font-bold text-sm text-ink">Tidak ada hasil ditemukan</p>
+                  <p className="text-xs max-w-sm mx-auto">
+                    Tidak ditemukan kecocokan untuk "{searchQuery}". Coba gunakan kata kunci lain seperti "iuran", "satpam", "kav e", atau "aduan".
+                  </p>
+                </div>
+              ) : (
+                filteredCommandItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.url}
+                      onClick={() => setSearchModalOpen(false)}
+                      className="p-3 flex items-center justify-between gap-3 rounded-2xl hover:bg-canvas transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform border border-primary-200">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-ink group-hover:text-primary-700 transition-colors truncate">
+                              {item.title}
+                            </span>
+                            {item.badge && (
+                              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-md uppercase border ${item.badgeColor || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                {item.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-ink-muted truncate mt-0.5">
+                            {item.subtitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] font-mono text-ink-muted/70 hidden sm:inline-block">
+                          {item.url}
+                        </span>
+                        <ArrowRight className="w-4 h-4 text-ink-muted group-hover:text-primary-600 group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                    </a>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer Shortcut Bar */}
+            <div className="p-3 border-t border-border bg-canvas/40 flex items-center justify-between text-[11px] text-ink-muted">
+              <span className="flex items-center gap-1.5">
+                <span>Ditemukan <strong className="text-ink">{filteredCommandItems.length}</strong> entri</span>
+              </span>
+              <div className="flex items-center gap-3">
+                <span>Tekan <kbd className="px-1.5 py-0.5 bg-surface border border-border rounded text-[10px] font-bold text-ink">ESC</kbd> untuk menutup</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

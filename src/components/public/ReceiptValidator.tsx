@@ -507,7 +507,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
 
                 <a
                   href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                    `🧾 *Kuitansi Pembayaran Digital Resmi WargaHub*\n\nNomor: ${activeReceipt.receiptNumber}\nUnit: ${activeReceipt.propertyCode} (${activeReceipt.residentName})\nPeriode: ${activeReceipt.period}\nTotal: ${formatRupiah(activeReceipt.amount)}\nStatus: LUNAS & TERVERIFIKASI RESMI\n\nPeriksa dokumen asli di:\nhttp://localhost:4321/kuitansi?q=${activeReceipt.receiptNumber}`
+                    `🧾 *Kuitansi Pembayaran Digital Resmi WargaHub*\n\nNomor: ${activeReceipt.receiptNumber}\nUnit: ${activeReceipt.propertyCode} (${activeReceipt.residentName})\nPeriode: ${activeReceipt.period}\nTotal: ${formatRupiah(activeReceipt.amount)}\nStatus: LUNAS & TERVERIFIKASI RESMI\n\nPeriksa dokumen asli di:\n${typeof window !== 'undefined' ? `${window.location.origin}/kuitansi?q=${activeReceipt.receiptNumber}` : `https://wrghub.vercel.app/kuitansi?q=${activeReceipt.receiptNumber}`}`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"

@@ -133,9 +133,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admi
   };
 
   const isPathActive = (path: string) => {
-    if (path === '/admin' && (currentPath === '/admin' || currentPath === '/admin/')) return true;
-    if (path !== '/admin' && currentPath.startsWith(path)) return true;
-    return false;
+    const cleanPath = path.split('?')[0];
+    const cleanCurrent = currentPath.split('?')[0];
+    if (cleanPath === '/admin') {
+      return cleanCurrent === '/admin' || cleanCurrent === '/admin/';
+    }
+    return cleanCurrent === cleanPath;
   };
 
   const userRole = activeUser?.role || 'CHAIRMAN';
@@ -193,65 +196,55 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPath = '/admi
 
   const roleInfo = getRoleInfo(userRole);
 
-  // Define master navigation groups with RBAC role filter
+  // Define master navigation groups with RBAC role filter (Consolidated & Streamlined)
   const masterNavGroups: NavGroup[] = [
     {
-      label: 'WARGA',
+      label: 'WARGA & KAVLING',
       roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'],
       items: [
-        { name: 'Rumah', href: '/admin/properties', icon: Home, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
-        { name: 'Penghuni', href: '/admin/properties?tab=occupants', icon: Users, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
-        { name: 'Pemilik', href: '/admin/properties?tab=owners', icon: UserCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'RESIDENT_ADMIN'] },
-        { name: 'Akun & Password', href: '/admin/settings?tab=passwords', icon: KeyRound, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
-        { name: 'Kendaraan', href: '/admin/properties?tab=vehicles', icon: Car, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'RESIDENT_ADMIN'] },
-        { name: 'Izin Renovasi', href: '/admin/properties?tab=permits', icon: Hammer, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'RESIDENT_ADMIN'] },
-        { name: 'Utilitas & Meteran', href: '/admin/properties?tab=analytics', icon: Gauge, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE', 'TREASURER', 'RESIDENT_ADMIN'] },
+        { name: 'Data Kavling & Warga', href: '/admin/properties', icon: Home, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
+        { name: 'Akun & Akses Warga', href: '/admin/passwords', icon: KeyRound, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN'] },
       ]
     },
     {
       label: 'KEUANGAN',
       roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'AUDITOR'],
       items: [
-        { name: 'Iuran', href: '/admin/billing', icon: Receipt, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'AUDITOR'] },
-        { name: 'Pembayaran', href: '/admin/payments', icon: CreditCard, badge: 3, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER'] },
-        { name: 'Pengeluaran', href: '/admin/expenses', icon: FileMinus, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER'] },
-        { name: 'Kasbon & Gaji Awal', href: '/admin/staff-loans', icon: Banknote, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER'] },
-        { name: 'Kas & Ledger', href: '/admin/ledger', icon: Wallet, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'AUDITOR'] },
+        { name: 'Tagihan Iuran (IPL)', href: '/admin/billing', icon: Receipt, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'AUDITOR'] },
+        { name: 'Verifikasi Pembayaran', href: '/admin/payments', icon: CreditCard, badge: 3, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER'] },
+        { name: 'Pengeluaran Kas', href: '/admin/expenses', icon: FileMinus, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER'] },
+        { name: 'Kasbon Petugas', href: '/admin/staff-loans', icon: Banknote, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER'] },
+        { name: 'Kas & Buku Besar', href: '/admin/ledger', icon: Wallet, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'AUDITOR'] },
         { name: 'Anggaran APB', href: '/admin/budget', icon: Clock, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'AUDITOR'] },
         { name: 'Analitik & Tren', href: '/admin/analytics', icon: Clock, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'AUDITOR'] },
-        { name: 'Transparansi', href: '/transparency', icon: FileText, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'SECRETARY', 'AUDITOR', 'VIEWER'] },
       ]
     },
     {
       label: 'OPERASIONAL',
       roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECURITY', 'MAINTENANCE', 'SECRETARY', 'RESIDENT_ADMIN'],
       items: [
-        { name: 'Pos Satpam', href: '/admin/security-gate', icon: ShieldCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECURITY'] },
-        { name: 'Tim Kebersihan', href: '/admin/cleaning-staff', icon: Truck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE', 'SECURITY'] },
+        { name: 'Pos Satpam & Gerbang', href: '/admin/security-gate', icon: ShieldCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECURITY'] },
+        { name: 'Tim Kebersihan & TPS', href: '/admin/cleaning-staff', icon: Truck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE', 'SECURITY'] },
+        { name: 'Sarana & Fasilitas Fasum', href: '/admin/facilities', icon: Building2, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE', 'SECRETARY', 'SECURITY'] },
         { name: 'Aduan Warga', href: '/admin/complaints', icon: MessageCircle, badge: 4, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECURITY', 'MAINTENANCE', 'SECRETARY'] },
-        { name: 'Sarana Fasum', href: '/admin/facilities', icon: Building2, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE', 'SECRETARY', 'SECURITY'] },
-        { name: 'Maintenance', href: '/admin/facilities?tab=maintenance', icon: Wrench, badge: 2, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'MAINTENANCE'] },
-        { name: 'Petugas Jaga', href: '/admin/facilities?tab=staff', icon: ShieldCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECURITY'] },
       ]
     },
     {
       label: 'KOMUNIKASI',
       roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'SECURITY', 'MAINTENANCE'],
       items: [
-        { name: 'Pengumuman', href: '/admin/announcements', icon: Megaphone, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'MAINTENANCE'] },
-        { name: 'E-Voting & Polling', href: '/admin/voting', icon: Vote, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY'] },
+        { name: 'Pengumuman & Agenda', href: '/admin/announcements', icon: Megaphone, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'MAINTENANCE'] },
+        { name: 'E-Voting & Musyawarah', href: '/admin/voting', icon: Vote, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY'] },
         { name: 'Bot WhatsApp', href: '/admin/whatsapp-bot', icon: MessageCircle, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER'] },
-        { name: 'Agenda Kegiatan', href: '/admin/announcements?tab=agenda', icon: Calendar, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'MAINTENANCE'] },
-        { name: 'Notifikasi', href: '/admin/notifications', icon: Bell, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'SECURITY'] },
+        { name: 'Pusat Notifikasi', href: '/admin/notifications', icon: Bell, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'SECURITY'] },
       ]
     }
   ];
 
-  // Master bottom items with RBAC
+  // Master bottom items with RBAC (System & Governance)
   const masterBottomItems = [
-    { name: 'Akun & Password', href: '/admin/settings?tab=passwords', icon: KeyRound, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY'] },
-    { name: 'Dokumen', href: '/admin/documents', icon: FolderOpen, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'AUDITOR'] },
-    { name: 'Jejak Audit', href: '/admin/audit', icon: ShieldCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'SECRETARY', 'AUDITOR'] },
+    { name: 'Arsip Dokumen Legal', href: '/admin/documents', icon: FolderOpen, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'AUDITOR'] },
+    { name: 'Jejak Audit Sistem', href: '/admin/audit', icon: ShieldCheck, roles: ['SUPER_ADMIN', 'CHAIRMAN', 'TREASURER', 'SECRETARY', 'AUDITOR'] },
     { name: 'Pencadangan & Backup', href: '/admin/backup', icon: FolderOpen, roles: ['SUPER_ADMIN', 'CHAIRMAN'] },
     { name: 'Pengaturan Sistem', href: '/admin/settings', icon: Settings, roles: ['SUPER_ADMIN', 'CHAIRMAN'] },
   ];

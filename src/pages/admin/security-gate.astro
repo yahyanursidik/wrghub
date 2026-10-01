@@ -3,8 +3,10 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { SecurityGateManager } from '../../components/admin/SecurityGateManager';
 import { getProperties, getAllVehicles } from '../../services/property.service';
 
-const properties = await getProperties().catch(() => []);
-const vehicles = await getAllVehicles().catch(() => []);
+const [properties, vehicles] = await Promise.all([
+  getProperties().catch(() => []),
+  getAllVehicles().catch(() => [])
+]);
 ---
 
 <AdminLayout title="Pos Satpam & Kontrol Gerbang - WargaHub" currentPath="/admin/security-gate">

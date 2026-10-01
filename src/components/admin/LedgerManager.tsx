@@ -40,7 +40,9 @@ import {
   ArrowRightLeft,
   PieChart,
   Calendar,
-  Info
+  Info,
+  MessageCircle,
+  Plus
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 
@@ -48,8 +50,7 @@ export type LedgerSubTab =
   | 'ledger_list'
   | 'accounts_manage'
   | 'bank_reconciliation'
-  | 'financial_reports'
-  | 'public_transparency';
+  | 'financial_reports';
 
 export interface AccountItem {
   id: string;
@@ -85,7 +86,26 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   entries: initialEntries,
   initialTab = 'ledger_list',
 }) => {
-  const [accounts, setAccounts] = useState<AccountItem[]>(initialAccounts);
+  const [accounts, setAccounts] = useState<AccountItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_custom_accounts');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const savedSum = parsed.reduce((sum: number, a: any) => sum + (Number(a.balance) || 0), 0);
+            const initSum = initialAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+            if (savedSum > 0 || initSum === 0) {
+              return parsed;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    return initialAccounts;
+  });
   const [entries, setEntries] = useState<LedgerEntryItem[]>(initialEntries);
 
   // Subtab State with URL synchronization
@@ -95,9 +115,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       const tabParam = params.get('tab') as LedgerSubTab;
       if (
         tabParam &&
-        ['ledger_list', 'accounts_manage', 'bank_reconciliation', 'financial_reports', 'public_transparency'].includes(
-          tabParam
-        )
+        ['ledger_list', 'accounts_manage', 'bank_reconciliation', 'financial_reports'].includes(tabParam)
       ) {
         return tabParam;
       }
@@ -115,6 +133,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   };
 
   // State Filters
+  const [monthFilter, setMonthFilter] = useState<string>('ALL');
   const [accountFilter, setAccountFilter] = useState<string>('ALL');
   const [directionFilter, setDirectionFilter] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
   const [sourceTypeFilter, setSourceTypeFilter] = useState<string>('ALL');
@@ -129,11 +148,21 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   // Modals & Drawers
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<AccountItem | null>(null);
   const [selectedVoucher, setSelectedVoucher] = useState<LedgerEntryItem | null>(null);
   const [entryToDelete, setEntryToDelete] = useState<LedgerEntryItem | null>(null);
   const [deleteReason, setDeleteReason] = useState('Koreksi Input Jurnal / Duplikat');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Form State for Account Management
+  const [formAccName, setFormAccName] = useState('');
+  const [formAccCode, setFormAccCode] = useState('');
+  const [formAccType, setFormAccType] = useState('BANK');
+  const [formAccBankName, setFormAccBankName] = useState('Bank BCA');
+  const [formAccNumber, setFormAccNumber] = useState('');
+  const [formAccBalance, setFormAccBalance] = useState<number>(0);
 
   // Transfer State
   const [transferFrom, setTransferFrom] = useState('acc-main');
@@ -155,7 +184,20 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     checkDisbursement: false,
   });
 
-  // Form State
+  // Persisted Reconciliation Approvals
+  const [reconSavedStatus, setReconSavedStatus] = useState<{ [month: string]: { signedAt: string; signedBy: string } }>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const s = localStorage.getItem('wargahub_recon_approvals');
+        return s ? JSON.parse(s) : {};
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  // Form State for Ledger Entry
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [formAccountId, setFormAccountId] = useState('acc-main');
   const [formDirection, setFormDirection] = useState<'IN' | 'OUT'>('IN');
@@ -172,10 +214,36 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Metrics
-  const totalIn = entries.filter((e) => e.direction === 'IN').reduce((sum, e) => sum + e.amount, 0);
-  const totalOut = entries.filter((e) => e.direction === 'OUT').reduce((sum, e) => sum + e.amount, 0);
+  const [reportPeriod, setReportPeriod] = useState<string>('ALL');
+
+  // Filter-aware Period Metrics
+  const periodEntries = useMemo(() => {
+    if (monthFilter === 'ALL') return entries;
+    return entries.filter((e) => e.entryDate && e.entryDate.startsWith(monthFilter));
+  }, [entries, monthFilter]);
+
+  // Operational Inflow (excludes initial balance in all-time view for accurate operating margin)
+  const periodIn = useMemo(() => {
+    return periodEntries
+      .filter((e) => e.direction === 'IN' && (monthFilter !== 'ALL' || e.sourceType !== 'MODAL_AWAL'))
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [periodEntries, monthFilter]);
+
+  const periodOut = useMemo(() => {
+    return periodEntries
+      .filter((e) => e.direction === 'OUT')
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [periodEntries]);
+
+  const periodSurplus = periodIn - periodOut;
+  const isPeriodSurplus = periodSurplus >= 0;
+
+  // Real liquid cash reserves
   const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
+
+  // Backward-compatible aliases for period calculations
+  const totalIn = periodIn;
+  const totalOut = periodOut;
 
   // Open Create Modal
   const handleOpenCreateModal = () => {
@@ -203,7 +271,35 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     setShowAddModal(true);
   };
 
-  // Handle Save Entry (Create / Update)
+  // Extract unique months from entries for month filter
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    entries.forEach((e) => {
+      if (e.entryDate && e.entryDate.length >= 7) {
+        months.add(e.entryDate.slice(0, 7)); // YYYY-MM
+      }
+    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [entries]);
+
+  // Real Financial Breakdown per source type
+  const financialBreakdown = useMemo(() => {
+    const inBySource: { [key: string]: number } = {};
+    const outBySource: { [key: string]: number } = {};
+
+    entries.forEach((e) => {
+      const src = e.sourceType || 'MANUAL_JOURNAL';
+      if (e.direction === 'IN') {
+        inBySource[src] = (inBySource[src] || 0) + e.amount;
+      } else {
+        outBySource[src] = (outBySource[src] || 0) + e.amount;
+      }
+    });
+
+    return { inBySource, outBySource };
+  }, [entries]);
+
+  // Handle Save Entry (Create / Update) with Real-Time Account Balance Sync
   const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formDescription || !formAmount) return;
@@ -226,6 +322,33 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
         });
 
         if (res.ok) {
+          const oldEntry = entries.find((ent) => ent.id === editingEntryId);
+          const oldAmount = oldEntry ? oldEntry.amount : 0;
+          const oldDirection = oldEntry ? oldEntry.direction : 'IN';
+          const oldAccountId = oldEntry ? oldEntry.accountId : formAccountId;
+
+          // Revert old effect & apply new effect to accounts
+          let updatedAccs = accounts.map((acc) => {
+            if (acc.id === oldAccountId) {
+              const revertDelta = oldDirection === 'IN' ? -oldAmount : oldAmount;
+              return { ...acc, balance: acc.balance + revertDelta };
+            }
+            return acc;
+          });
+
+          updatedAccs = updatedAccs.map((acc) => {
+            if (acc.id === formAccountId) {
+              const applyDelta = formDirection === 'IN' ? numAmount : -numAmount;
+              return { ...acc, balance: acc.balance + applyDelta };
+            }
+            return acc;
+          });
+
+          setAccounts(updatedAccs);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updatedAccs));
+          }
+
           setEntries(
             entries.map((ent) =>
               ent.id === editingEntryId
@@ -271,6 +394,17 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
             description: formDescription,
             createdBy: 'Bendahara Komplek',
           };
+
+          // Optimistically update account balance
+          const delta = formDirection === 'IN' ? numAmount : -numAmount;
+          const nextAccounts = accounts.map((acc) =>
+            acc.id === formAccountId ? { ...acc, balance: acc.balance + delta } : acc
+          );
+          setAccounts(nextAccounts);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('wargahub_custom_accounts', JSON.stringify(nextAccounts));
+          }
+
           setEntries([newEnt, ...entries]);
           showToast(`Mutasi jurnal kas sebesar ${formatRupiah(numAmount)} berhasil dicatat.`);
           setShowAddModal(false);
@@ -346,13 +480,16 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
           createdBy: 'Bendahara Komplek',
         };
 
-        setAccounts(
-          accounts.map((acc) => {
-            if (acc.id === transferFrom) return { ...acc, balance: acc.balance - num };
-            if (acc.id === transferTo) return { ...acc, balance: acc.balance + num };
-            return acc;
-          })
-        );
+        const updatedAccs = accounts.map((acc) => {
+          if (acc.id === transferFrom) return { ...acc, balance: acc.balance - num };
+          if (acc.id === transferTo) return { ...acc, balance: acc.balance + num };
+          return acc;
+        });
+
+        setAccounts(updatedAccs);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updatedAccs));
+        }
 
         setEntries([inEntry, outEntry, ...entries]);
         showToast(`Mutasi transfer kas sebesar ${formatRupiah(num)} berhasil dibukukan.`);
@@ -366,7 +503,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     }
   };
 
-  // Confirm Delete Entry
+  // Confirm Delete Entry with Balance Reversal
   const handleConfirmDelete = async () => {
     if (!entryToDelete) return;
     try {
@@ -382,6 +519,16 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       });
 
       if (res.ok) {
+        // Reverse account balance in state
+        const reverseDelta = entryToDelete.direction === 'IN' ? -entryToDelete.amount : entryToDelete.amount;
+        const updatedAccs = accounts.map((acc) =>
+          acc.id === entryToDelete.accountId ? { ...acc, balance: acc.balance + reverseDelta } : acc
+        );
+        setAccounts(updatedAccs);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updatedAccs));
+        }
+
         setEntries(entries.filter((e) => e.id !== entryToDelete.id));
         showToast(`Entri jurnal kas "${entryToDelete.description}" berhasil dihapus.`);
         setEntryToDelete(null);
@@ -392,9 +539,152 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     }
   };
 
+  // Account Management Handlers (Subtab 2)
+  const handleOpenAddAccount = () => {
+    setEditingAccount(null);
+    setFormAccName('');
+    setFormAccCode(`ACC-${Date.now().toString().slice(-4)}`);
+    setFormAccType('BANK');
+    setFormAccBankName('Bank BCA');
+    setFormAccNumber('');
+    setFormAccBalance(0);
+    setShowAccountModal(true);
+  };
+
+  const handleOpenEditAccount = (acc: AccountItem) => {
+    setEditingAccount(acc);
+    setFormAccName(acc.name);
+    setFormAccCode(acc.code);
+    setFormAccType(acc.type || 'BANK');
+    setFormAccBankName(acc.bankName || 'Bank BCA');
+    setFormAccNumber(acc.accountNumber || '');
+    setFormAccBalance(acc.balance);
+    setShowAccountModal(true);
+  };
+
+  const handleSaveAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formAccName) return;
+
+    if (editingAccount) {
+      const updated = accounts.map((a) =>
+        a.id === editingAccount.id
+          ? {
+              ...a,
+              name: formAccName,
+              code: formAccCode,
+              type: formAccType,
+              bankName: formAccBankName,
+              accountNumber: formAccNumber,
+            }
+          : a
+      );
+      setAccounts(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updated));
+      }
+      showToast(`Rekening kas "${formAccName}" berhasil diperbarui.`);
+    } else {
+      const newAcc: AccountItem = {
+        id: `acc-${Date.now().toString().slice(-6)}`,
+        name: formAccName,
+        code: formAccCode,
+        type: formAccType,
+        bankName: formAccBankName,
+        accountNumber: formAccNumber,
+        balance: formAccBalance || 0,
+      };
+      const updated = [...accounts, newAcc];
+      setAccounts(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updated));
+      }
+      showToast(`Rekening kas baru "${formAccName}" berhasil ditambahkan.`);
+    }
+    setShowAccountModal(false);
+  };
+
+  // WhatsApp & Copy Voucher Handlers
+  const handleShareWhatsAppVoucher = (voucher: LedgerEntryItem) => {
+    const isMasuk = voucher.direction === 'IN';
+    const accName =
+      accounts.find((a) => a.id === voucher.accountId)?.name ||
+      (voucher.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel);
+
+    const message =
+      `*${isMasuk ? 'BUKTI KAS MASUK (BKM RESMI)' : 'BUKTI KAS KELUAR (BKK RESMI)'} - WARGAHUB*\n` +
+      `Komplek Grand Sariwangi\n` +
+      `=========================================\n` +
+      `No. Referensi: *${voucher.sourceId || voucher.id}*\n` +
+      `Tanggal: *${voucher.entryDate}*\n` +
+      `Akun Pembukuan: *${accName}*\n` +
+      `Jenis Mutasi: *${isMasuk ? '+ Penerimaan Kas (Debit)' : '- Pengeluaran Kas (Kredit)'}*\n` +
+      `Nominal: *${formatRupiah(voucher.amount)}*\n` +
+      `Kategori: *${voucher.sourceType.replace(/_/g, ' ')}*\n` +
+      `Uraian Transaksi:\n_${voucher.description}_\n` +
+      `-----------------------------------------\n` +
+      `_Tercatat resmi dalam Buku Jurnal Kas Paguyuban Warga Grand Sariwangi._\n` +
+      `_Disahkan oleh: Bendahara Paguyuban_`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    showToast('Membuka WhatsApp untuk membagikan voucher jurnal...');
+  };
+
+  const handleCopyVoucherText = (voucher: LedgerEntryItem) => {
+    const isMasuk = voucher.direction === 'IN';
+    const accName =
+      accounts.find((a) => a.id === voucher.accountId)?.name ||
+      (voucher.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel);
+
+    const text =
+      `[${isMasuk ? 'BKM' : 'BKK'} WARGAHUB]\n` +
+      `No: ${voucher.sourceId || voucher.id}\n` +
+      `Tanggal: ${voucher.entryDate}\n` +
+      `Akun: ${accName}\n` +
+      `Nominal: ${formatRupiah(voucher.amount)}\n` +
+      `Uraian: ${voucher.description}`;
+
+    navigator.clipboard.writeText(text);
+    showToast('Ringkasan voucher berhasil disalin ke clipboard.');
+  };
+
+  // Reconciliation Sign Handler
+  const handleApproveReconciliation = () => {
+    const mainAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
+    const systemBalance = mainAcc ? mainAcc.balance : 0;
+    const diff = bankStatementBalance - systemBalance;
+
+    const newApproval = {
+      ...reconSavedStatus,
+      [reconciliationMonth]: {
+        signedAt: new Date().toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        signedBy: 'Hendra Wijaya (Bendahara)',
+        variance: diff,
+      },
+    };
+
+    setReconSavedStatus(newApproval);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('wargahub_recon_approvals', JSON.stringify(newApproval));
+    }
+    showToast(`✓ Berita acara rekonsiliasi ${reconciliationMonth} berhasil disahkan!`);
+  };
+
   // Cumulative running balance computation (chronological order)
   const entriesWithRunningBalance = useMemo(() => {
-    const chrono = [...entries].sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+    const chrono = [...entries].sort((a, b) => {
+      if (a.entryDate !== b.entryDate) return a.entryDate.localeCompare(b.entryDate);
+      if (a.sourceType === 'MODAL_AWAL') return -1;
+      if (b.sourceType === 'MODAL_AWAL') return 1;
+      if (a.direction !== b.direction) return a.direction === 'IN' ? -1 : 1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
     let running = 0;
     const balanceMap = new Map<string, number>();
     chrono.forEach((e) => {
@@ -415,6 +705,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   // Filter & Sort
   const filteredAndSortedEntries = useMemo(() => {
     const list = entriesWithRunningBalance.filter((e) => {
+      const matchesMonth = monthFilter === 'ALL' || (e.entryDate && e.entryDate.startsWith(monthFilter));
       const matchesAccount = accountFilter === 'ALL' || e.accountId === accountFilter;
       const matchesDirection = directionFilter === 'ALL' || e.direction === directionFilter;
       const matchesSource = sourceTypeFilter === 'ALL' || e.sourceType === sourceTypeFilter;
@@ -423,7 +714,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
         e.sourceType.toLowerCase().includes(search.toLowerCase()) ||
         (e.sourceId && e.sourceId.toLowerCase().includes(search.toLowerCase())) ||
         e.id.toLowerCase().includes(search.toLowerCase());
-      return matchesAccount && matchesDirection && matchesSource && matchesSearch;
+      return matchesMonth && matchesAccount && matchesDirection && matchesSource && matchesSearch;
     });
 
     list.sort((a, b) => {
@@ -437,7 +728,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     });
 
     return list;
-  }, [entriesWithRunningBalance, accountFilter, directionFilter, sourceTypeFilter, search, sortBy, sortOrder]);
+  }, [entriesWithRunningBalance, monthFilter, accountFilter, directionFilter, sourceTypeFilter, search, sortBy, sortOrder]);
 
   // Pagination
   const totalFiltered = filteredAndSortedEntries.length;
@@ -448,7 +739,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   const paginatedEntries = filteredAndSortedEntries.slice(startIndex, endIndex);
 
   // Copy Public Link
-  const publicTransparencyUrl = 'http://localhost:4321/transparency';
+  const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'https://wrghub.vercel.app/transparency';
   const handleCopyPublicLink = () => {
     navigator.clipboard.writeText(publicTransparencyUrl);
     setCopiedLink(true);
@@ -487,40 +778,46 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     showToast('Berita acara rekonsiliasi kas bank berhasil diunduh.');
   };
 
-  // Download Financial Statement Report .txt
+  // Download Financial Statement Report .txt with Real Breakdown
   const handleDownloadFinancialStatement = () => {
-    const content = `LAPORAN ARUS KAS & LABA RUGI PAGUYUBAN - WARGAHUB\n=================================================\nPeriode: ${new Date().toLocaleString(
-      'id-ID',
-      { month: 'long', year: 'numeric' }
-    )}\nTanggal Dokumen: ${new Date().toLocaleString(
+    const reportEntries =
+      reportPeriod === 'ALL'
+        ? entries
+        : entries.filter((e) => e.entryDate && e.entryDate.startsWith(reportPeriod));
+
+    const repIn = reportEntries
+      .filter((e) => e.direction === 'IN' && (reportPeriod !== 'ALL' || e.sourceType !== 'MODAL_AWAL'))
+      .reduce((s, e) => s + e.amount, 0);
+
+    const repOut = reportEntries
+      .filter((e) => e.direction === 'OUT')
+      .reduce((s, e) => s + e.amount, 0);
+
+    const repSurplus = repIn - repOut;
+    const isSurplus = repSurplus >= 0;
+
+    const periodLabel =
+      reportPeriod === 'ALL'
+        ? 'Tahun 2026 (Konsolidasi Tahunan)'
+        : reportPeriod;
+
+    const content = `LAPORAN ARUS KAS & HASIL OPERASIONAL PAGUYUBAN - WARGAHUB\n=========================================================\nPeriode Laporan: ${periodLabel}\nTanggal Cetak  : ${new Date().toLocaleString(
       'id-ID'
-    )}\n\n1. PENERIMAAN KAS (ARUS MASUK / OPERATING INFLOW):\n   - Setoran Iuran Warga Komplek    : ${formatRupiah(
-      totalIn
-    )}\n   TOTAL PENERIMAAN KAS             : ${formatRupiah(
-      totalIn
-    )}\n\n2. PENGELUARAN KAS (ARUS KELUAR / OPERATING OUTFLOW):\n   - Gaji Satpam & Tim Kebersihan   : ${formatRupiah(
-      Math.round(totalOut * 0.55)
-    )}\n   - Listrik PJU & Sarana Pompa Air : ${formatRupiah(
-      Math.round(totalOut * 0.2)
-    )}\n   - Operasional & Pemeliharaan     : ${formatRupiah(
-      Math.round(totalOut * 0.25)
-    )}\n   TOTAL PENGELUARAN KAS            : ${formatRupiah(
-      totalOut
-    )}\n\n3. HASIL OPERASIONAL (NET SURPLUS / DEFISIT):\n   SURPLUS BERSIH BULAN BERJALAN    : ${formatRupiah(
-      totalIn - totalOut
-    )}\n\n4. POSISI SALDO AKHIR KAS & BANK:\n   - Rekening Kas Utama (${mainBankLabel}) : ${formatRupiah(
-      accounts.find((a) => a.id === 'acc-main')?.balance || 0
-    )}\n   - Kas Tunai Bendahara            : ${formatRupiah(
-      accounts.find((a) => a.id === 'acc-cash')?.balance || 0
-    )}\n   TOTAL LIKUIDITAS PAGUYUBAN       : ${formatRupiah(
+    )}\n\n1. PENERIMAAN OPERASIONAL KAS (ARUS MASUK / OPERATING INFLOW):\n   TOTAL PENERIMAAN KAS             : +${formatRupiah(
+      repIn
+    )}\n\n2. PENGELUARAN BEBAN OPERASIONAL KAS (ARUS KELUAR / OUTFLOW):\n   TOTAL PENGELUARAN KAS            : -${formatRupiah(
+      repOut
+    )}\n\n3. HASIL OPERASIONAL BERSIH (NET SURPLUS / DEFISIT):\n   HASIL BERSIH BULAN BERJALAN      : ${
+      isSurplus ? `+${formatRupiah(repSurplus)}` : `-${formatRupiah(Math.abs(repSurplus))}`
+    } (${isSurplus ? 'SURPLUS BERSIH' : 'DEFISIT SEMENTARA'})\n\n4. POSISI SALDO LIKUIDITAS KAS & BANK:\n${accounts.map((a) => `   - ${a.name} (${a.bankName || a.type}) : ${formatRupiah(a.balance)}`).join('\n')}\n   TOTAL LIKUIDITAS PAGUYUBAN       : ${formatRupiah(
       totalBalance
-    )}\n\nDisahkan oleh Bendahara & Pengurus Komplek`;
+    )}\n\nDisahkan oleh Bendahara & Pengurus Paguyuban Komplek Grand Sariwangi`;
 
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `LAPORAN_KEUANGAN_${new Date().toISOString().slice(0, 7)}.txt`;
+    a.download = `LAPORAN_KEUANGAN_${reportPeriod}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -695,19 +992,6 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
           <PieChart className="w-4 h-4" />
           <span>Laporan Arus Kas</span>
         </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('public_transparency')}
-          className={`px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-2 whitespace-nowrap active:scale-[0.98] ${
-            activeSubTab === 'public_transparency'
-              ? 'bg-slate-900 text-white shadow-2xs'
-              : 'bg-surface text-ink-muted hover:text-ink hover:bg-canvas border border-border/60'
-          }`}
-        >
-          <Eye className="w-4 h-4" />
-          <span>Transparansi Publik</span>
-        </button>
       </div>
 
       {/* ================= SUBTAB 1: BUKU JURNAL KAS ================= */}
@@ -722,44 +1006,58 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
               <p className="text-2xl font-black text-ink mt-0.5 tabular-nums font-mono">
                 {formatRupiah(totalBalance)}
               </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block truncate">
                 {accounts.length} REKENING TERVERIFIKASI
               </span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Penerimaan Kas (+Debit)
+                Penerimaan Kas (+Debit) {monthFilter !== 'ALL' ? 'Bulan Ini' : '2026'}
               </span>
               <p className="text-2xl font-black text-emerald-700 mt-0.5 tabular-nums font-mono">
-                +{formatRupiah(totalIn)}
+                +{formatRupiah(periodIn)}
               </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">
-                IURAN WARGA & DONASI
+              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block truncate">
+                {monthFilter !== 'ALL'
+                  ? `${periodEntries.filter((e) => e.direction === 'IN').length} TRANSAKSI MASUK`
+                  : 'IURAN WARGA & DONASI'}
               </span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Pengeluaran Kas (-Kredit)
+                Pengeluaran Kas (-Kredit) {monthFilter !== 'ALL' ? 'Bulan Ini' : '2026'}
               </span>
               <p className="text-2xl font-black text-rose-700 mt-0.5 tabular-nums font-mono">
-                -{formatRupiah(totalOut)}
+                -{formatRupiah(periodOut)}
               </p>
-              <span className="text-[10px] text-rose-600 font-bold font-mono mt-0.5 block">
-                OPERASIONAL & PEMELIHARAAN
+              <span className="text-[10px] text-rose-600 font-bold font-mono mt-0.5 block truncate">
+                {monthFilter !== 'ALL'
+                  ? `${periodEntries.filter((e) => e.direction === 'OUT').length} TRANSAKSI KELUAR`
+                  : 'OPERASIONAL & PEMELIHARAAN'}
               </span>
             </div>
 
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Surplus Kas Bersih
+                {isPeriodSurplus ? 'Surplus Operasional' : 'Defisit Sementara'}
               </span>
-              <p className="text-2xl font-black text-primary-700 mt-0.5 tabular-nums font-mono">
-                +{formatRupiah(totalIn - totalOut)}
+              <p
+                className={`text-2xl font-black mt-0.5 tabular-nums font-mono ${
+                  isPeriodSurplus ? 'text-primary-700' : 'text-amber-700'
+                }`}
+              >
+                {isPeriodSurplus
+                  ? `+${formatRupiah(periodSurplus)}`
+                  : `-${formatRupiah(Math.abs(periodSurplus))}`}
               </p>
-              <span className="text-[10px] text-primary-600 font-bold font-mono mt-0.5 block">
-                NET OPERATING SURPLUS
+              <span
+                className={`text-[10px] font-bold font-mono mt-0.5 block truncate ${
+                  isPeriodSurplus ? 'text-primary-600' : 'text-amber-600'
+                }`}
+              >
+                {isPeriodSurplus ? 'NET OPERATING SURPLUS' : 'DEFISIT BERJALAN BULAN INI'}
               </span>
             </div>
           </div>
@@ -825,6 +1123,28 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                   className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink"
                 />
               </div>
+
+              <select
+                value={monthFilter}
+                onChange={(e) => {
+                  setMonthFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                title="Filter Periode Bulan"
+              >
+                <option value="ALL">Semua Periode</option>
+                {availableMonths.map((m) => {
+                  const [y, mo] = m.split('-');
+                  const dateObj = new Date(parseInt(y), parseInt(mo) - 1, 1);
+                  const monthName = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                  return (
+                    <option key={m} value={m}>
+                      {monthName}
+                    </option>
+                  );
+                })}
+              </select>
 
               <select
                 value={accountFilter}
@@ -1327,12 +1647,22 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                     </div>
                   </div>
 
+                  {reconSavedStatus[reconciliationMonth] && (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-emerald-950 font-bold">
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Disahkan oleh {reconSavedStatus[reconciliationMonth].signedBy} ({reconSavedStatus[reconciliationMonth].signedAt})
+                      </span>
+                      <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded font-mono font-black">
+                        STATUS: SAH
+                      </span>
+                    </div>
+                  )}
+
                   <div className="pt-3 flex justify-end">
                     <button
                       type="button"
-                      onClick={() => {
-                        showToast('Rekonsiliasi bank berhasil disahkan dan dicatat ke Jejak Audit.');
-                      }}
+                      onClick={handleApproveReconciliation}
                       className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-2 active:scale-[0.98] transition-all"
                     >
                       <Check className="w-4 h-4" />
@@ -1361,7 +1691,26 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={reportPeriod}
+                  onChange={(e) => setReportPeriod(e.target.value)}
+                  className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                  title="Pilih Periode Laporan"
+                >
+                  <option value="ALL">Tahun 2026 (Konsolidasi Tahunan)</option>
+                  {availableMonths.map((m) => {
+                    const [y, mo] = m.split('-');
+                    const dateObj = new Date(parseInt(y), parseInt(mo) - 1, 1);
+                    const monthName = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                    return (
+                      <option key={m} value={m}>
+                        {monthName}
+                      </option>
+                    );
+                  })}
+                </select>
+
                 <button
                   type="button"
                   onClick={handleDownloadFinancialStatement}
@@ -1374,152 +1723,163 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
             </div>
 
             {/* Income & Expense Breakdown */}
-            {entries.length === 0 ? (
-              <div className="p-8 text-center bg-canvas rounded-2xl border border-border space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-surface border border-border flex items-center justify-center mx-auto text-ink-muted">
-                  <PieChart className="w-6 h-6" />
-                </div>
-                <p className="font-bold text-ink text-sm">Belum Ada Transaksi Arus Kas Periode Ini</p>
-                <p className="text-xs text-ink-muted max-w-sm mx-auto">
-                  Laporan arus kas dan surplus/defisit operasional akan dikalkulasikan secara otomatis setelah transaksi penerimaan atau pengeluaran dicatat pada buku jurnal.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
-                  <div className="flex justify-between items-center text-sm font-bold text-ink">
-                    <span className="flex items-center gap-1.5 text-emerald-800">
-                      <TrendingUp className="w-4 h-4 text-emerald-600" />
-                      <span>Penerimaan Operasional Kas (Inflow)</span>
-                    </span>
-                    <span className="font-mono font-black text-emerald-700">+{formatRupiah(totalIn)}</span>
-                  </div>
-                  <div className="pl-6 space-y-1.5 text-[11px] text-ink-muted">
-                    <div className="flex justify-between">
-                      <span>- Setoran Iuran Rutin Kas Warga (IPL)</span>
-                      <span className="font-mono text-ink font-bold">
-                        {formatRupiah(entries.filter((e) => e.direction === 'IN' && e.sourceType === 'IURAN_WARGA').reduce((s, e) => s + e.amount, 0))}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>- Dana Donasi, Sponsor & Bantuan Sosial</span>
-                      <span className="font-mono text-ink font-bold">
-                        {formatRupiah(entries.filter((e) => e.direction === 'IN' && e.sourceType !== 'IURAN_WARGA').reduce((s, e) => s + e.amount, 0))}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            {(() => {
+              const repEntries =
+                reportPeriod === 'ALL'
+                  ? entries
+                  : entries.filter((e) => e.entryDate && e.entryDate.startsWith(reportPeriod));
 
-                <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
-                  <div className="flex justify-between items-center text-sm font-bold text-ink">
-                    <span className="flex items-center gap-1.5 text-rose-800">
-                      <TrendingDown className="w-4 h-4 text-rose-600" />
-                      <span>Pengeluaran Beban Operasional Kas (Outflow)</span>
-                    </span>
-                    <span className="font-mono font-black text-rose-700">-{formatRupiah(totalOut)}</span>
-                  </div>
-                  <div className="pl-6 space-y-1.5 text-[11px] text-ink-muted">
-                    <div className="flex justify-between">
-                      <span>- Gaji & Honor Satpam, Kebersihan, Teknisi</span>
-                      <span className="font-mono text-ink font-bold">
-                        {formatRupiah(entries.filter((e) => e.direction === 'OUT' && e.sourceType === 'PENGELUARAN_OPS').reduce((s, e) => s + e.amount, 0))}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>- Proyek Perawatan Sarana & Fasum</span>
-                      <span className="font-mono text-ink font-bold">
-                        {formatRupiah(entries.filter((e) => e.direction === 'OUT' && e.sourceType === 'PROYEK_FASUM').reduce((s, e) => s + e.amount, 0))}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>- Pengeluaran Kas Operasional Lainnya</span>
-                      <span className="font-mono text-ink font-bold">
-                        {formatRupiah(entries.filter((e) => e.direction === 'OUT' && e.sourceType !== 'PENGELUARAN_OPS' && e.sourceType !== 'PROYEK_FASUM').reduce((s, e) => s + e.amount, 0))}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+              const repIn = repEntries
+                .filter((e) => e.direction === 'IN' && (reportPeriod !== 'ALL' || e.sourceType !== 'MODAL_AWAL'))
+                .reduce((s, e) => s + e.amount, 0);
 
-                <div className="p-4 bg-primary-50/60 rounded-2xl border border-primary-200 flex justify-between items-center text-sm">
-                  <span className="font-black text-primary-950">Surplus / Defisit Operasional Bersih</span>
-                  <span className="font-mono font-black text-lg text-primary-700">
-                    +{formatRupiah(totalIn - totalOut)}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+              const repOut = repEntries
+                .filter((e) => e.direction === 'OUT')
+                .reduce((s, e) => s + e.amount, 0);
 
-      {/* ================= SUBTAB 5: TRANSPARANSI PUBLIK ================= */}
-      {activeSubTab === 'public_transparency' && (
-        <div className="space-y-6 animate-in fade-in duration-150 max-w-4xl">
-          <div className="p-6 bg-surface rounded-3xl border border-border shadow-card space-y-5 text-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-              <div>
-                <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-emerald-600" />
-                  <span>Rekapitulasi Iuran & Transparansi Keuangan Terbuka</span>
-                </h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Laporan ringkas yang disinkronisasikan ke portal publik warga di{' '}
-                  <a
-                    href={publicTransparencyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary-600 font-bold underline"
+              const repSurplus = repIn - repOut;
+              const isRepSurplus = repSurplus >= 0;
+
+              const iuranWarga = repEntries
+                .filter((e) => e.direction === 'IN' && (e.sourceType === 'IURAN_WARGA' || e.sourceType === 'PAYMENT'))
+                .reduce((s, e) => s + e.amount, 0);
+
+              const donasiLainnya = repEntries
+                .filter((e) => e.direction === 'IN' && e.sourceType !== 'IURAN_WARGA' && e.sourceType !== 'PAYMENT')
+                .reduce((s, e) => s + e.amount, 0);
+
+              const honorSatpam = repEntries
+                .filter(
+                  (e) =>
+                    e.direction === 'OUT' &&
+                    (e.description.toLowerCase().includes('satpam') || e.description.toLowerCase().includes('honor'))
+                )
+                .reduce((s, e) => s + e.amount, 0);
+
+              const retribusiRtRw = repEntries
+                .filter(
+                  (e) =>
+                    e.direction === 'OUT' &&
+                    (e.description.toLowerCase().includes('rt') || e.description.toLowerCase().includes('rw'))
+                )
+                .reduce((s, e) => s + e.amount, 0);
+
+              const operasionalPosPju = repEntries
+                .filter(
+                  (e) =>
+                    e.direction === 'OUT' &&
+                    (e.description.toLowerCase().includes('listrik') ||
+                      e.description.toLowerCase().includes('pos') ||
+                      e.description.toLowerCase().includes('air'))
+                )
+                .reduce((s, e) => s + e.amount, 0);
+
+              const fasumDanLainnya = repEntries
+                .filter(
+                  (e) =>
+                    e.direction === 'OUT' &&
+                    !e.description.toLowerCase().includes('satpam') &&
+                    !e.description.toLowerCase().includes('honor') &&
+                    !e.description.toLowerCase().includes('rt') &&
+                    !e.description.toLowerCase().includes('rw') &&
+                    !e.description.toLowerCase().includes('listrik') &&
+                    !e.description.toLowerCase().includes('pos') &&
+                    !e.description.toLowerCase().includes('air')
+                )
+                .reduce((s, e) => s + e.amount, 0);
+
+              return repEntries.length === 0 ? (
+                <div className="p-8 text-center bg-canvas rounded-2xl border border-border space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-surface border border-border flex items-center justify-center mx-auto text-ink-muted">
+                    <PieChart className="w-6 h-6" />
+                  </div>
+                  <p className="font-bold text-ink text-sm">Belum Ada Transaksi Arus Kas Periode Ini</p>
+                  <p className="text-xs text-ink-muted max-w-sm mx-auto">
+                    Laporan arus kas dan surplus/defisit operasional akan dikalkulasikan secara otomatis setelah transaksi dicatat pada buku jurnal.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
+                    <div className="flex justify-between items-center text-sm font-bold text-ink">
+                      <span className="flex items-center gap-1.5 text-emerald-800">
+                        <TrendingUp className="w-4 h-4 text-emerald-600" />
+                        <span>Penerimaan Operasional Kas (Inflow)</span>
+                      </span>
+                      <span className="font-mono font-black text-emerald-700">+{formatRupiah(repIn)}</span>
+                    </div>
+                    <div className="pl-6 space-y-1.5 text-[11px] text-ink-muted">
+                      <div className="flex justify-between">
+                        <span>- Setoran Iuran Rutin Kas Warga (IPL)</span>
+                        <span className="font-mono text-ink font-bold">{formatRupiah(iuranWarga)}</span>
+                      </div>
+                      {donasiLainnya > 0 && (
+                        <div className="flex justify-between">
+                          <span>- Modal Kas Awal / Donasi & Sumbangan</span>
+                          <span className="font-mono text-ink font-bold">{formatRupiah(donasiLainnya)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
+                    <div className="flex justify-between items-center text-sm font-bold text-ink">
+                      <span className="flex items-center gap-1.5 text-rose-800">
+                        <TrendingDown className="w-4 h-4 text-rose-600" />
+                        <span>Pengeluaran Beban Operasional Kas (Outflow)</span>
+                      </span>
+                      <span className="font-mono font-black text-rose-700">-{formatRupiah(repOut)}</span>
+                    </div>
+                    <div className="pl-6 space-y-1.5 text-[11px] text-ink-muted">
+                      <div className="flex justify-between">
+                        <span>- Gaji & Honor Petugas Keamanan Lingkungan</span>
+                        <span className="font-mono text-ink font-bold">{formatRupiah(honorSatpam)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>- Iuran Retribusi RT, RW & Kebersihan Sampah</span>
+                        <span className="font-mono text-ink font-bold">{formatRupiah(retribusiRtRw)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>- Listrik PJU & Operasional Pos Keamanan</span>
+                        <span className="font-mono text-ink font-bold">{formatRupiah(operasionalPosPju)}</span>
+                      </div>
+                      {fasumDanLainnya > 0 && (
+                        <div className="flex justify-between">
+                          <span>- Pemeliharaan Fasum, Kegiatan & Dana Medis Satpam</span>
+                          <span className="font-mono text-ink font-bold">{formatRupiah(fasumDanLainnya)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-2xl border flex justify-between items-center text-sm ${
+                      isRepSurplus
+                        ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                        : 'bg-amber-50/70 border-amber-200 text-amber-950'
+                    }`}
                   >
-                    /transparency
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyPublicLink}
-                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold rounded-xl inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
-                >
-                  {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-ink-muted" />}
-                  <span>Salin Link</span>
-                </button>
-                <a
-                  href={publicTransparencyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Buka Portal</span>
-                </a>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-black text-emerald-950 text-sm">SETORAN IURAN TERVERIFIKASI</span>
-                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-black">
-                    TERKUMPUL
-                  </span>
+                    <div>
+                      <span className="font-black block">
+                        {isRepSurplus ? 'Surplus Operasional Bersih' : 'Defisit Sementara Periode Berjalan'}
+                      </span>
+                      <span className="text-[10px] text-ink-muted block mt-0.5">
+                        {isRepSurplus
+                          ? 'Penerimaan iuran kas warga mencukupi seluruh beban operasional berjalan'
+                          : 'Pengeluaran melebihi penerimaan tercatat pada periode ini (sementara)'}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-mono font-black text-lg ${
+                        isRepSurplus ? 'text-emerald-700' : 'text-amber-700'
+                      }`}
+                    >
+                      {isRepSurplus ? `+${formatRupiah(repSurplus)}` : `-${formatRupiah(Math.abs(repSurplus))}`}
+                    </span>
+                  </div>
                 </div>
-                <p className="font-mono font-black text-emerald-800 text-xl tabular-nums">Rp 0</p>
-                <p className="text-[11px] text-emerald-700">Total penerimaan iuran yang telah diverifikasi dan masuk rekening kas resmi.</p>
-              </div>
-
-              <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-black text-rose-950 text-sm">PIUTANG IURAN BERJALAN</span>
-                  <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-mono font-black">
-                    BELUM LUNAS
-                  </span>
-                </div>
-                <p className="font-mono font-black text-rose-800 text-xl tabular-nums">Rp 0</p>
-                <p className="text-[11px] text-rose-700">Total akumulasi tagihan iuran unit yang belum dibayarkan oleh warga.</p>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
       )}

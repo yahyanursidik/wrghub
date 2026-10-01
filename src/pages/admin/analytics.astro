@@ -6,10 +6,12 @@ import { getLedgerEntries } from '../../services/finance.service';
 import { getComplaints } from '../../services/complaint.service';
 import { getInvoices } from '../../services/billing.service';
 
-const properties = await getProperties().catch(() => []);
-const ledgerEntries = await getLedgerEntries(200).catch(() => []);
-const complaints = await getComplaints().catch(() => []);
-const invoices = await getInvoices().catch(() => []);
+const [properties, ledgerEntries, complaints, invoices] = await Promise.all([
+  getProperties().catch(() => []),
+  getLedgerEntries(200).catch(() => []),
+  getComplaints().catch(() => []),
+  getInvoices().catch(() => []),
+]);
 ---
 
 <AdminLayout title="Analitik & Tren Finansial - WargaHub" currentPath="/admin/analytics">

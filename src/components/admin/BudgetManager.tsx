@@ -1180,12 +1180,11 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
                 </button>
 
                 <div className="flex items-center gap-1 px-2">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum = safeCurrentPage - 2 + i;
-                    if (pageNum < 1) pageNum = i + 1;
-                    if (pageNum > totalPages) return null;
-
-                    return (
+                  {(() => {
+                    const maxButtons = 5;
+                    const startPage = Math.max(1, Math.min(safeCurrentPage - Math.floor(maxButtons / 2), Math.max(1, totalPages - maxButtons + 1)));
+                    const pageCount = Math.min(maxButtons, totalPages);
+                    return Array.from({ length: pageCount }, (_, i) => startPage + i).map((pageNum) => (
                       <button
                         key={pageNum}
                         type="button"
@@ -1198,8 +1197,8 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
                       >
                         {pageNum}
                       </button>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
 
                 <button

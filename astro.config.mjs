@@ -9,6 +9,10 @@ const isVercel = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV) 
 // https://astro.build/config
 export default defineConfig({
   output: 'server',
+  prefetch: {
+    prefetchAll: true,
+    defaultStrategy: 'hover'
+  },
   adapter: isVercel
     ? vercel({
         webAnalytics: { enabled: true }

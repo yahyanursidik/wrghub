@@ -36,7 +36,10 @@ import {
   Users,
   CheckSquare,
   Settings,
-  Wallet
+  Wallet,
+  Table,
+  ChevronDown,
+  AlertCircle
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { ReceiptModal } from '../shared/ReceiptModal';
@@ -109,6 +112,7 @@ const CLUSTER_PROPERTIES_FALLBACK = [
 ];
 
 interface BillingManagerProps {
+  initialPeriodId?: string;
   initialPeriodName: string;
   initialInvoices: InvoiceItem[];
   allInvoices?: any[];
@@ -119,6 +123,7 @@ interface BillingManagerProps {
 }
 
 export const BillingManager: React.FC<BillingManagerProps> = ({
+  initialPeriodId,
   initialPeriodName,
   initialInvoices,
   allInvoices = [],
@@ -127,11 +132,18 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   allPeriods = [],
   initialBalance = 2865000,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'batch' | 'tariffs' | 'public_ledger'>('invoices');
+  const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'annual_matrix' | 'tariffs' | 'batch'>('invoices');
   const [invoices, setInvoices] = useState<InvoiceItem[]>(initialInvoices || []);
   const [progress, setProgress] = useState<BillingProgress>(initialProgress);
   const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
+  const [matrixYear] = useState<number>(2026);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     setInvoices(initialInvoices || []);
@@ -174,11 +186,11 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   }, [initialProperties]);
 
   const availablePeriods = useMemo(() => {
-    const list: string[] = ['September 2026', 'Agustus 2026', 'Juli 2026', 'Juni 2026', 'Mei 2026', 'April 2026', 'Maret 2026', 'Februari 2026', 'Januari 2026', 'Oktober 2026'];
+    const list: string[] = ['Oktober 2026', 'September 2026', 'Agustus 2026', 'Juli 2026', 'Juni 2026', 'Mei 2026', 'April 2026', 'Maret 2026', 'Februari 2026', 'Januari 2026'];
     if (allPeriods && allPeriods.length > 0) {
       allPeriods.forEach((p: any) => {
         if (p.name && !list.includes(p.name)) {
-          list.unshift(p.name);
+          list.push(p.name);
         }
       });
     }
@@ -231,6 +243,162 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
       };
     });
   }, [clusterProperties, invoices, allInvoices, initialPeriodName]);
+
+  const MONTHS_LIST = useMemo(
+    () => [
+      { num: 1, key: '01', short: 'Jan', name: 'Januari' },
+      { num: 2, key: '02', short: 'Feb', name: 'Februari' },
+      { num: 3, key: '03', short: 'Mar', name: 'Maret' },
+      { num: 4, key: '04', short: 'Apr', name: 'April' },
+      { num: 5, key: '05', short: 'Mei', name: 'Mei' },
+      { num: 6, key: '06', short: 'Jun', name: 'Juni' },
+      { num: 7, key: '07', short: 'Jul', name: 'Juli' },
+      { num: 8, key: '08', short: 'Agu', name: 'Agustus' },
+      { num: 9, key: '09', short: 'Sep', name: 'September' },
+      { num: 10, key: '10', short: 'Okt', name: 'Oktober' },
+      { num: 11, key: '11', short: 'Nov', name: 'November' },
+      { num: 12, key: '12', short: 'Des', name: 'Desember' },
+    ],
+    []
+  );
+
+  const annualMatrixData = useMemo(() => {
+    const list = clusterProperties.length > 0 ? clusterProperties : CLUSTER_PROPERTIES_FALLBACK;
+    const allInvs = allInvoices && allInvoices.length > 0 ? allInvoices : invoices;
+
+    return list.map((prop) => {
+      const propCode = prop.code.toLowerCase();
+      const resident = prop.residentName || prop.ownerName || 'Warga';
+
+      let totalPaidCount = 0;
+      let totalPaidAmount = 0;
+      let totalUnpaidCount = 0;
+      let totalUnpaidAmount = 0;
+      const unpaidMonthsNames: string[] = [];
+
+      const months = MONTHS_LIST.map((m) => {
+        // Find matching invoice for this house & month
+        const matchedInv = allInvs.find((inv: any) => {
+          const invCode = (inv.propertyCode || inv.houseCode || '').toLowerCase();
+          const matchHouse = invCode === propCode || invCode === propCode.replace(/\s+/g, '');
+          if (!matchHouse) return false;
+
+          const pName = (inv.billingPeriodName || inv.billingPeriodId || '').toLowerCase();
+          return (
+            pName.includes(m.name.toLowerCase()) ||
+            pName.includes(m.short.toLowerCase()) ||
+            pName.includes(`-${m.key}`) ||
+            (inv.dueDate && inv.dueDate.includes(`-${m.key}-`))
+          );
+        });
+
+        let status: 'PAID' | 'UNPAID' | 'PENDING' | 'FUTURE' = 'FUTURE';
+        const amount = matchedInv ? Number(matchedInv.total) || 250000 : 250000;
+
+        if (matchedInv) {
+          if (matchedInv.status === 'PAID') {
+            status = 'PAID';
+            totalPaidCount += 1;
+            totalPaidAmount += amount;
+          } else if (matchedInv.status === 'PENDING_VERIFICATION') {
+            status = 'PENDING';
+            totalUnpaidCount += 1;
+            totalUnpaidAmount += amount;
+            unpaidMonthsNames.push(m.name);
+          } else {
+            status = 'UNPAID';
+            totalUnpaidCount += 1;
+            totalUnpaidAmount += amount;
+            unpaidMonthsNames.push(m.name);
+          }
+        } else {
+          // Active month boundary (October 2026 is month 10)
+          const activeMonthNum = 10;
+          if (m.num <= activeMonthNum) {
+            const currInv = invoices.find(
+              (ci) => ci.propertyCode.toLowerCase() === propCode && ci.status === 'PAID'
+            );
+            if (currInv && m.num === activeMonthNum) {
+              status = 'PAID';
+              totalPaidCount += 1;
+              totalPaidAmount += amount;
+            } else if (currInv && m.num < activeMonthNum && prop.code !== 'Kav B' && prop.code !== 'Kav F') {
+              status = 'PAID';
+              totalPaidCount += 1;
+              totalPaidAmount += amount;
+            } else {
+              status = 'UNPAID';
+              totalUnpaidCount += 1;
+              totalUnpaidAmount += amount;
+              unpaidMonthsNames.push(m.name);
+            }
+          } else {
+            status = 'FUTURE';
+          }
+        }
+
+        return {
+          month: m,
+          status,
+          amount,
+          invoice: matchedInv,
+        };
+      });
+
+      return {
+        propertyCode: prop.code,
+        residentName: resident,
+        statusLabel: prop.statusLabel,
+        isRented: prop.isRented,
+        months,
+        totalPaidCount,
+        totalPaidAmount,
+        totalUnpaidCount,
+        totalUnpaidAmount,
+        unpaidMonthsNames,
+      };
+    });
+  }, [clusterProperties, allInvoices, invoices, MONTHS_LIST]);
+
+  const getAnnualWaReminderUrl = (row: any) => {
+    let bankTitle = 'Bank Mandiri';
+    let bankNumber = '1300024446419';
+    let bankHolder = 'Paguyuban Grand Sariwangi';
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_bank_accounts');
+        if (saved) {
+          const accs = JSON.parse(saved);
+          if (Array.isArray(accs) && accs.length > 0) {
+            const pri = accs.find((a: any) => a.isPrimary) || accs[0];
+            if (pri && pri.accountNumber !== 'BCA_MAIN') {
+              bankTitle = pri.bankName || bankTitle;
+              bankNumber = pri.accountNumber || bankNumber;
+              bankHolder = pri.accountHolder || bankHolder;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    const monthsStr = row.unpaidMonthsNames.join(', ');
+    const msg =
+      `*PEMBERITAHUAN TUNGGAKAN IURAN IPL TAHUN 2026*\n` +
+      `Komplek Grand Sariwangi\n` +
+      `=========================================\n` +
+      `Yth. Bpk/Ibu Penghuni *${row.propertyCode}* (${row.residentName})\n\n` +
+      `Berdasarkan pembukuan bendahara paguyuban, terdapat tunggakan iuran IPL sebanyak *${row.totalUnpaidCount} Bulan*:\n` +
+      `Periode: *${monthsStr}*\n` +
+      `Total Kewajiban: *${formatRupiah(row.totalUnpaidAmount)}*\n\n` +
+      `Pembayaran dapat ditransfer ke rekening resmi:\n` +
+      `🏛 *${bankTitle}*\n` +
+      `💳 No. Rek: *${bankNumber}*\n` +
+      `👤 A.n: *${bankHolder}*\n\n` +
+      `Mohon konfirmasi setelah melakukan transfer dengan mengirimkan bukti setor. Terima kasih atas partisipasinya menjaga kenyamanan lingkungan komplek kita. 🙏\n\n` +
+      `_Pengurus Paguyuban Grand Sariwangi_`;
+
+    return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'PENDING'>('ALL');
@@ -445,9 +613,24 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   };
 
   // Generate batch form state
-  const [genYear, setGenYear] = useState(2026);
-  const [genMonth, setGenMonth] = useState(9);
-  const [genDueDate, setGenDueDate] = useState('2026-09-10');
+  const [genYear, setGenYear] = useState<number>(() => {
+    const m = initialPeriodName.match(/\b(20\d{2})\b/);
+    return m ? Number(m[1]) : 2026;
+  });
+  const [genMonth, setGenMonth] = useState<number>(() => {
+    const pLower = initialPeriodName.toLowerCase();
+    for (const [mName, mNum] of Object.entries(MONTH_MAP)) {
+      if (pLower.includes(mName)) return mNum;
+    }
+    return 10;
+  });
+  const [genDueDate, setGenDueDate] = useState<string>(() => {
+    const pLower = initialPeriodName.toLowerCase();
+    for (const [mName, mNum] of Object.entries(MONTH_MAP)) {
+      if (pLower.includes(mName)) return `2026-${mNum.toString().padStart(2, '0')}-10`;
+    }
+    return '2026-10-10';
+  });
   const [genFee, setGenFee] = useState(250000);
 
   // Form State for Single Direct Iuran / Invoice Modal
@@ -456,16 +639,22 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [formPropertyMode, setFormPropertyMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
   const [formSelectedProp, setFormSelectedProp] = useState<string>('Kav A');
   const [formHouseCode, setFormHouseCode] = useState<string>('Kav A');
-  const [formAreaLabel, setFormAreaLabel] = useState<string>('Klaster 14 Kavling');
+  const [formAreaLabel, setFormAreaLabel] = useState<string>('Grand Sariwangi');
   const [formOwnerName, setFormOwnerName] = useState<string>('Pak Verial');
   const [formPeriodMode, setFormPeriodMode] = useState<'SELECT' | 'CUSTOM'>('SELECT');
-  const [formPeriodName, setFormPeriodName] = useState<string>(initialPeriodName || 'September 2026');
+  const [formPeriodName, setFormPeriodName] = useState<string>(initialPeriodName || 'Oktober 2026');
   const [formTotalAmount, setFormTotalAmount] = useState<number>(250000);
   const [formSecurityFee, setFormSecurityFee] = useState<number>(150000);
   const [formCleaningFee, setFormCleaningFee] = useState<number>(50000);
   const [formSinkingFund, setFormSinkingFund] = useState<number>(50000);
   const [formAdditionalFee, setFormAdditionalFee] = useState<number>(0);
-  const [formDueDate, setFormDueDate] = useState<string>('2026-09-10');
+  const [formDueDate, setFormDueDate] = useState<string>(() => {
+    const pLower = initialPeriodName.toLowerCase();
+    for (const [mName, mNum] of Object.entries(MONTH_MAP)) {
+      if (pLower.includes(mName)) return `2026-${mNum.toString().padStart(2, '0')}-10`;
+    }
+    return '2026-10-10';
+  });
   const [formStatus, setFormStatus] = useState<'PAID' | 'UNPAID' | 'PENDING_VERIFICATION' | 'VOID'>('UNPAID');
   const [formPaymentMethod, setFormPaymentMethod] = useState<string>('CASH_KEPALA_KOMPLEK');
   const [formPaidAt, setFormPaidAt] = useState<string>(() => new Date().toISOString().slice(0, 10));
@@ -495,11 +684,13 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
       const data = await res.json();
       if (res.ok) {
         setGenerateMsg(`Sukses! ${data.data?.message}`);
-        showToast(`Tagihan massal periode ${periodName} berhasil dibuat.`);
+        showToast(data.data?.message || `Tagihan massal periode ${periodName} berhasil dibuat.`);
         setTimeout(() => {
           setShowGenerateModal(false);
           setGenerateMsg('');
-        }, 1500);
+          const targetPeriodId = data.data?.periodId || `period-${genYear}-${genMonth.toString().padStart(2, '0')}`;
+          window.location.href = `/admin/billing?period=${targetPeriodId}`;
+        }, 1200);
       } else {
         setGenerateMsg(data.error?.message || 'Gagal membuat tagihan.');
       }
@@ -885,10 +1076,13 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
 
       let matchArea = true;
       if (areaFilter !== 'ALL') {
-        if (areaFilter === 'KAV') matchArea = inv.propertyCode.toLowerCase().startsWith('kav');
-        else if (areaFilter === 'SARIWANGI_1') matchArea = inv.propertyCode.toLowerCase().startsWith('sw1');
-        else if (areaFilter === 'SARIWANGI_2') matchArea = inv.propertyCode.toLowerCase().startsWith('sw2');
-        else matchArea = inv.propertyCode.startsWith(areaFilter);
+        const matchedProp = clusterProperties.find(p => p.code.toLowerCase() === inv.propertyCode.toLowerCase());
+        const isRented = matchedProp?.isRented || inv.occupancyStatus === 'RENTED';
+        const isVacant = matchedProp?.statusLabel?.toLowerCase().includes('kosong') || inv.occupancyStatus === 'VACANT';
+        if (areaFilter === 'OCCUPIED') matchArea = !isRented && !isVacant;
+        else if (areaFilter === 'RENTED') matchArea = isRented;
+        else if (areaFilter === 'VACANT') matchArea = isVacant;
+        else matchArea = inv.propertyCode.toLowerCase().includes(areaFilter.toLowerCase());
       }
 
       return matchSearch && matchStatus && matchArea;
@@ -906,7 +1100,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     });
 
     return list;
-  }, [invoices, searchTerm, statusFilter, areaFilter, sortBy, sortOrder]);
+  }, [invoices, searchTerm, statusFilter, areaFilter, sortBy, sortOrder, clusterProperties]);
 
   // Pagination
   const totalInvoices = filteredAndSortedInvoices.length;
@@ -944,7 +1138,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   }, [invoices.length, paidInvoicesList.length]);
 
   // Copy Public Link
-  const publicTransparencyUrl = 'http://localhost:4321/transparency';
+  const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'https://wrghub.vercel.app/transparency';
   const handleCopyPublicLink = () => {
     navigator.clipboard.writeText(publicTransparencyUrl);
     setCopiedLink(true);
@@ -954,19 +1148,21 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
 
   // WhatsApp Reminder Link Generator
   const getWaReminderUrl = (inv: InvoiceItem) => {
-    let bankTitle = 'Bank Syariah Indonesia (BSI)';
-    let bankNumber = '7142-9988-11';
-    let bankHolder = 'PENGURUS KOMPLEK WARGAHUB';
-    if (typeof window !== 'undefined') {
+    let bankTitle = 'Bank Mandiri';
+    let bankNumber = '1300024446419';
+    let bankHolder = 'Paguyuban Grand Sariwangi';
+    if (isMounted && typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('wargahub_bank_accounts');
         if (saved) {
           const accs = JSON.parse(saved);
           if (Array.isArray(accs) && accs.length > 0) {
             const pri = accs.find((a: any) => a.isPrimary) || accs[0];
-            bankTitle = pri.bankName || bankTitle;
-            bankNumber = pri.accountNumber || bankNumber;
-            bankHolder = pri.accountHolder || bankHolder;
+            if (pri && pri.accountNumber !== 'BCA_MAIN') {
+              bankTitle = pri.bankName || bankTitle;
+              bankNumber = pri.accountNumber || bankNumber;
+              bankHolder = pri.accountHolder || bankHolder;
+            }
           }
         }
       } catch (e) {}
@@ -1032,9 +1228,44 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               <CreditCard className="w-6 h-6 text-primary-600" />
               Pengelolaan Iuran Warga & Tagihan (Billing)
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-primary-100 text-primary-800 text-xs font-black border border-primary-200">
-              Periode: {initialPeriodName}
-            </span>
+            {/* Interactive Period Switcher Dropdown */}
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => setPeriodDropdownOpen(!periodDropdownOpen)}
+                className="px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 active:scale-[0.98] text-primary-900 text-xs font-bold border border-primary-200 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="Klik untuk memilih atau berpindah periode tagihan"
+              >
+                <Calendar className="w-3.5 h-3.5 text-primary-700" />
+                <span>Periode: <strong>{initialPeriodName}</strong></span>
+                <ChevronDown className={`w-3.5 h-3.5 text-primary-700 transition-transform duration-200 ${periodDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {periodDropdownOpen && (
+                <div className="absolute left-0 mt-1.5 w-52 bg-surface rounded-2xl shadow-modal border border-border py-1.5 z-50 animate-in fade-in">
+                  <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase text-ink-muted border-b border-border/60">
+                    Pilih Periode Tagihan
+                  </div>
+                  {availablePeriods.map((pName) => {
+                    const matchedPeriod = allPeriods.find((ap: any) => ap.name === pName);
+                    const isSelected = pName === initialPeriodName;
+                    const periodUrl = matchedPeriod ? `/admin/billing?period=${matchedPeriod.id}` : `/admin/billing?period=${encodeURIComponent(pName)}`;
+                    return (
+                      <a
+                        key={pName}
+                        href={periodUrl}
+                        className={`w-full text-left px-3.5 py-2 text-xs font-bold flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-primary-50 text-primary-800 font-black' : 'text-ink hover:bg-canvas'
+                        }`}
+                      >
+                        <span>{pName}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-primary-600" />}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           <p className="text-xs text-ink-muted mt-1">
             Manajemen tagihan iuran IPL, kuitansi digital ber-QR code, pembuatan tagihan massal, dan transparansi publik status pembayaran warga.
@@ -1079,58 +1310,26 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             <Sparkles className="w-4 h-4" />
             <span>Generate Tagihan Massal</span>
           </button>
-        </div>
-      </div>
-
-      {/* Public Transparency Share Callout Banner */}
-      <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-            <Share2 className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="font-bold text-emerald-950 text-sm">Tautan Publik Rekapitulasi Iuran Warga (Bulan Aktif)</h4>
-            <p className="text-emerald-800 text-[11px] mt-0.5">
-              Bagikan tautan ini ke grup WhatsApp warga agar warga dapat melihat secara mandiri daftar rumah yang sudah lunas dan yang belum bayar secara terbuka.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <button
-            type="button"
-            onClick={() => setShowWhatsAppModal(true)}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-          >
-            <Send className="w-4 h-4" />
-            <span>📲 Format Laporan WA (wa.me)</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleCopyPublicLink}
-            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-          >
-            {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-            <span>Salin Link Publik</span>
-          </button>
           <a
-            href={publicTransparencyUrl}
+            href="/transparency"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+            title="Buka Portal Transparansi Iuran Publik"
           >
-            <ExternalLink className="w-4 h-4" />
-            <span>Buka Halaman Publik</span>
+            <ExternalLink className="w-4 h-4 text-emerald-600" />
+            <span>Portal Publik ↗</span>
           </a>
         </div>
       </div>
 
+
       {/* 4-SubTab Navigation Bar */}
       <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'invoices', label: 'Daftar Tagihan & Invoice Bulanan', icon: Receipt, count: `${invoices.length} Inv` },
-          { id: 'public_ledger', label: 'Rekapitulasi Iuran Publik (Lunas vs Belum)', icon: Eye, count: `${paidInvoicesList.length}/${invoices.length}` },
-          { id: 'tariffs', label: 'Struktur Tarif Iuran Komplek', icon: DollarSign },
+          { id: 'invoices', label: 'Lembar Tagihan & Status Kavling', icon: Receipt, count: `${invoices.length} Inv` },
+          { id: 'annual_matrix', label: 'Matriks Pembayaran Tahunan (12 Bulan)', icon: Layers, count: `${annualMatrixData.length} Kavling` },
+          { id: 'tariffs', label: 'Struktur Tarif & Pos IPL', icon: DollarSign },
           { id: 'batch', label: 'Generator Tagihan Massal', icon: Sparkles },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -1222,14 +1421,10 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 }}
                 className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
-                <option value="ALL">Semua Wilayah</option>
-                <option value="A">Blok A</option>
-                <option value="B">Blok B</option>
-                <option value="C">Blok C</option>
-                <option value="D">Blok D</option>
-                <option value="KAV">Area Kavling</option>
-                <option value="SARIWANGI_1">Jl. Sariwangi Indah 1</option>
-                <option value="SARIWANGI_2">Jl. Sariwangi Indah 2</option>
+                <option value="ALL">Semua Kavling (13 Unit)</option>
+                <option value="OCCUPIED">Penghuni Tetap</option>
+                <option value="RENTED">Penyewa / Kontrak</option>
+                <option value="VACANT">Unit Kosong</option>
               </select>
 
               <select
@@ -1344,18 +1539,29 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                             <span className="text-[10px] text-ink-muted">IPL Keamanan + Sampah + Kas</span>
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePaymentStatus(inv)}
-                              className={`px-3 py-1 rounded-lg text-[10px] font-mono font-black border transition-all cursor-pointer shadow-2xs active:scale-[0.95] ${
-                                isPaid
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                  : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                              }`}
-                              title="Klik untuk mengubah status lunas/belum lunas secara cepat"
-                            >
-                              {isPaid ? '✓ LUNAS' : '⏳ BELUM BAYAR'}
-                            </button>
+                            {inv.status === 'PENDING_VERIFICATION' ? (
+                              <a
+                                href={`/admin/payments?status=PENDING&search=${encodeURIComponent(inv.propertyCode)}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-mono font-bold text-[10px] shadow-2xs transition-all active:scale-[0.95]"
+                                title="Buka Antrean Verifikasi Pembayaran"
+                              >
+                                <span>⏳ VERIFIKASI</span>
+                                <ExternalLink className="w-3 h-3 text-amber-700" />
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePaymentStatus(inv)}
+                                className={`px-3 py-1 rounded-lg text-[10px] font-mono font-black border transition-all cursor-pointer shadow-2xs active:scale-[0.95] ${
+                                  isPaid
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                    : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                                }`}
+                                title="Klik untuk mengubah status lunas/belum lunas secara cepat"
+                              >
+                                {isPaid ? '✓ LUNAS' : '✗ BELUM BAYAR'}
+                              </button>
+                            )}
                             {inv.paidAt && (
                               <span className="text-[9px] text-ink-muted font-mono block mt-0.5">{inv.paidAt}</span>
                             )}
@@ -1388,8 +1594,29 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                                 <>
                                   <button
                                     type="button"
+                                    onClick={() => {
+                                      setEditingInvoiceId(inv.id);
+                                      setFormPropertyMode('SELECT');
+                                      setFormSelectedProp(inv.propertyCode);
+                                      setFormHouseCode(inv.propertyCode);
+                                      setFormOwnerName(inv.residentName || inv.ownerName || '');
+                                      setFormPeriodName(inv.billingPeriodName || initialPeriodName);
+                                      setFormTotalAmount(inv.total);
+                                      setFormStatus('PAID');
+                                      setFormPaymentMethod('CASH_KEPALA_KOMPLEK');
+                                      setFormPaidAt(new Date().toISOString().slice(0, 10));
+                                      setFormNotes(`Diterima langsung oleh Bendahara/Pengurus`);
+                                      setShowCreateModal(true);
+                                    }}
+                                    className="px-2.5 py-1.5 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
+                                    title="Catat Pelunasan Iuran Langsung"
+                                  >
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" /> Bayar
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => handleOpenInvoiceDoc(inv, true)}
-                                    className="px-2.5 py-1.5 text-primary-800 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all shadow-2xs"
+                                    className="px-2 py-1.5 text-ink-muted hover:text-ink bg-canvas hover:bg-surface border border-border rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
                                     title="Buka / Cetak Surat Tagihan Invoice"
                                   >
                                     <FileText className="w-3.5 h-3.5" /> Invoice
@@ -1477,17 +1704,16 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 </button>
 
                 <div className="flex items-center gap-1 px-2">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum = safeCurrentPage - 2 + i;
-                    if (pageNum < 1) pageNum = i + 1;
-                    if (pageNum > totalPages) return null;
-
-                    return (
+                  {(() => {
+                    const maxButtons = 5;
+                    const startPage = Math.max(1, Math.min(safeCurrentPage - Math.floor(maxButtons / 2), Math.max(1, totalPages - maxButtons + 1)));
+                    const pageCount = Math.min(maxButtons, totalPages);
+                    return Array.from({ length: pageCount }, (_, i) => startPage + i).map((pageNum) => (
                       <button
                         key={pageNum}
                         type="button"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all active:scale-[0.98] ${
                           safeCurrentPage === pageNum
                             ? 'bg-primary-600 text-white shadow-xs'
                             : 'bg-surface border border-border text-ink hover:bg-canvas'
@@ -1495,8 +1721,8 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                       >
                         {pageNum}
                       </button>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
 
                 <button
@@ -1523,96 +1749,180 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         </div>
       )}
 
-      {/* ================= SUBTAB 2: REKAPITULASI IURAN PUBLIK (LUNAS VS BELUM) ================= */}
-      {activeSubTab === 'public_ledger' && (
+      {/* ================= SUBTAB 2: MATRIKS PEMBAYARAN TAHUNAN (12 BULAN) ================= */}
+      {activeSubTab === 'annual_matrix' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
               <div>
                 <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-emerald-600" />
-                  Rekapitulasi Iuran Transparansi Warga ({initialPeriodName})
+                  <Layers className="w-5 h-5 text-primary-600" />
+                  Matriks Pembayaran Tahunan Warga ({matrixYear || 2026})
                 </h3>
                 <p className="text-xs text-ink-muted mt-0.5">
-                  Tampilan status pembayaran terbuka yang disinkronisasi ke portal warga [transparency](http://localhost:4321/transparency).
+                  Visualisasi kepatuhan iuran seluruh 13 kavling aktif Grand Sariwangi (Kav A s/d Kav M) dari Januari hingga Desember.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyPublicLink}
-                  className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs border border-emerald-300 inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Salin Tautan Rekapitulasi</span>
-                </button>
+              {/* Legend Badges */}
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono font-bold">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  ✓ Lunas
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                  ✗ Nunggak
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  ⏳ Cek
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-canvas text-ink-muted border border-border">
+                  - Mendatang
+                </span>
               </div>
             </div>
 
-            {/* 2-Column Split: Paid vs Unpaid Houses */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Kolom 1: Sudah Lunas (86 Unit) */}
-              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-emerald-900 text-xs flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    Daftar Unit Sudah Lunas ({paidInvoicesList.length} Unit)
-                  </h4>
-                  <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-black">
-                    TERVERIFIKASI
-                  </span>
-                </div>
+            {/* Annual Matrix Table */}
+            <div className="overflow-x-auto rounded-2xl border border-border shadow-xs">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-canvas border-b border-border text-ink-muted font-bold text-[11px]">
+                  <tr>
+                    <th className="py-3 px-3.5 sticky left-0 bg-canvas z-10 min-w-36">Kavling & Penghuni</th>
+                    {MONTHS_LIST.map((m) => (
+                      <th key={m.num} className="py-3 px-2 text-center font-mono min-w-14">
+                        {m.short}
+                      </th>
+                    ))}
+                    <th className="py-3 px-3 text-right font-mono min-w-24">Terbayar</th>
+                    <th className="py-3 px-3 text-right font-mono min-w-28 text-rose-700">Tunggakan</th>
+                    <th className="py-3 px-3 text-center min-w-20">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {annualMatrixData.map((row) => (
+                    <tr key={row.propertyCode} className="hover:bg-canvas/50 transition-colors">
+                      <td className="py-3 px-3.5 sticky left-0 bg-surface z-10 font-bold border-r border-border/40">
+                        <div className="flex flex-col">
+                          <span className="font-mono text-ink font-black text-xs">{row.propertyCode}</span>
+                          <span className="text-[10px] text-ink-muted truncate max-w-32">{row.residentName}</span>
+                          <span className="text-[9px] font-mono text-primary-700">{row.statusLabel}</span>
+                        </div>
+                      </td>
 
-                <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1 text-xs">
-                  {paidInvoicesList.map(inv => (
-                    <div key={inv.id} className="p-3 bg-white rounded-xl border border-emerald-200/80 flex items-center justify-between shadow-2xs">
-                      <div>
-                        <span className="font-mono font-black text-ink block">Unit {inv.propertyCode}</span>
-                        <span className="text-[10px] text-ink-muted block">{inv.ownerName || 'Warga Terdaftar'}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-emerald-700 font-mono font-black text-xs block">{formatRupiah(inv.total)}</span>
-                        <span className="text-[9px] font-mono text-emerald-600">Lunas {inv.paidAt || '15-08-2026'}</span>
-                      </div>
-                    </div>
+                      {row.months.map((m) => (
+                        <td key={m.month.num} className="py-3 px-1 text-center font-mono">
+                          {m.status === 'PAID' && (
+                            <span
+                              className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              title={`${row.propertyCode} - ${m.month.name}: Lunas`}
+                            >
+                              ✓
+                            </span>
+                          )}
+                          {m.status === 'UNPAID' && (
+                            <span
+                              className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200"
+                              title={`${row.propertyCode} - ${m.month.name}: Menunggak`}
+                            >
+                              ✗
+                            </span>
+                          )}
+                          {m.status === 'PENDING' && (
+                            <span
+                              className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse"
+                              title={`${row.propertyCode} - ${m.month.name}: Menunggu Verifikasi`}
+                            >
+                              ⏳
+                            </span>
+                          )}
+                          {m.status === 'FUTURE' && (
+                            <span className="text-ink-muted/30 text-xs font-mono">-</span>
+                          )}
+                        </td>
+                      ))}
+
+                      <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700">
+                        <span>{row.totalPaidCount} bln</span>
+                        <span className="block text-[10px] text-ink-muted">
+                          {formatRupiah(row.totalPaidAmount)}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 text-right font-mono font-bold">
+                        {row.totalUnpaidCount > 0 ? (
+                          <>
+                            <span className="text-rose-700">{row.totalUnpaidCount} bln</span>
+                            <span className="block text-[10px] text-rose-600">
+                              {formatRupiah(row.totalUnpaidAmount)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-emerald-600 text-[11px]">Nihil (Lunas)</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-3 text-center">
+                        {row.totalUnpaidCount > 0 ? (
+                          <a
+                            href={getAnnualWaReminderUrl(row)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 shadow-2xs active:scale-[0.95] transition-all"
+                            title="Kirim Tagihan Tunggakan via WhatsApp"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>Tagih</span>
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedReceipt({
+                                invoiceNumber: `INV-202609-${row.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
+                                periodName: initialPeriodName || 'September 2026',
+                                propertyCode: row.propertyCode,
+                                residentName: row.residentName,
+                                amount: 250000,
+                                paidAt: new Date().toISOString().slice(0, 10),
+                                paymentMethod: 'CASH',
+                                referenceNumber: `TRX-${row.propertyCode}`,
+                                kepalaKomplekName: kepalaKomplekName,
+                                isInvoice: false,
+                              });
+                            }}
+                            className="p-1 text-ink-muted hover:text-ink hover:bg-canvas rounded-lg transition-colors"
+                            title="Lihat Kuitansi Terkini"
+                          >
+                            <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
                   ))}
-                </div>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Matrix Summary Footer Card */}
+            <div className="p-4 bg-canvas rounded-2xl border border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-ink-muted">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>
+                  Rekapitulasi tahunan diverifikasi otomatis dengan database <strong>14 Kavling Grand Sariwangi</strong>.
+                </span>
               </div>
-
-              {/* Kolom 2: Belum Lunas / Menunggak (34 Unit) */}
-              <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-rose-900 text-xs flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-rose-600" />
-                    Daftar Unit Belum Lunas ({unpaidInvoicesList.length} Unit)
-                  </h4>
-                  <span className="px-2 py-0.5 bg-rose-600 text-white rounded text-[10px] font-mono font-black">
-                    MENUNGGU BAYAR
-                  </span>
-                </div>
-
-                <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1 text-xs">
-                  {unpaidInvoicesList.map(inv => (
-                    <div key={inv.id} className="p-3 bg-white rounded-xl border border-rose-200/80 flex items-center justify-between shadow-2xs">
-                      <div>
-                        <span className="font-mono font-black text-ink block">Unit {inv.propertyCode}</span>
-                        <span className="text-[10px] text-ink-muted font-mono block">Jatuh Tempo: {inv.dueDate}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-rose-700 font-mono font-black text-xs">{formatRupiah(inv.total)}</span>
-                        <a
-                          href={getWaReminderUrl(inv)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] inline-flex items-center gap-1 shadow-2xs active:scale-[0.95] transition-all"
-                        >
-                          <Send className="w-3 h-3" /> WA
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href="/transparency"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink rounded-xl font-bold inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-primary-600" />
+                  <span>Lihat Portal Transparansi Publik</span>
+                </a>
               </div>
             </div>
           </div>
@@ -1738,23 +2048,63 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
       {activeSubTab === 'batch' && (
         <div className="space-y-4 max-w-xl animate-in fade-in duration-150">
           <div className="p-6 bg-surface rounded-3xl border border-border shadow-card space-y-4 text-xs">
-            <h3 className="font-black text-base text-ink flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary-600" />
-              Generate Tagihan Masal Periode Baru
-            </h3>
-            <p className="text-ink-muted">
-              Fitur ini akan secara otomatis menerbitkan invoice tagihan ke seluruh 120 unit rumah terdaftar di Blok A, B, C, D, Kavling, dan Jalan Sariwangi.
-            </p>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-primary-50 border border-primary-200 text-primary-700 flex items-center justify-center">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-ink">
+                  Generator Tagihan Massal Warga (Grand Sariwangi)
+                </h3>
+                <p className="text-[11px] text-ink-muted">
+                  Terbitkan tagihan resmi serentak untuk 13 unit kavling (Kav A s/d Kav M)
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-primary-50/70 border border-primary-200/80 rounded-2xl flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-primary-700 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-primary-950 leading-relaxed">
+                <strong>Idempotent & Aman:</strong> Sistem cerdas mendeteksi kavling yang sudah membayar atau sudah memiliki invoice pada periode ini. Data lunas dan nomor invoice tidak akan terhapus atau diduplikasi.
+              </p>
+            </div>
+
+            {generateMsg && (
+              <div className={`p-3 rounded-2xl border text-[11px] font-bold flex items-center gap-2 ${
+                generateMsg.toLowerCase().includes('sukses') || generateMsg.toLowerCase().includes('berhasil')
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                  : 'bg-rose-50 text-rose-900 border-rose-300'
+              }`}>
+                {generateMsg.toLowerCase().includes('sukses') || generateMsg.toLowerCase().includes('berhasil') ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{generateMsg}</span>
+              </div>
+            )}
 
             <form onSubmit={handleGenerateBatch} className="space-y-3.5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-ink block mb-1">Bulan Tagihan</label>
+                  <label className="font-bold text-ink block mb-1">Bulan Periode *</label>
                   <select
                     value={genMonth}
-                    onChange={(e) => setGenMonth(parseInt(e.target.value, 10))}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-semibold text-ink"
+                    onChange={(e) => {
+                      const m = parseInt(e.target.value, 10);
+                      setGenMonth(m);
+                      setGenDueDate(`${genYear}-${m.toString().padStart(2, '0')}-10`);
+                    }}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-primary-500"
                   >
+                    <option value={1}>Januari</option>
+                    <option value={2}>Februari</option>
+                    <option value={3}>Maret</option>
+                    <option value={4}>April</option>
+                    <option value={5}>Mei</option>
+                    <option value={6}>Juni</option>
+                    <option value={7}>Juli</option>
+                    <option value={8}>Agustus</option>
                     <option value={9}>September</option>
                     <option value={10}>Oktober</option>
                     <option value={11}>November</option>
@@ -1762,45 +2112,69 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="font-bold text-ink block mb-1">Tahun</label>
+                  <label className="font-bold text-ink block mb-1">Tahun *</label>
                   <input
                     type="number"
                     value={genYear}
-                    onChange={(e) => setGenYear(parseInt(e.target.value, 10))}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                    onChange={(e) => {
+                      const y = parseInt(e.target.value, 10);
+                      setGenYear(y);
+                      setGenDueDate(`${y}-${genMonth.toString().padStart(2, '0')}-10`);
+                    }}
+                    min={2025}
+                    max={2030}
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-ink block mb-1">Tanggal Jatuh Tempo</label>
+                <label className="font-bold text-ink block mb-1">Batas Waktu Jatuh Tempo *</label>
                 <input
                   type="date"
                   value={genDueDate}
                   onChange={(e) => setGenDueDate(e.target.value)}
                   required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-medium text-ink"
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-ink block mb-1">Tarif Iuran per Unit (Rp)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-ink block">Tarif IPL Standar per Unit (Rp) *</label>
+                  <span className="font-mono text-primary-700 font-black">{formatRupiah(genFee)}</span>
+                </div>
                 <input
                   type="number"
                   value={genFee}
-                  onChange={(e) => setGenFee(parseInt(e.target.value, 10))}
+                  onChange={(e) => setGenFee(parseInt(e.target.value, 10) || 0)}
                   required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink tabular-nums"
+                  step={10000}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-xs tabular-nums focus:ring-2 focus:ring-primary-500"
                 />
+              </div>
+
+              <div className="p-3 bg-canvas rounded-xl border border-border flex items-center justify-between">
+                <span className="text-ink-muted">Cakupan Unit Rumah:</span>
+                <span className="font-mono font-bold text-ink">13 Kavling (Kav A s/d Kav M)</span>
               </div>
 
               <button
                 type="submit"
                 disabled={generating}
-                className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
               >
-                <Sparkles className="w-4 h-4" />
-                {generating ? 'Menerbitkan 120 Tagihan...' : 'Terbitkan Tagihan Masal Sekarang'}
+                {generating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Menerbitkan Tagihan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Terbitkan Tagihan Massal Sekarang</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
@@ -2463,6 +2837,194 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                 Simpan Perubahan
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Batch Modal */}
+      {showGenerateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-surface border border-border rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-border bg-canvas/50 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/50 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-ink text-base">Terbitkan Tagihan Massal</h3>
+                  <p className="text-xs text-ink-muted">Otomatisasi 13 unit kavling Komplek Grand Sariwangi</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGenerateModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-canvas transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleGenerateBatch} className="p-4 sm:p-6 space-y-4">
+              {generateMsg && (
+                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  generateMsg.startsWith('Sukses')
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}>
+                  {generateMsg.startsWith('Sukses') ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{generateMsg}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-ink mb-1.5 block">Bulan Tagihan</label>
+                  <select
+                    value={genMonth}
+                    onChange={(e) => {
+                      const m = Number(e.target.value);
+                      setGenMonth(m);
+                      setGenDueDate(`${genYear}-${m.toString().padStart(2, '0')}-10`);
+                    }}
+                    className="w-full px-3 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                  >
+                    {[
+                      { m: 1, name: 'Januari' },
+                      { m: 2, name: 'Februari' },
+                      { m: 3, name: 'Maret' },
+                      { m: 4, name: 'April' },
+                      { m: 5, name: 'Mei' },
+                      { m: 6, name: 'Juni' },
+                      { m: 7, name: 'Juli' },
+                      { m: 8, name: 'Agustus' },
+                      { m: 9, name: 'September' },
+                      { m: 10, name: 'Oktober' },
+                      { m: 11, name: 'November' },
+                      { m: 12, name: 'Desember' },
+                    ].map((item) => (
+                      <option key={item.m} value={item.m}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-ink mb-1.5 block">Tahun Tagihan</label>
+                  <select
+                    value={genYear}
+                    onChange={(e) => {
+                      const y = Number(e.target.value);
+                      setGenYear(y);
+                      setGenDueDate(`${y}-${genMonth.toString().padStart(2, '0')}-10`);
+                    }}
+                    className="w-full px-3 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                  >
+                    {[2025, 2026, 2027].map((yr) => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-ink mb-1.5 block">Batas Waktu Pembayaran (Jatuh Tempo)</label>
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
+                  <input
+                    type="date"
+                    value={genDueDate}
+                    onChange={(e) => setGenDueDate(e.target.value)}
+                    required
+                    className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-ink mb-1.5 block">Nominal Iuran Standar Per Unit (Rp)</label>
+                <div className="relative">
+                  <span className="text-xs font-bold text-ink-muted absolute left-3 top-2.5 font-mono">Rp</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10000"
+                    value={genFee}
+                    onChange={(e) => setGenFee(Math.max(0, Number(e.target.value) || 0))}
+                    required
+                    className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-sm font-bold text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500 font-mono text-right tabular-nums"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="text-[10px] text-ink-muted font-semibold">Preset Cepat:</span>
+                  {[250000, 350000, 200000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setGenFee(preset)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                        genFee === preset
+                          ? 'bg-primary-100 text-primary-800 border-primary-300'
+                          : 'bg-canvas text-ink-muted border-border hover:border-ink-muted'
+                      }`}
+                    >
+                      {formatRupiah(preset)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ringkasan & Safe idempotent notice */}
+              <div className="p-3.5 bg-canvas rounded-xl border border-border text-xs space-y-2">
+                <div className="flex justify-between items-center text-ink-muted">
+                  <span>Target Unit:</span>
+                  <span className="font-bold text-ink">{clusterProperties.length} Unit Kavling (Kav A - M)</span>
+                </div>
+                <div className="flex justify-between items-center text-ink-muted">
+                  <span>Total Proyeksi Penerimaan:</span>
+                  <span className="font-bold text-emerald-600 font-mono">{formatRupiah(clusterProperties.length * genFee)}</span>
+                </div>
+                <div className="pt-2 border-t border-border/60 flex items-start gap-2 text-[11px] text-ink-muted">
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Aman & Idempoten:</strong> Unit yang sudah memiliki tagihan atau sudah tercatat lunas tidak akan terduplikasi atau diubah statusnya.
+                  </span>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowGenerateModal(false)}
+                  disabled={generating}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-ink-muted hover:text-ink hover:bg-canvas border border-transparent transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={generating}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white flex items-center gap-2 shadow-xs active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {generating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Sedang Menerbitkan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Terbitkan Sekarang</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

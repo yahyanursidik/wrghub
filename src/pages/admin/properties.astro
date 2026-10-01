@@ -2,22 +2,41 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { PropertiesManager } from '../../components/admin/PropertiesManager';
 import { getProperties } from '../../services/property.service';
+import { 
+  getInitialResidents, 
+  getInitialVehicles, 
+  getInitialPermits, 
+  getInitialUtilities 
+} from '../../services/property-submodules.service';
 
-const properties = await getProperties();
-const tab = Astro.url.searchParams.get('tab') || 'properties';
+const [properties, residents, vehicles, permits, utilities] = await Promise.all([
+  getProperties().catch(() => []),
+  getInitialResidents().catch(() => []),
+  getInitialVehicles().catch(() => []),
+  getInitialPermits().catch(() => []),
+  getInitialUtilities().catch(() => []),
+]);
 
-const pageTitle = tab === 'occupants' ? 'Data Penghuni - WargaHub'
+const tab = Astro.url.searchParams.get('tab') || 'units';
+
+const pageTitle = tab === 'residents' || tab === 'occupants' ? 'Sensus & Data Penghuni - WargaHub'
   : tab === 'owners' ? 'Data Pemilik Rumah - WargaHub'
-  : tab === 'vehicles' ? 'Data Kendaraan & RFID - WargaHub'
+  : tab === 'vehicles' || tab === 'rfid' ? 'Data Kendaraan & Akses RFID - WargaHub'
   : tab === 'permits' || tab === 'renovation' ? 'Izin Renovasi & Pekerja - WargaHub'
   : tab === 'analytics' || tab === 'utilities' ? 'Okupansi & Utilitas - WargaHub'
-  : 'Data Master Rumah - WargaHub';
+  : 'Data Master Rumah & Kavling - WargaHub';
 
-const currentPath = tab !== 'properties' && tab !== 'units'
-  ? `/admin/properties?tab=${tab}`
-  : '/admin/properties';
+const currentPath = '/admin/properties';
 ---
 
 <AdminLayout title={pageTitle} currentPath={currentPath}>
-  <PropertiesManager initialProperties={properties} initialTab={tab} client:load />
+  <PropertiesManager 
+    initialProperties={properties} 
+    initialTab={tab} 
+    initialResidents={residents}
+    initialVehicles={vehicles}
+    initialPermits={permits}
+    initialUtilities={utilities}
+    client:load 
+  />
 </AdminLayout>

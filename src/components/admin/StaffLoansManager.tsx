@@ -33,7 +33,9 @@ import {
   XCircle,
   Info,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  MessageCircle,
+  Send
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 
@@ -86,6 +88,95 @@ export interface LoanPolicyConfig {
   repaymentNotes: string;
 }
 
+export const DEFAULT_GRAND_SARIWANGI_LOANS: StaffLoan[] = [
+  {
+    id: 'LOAN-1001',
+    staffName: 'Pa Adri Harry',
+    staffRole: 'SATPAM',
+    staffPhone: '0812-2008-2240',
+    baseSalary: 1350000,
+    loanType: 'KASBON_CICILAN',
+    totalLoanAmount: 400000,
+    paidAmount: 200000,
+    remainingBalance: 200000,
+    monthlyDeduction: 200000,
+    tenorMonths: 2,
+    remainingTenorMonths: 1,
+    loanDate: '2026-08-05',
+    dueDate: '2026-10-05',
+    purpose: 'Biaya Rawat Jalan Flu Berat & Vitamin Anak',
+    approvedBy: 'Ketua RW 05 & Bendahara (Disetujui)',
+    status: 'ACTIVE_INSTALLMENT',
+    disbursementSource: 'Kas Operasional Paguyuban',
+    installments: [
+      {
+        id: 'inst-0901-adri',
+        installmentNo: 1,
+        amount: 200000,
+        paymentDate: '2026-09-01',
+        paymentMethod: 'POTONG_GAJI',
+        receivedBy: 'Hendra Wijaya (Bendahara)',
+        notes: 'Potongan otomatis payroll honor satpam periode Agustus 2026',
+      },
+    ],
+    notes: 'Plafon pinjaman disetujui untuk satpam utama komplek 24 jam.',
+  },
+  {
+    id: 'LOAN-1002',
+    staffName: 'Pak Slamet Radiyanto',
+    staffRole: 'SATPAM',
+    staffPhone: '0813-8899-2241',
+    baseSalary: 1100000,
+    loanType: 'GAJI_DI_AWAL',
+    totalLoanAmount: 250000,
+    paidAmount: 0,
+    remainingBalance: 250000,
+    monthlyDeduction: 250000,
+    tenorMonths: 1,
+    remainingTenorMonths: 1,
+    loanDate: '2026-09-18',
+    dueDate: '2026-10-01',
+    purpose: 'Tarik Gaji di Awal untuk Servis Rantai & Ban Motor Operasional',
+    approvedBy: 'Menunggu Persetujuan Bendahara & RW',
+    status: 'PENDING_APPROVAL',
+    disbursementSource: 'Kas Tunai Bendahara',
+    installments: [],
+    notes: 'Pengajuan penarikan gaji di awal bulan September 2026.',
+  },
+  {
+    id: 'LOAN-1003',
+    staffName: 'Pak Ujang Suhendra',
+    staffRole: 'PETUGAS_KEBERSIHAN',
+    staffPhone: '0813-7766-5544',
+    baseSalary: 250000,
+    loanType: 'DANA_DARURAT',
+    totalLoanAmount: 100000,
+    paidAmount: 100000,
+    remainingBalance: 0,
+    monthlyDeduction: 100000,
+    tenorMonths: 1,
+    remainingTenorMonths: 0,
+    loanDate: '2026-07-15',
+    dueDate: '2026-08-01',
+    purpose: 'Penggantian Perlengkapan Sarung Tangan & Sepatu Boot TPS Sampah',
+    approvedBy: 'Hendra Wijaya (Bendahara)',
+    status: 'PAID_OFF',
+    disbursementSource: 'Kas Operasional Paguyuban',
+    installments: [
+      {
+        id: 'inst-0801-ujang',
+        installmentNo: 1,
+        amount: 100000,
+        paymentDate: '2026-08-01',
+        paymentMethod: 'POTONG_GAJI',
+        receivedBy: 'Hendra Wijaya (Bendahara)',
+        notes: 'Pelunasan potong honor kebersihan periode Juli/Agustus',
+      },
+    ],
+    notes: 'Hutang lunas tepat waktu via payroll.',
+  },
+];
+
 export interface StaffLoansManagerProps {
   initialTab?: StaffLoanSubTab;
 }
@@ -130,8 +221,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Staff Loans Data State (dynamic, non-demo)
-
+  // Staff Loans Data State (dynamic, seeded with real Grand Sariwangi roster)
   const [loans, setLoans] = useState<StaffLoan[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -140,15 +230,16 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
         const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
         if (saved !== null) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            return parsed.filter((l: any) => !deletedIds.includes(l.id));
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const filtered = parsed.filter((l: any) => !deletedIds.includes(l.id));
+            if (filtered.length > 0) return filtered;
           }
         }
       } catch (e) {
         console.warn(e);
       }
     }
-    return [];
+    return DEFAULT_GRAND_SARIWANGI_LOANS;
   });
 
   // Subtab State with URL synchronization
@@ -207,21 +298,21 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
 
   // Form State for Add / Edit Loan
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
-  const [fStaffName, setFStaffName] = useState('');
+  const [fStaffName, setFStaffName] = useState('Pa Adri Harry');
   const [fStaffRole, setFStaffRole] = useState<StaffLoan['staffRole']>('SATPAM');
-  const [fStaffPhone, setFStaffPhone] = useState('');
-  const [fBaseSalary, setFBaseSalary] = useState(4500000);
+  const [fStaffPhone, setFStaffPhone] = useState('0812-2008-2240');
+  const [fBaseSalary, setFBaseSalary] = useState(1350000);
   const [fLoanType, setFLoanType] = useState<StaffLoan['loanType']>('KASBON_CICILAN');
-  const [fTotalAmount, setFTTotalAmount] = useState(500000);
-  const [fMonthlyDeduction, setFMonthlyDeduction] = useState(250000);
+  const [fTotalAmount, setFTTotalAmount] = useState(400000);
+  const [fMonthlyDeduction, setFMonthlyDeduction] = useState(200000);
   const [fTenorMonths, setFTenorMonths] = useState(2);
   const [fLoanDate, setFLoanDate] = useState(new Date().toISOString().slice(0, 10));
-  const [fPurpose, setFPurpose] = useState('');
+  const [fPurpose, setFPurpose] = useState('Biaya Pengobatan & Kebutuhan Medis');
   const [fDisbursementSource, setFDisbursementSource] = useState('Kas Operasional Paguyuban');
   const [fNotes, setFNotes] = useState('');
 
   // Form State for Installment
-  const [instAmount, setInstAmount] = useState<number>(250000);
+  const [instAmount, setInstAmount] = useState<number>(200000);
   const [instMethod, setInstMethod] = useState<'POTONG_GAJI' | 'TUNAI_CASH' | 'TRANSFER_BCA' | 'TRANSFER_BANK' | 'EWALLET'>('POTONG_GAJI');
   const [instDate, setInstDate] = useState(new Date().toISOString().slice(0, 10));
   const [instNotes, setInstNotes] = useState('Potongan gaji bulan berjalan');
@@ -246,18 +337,12 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
     });
   });
 
-  // Staff Directory Presets
+  // Staff Directory Presets - Roster Resmi Grand Sariwangi
   const staffPresets = [
-    { name: 'Bambang Sudiro', role: 'SATPAM' as const, salary: 5200000, phone: '0812-3456-7801' },
-    { name: 'Agus Setiawan', role: 'SATPAM' as const, salary: 4300000, phone: '0812-3456-7802' },
-    { name: 'Dedi Kurniawan', role: 'SATPAM' as const, salary: 4500000, phone: '0812-3456-7803' },
-    { name: 'Slamet Riyadi', role: 'PETUGAS_KEBERSIHAN' as const, salary: 3800000, phone: '0813-7788-9900' },
-    { name: 'Hendro Siswanto', role: 'TEKNISI' as const, salary: 4500000, phone: '0812-3456-7805' },
-    { name: 'Rudi Hartono', role: 'PETUGAS_KEBERSIHAN' as const, salary: 4400000, phone: '0812-3456-7806' },
-    { name: 'Wawan Gunawan', role: 'SATPAM' as const, salary: 5200000, phone: '0812-3456-7807' },
-    { name: 'Tri Handoko', role: 'SATPAM' as const, salary: 4300000, phone: '0812-3456-7808' },
-    { name: 'Pak Ujang Suhendra', role: 'PETUGAS_TAMAN' as const, salary: 3800000, phone: '0813-7766-5544' },
-    { name: 'Pak Joko Sutrisno', role: 'SATPAM' as const, salary: 4500000, phone: '0812-3344-5566' },
+    { name: 'Pa Adri Harry', role: 'SATPAM' as const, salary: 1350000, phone: '0812-2008-2240' },
+    { name: 'Pak Slamet Radiyanto', role: 'SATPAM' as const, salary: 1100000, phone: '0813-8899-2241' },
+    { name: 'Pak Ujang Suhendra', role: 'PETUGAS_KEBERSIHAN' as const, salary: 250000, phone: '0813-7766-5544' },
+    { name: 'Pak Hendro Siswanto', role: 'TEKNISI' as const, salary: 450000, phone: '0812-3456-7805' },
   ];
 
   // Calculations & KPIs
@@ -360,25 +445,183 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   // Handlers
   const handleOpenAdd = (type: StaffLoan['loanType'] = 'KASBON_CICILAN') => {
     setEditingLoanId(null);
-    setFStaffName('Bambang Sudiro');
-    setFStaffRole('SATPAM');
-    setFStaffPhone('0812-3456-7801');
-    setFBaseSalary(5200000);
+    const defaultStaff = staffPresets[0];
+    setFStaffName(defaultStaff.name);
+    setFStaffRole(defaultStaff.role);
+    setFStaffPhone(defaultStaff.phone);
+    setFBaseSalary(defaultStaff.salary);
     setFLoanType(type);
     if (type === 'GAJI_DI_AWAL') {
-      setFTTotalAmount(1000000);
-      setFMonthlyDeduction(1000000);
+      setFTTotalAmount(250000);
+      setFMonthlyDeduction(250000);
       setFTenorMonths(1);
+      setFPurpose('Tarik Gaji di Awal untuk Keperluan Operasional');
     } else {
-      setFTTotalAmount(1500000);
-      setFMonthlyDeduction(500000);
-      setFTenorMonths(3);
+      setFTTotalAmount(400000);
+      setFMonthlyDeduction(200000);
+      setFTenorMonths(2);
+      setFPurpose('Biaya Rawat Jalan Flu Berat & Vitamin Anak');
     }
     setFLoanDate(new Date().toISOString().slice(0, 10));
-    setFPurpose('Keperluan Mendesak Keluarga');
     setFDisbursementSource('Kas Operasional Paguyuban');
     setFNotes('');
     setShowAddModal(true);
+  };
+
+  // Real Payroll Deduction Execution Handler
+  const handleExecutePayrollDeduction = async (staffName: string) => {
+    const isAlreadyProcessed = processedDeductions[staffName] ?? false;
+
+    if (isAlreadyProcessed) {
+      setProcessedDeductions((prev) => ({
+        ...prev,
+        [staffName]: false,
+      }));
+      showToast(`Status potongan payroll ${staffName} dibatalkan.`);
+      return;
+    }
+
+    const activeLoan = loans.find(
+      (l) =>
+        l.staffName.toLowerCase() === staffName.toLowerCase() &&
+        l.remainingBalance > 0 &&
+        (l.status === 'ACTIVE_INSTALLMENT' || l.status === 'OVERDUE')
+    );
+
+    if (!activeLoan) {
+      showToast(`Tidak ditemukan kasbon aktif yang perlu dipotong untuk ${staffName}.`);
+      return;
+    }
+
+    const deductionAmount = Math.min(activeLoan.monthlyDeduction, activeLoan.remainingBalance);
+    if (deductionAmount <= 0) {
+      showToast('Nominal potongan kasbon sudah 0 (lunas).');
+      return;
+    }
+
+    try {
+      await fetch('/api/expenses/loans/installment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loanId: activeLoan.id,
+          staffName: activeLoan.staffName,
+          installmentAmount: deductionAmount,
+          paymentMethod: 'POTONG_GAJI',
+          installmentDate: new Date().toISOString().slice(0, 10),
+          notes: `Potongan otomatis payroll periode ${payrollMonth}`,
+        }),
+      });
+
+      const newPaid = activeLoan.paidAmount + deductionAmount;
+      const newRemaining = Math.max(0, activeLoan.remainingBalance - deductionAmount);
+      const newStatus = newRemaining === 0 ? 'PAID_OFF' : 'ACTIVE_INSTALLMENT';
+
+      const newInstRecord: InstallmentRecord = {
+        id: `inst-pr-${Date.now().toString().slice(-6)}`,
+        installmentNo: activeLoan.installments.length + 1,
+        amount: deductionAmount,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentMethod: 'POTONG_GAJI',
+        receivedBy: 'Hendra Wijaya (Bendahara)',
+        notes: `Potongan otomatis payroll periode ${payrollMonth}`,
+      };
+
+      const updatedLoans = loans.map((l) => {
+        if (l.id === activeLoan.id) {
+          return {
+            ...l,
+            paidAmount: newPaid,
+            remainingBalance: newRemaining,
+            status: newStatus as any,
+            installments: [...l.installments, newInstRecord],
+          };
+        }
+        return l;
+      });
+
+      setLoans(updatedLoans);
+      savePersisted('wargahub_staff_loans', updatedLoans);
+      setProcessedDeductions((prev) => ({
+        ...prev,
+        [staffName]: true,
+      }));
+
+      showToast(
+        `✓ Sukses memotong gaji ${staffName} sebesar ${formatRupiah(
+          deductionAmount
+        )}. Sisa pinjaman: ${formatRupiah(newRemaining)}.`
+      );
+
+      // Offer receipt preview
+      setSelectedReceipt({
+        loan: { ...activeLoan, remainingBalance: newRemaining, status: newStatus as any },
+        installment: newInstRecord,
+      });
+      setShowReceiptModal(true);
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal memproses pemotongan payroll ke pembukuan.');
+    }
+  };
+
+  // WhatsApp Share Handlers
+  const handleShareWhatsAppReceipt = (receipt: { loan: StaffLoan; installment: InstallmentRecord }) => {
+    const rawPhone = receipt.loan.staffPhone.replace(/[^0-9]/g, '');
+    const phone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone;
+
+    const message =
+      `*BUKTI TANDA TERIMA ANGSURAN KASBON - WARGAHUB*\n` +
+      `Komplek Grand Sariwangi\n` +
+      `=========================================\n` +
+      `No. Kuitansi: *${receipt.installment.id.toUpperCase()}*\n` +
+      `No. Kasbon: *${receipt.loan.id}*\n` +
+      `Nama Petugas: *${receipt.loan.staffName}* (${receipt.loan.staffRole})\n` +
+      `Angsuran Ke: *#${receipt.installment.installmentNo}*\n` +
+      `Nominal Diterima: *${formatRupiah(receipt.installment.amount)}*\n` +
+      `Metode: *${receipt.installment.paymentMethod.replace(/_/g, ' ')}*\n` +
+      `Tanggal Setor: *${receipt.installment.paymentDate}*\n` +
+      `Keterangan: ${receipt.installment.notes || 'Potongan angsuran kasbon'}\n` +
+      `-----------------------------------------\n` +
+      `*Sisa Saldo Kasbon:* ${formatRupiah(receipt.loan.remainingBalance)}\n` +
+      `Status Pinjaman: *${receipt.loan.status === 'PAID_OFF' ? '✓ LUNAS (SELESAI)' : 'SEDANG DICICIL'}*\n` +
+      `=========================================\n` +
+      `_Diterima & Disahkan oleh Bendahara Paguyuban Komplek Grand Sariwangi._`;
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    showToast(`Membuka WhatsApp untuk mengirim bukti kuitansi ke ${receipt.loan.staffName}...`);
+  };
+
+  const handleShareWhatsAppPayrollSlip = (
+    staff: { name: string; role: string; salary: number; phone: string },
+    deduction: number,
+    takeHomePay: number,
+    remainingBalance: number,
+    isProcessed: boolean
+  ) => {
+    const rawPhone = staff.phone.replace(/[^0-9]/g, '');
+    const phone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone;
+
+    const message =
+      `*SLIP GAJI & POTONGAN KASBON PETUGAS - WARGAHUB*\n` +
+      `Komplek Grand Sariwangi\n` +
+      `Periode: *${payrollMonth}*\n` +
+      `=========================================\n` +
+      `Nama Petugas: *${staff.name}*\n` +
+      `Jabatan / Tugas: *${staff.role}*\n` +
+      `No. Telepon: ${staff.phone}\n\n` +
+      `Gaji Pokok / Honor: *${formatRupiah(staff.salary)}*\n` +
+      `Potongan Kasbon: *${deduction > 0 ? '- ' + formatRupiah(deduction) : 'Rp 0'}*\n` +
+      `Sisa Saldo Kasbon: *${formatRupiah(remainingBalance)}*\n` +
+      `-----------------------------------------\n` +
+      `*Take-Home Pay Diterima: ${formatRupiah(takeHomePay)}*\n` +
+      `Status Pemotongan: *${isProcessed ? '✓ SUDAH DIPOTONG' : 'BELUM DIPOTONG'}*\n` +
+      `Tanggal: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}\n` +
+      `=========================================\n` +
+      `_Pemberitahuan resmi Pengurus & Bendahara Paguyuban Warga Grand Sariwangi._`;
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    showToast(`Membuka WhatsApp untuk mengirim slip ke ${staff.name}...`);
   };
 
   const handleOpenEdit = (l: StaffLoan) => {
@@ -1504,7 +1747,9 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                     <p className="text-xl font-black font-mono text-ink tabular-nums">
                       {formatRupiah(totalGrossSalary)}
                     </p>
-                    <span className="text-[10px] text-ink-muted block">10 Petugas (Satpam, Kebersihan, Teknisi)</span>
+                    <span className="text-[10px] text-ink-muted block">
+                      {staffPresets.length} Petugas Roster (Satpam, Kebersihan, Teknisi)
+                    </span>
                   </div>
 
                   <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-200 space-y-1">
@@ -1600,26 +1845,34 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                               {deduction > 0 && (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setProcessedDeductions((prev) => ({
-                                      ...prev,
-                                      [s.name]: !isProcessed,
-                                    }));
-                                    showToast(
-                                      `Status potongan untuk ${s.name} diubah menjadi ${
-                                        !isProcessed ? 'Sudah Dipotong' : 'Belum'
-                                      }.`
-                                    );
-                                  }}
+                                  onClick={() => handleExecutePayrollDeduction(s.name)}
                                   className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all active:scale-[0.98] ${
                                     isProcessed
                                       ? 'bg-canvas text-ink-muted border-border hover:text-ink'
                                       : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
                                   }`}
+                                  title={isProcessed ? 'Batalkan status pemotongan payroll' : 'Eksekusi pemotongan gaji & catat ke buku kas'}
                                 >
                                   {isProcessed ? 'Batal Potong' : 'Potong Gaji'}
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleShareWhatsAppPayrollSlip(
+                                    s,
+                                    deduction,
+                                    takeHomePay,
+                                    activeLoan ? activeLoan.remainingBalance : 0,
+                                    isProcessed
+                                  )
+                                }
+                                className="p-1.5 hover:bg-emerald-50 text-emerald-700 rounded-lg font-bold active:scale-[0.98] transition-all"
+                                title="Kirim Slip Gaji via WhatsApp"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </button>
 
                               <button
                                 type="button"
@@ -1656,7 +1909,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                                   showToast(`Slip gaji ${s.name} berhasil diunduh.`);
                                 }}
                                 className="p-1.5 hover:bg-canvas text-ink-muted hover:text-ink rounded-lg font-bold active:scale-[0.98] transition-all"
-                                title="Unduh Slip Gaji"
+                                title="Unduh Slip Gaji (.txt)"
                               >
                                 <Printer className="w-3.5 h-3.5" />
                               </button>
@@ -1970,6 +2223,55 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Quick Presets Buttons */}
+              <div>
+                <span className="text-[11px] font-bold text-ink-muted block mb-1.5">Preset Cepat Kebutuhan:</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFLoanType('GAJI_DI_AWAL');
+                      setFTTotalAmount(250000);
+                      setFTenorMonths(1);
+                      setFMonthlyDeduction(250000);
+                      setFPurpose('Tarik Gaji di Awal untuk Keperluan Operasional');
+                    }}
+                    className="p-2 text-left rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100/70 transition-all text-[11px] active:scale-[0.98]"
+                  >
+                    <span className="font-bold text-amber-900 block">⚡ Gaji Awal</span>
+                    <span className="text-amber-700 font-mono font-bold block">{formatRupiah(250000)} (1x)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFLoanType('KASBON_CICILAN');
+                      setFTTotalAmount(200000);
+                      setFTenorMonths(2);
+                      setFMonthlyDeduction(100000);
+                      setFPurpose('Biaya Pengobatan & Resep Apotek Darurat');
+                    }}
+                    className="p-2 text-left rounded-xl border border-teal-200 bg-teal-50/60 hover:bg-teal-100/70 transition-all text-[11px] active:scale-[0.98]"
+                  >
+                    <span className="font-bold text-teal-900 block">💊 Medis / P3K</span>
+                    <span className="text-teal-700 font-mono font-bold block">{formatRupiah(200000)} (2x)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFLoanType('KASBON_CICILAN');
+                      setFTTotalAmount(400000);
+                      setFTenorMonths(2);
+                      setFMonthlyDeduction(200000);
+                      setFPurpose('Kebutuhan Sekolah Anak / Keluarga Mendesak');
+                    }}
+                    className="p-2 text-left rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100/70 transition-all text-[11px] active:scale-[0.98]"
+                  >
+                    <span className="font-bold text-blue-900 block">🎒 Sekolah / Anak</span>
+                    <span className="text-blue-700 font-mono font-bold block">{formatRupiah(400000)} (2x)</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -2344,19 +2646,27 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
               </div>
             </div>
 
-            <div className="pt-2 flex gap-2">
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => handleShareWhatsAppReceipt(selectedReceipt)}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Kirim via WhatsApp</span>
+              </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                className="flex-1 py-2.5 bg-surface hover:bg-canvas border border-border text-ink font-bold rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
               >
-                <Printer className="w-4 h-4" />
+                <Printer className="w-4 h-4 text-ink-muted" />
                 <span>Cetak PDF</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowReceiptModal(false)}
-                className="flex-1 py-2.5 border border-border text-ink font-bold rounded-xl hover:bg-canvas active:scale-[0.98] transition-all"
+                className="px-4 py-2.5 border border-border text-ink font-bold rounded-xl hover:bg-canvas active:scale-[0.98] transition-all text-center"
               >
                 Tutup
               </button>

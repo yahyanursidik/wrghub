@@ -62,16 +62,34 @@ import {
   Check
 } from 'lucide-react';
 import type { PropertyListItem } from '../../services/property.service';
+import { 
+  DEFAULT_RESIDENTS, 
+  DEFAULT_VEHICLES, 
+  DEFAULT_PERMITS, 
+  DEFAULT_UTILITIES,
+  type ResidentItem,
+  type VehicleItem,
+  type PermitItem,
+  type UtilityItem,
+} from '../../services/property-submodules.service';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 
 interface PropertiesManagerProps {
   initialProperties: PropertyListItem[];
   initialTab?: string;
+  initialResidents?: ResidentItem[];
+  initialVehicles?: VehicleItem[];
+  initialPermits?: PermitItem[];
+  initialUtilities?: UtilityItem[];
 }
 
 const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   initialProperties = [],
-  initialTab = 'units'
+  initialTab = 'units',
+  initialResidents,
+  initialVehicles,
+  initialPermits,
+  initialUtilities,
 }) => {
   const resolveTab = (t: string): 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics' => {
     if (t === 'occupants' || t === 'residents') return 'residents';
@@ -83,6 +101,15 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   };
 
   const [activeSubTab, setActiveSubTab] = useState<'units' | 'residents' | 'vehicles' | 'permits' | 'analytics'>(resolveTab(initialTab));
+
+  const handleTabChange = (tab: 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics') => {
+    setActiveSubTab(tab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties || []);
   const [search, setSearch] = useState('');
@@ -172,24 +199,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const wasCleaned = localStorage.getItem('wargahub_demo_cleaned_v4');
-        if (!wasCleaned) {
-          localStorage.removeItem('wargahub_residents');
-          localStorage.removeItem('wargahub_vehicles');
-          localStorage.removeItem('wargahub_permits');
-          localStorage.removeItem('wargahub_utilities');
-          localStorage.removeItem('wargahub_deleted_properties');
-          localStorage.removeItem('wargahub_deleted_residents');
-          localStorage.removeItem('wargahub_deleted_vehicles');
-          localStorage.removeItem('wargahub_deleted_permits');
-          localStorage.removeItem('wargahub_deleted_utilities');
-          localStorage.setItem('wargahub_demo_cleaned_v4', 'true');
-          setResidents([]);
-          setVehicles([]);
-          setPermits([]);
-          setUtilities([]);
-        }
-
         const deletedPropsStr = localStorage.getItem('wargahub_deleted_properties');
         if (deletedPropsStr) {
           const deletedIds: string[] = JSON.parse(deletedPropsStr);
@@ -215,11 +224,19 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         const deletedResIds: string[] = deletedResStr ? JSON.parse(deletedResStr) : [];
         if (savedResidents !== null) {
           const parsed = JSON.parse(savedResidents);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             setResidents(parsed.filter((r: any) => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName)));
+          } else {
+            const fallback = (initialResidents && initialResidents.length > 0 ? initialResidents : DEFAULT_RESIDENTS)
+              .filter(r => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
+            setResidents(fallback);
+            localStorage.setItem('wargahub_residents', JSON.stringify(fallback));
           }
-        } else if (deletedResIds.length > 0) {
-          setResidents(prev => prev.filter(r => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName)));
+        } else {
+          const fallback = (initialResidents && initialResidents.length > 0 ? initialResidents : DEFAULT_RESIDENTS)
+            .filter(r => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
+          setResidents(fallback);
+          localStorage.setItem('wargahub_residents', JSON.stringify(fallback));
         }
 
         const savedVehicles = localStorage.getItem('wargahub_vehicles');
@@ -227,11 +244,19 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         const deletedVehIds: string[] = deletedVehStr ? JSON.parse(deletedVehStr) : [];
         if (savedVehicles !== null) {
           const parsed = JSON.parse(savedVehicles);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             setVehicles(parsed.filter((v: any) => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber)));
+          } else {
+            const fallback = (initialVehicles && initialVehicles.length > 0 ? initialVehicles : DEFAULT_VEHICLES)
+              .filter(v => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
+            setVehicles(fallback);
+            localStorage.setItem('wargahub_vehicles', JSON.stringify(fallback));
           }
-        } else if (deletedVehIds.length > 0) {
-          setVehicles(prev => prev.filter(v => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber)));
+        } else {
+          const fallback = (initialVehicles && initialVehicles.length > 0 ? initialVehicles : DEFAULT_VEHICLES)
+            .filter(v => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
+          setVehicles(fallback);
+          localStorage.setItem('wargahub_vehicles', JSON.stringify(fallback));
         }
 
         const savedPermits = localStorage.getItem('wargahub_permits');
@@ -239,11 +264,19 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         const deletedPermitIds: string[] = deletedPermitStr ? JSON.parse(deletedPermitStr) : [];
         if (savedPermits !== null) {
           const parsed = JSON.parse(savedPermits);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             setPermits(parsed.filter((p: any) => !deletedPermitIds.includes(p.id)));
+          } else {
+            const fallback = (initialPermits && initialPermits.length > 0 ? initialPermits : DEFAULT_PERMITS)
+              .filter(p => !deletedPermitIds.includes(p.id));
+            setPermits(fallback);
+            localStorage.setItem('wargahub_permits', JSON.stringify(fallback));
           }
-        } else if (deletedPermitIds.length > 0) {
-          setPermits(prev => prev.filter(p => !deletedPermitIds.includes(p.id)));
+        } else {
+          const fallback = (initialPermits && initialPermits.length > 0 ? initialPermits : DEFAULT_PERMITS)
+            .filter(p => !deletedPermitIds.includes(p.id));
+          setPermits(fallback);
+          localStorage.setItem('wargahub_permits', JSON.stringify(fallback));
         }
 
         const savedUtilities = localStorage.getItem('wargahub_utilities');
@@ -251,17 +284,25 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         const deletedUtilIds: string[] = deletedUtilStr ? JSON.parse(deletedUtilStr) : [];
         if (savedUtilities !== null) {
           const parsed = JSON.parse(savedUtilities);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             setUtilities(parsed.filter((u: any) => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode)));
+          } else {
+            const fallback = (initialUtilities && initialUtilities.length > 0 ? initialUtilities : DEFAULT_UTILITIES)
+              .filter(u => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
+            setUtilities(fallback);
+            localStorage.setItem('wargahub_utilities', JSON.stringify(fallback));
           }
-        } else if (deletedUtilIds.length > 0) {
-          setUtilities(prev => prev.filter(u => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode)));
+        } else {
+          const fallback = (initialUtilities && initialUtilities.length > 0 ? initialUtilities : DEFAULT_UTILITIES)
+            .filter(u => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
+          setUtilities(fallback);
+          localStorage.setItem('wargahub_utilities', JSON.stringify(fallback));
         }
       } catch (e) {
         console.warn('Error reading from localStorage:', e);
       }
     }
-  }, [isCleanInitial]);
+  }, [isCleanInitial, initialResidents, initialVehicles, initialPermits, initialUtilities]);
 
   // ================= RESIDENTS (PENGHUNI) STATE =================
   const [residentCategory, setResidentCategory] = useState('ALL');
@@ -271,7 +312,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [residentCurrentPage, setResidentCurrentPage] = useState(1);
   const [residentPageSize, setResidentPageSize] = useState(10);
 
-  const [residents, setResidents] = useState<any[]>([]);
+  const [residents, setResidents] = useState<ResidentItem[]>(
+    initialResidents && initialResidents.length > 0 ? initialResidents : DEFAULT_RESIDENTS
+  );
 
   // Resident Form Modal State
   const [showResidentModal, setShowResidentModal] = useState(false);
@@ -281,20 +324,20 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [residentDeleteReason, setResidentDeleteReason] = useState('Pindah Domisili Keluar Komplek');
 
   // Resident Form Fields
-  const [resHouseCode, setResHouseCode] = useState('A-17');
-  const [resAreaLabel, setResAreaLabel] = useState('Blok A');
+  const [resHouseCode, setResHouseCode] = useState(properties[0]?.code || 'Kav A');
+  const [resAreaLabel, setResAreaLabel] = useState('Kavling');
   const [resFullName, setResFullName] = useState('');
-  const [resRelation, setResRelation] = useState('KEPALA_KELUARGA');
-  const [resGender, setResGender] = useState('LAKI_LAKI');
-  const [resBirthPlaceDate, setResBirthPlaceDate] = useState('Jakarta, 12-03-1985');
+  const [resRelation, setResRelation] = useState<'KEPALA_KELUARGA' | 'ISTRI' | 'ANAK' | 'ORANG_TUA' | 'FAMILI_LAIN' | 'ART' | 'PENYEWA'>('KEPALA_KELUARGA');
+  const [resGender, setResGender] = useState<'LAKI_LAKI' | 'PEREMPUAN'>('LAKI_LAKI');
+  const [resBirthPlaceDate, setResBirthPlaceDate] = useState('Bandung, 14-04-1985');
   const [resReligion, setResReligion] = useState('ISLAM');
   const [resOccupation, setResOccupation] = useState('Karyawan Swasta');
   const [resPhone, setResPhone] = useState('');
   const [resEmail, setResEmail] = useState('');
   const [resIdCard, setResIdCard] = useState('');
   const [resFamilyCard, setResFamilyCard] = useState('');
-  const [resDomicileStatus, setResDomicileStatus] = useState('KTP_SETEMPAT');
-  const [resBloodType, setResBloodType] = useState('O');
+  const [resDomicileStatus, setResDomicileStatus] = useState<'KTP_SETEMPAT' | 'KTP_LUAR_DAERAH' | 'SURAT_DOMISILI'>('KTP_SETEMPAT');
+  const [resBloodType, setResBloodType] = useState<'A' | 'B' | 'AB' | 'O'>('O');
   const [resIsEmergency, setResIsEmergency] = useState(false);
   const [resNotes, setResNotes] = useState('');
   const [resSaving, setResSaving] = useState(false);
@@ -308,7 +351,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [vehicleCurrentPage, setVehicleCurrentPage] = useState(1);
   const [vehiclePageSize, setVehiclePageSize] = useState(10);
 
-  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleItem[]>(
+    initialVehicles && initialVehicles.length > 0 ? initialVehicles : DEFAULT_VEHICLES
+  );
 
   // Vehicle Form Modal State
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -323,9 +368,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [bulkDeletingVehicle, setBulkDeletingVehicle] = useState(false);
 
   // Vehicle Form Fields
-  const [vehHouseCode, setVehHouseCode] = useState('A-17');
-  const [vehAreaLabel, setVehAreaLabel] = useState('Blok A');
-  const [vehOwnerName, setVehOwnerName] = useState('Budi Santoso');
+  const [vehHouseCode, setVehHouseCode] = useState(properties[0]?.code || 'Kav A');
+  const [vehAreaLabel, setVehAreaLabel] = useState('Kavling');
+  const [vehOwnerName, setVehOwnerName] = useState(properties[0]?.ownerName || 'Pak Verial');
   const [vehPlateNumber, setVehPlateNumber] = useState('');
   const [vehType, setVehType] = useState('Mobil');
   const [vehBrand, setVehBrand] = useState('Toyota');
@@ -348,7 +393,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [permitCurrentPage, setPermitCurrentPage] = useState(1);
   const [permitPageSize, setPermitPageSize] = useState(10);
 
-  const [permits, setPermits] = useState<any[]>([]);
+  const [permits, setPermits] = useState<PermitItem[]>(
+    initialPermits && initialPermits.length > 0 ? initialPermits : DEFAULT_PERMITS
+  );
 
   // Permit Form Modal State
   const [showAddPermitModal, setShowAddPermitModal] = useState(false);
@@ -364,16 +411,16 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [bulkDeletingPermit, setBulkDeletingPermit] = useState(false);
 
   // Permit Form Fields
-  const [pCode, setPCode] = useState('A-17');
-  const [pAreaLabel, setPAreaLabel] = useState('Blok A');
-  const [pOwnerName, setPOwnerName] = useState('Budi Santoso');
+  const [pCode, setPCode] = useState(properties[0]?.code || 'Kav D');
+  const [pAreaLabel, setPAreaLabel] = useState('Kavling');
+  const [pOwnerName, setPOwnerName] = useState(properties[0]?.ownerName || 'Pak Rieva');
   const [pType, setPType] = useState('Pengecatan & Kanopi');
   const [pContractor, setPContractor] = useState('');
   const [pContractorPhone, setPContractorPhone] = useState('0812-3344-5566');
   const [pWorkers, setPWorkers] = useState(3);
   const [pWorkersList, setPWorkersList] = useState('');
-  const [pStart, setPStart] = useState('2026-09-01');
-  const [pEnd, setPEnd] = useState('2026-09-10');
+  const [pStart, setPStart] = useState('2026-10-01');
+  const [pEnd, setPEnd] = useState('2026-10-15');
   const [pAllowedHours, setPAllowedHours] = useState('08:00 - 17:00 WIB (Senin - Sabtu)');
   const [pStatus, setPStatus] = useState<'APPROVED' | 'PENDING_REVIEW' | 'COMPLETED' | 'SUSPENDED'>('APPROVED');
   const [pDesc, setPDesc] = useState('');
@@ -388,7 +435,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [utilityCurrentPage, setUtilityCurrentPage] = useState(1);
   const [utilityPageSize, setUtilityPageSize] = useState(10);
 
-  const [utilities, setUtilities] = useState<any[]>([]);
+  const [utilities, setUtilities] = useState<UtilityItem[]>(
+    initialUtilities && initialUtilities.length > 0 ? initialUtilities : DEFAULT_UTILITIES
+  );
 
   // Utility Form Modal State
   const [showUtilityModal, setShowUtilityModal] = useState(false);
@@ -403,9 +452,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [bulkDeletingUtility, setBulkDeletingUtility] = useState(false);
 
   // Utility Form Fields
-  const [uCode, setUCode] = useState('A-17');
-  const [uAreaLabel, setUAreaLabel] = useState('Blok A');
-  const [uOwnerName, setUOwnerName] = useState('Budi Santoso');
+  const [uCode, setUCode] = useState(properties[0]?.code || 'Kav A');
+  const [uAreaLabel, setUAreaLabel] = useState('Kavling');
+  const [uOwnerName, setUOwnerName] = useState(properties[0]?.ownerName || 'Pak Verial');
   const [uPlnCapacity, setUPlnCapacity] = useState('3.500 VA');
   const [uPlnCustomerId, setUPlnCustomerId] = useState('PLN-5388123490');
   const [uPamMeterNo, setUPamMeterNo] = useState('PAM-88301');
@@ -665,12 +714,12 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   // Resident Handlers
   const handleOpenAddResident = () => {
     setEditingResidentId(null);
-    setResHouseCode(properties[0]?.code || 'A-17');
-    setResAreaLabel('Blok A');
+    setResHouseCode(properties[0]?.code || 'Kav A');
+    setResAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
     setResFullName('');
     setResRelation('KEPALA_KELUARGA');
     setResGender('LAKI_LAKI');
-    setResBirthPlaceDate('Jakarta, 12-03-1985');
+    setResBirthPlaceDate('Bandung, 14-04-1985');
     setResReligion('ISLAM');
     setResOccupation('Karyawan Swasta');
     setResPhone('');
@@ -831,9 +880,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   // Vehicle Handlers
   const handleOpenAddVehicle = () => {
     setEditingVehicleId(null);
-    setVehHouseCode(properties[0]?.code || 'A-17');
-    setVehAreaLabel('Blok A');
-    setVehOwnerName(properties[0]?.ownerName || 'Budi Santoso');
+    setVehHouseCode(properties[0]?.code || 'Kav A');
+    setVehAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
+    setVehOwnerName(properties[0]?.ownerName || 'Pak Verial');
     setVehPlateNumber('');
     setVehType('Mobil');
     setVehBrand('Toyota');
@@ -1015,16 +1064,16 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   // Permit Handlers
   const handleOpenAddPermit = () => {
     setEditingPermitId(null);
-    setPCode(properties[0]?.code || 'A-17');
-    setPAreaLabel('Blok A');
-    setPOwnerName(properties[0]?.ownerName || 'Budi Santoso');
+    setPCode(properties[0]?.code || 'Kav D');
+    setPAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
+    setPOwnerName(properties[0]?.ownerName || 'Pak Rieva');
     setPType('Pengecatan & Kanopi');
     setPContractor('');
     setPContractorPhone('0812-3344-5566');
     setPWorkers(3);
     setPWorkersList('');
-    setPStart('2026-09-01');
-    setPEnd('2026-09-10');
+    setPStart('2026-10-01');
+    setPEnd('2026-10-15');
     setPAllowedHours('08:00 - 17:00 WIB (Senin - Sabtu)');
     setPStatus('APPROVED');
     setPDesc('');
@@ -1197,14 +1246,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   // Utility Handlers
   const handleOpenAddUtility = () => {
     setEditingUtilityId(null);
-    setUCode(properties[0]?.code || 'A-17');
-    setUAreaLabel('Blok A');
-    setUOwnerName(properties[0]?.ownerName || 'Budi Santoso');
+    setUCode(properties[0]?.code || 'Kav A');
+    setUAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
+    setUOwnerName(properties[0]?.ownerName || 'Pak Verial');
     setUPlnCapacity('3.500 VA');
     setUPlnCustomerId(`PLN-5388${Math.floor(100000 + Math.random() * 900000)}`);
     setUPamMeterNo('PAM-88301');
-    setUPamLastMonth(120);
-    setUPamThisMonth(138);
+    setUPamLastMonth(135);
+    setUPamThisMonth(154);
     setUMonthlyIplFee(250000);
     setUWasteSchedule('SENIN_RABU_JUMAT');
     setUHasBiopori(true);
@@ -1864,6 +1913,43 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         </div>
       </div>
 
+      {/* ================= SUBTAB NAVIGATION PILL BAR ================= */}
+      <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border overflow-x-auto shadow-2xs">
+        {[
+          { id: 'units', label: 'Data Rumah & Kavling', icon: Home, count: `${properties.length} Unit` },
+          { id: 'residents', label: 'Sensus Penghuni & Warga', icon: Users, count: `${residents.length} Jiwa` },
+          { id: 'vehicles', label: 'Kendaraan & Akses RFID', icon: Car, count: `${vehicles.length} Unit` },
+          { id: 'permits', label: 'Izin Renovasi & Proyek', icon: Hammer, count: `${permits.length} Izin` },
+          { id: 'analytics', label: 'Okupansi & Utilitas Mandiri', icon: Zap, count: `${utilities.length} Unit` },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeSubTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => handleTabChange(tab.id as any)}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 active:scale-[0.98] ${
+                isActive
+                  ? 'bg-primary-600 text-white shadow-xs'
+                  : 'text-ink-muted hover:text-ink hover:bg-canvas border border-transparent hover:border-border/60'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-ink-muted'}`} />
+              <span>{tab.label}</span>
+              <span
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-mono tabular-nums font-bold ${
+                  isActive
+                    ? 'bg-white/20 text-white'
+                    : 'bg-canvas text-ink-muted border border-border'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* ================= SUBTAB 1: DIREKTORI RUMAH & KAVLING ================= */}
       {activeSubTab === 'units' && (
@@ -2235,27 +2321,65 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
           {/* VIEW 2: GRID */}
           {viewMode === 'grid' && (
             <div className="space-y-6">
-              {['A', 'B', 'C', 'D'].map((blk) => (
-                <div key={blk} className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-3">
-                  <h3 className="font-extrabold text-sm text-ink">Blok {blk}</h3>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-10 gap-2">
-                    {properties.filter(p => p.blockCode === blk).map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveProperty(p);
-                          setDetailTab('specs');
-                        }}
-                        className="p-2.5 rounded-xl text-center border bg-emerald-50 border-emerald-200 text-emerald-900 hover:scale-105 transition-all"
-                      >
-                        <p className="font-mono text-xs font-black">{p.code}</p>
-                        <p className="text-[9px] truncate font-bold">{p.ownerName?.split(' ')[0] || 'Pemilik'}</p>
-                      </button>
-                    ))}
+              {(() => {
+                const groups: { [key: string]: PropertyListItem[] } = {};
+                filteredAndSortedProperties.forEach(p => {
+                  const groupKey = p.code.toUpperCase().startsWith('KAV')
+                    ? 'Kavling Grand Sariwangi'
+                    : p.code.startsWith('SW')
+                    ? 'Jl. Sariwangi Indah'
+                    : p.blockCode
+                    ? `Blok ${p.blockCode}`
+                    : 'Kavling & Rumah Komplek';
+                  if (!groups[groupKey]) groups[groupKey] = [];
+                  groups[groupKey].push(p);
+                });
+
+                return Object.entries(groups).map(([groupTitle, items]) => (
+                  <div key={groupTitle} className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-extrabold text-sm text-ink">{groupTitle}</h3>
+                      <span className="text-[11px] font-mono font-bold text-ink-muted">{items.length} Unit</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
+                      {items.map((p) => {
+                        const isVacant = p.occupancyStatus === 'VACANT';
+                        const isRented = p.occupancyStatus === 'RENTED';
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveProperty(p);
+                              setDetailTab('specs');
+                            }}
+                            className={`p-3 rounded-xl text-left border transition-all hover:scale-[1.02] shadow-2xs active:scale-[0.98] ${
+                              isVacant
+                                ? 'bg-amber-50/70 border-amber-200 text-amber-900'
+                                : isRented
+                                ? 'bg-sky-50/70 border-sky-200 text-sky-900'
+                                : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-mono text-xs font-black">{p.code}</p>
+                              <span className="text-[9px] font-bold uppercase">
+                                {isVacant ? 'Kosong' : isRented ? 'Disewa' : 'Pemilik'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] font-bold truncate text-ink">
+                              {p.ownerName || p.occupantName || 'Warga'}
+                            </p>
+                            <p className="text-[10px] text-ink-muted truncate mt-0.5">
+                              {isVacant ? 'Standby' : `${p.residentCount || 1} Jiwa`}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           )}
         </div>
@@ -2696,7 +2820,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <tbody className="divide-y divide-border/60">
                   {paginatedVehicles.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-16 text-center text-ink-muted">
+                      <td colSpan={9} className="py-16 text-center text-ink-muted">
                         <Car className="w-10 h-10 text-ink-muted/40 mx-auto mb-3" />
                         <h4 className="text-sm font-bold text-ink">Belum Ada Data Kendaraan & RFID</h4>
                         <p className="text-xs text-ink-muted mt-1 max-w-sm mx-auto">
@@ -3132,7 +3256,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">
                 {(() => {
                   const totalVA = utilities.reduce((acc, u) => {
-                    const str = String(u.plnCapacity || u.electricityCapacity || '');
+                    const str = String(u.plnCapacity || (u as any).electricityCapacity || '');
                     const num = parseInt(str.replace(/\D/g, ''), 10) || 0;
                     return acc + num;
                   }, 0);
@@ -3603,7 +3727,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   <label className="font-bold text-ink block mb-1">Hubungan Keluarga *</label>
                   <select
                     value={resRelation}
-                    onChange={(e) => setResRelation(e.target.value)}
+                    onChange={(e) => setResRelation(e.target.value as any)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
                     <option value="KEPALA_KELUARGA">Kepala Keluarga</option>
@@ -3659,7 +3783,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   <label className="font-bold text-ink block mb-1">Jenis Kelamin</label>
                   <select
                     value={resGender}
-                    onChange={(e) => setResGender(e.target.value)}
+                    onChange={(e) => setResGender(e.target.value as any)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
                     <option value="LAKI_LAKI">Laki-Laki</option>
@@ -3734,19 +3858,19 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   <label className="font-bold text-ink block mb-1">Status Domisili</label>
                   <select
                     value={resDomicileStatus}
-                    onChange={(e) => setResDomicileStatus(e.target.value)}
+                    onChange={(e) => setResDomicileStatus(e.target.value as any)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
                     <option value="KTP_SETEMPAT">KTP Setempat (Komplek)</option>
-                    <option value="KTP_LUAR">KTP Luar Wilayah</option>
-                    <option value="PENYEWA">Penyewa / Kontrak</option>
+                    <option value="KTP_LUAR_DAERAH">KTP Luar Daerah</option>
+                    <option value="SURAT_DOMISILI">Surat Keterangan Domisili</option>
                   </select>
                 </div>
                 <div>
                   <label className="font-bold text-ink block mb-1">Golongan Darah</label>
                   <select
                     value={resBloodType}
-                    onChange={(e) => setResBloodType(e.target.value)}
+                    onChange={(e) => setResBloodType(e.target.value as any)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold font-mono text-ink"
                   >
                     <option value="O">O</option>

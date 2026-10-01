@@ -79,7 +79,7 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({
   invoices = []
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('6_MONTHS');
-  const [activeSubTab, setActiveSubTab] = useState<'financial_trends' | 'block_compliance' | 'utility_efficiency' | 'security_sla' | 'public_transparency'>('financial_trends');
+  const [activeSubTab, setActiveSubTab] = useState<'financial_trends' | 'block_compliance' | 'utility_efficiency' | 'security_sla'>('financial_trends');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'month' | 'income' | 'expense' | 'net' | 'rate'>('month');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -593,7 +593,6 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({
           { id: 'block_compliance', label: 'Disiplin Pembayaran per Blok', icon: Layers, count: blockCompliance.length },
           { id: 'utility_efficiency', label: 'Utilitas & Efisiensi Fasum', icon: Zap, count: utilityAnalysis.count },
           { id: 'security_sla', label: 'SLA Keamanan & Respon Aduan', icon: ShieldCheck, count: securityMetrics.totalComplaints },
-          { id: 'public_transparency', label: 'Rekapitulasi Iuran Transparansi', icon: Eye, count: transparencyStats.totalUnits },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -1058,94 +1057,6 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({
                 <p className="text-[11px] text-ink-muted max-w-sm mx-auto leading-relaxed">
                   Saat warga mengirimkan aduan perbaikan fasilitas atau ketertiban lingkungan melalui portal warga, data kecepatan respon dan penyelesaian petugas satpam/pengurus akan dihitung secara langsung di sini.
                 </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 5: REKAPITULASI IURAN TRANSPARANSI ================= */}
-      {activeSubTab === 'public_transparency' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="p-6 bg-surface rounded-3xl border border-border shadow-card space-y-4 text-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-              <div>
-                <h3 className="font-black text-sm text-ink flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-emerald-600" />
-                  Rekapitulasi Iuran Transparansi Warga Terbuka
-                </h3>
-                <p className="text-ink-muted text-xs mt-0.5">
-                  Laporan status setoran kas warga komplek yang disinkronisasi ke portal publik transparansi.
-                </p>
-              </div>
-              <a
-                href="/transparency"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] text-emerald-900 border border-emerald-300 font-bold rounded-xl inline-flex items-center gap-1.5 transition-all duration-150 self-start sm:self-auto"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Buka Portal Transparansi
-              </a>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200">
-                <span className="font-semibold text-emerald-900 text-xs block">Unit LUNAS</span>
-                <span className="text-xl font-black text-emerald-950 font-mono mt-1 block tabular-nums">
-                  {transparencyStats.paidUnits} Unit
-                </span>
-                <span className="text-emerald-800 text-[11px] font-medium block mt-0.5 font-mono tabular-nums">
-                  Terkumpul: {formatRupiah(transparencyStats.collectedAmount)}
-                </span>
-              </div>
-
-              <div className="p-4 bg-rose-50/80 rounded-2xl border border-rose-200">
-                <span className="font-semibold text-rose-900 text-xs block">Unit MENUNGGAK / BELUM BAYAR</span>
-                <span className="text-xl font-black text-rose-950 font-mono mt-1 block tabular-nums">
-                  {transparencyStats.unpaidUnits} Unit
-                </span>
-                <span className="text-rose-800 text-[11px] font-medium block mt-0.5 font-mono tabular-nums">
-                  Piutang: {formatRupiah(transparencyStats.unpaidAmount)}
-                </span>
-              </div>
-
-              <div className="p-4 bg-canvas rounded-2xl border border-border">
-                <span className="font-semibold text-ink-muted text-xs block">Total Unit Terdaftar</span>
-                <span className="text-xl font-black text-ink font-mono mt-1 block tabular-nums">
-                  {transparencyStats.totalUnits} Rumah
-                </span>
-                <span className="text-ink-muted text-[11px] font-medium block mt-0.5 font-mono tabular-nums">
-                  Tingkat Kepatuhan: {transparencyStats.rate}%
-                </span>
-              </div>
-            </div>
-
-            {!transparencyStats.hasInvoices && (
-              <div className="p-4 bg-canvas rounded-2xl border border-border flex items-start gap-3">
-                <AlertCircle className="w-4 h-4 text-ink-muted shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-bold text-ink text-xs">Belum Ada Tagihan Iuran Diterbitkan</h4>
-                  <p className="text-[11px] text-ink-muted mt-0.5">
-                    Saat ini belum ada tagihan iuran aktif pada periode berjalan. Pengurus dapat menerbitkan tagihan iuran massal melalui menu Kelola Tagihan.
-                  </p>
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <a
-                      href="/admin/billing"
-                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold rounded-lg text-xs inline-flex items-center gap-1 transition-all shadow-2xs"
-                    >
-                      <Receipt className="w-3.5 h-3.5" />
-                      Kelola Tagihan Iuran
-                    </a>
-                    <a
-                      href="/admin/rekap-iuran"
-                      className="px-3 py-1.5 bg-surface hover:bg-canvas active:scale-[0.98] text-ink border border-border font-bold rounded-lg text-xs inline-flex items-center gap-1 transition-all"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      Buka Rekap Iuran
-                    </a>
-                  </div>
-                </div>
               </div>
             )}
           </div>
