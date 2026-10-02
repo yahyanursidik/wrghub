@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Download,
   Search,
@@ -86,6 +86,14 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   entries: initialEntries,
   initialTab = 'ledger_list',
 }) => {
+  const normalizeAccounts = (list: any[]): AccountItem[] =>
+    list.map((a: any) => ({
+      ...a,
+      bankName: a.bank_name || a.bankName || (a.code === 'BCA_MAIN' || a.id === 'acc-main' ? 'Bank Mandiri' : 'Bank Kas'),
+      accountNumber: a.account_number || a.accountNumber || (a.code === 'BCA_MAIN' || a.id === 'acc-main' ? '1300024446419' : '-'),
+      balance: Number(a.balance) || 0,
+    }));
+
   const [accounts, setAccounts] = useState<AccountItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -96,7 +104,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
             const savedSum = parsed.reduce((sum: number, a: any) => sum + (Number(a.balance) || 0), 0);
             const initSum = initialAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
             if (savedSum > 0 || initSum === 0) {
-              return parsed;
+              return normalizeAccounts(parsed);
             }
           }
         }
@@ -104,8 +112,32 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
         console.warn(e);
       }
     }
-    return initialAccounts;
+    return normalizeAccounts(initialAccounts);
   });
+
+  // Reactive listener: when master bank account is updated from Settings or Payments
+  useEffect(() => {
+    const handleBankUpdated = (e: any) => {
+      if (e.detail) {
+        const { bankName, accountNumber } = e.detail;
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.type === 'BANK'
+              ? {
+                  ...a,
+                  bankName: bankName || a.bankName,
+                  accountNumber: accountNumber || a.accountNumber,
+                  name: `Rekening Kas Paguyuban (${bankName || a.bankName})`,
+                }
+              : a
+          )
+        );
+      }
+    };
+    window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+  }, []);
+
   const [entries, setEntries] = useState<LedgerEntryItem[]>(initialEntries);
 
   // Subtab State with URL synchronization
@@ -583,6 +615,40 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       if (typeof window !== 'undefined') {
         localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updated));
       }
+
+      // If the primary bank account was modified, synchronize settings & broadcast global event
+      if (editingAccount.id === 'acc-main' || editingAccount.code === 'BCA_MAIN' || editingAccount.type === 'BANK') {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('wargahub_set_bankname', JSON.stringify(formAccBankName));
+          localStorage.setItem('wargahub_set_bankacc', JSON.stringify(formAccNumber));
+          window.dispatchEvent(
+            new CustomEvent('wargahub_bank_accounts_updated', {
+              detail: {
+                bankName: formAccBankName,
+                accountNumber: formAccNumber,
+                accountHolder: 'Paguyuban Grand Sariwangi',
+                isPrimary: true,
+              },
+            })
+          );
+        }
+        fetch('/api/settings/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            communityName: 'Komplek Grand Sariwangi',
+            rtRw: 'RT 01 / RW 08',
+            address: 'Grand Sariwangi, Sariwangi, Bandung Barat',
+            monthlyRate: 250000,
+            bankName: formAccBankName,
+            bankAccount: formAccNumber,
+            accountHolder: 'Paguyuban Grand Sariwangi',
+            securityPhone: '0812-2008-2240',
+            rwHeadPhone: '0812-3456-7890',
+          }),
+        }).catch(() => {});
+      }
+
       showToast(`Rekening kas "${formAccName}" berhasil diperbarui.`);
     } else {
       const newAcc: AccountItem = {

@@ -1,15 +1,21 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { SettingsManager } from '../../components/admin/SettingsManager';
+import { getCommunityProfile } from '../../services/settings.service';
+import { getAccounts } from '../../services/finance.service';
 
 const tab = Astro.url.searchParams.get('tab') || 'branding';
 const pageTitle = tab === 'passwords' || tab === 'users'
   ? 'Manajemen Akun & Password - WargaHub'
   : 'Pengaturan Komplek - WargaHub';
 const currentPath = tab === 'passwords' ? '/admin/settings?tab=passwords' : '/admin/settings';
+
+const [profile, accounts] = await Promise.all([
+  getCommunityProfile().catch(() => null),
+  getAccounts().catch(() => []),
+]);
 ---
 
 <AdminLayout title={pageTitle} currentPath={currentPath}>
-  <SettingsManager initialTab={tab} client:load />
+  <SettingsManager initialTab={tab} initialSettings={profile} initialAccounts={accounts} client:load />
 </AdminLayout>
-

@@ -240,31 +240,31 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     if (initialAccounts && initialAccounts.length > 0) {
       return initialAccounts.map((acc: any) => ({
         id: acc.id,
-        bankName: acc.name || 'Rekening Operasional',
-        accountNumber: acc.accountNumber || acc.code || '-',
-        accountHolder: acc.accountHolder || 'PENGURUS KOMPLEK WARGAHUB',
+        bankName: acc.bank_name || acc.bankName || acc.name || 'Bank Mandiri',
+        accountNumber: acc.account_number || acc.accountNumber || (acc.code !== 'KAS-KECIL' ? acc.code : '-'),
+        accountHolder: acc.account_holder || acc.accountHolder || 'Paguyuban Grand Sariwangi',
         balance: Number(acc.balance) || 0,
-        isPrimary: Boolean(acc.code === 'BCA-UTAMA' || acc.id === 'acc-main'),
+        isPrimary: Boolean(acc.code === 'BCA-UTAMA' || acc.id === 'acc-main' || acc.code === 'BCA_MAIN'),
         accountType: acc.type === 'BANK' ? 'BANK_OPERASIONAL' : (acc.type === 'QRIS' ? 'QRIS_DINAMIS' : 'KAS_TUNAI'),
         notes: acc.notes || '',
       }));
     }
     return [
       {
-        id: 'acc-main-01',
-        bankName: 'Bank Syariah Indonesia (BSI)',
-        accountNumber: '7142-9988-11',
-        accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
-        balance: 0,
+        id: 'acc-main',
+        bankName: 'Bank Mandiri',
+        accountNumber: '1300024446419',
+        accountHolder: 'Paguyuban Grand Sariwangi',
+        balance: 21850000,
         isPrimary: true,
-        accountType: 'BANK_SYARIAH',
-        notes: 'Rekening utama penerimaan iuran IPL warga (Syariah).',
+        accountType: 'BANK_OPERASIONAL',
+        notes: 'Rekening master utama penerimaan iuran IPL warga Komplek Grand Sariwangi.',
       },
       {
         id: 'acc-qris-01',
         bankName: 'QRIS Dinamis Paguyuban',
         accountNumber: 'NMID-ID102008891230',
-        accountHolder: 'PENGURUS KOMPLEK WARGAHUB',
+        accountHolder: 'Paguyuban Grand Sariwangi',
         balance: 0,
         isPrimary: false,
         accountType: 'QRIS_DINAMIS',
@@ -283,6 +283,44 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
       }
     ];
   });
+
+  // Reactive listener: when master bank account is edited in Settings or elsewhere
+  useEffect(() => {
+    const handleBankAccountsUpdated = (e: any) => {
+      if (e.detail) {
+        const { bankName, accountNumber, accountHolder, qrisNmid } = e.detail;
+        setBankAccounts((prev) => {
+          let matched = false;
+          const next = prev.map((a) => {
+            if (a.isPrimary || a.id === 'acc-main' || a.id === 'acc-bca' || a.accountType === 'BANK_OPERASIONAL') {
+              matched = true;
+              return {
+                ...a,
+                bankName: bankName || a.bankName,
+                accountNumber: accountNumber || a.accountNumber,
+                accountHolder: accountHolder || a.accountHolder,
+                qrisNmid: qrisNmid || a.qrisNmid,
+                isPrimary: true,
+              };
+            }
+            return a;
+          });
+          if (!matched && next.length > 0) {
+            next[0] = {
+              ...next[0],
+              bankName: bankName || next[0].bankName,
+              accountNumber: accountNumber || next[0].accountNumber,
+              accountHolder: accountHolder || next[0].accountHolder,
+              isPrimary: true,
+            };
+          }
+          return next;
+        });
+      }
+    };
+    window.addEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
+    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
+  }, []);
 
   // Bank Statement Feed (Auto-Recon Feed from storage or live)
   const [statementFeeds, setStatementFeeds] = useState<BankStatementFeed[]>(() =>
@@ -837,6 +875,29 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
     setBankAccounts(updated);
     savePersisted('wargahub_bank_accounts', updated);
+
+    // If primary account was added/edited, sync settings keys and dispatch global event
+    const primaryAcc = updated.find((a) => a.isPrimary) || updated[0];
+    if (primaryAcc) {
+      savePersisted('wargahub_set_bankname', primaryAcc.bankName);
+      savePersisted('wargahub_set_bankacc', primaryAcc.accountNumber);
+      savePersisted('wargahub_set_accholder', primaryAcc.accountHolder);
+      if (primaryAcc.qrisNmid) savePersisted('wargahub_set_qris', primaryAcc.qrisNmid);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('wargahub_bank_accounts_updated', {
+            detail: {
+              bankName: primaryAcc.bankName,
+              accountNumber: primaryAcc.accountNumber,
+              accountHolder: primaryAcc.accountHolder,
+              qrisNmid: primaryAcc.qrisNmid,
+              isPrimary: true,
+            },
+          })
+        );
+      }
+    }
 
     // Sync settings to backend API
     const localCommName = typeof window !== 'undefined' ? (localStorage.getItem('wargahub_set_comm_name') || 'Komplek Grand Sariwangi') : 'Komplek Grand Sariwangi';

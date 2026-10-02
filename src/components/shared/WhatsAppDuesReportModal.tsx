@@ -78,6 +78,27 @@ export const WhatsAppDuesReportModal: React.FC<WhatsAppDuesReportModalProps> = (
   const [copiedLink, setCopiedLink] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'preview' | 'settings'>('preview');
 
+  // Dynamic Bank State
+  const [activeBank, setActiveBank] = useState(bankInfo);
+
+  useEffect(() => {
+    setActiveBank(bankInfo);
+  }, [bankInfo]);
+
+  useEffect(() => {
+    const handleBankUpdated = (e: any) => {
+      if (e.detail) {
+        setActiveBank((prev) => ({
+          bankName: e.detail.bankName || prev.bankName,
+          accountNumber: e.detail.accountNumber || prev.accountNumber,
+          accountHolder: e.detail.accountHolder || prev.accountHolder,
+        }));
+      }
+    };
+    window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+  }, []);
+
   useEffect(() => {
     if (initialPeriodName) {
       setSelectedPeriod(initialPeriodName);
@@ -165,9 +186,9 @@ export const WhatsAppDuesReportModal: React.FC<WhatsAppDuesReportModalProps> = (
       greetingTime,
       customHeaderTitle: computedHeaderTitle,
       properties: currentProperties,
-      bankName: bankInfo.bankName,
-      bankAccountNumber: bankInfo.accountNumber,
-      bankAccountHolder: bankInfo.accountHolder,
+      bankName: activeBank.bankName || 'Bank Mandiri',
+      bankAccountNumber: activeBank.accountNumber || '1300024446419',
+      bankAccountHolder: activeBank.accountHolder || 'Paguyuban Grand Sariwangi',
       transparencyUrl,
       rekapUrl,
       kepalaKomplekName,
@@ -179,7 +200,7 @@ export const WhatsAppDuesReportModal: React.FC<WhatsAppDuesReportModalProps> = (
     greetingTime,
     computedHeaderTitle,
     currentProperties,
-    bankInfo,
+    activeBank,
     transparencyUrl,
     rekapUrl,
     kepalaKomplekName,

@@ -45,6 +45,21 @@ import { formatRupiah } from '../../lib/format';
 import { ReceiptModal } from '../shared/ReceiptModal';
 import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
 
+const MONTH_MAP: Record<string, number> = {
+  januari: 1, jan: 1,
+  februari: 2, feb: 2,
+  maret: 3, mar: 3,
+  april: 4, apr: 4,
+  mei: 5,
+  juni: 6, jun: 6,
+  juli: 7, jul: 7,
+  agustus: 8, agu: 8, ags: 8,
+  september: 9, sep: 9,
+  oktober: 10, okt: 10,
+  november: 11, nov: 11,
+  desember: 12, des: 12,
+};
+
 interface InvoiceItem {
   id: string;
   invoiceNumber: string;
@@ -140,6 +155,49 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
   const [matrixYear] = useState<number>(2026);
   const [isMounted, setIsMounted] = useState(false);
+
+  // Dynamic Master Bank Account
+  const [activeBankInfo, setActiveBankInfo] = useState(() => {
+    let bName = 'Bank Mandiri';
+    let bAcc = '1300024446419';
+    let bHolder = 'Paguyuban Grand Sariwangi';
+    if (typeof window !== 'undefined') {
+      try {
+        const savedAccounts = localStorage.getItem('wargahub_bank_accounts');
+        if (savedAccounts) {
+          const list = JSON.parse(savedAccounts);
+          const primary = list.find((a: any) => a.isPrimary) || list[0];
+          if (primary && primary.accountNumber && primary.accountNumber !== 'BCA_MAIN') {
+            bName = primary.bankName || bName;
+            bAcc = primary.accountNumber;
+            bHolder = primary.accountHolder || bHolder;
+          }
+        } else {
+          const sB = localStorage.getItem('wargahub_set_bankname');
+          const sA = localStorage.getItem('wargahub_set_bankacc');
+          const sH = localStorage.getItem('wargahub_set_accholder');
+          if (sB) bName = JSON.parse(sB);
+          if (sA) bAcc = JSON.parse(sA);
+          if (sH) bHolder = JSON.parse(sH);
+        }
+      } catch (e) {}
+    }
+    return { bankName: bName, accountNumber: bAcc, accountHolder: bHolder };
+  });
+
+  useEffect(() => {
+    const handleBankUpdated = (e: any) => {
+      if (e.detail) {
+        setActiveBankInfo((prev) => ({
+          bankName: e.detail.bankName || prev.bankName,
+          accountNumber: e.detail.accountNumber || prev.accountNumber,
+          accountHolder: e.detail.accountHolder || prev.accountHolder,
+        }));
+      }
+    };
+    window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -361,25 +419,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   }, [clusterProperties, allInvoices, invoices, MONTHS_LIST]);
 
   const getAnnualWaReminderUrl = (row: any) => {
-    let bankTitle = 'Bank Mandiri';
-    let bankNumber = '1300024446419';
-    let bankHolder = 'Paguyuban Grand Sariwangi';
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_bank_accounts');
-        if (saved) {
-          const accs = JSON.parse(saved);
-          if (Array.isArray(accs) && accs.length > 0) {
-            const pri = accs.find((a: any) => a.isPrimary) || accs[0];
-            if (pri && pri.accountNumber !== 'BCA_MAIN') {
-              bankTitle = pri.bankName || bankTitle;
-              bankNumber = pri.accountNumber || bankNumber;
-              bankHolder = pri.accountHolder || bankHolder;
-            }
-          }
-        }
-      } catch (e) {}
-    }
+    const bankTitle = activeBankInfo.bankName || 'Bank Mandiri';
+    const bankNumber = activeBankInfo.accountNumber || '1300024446419';
+    const bankHolder = activeBankInfo.accountHolder || 'Paguyuban Grand Sariwangi';
 
     const monthsStr = row.unpaidMonthsNames.join(', ');
     const msg =
@@ -1148,25 +1190,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
 
   // WhatsApp Reminder Link Generator
   const getWaReminderUrl = (inv: InvoiceItem) => {
-    let bankTitle = 'Bank Mandiri';
-    let bankNumber = '1300024446419';
-    let bankHolder = 'Paguyuban Grand Sariwangi';
-    if (isMounted && typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_bank_accounts');
-        if (saved) {
-          const accs = JSON.parse(saved);
-          if (Array.isArray(accs) && accs.length > 0) {
-            const pri = accs.find((a: any) => a.isPrimary) || accs[0];
-            if (pri && pri.accountNumber !== 'BCA_MAIN') {
-              bankTitle = pri.bankName || bankTitle;
-              bankNumber = pri.accountNumber || bankNumber;
-              bankHolder = pri.accountHolder || bankHolder;
-            }
-          }
-        }
-      } catch (e) {}
-    }
+    const bankTitle = activeBankInfo.bankName || 'Bank Mandiri';
+    const bankNumber = activeBankInfo.accountNumber || '1300024446419';
+    const bankHolder = activeBankInfo.accountHolder || 'Paguyuban Grand Sariwangi';
     const matched = clusterProperties.find(p => p.code.toLowerCase() === inv.propertyCode.toLowerCase());
     const resident = inv.residentName || (inv.ownerName && !inv.ownerName.startsWith('Warga Rumah') ? inv.ownerName : null) || matched?.residentName || matched?.ownerName || '';
     const greeting = resident ? `Halo Bapak/Ibu ${resident} (${inv.propertyCode}) 🌿` : `Halo Bapak/Ibu Warga ${inv.propertyCode} 🌿`;
@@ -3046,9 +3072,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
         availablePeriods={availablePeriods}
         properties={reportProperties}
         bankInfo={{
-          bankName: 'Bank Mandiri',
-          accountNumber: '1300024446419',
-          accountHolder: 'Paguyuban Grand Sariwangi',
+          bankName: activeBankInfo.bankName || 'Bank Mandiri',
+          accountNumber: activeBankInfo.accountNumber || '1300024446419',
+          accountHolder: activeBankInfo.accountHolder || 'Paguyuban Grand Sariwangi',
         }}
         transparencyUrl="https://wrghub.vercel.app/transparency"
         rekapUrl="https://wrghub.vercel.app/rekap-iuran"

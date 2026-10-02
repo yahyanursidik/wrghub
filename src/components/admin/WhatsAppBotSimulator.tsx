@@ -268,8 +268,53 @@ export const WhatsAppBotSimulator: React.FC<WhatsAppBotSimulatorProps> = ({
   const [varResidentName, setVarResidentName] = useState('Bpk. Budi Santoso');
   const [varHouseUnit, setVarHouseUnit] = useState('Kav I (Klaster 14 Kavling)');
   const [varMonthPeriod, setVarMonthPeriod] = useState('September 2026');
+  // Master Bank State (Single Source of Truth)
+  const [masterBank, setMasterBank] = useState(() => {
+    let bName = 'Bank Mandiri';
+    let bAcc = '1300024446419';
+    let bHolder = 'Paguyuban Grand Sariwangi';
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wargahub_bank_accounts');
+        if (saved) {
+          const list = JSON.parse(saved);
+          const pri = list.find((a: any) => a.isPrimary) || list[0];
+          if (pri && pri.accountNumber && pri.accountNumber !== 'BCA_MAIN') {
+            bName = pri.bankName || bName;
+            bAcc = pri.accountNumber;
+            bHolder = pri.accountHolder || bHolder;
+          }
+        } else {
+          const sB = localStorage.getItem('wargahub_set_bankname');
+          const sA = localStorage.getItem('wargahub_set_bankacc');
+          const sH = localStorage.getItem('wargahub_set_accholder');
+          if (sB) bName = JSON.parse(sB);
+          if (sA) bAcc = JSON.parse(sA);
+          if (sH) bHolder = JSON.parse(sH);
+        }
+      } catch (e) {}
+    }
+    return { bankName: bName, accountNumber: bAcc, accountHolder: bHolder };
+  });
+
+  const [varBankAccount, setVarBankAccount] = useState(() =>
+    `${masterBank.bankName} ${masterBank.accountNumber} (${masterBank.accountHolder.toUpperCase()})`
+  );
+
+  useEffect(() => {
+    const handleBankUpdated = (e: any) => {
+      if (e.detail) {
+        const bN = e.detail.bankName || masterBank.bankName;
+        const bA = e.detail.accountNumber || masterBank.accountNumber;
+        const bH = e.detail.accountHolder || masterBank.accountHolder;
+        setMasterBank({ bankName: bN, accountNumber: bA, accountHolder: bH });
+        setVarBankAccount(`${bN} ${bA} (${bH.toUpperCase()})`);
+      }
+    };
+    window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+  }, [masterBank]);
   const [varAmount, setVarAmount] = useState('250.000');
-  const [varBankAccount, setVarBankAccount] = useState('Bank Mandiri 1300024446419 (PAGUYUBAN GRAND SARIWANGI)');
   const [varDueDate, setVarDueDate] = useState('25 September 2026');
   const [varPortalLink, setVarPortalLink] = useState('https://wrghub.vercel.app/');
   const [varEventName, setVarEventName] = useState('Musyawarah Warga Pemilihan RT/RW');
@@ -423,9 +468,9 @@ export const WhatsAppBotSimulator: React.FC<WhatsAppBotSimulatorProps> = ({
         reportDate: varDueDate || getIndonesianFormattedDate(),
         greetingTime: 'wengi/pagi',
         properties: liveReportData.items,
-        bankName: 'Bank Mandiri',
-        bankAccountNumber: '1300024446419',
-        bankAccountHolder: 'Paguyuban Grand Sariwangi',
+        bankName: masterBank.bankName || 'Bank Mandiri',
+        bankAccountNumber: masterBank.accountNumber || '1300024446419',
+        bankAccountHolder: masterBank.accountHolder || 'Paguyuban Grand Sariwangi',
         transparencyUrl: 'https://wrghub.vercel.app/transparency',
         rekapUrl: 'https://wrghub.vercel.app/rekap-iuran',
         kepalaKomplekName: 'Yahya Nursidik',
@@ -661,7 +706,7 @@ export const WhatsAppBotSimulator: React.FC<WhatsAppBotSimulatorProps> = ({
     if (clean === '1' || clean.toLowerCase().includes('iuran') || clean.toLowerCase().includes('tagihan')) {
       reply = `📄 *STATUS IURAN UNIT KAV I* 🌿\nPeriode: September 2026\nPenghuni: Pak Yahya\nStatus: *LUNAS (TERVERIFIKASI)* ✅\nNominal: Rp 250.000\n\nKuitansi digital: https://wrghub.vercel.app/transparency`;
     } else if (clean === '2' || clean.toLowerCase().includes('rekening') || clean.toLowerCase().includes('transfer')) {
-      reply = `💳 *REKENING KAS RESMI PAGUYUBAN GRAND SARIWANGI*\nBank: Bank Mandiri\nNo. Rekening: *1300024446419*\na.n: *Paguyuban Grand Sariwangi*\n\n(Pengurus tidak pernah menerima iuran melalui rekening pribadi individu)`;
+      reply = `💳 *REKENING KAS RESMI PAGUYUBAN GRAND SARIWANGI*\nBank: ${masterBank.bankName || 'Bank Mandiri'}\nNo. Rekening: *${masterBank.accountNumber || '1300024446419'}*\na.n: *${masterBank.accountHolder || 'Paguyuban Grand Sariwangi'}*\n\n(Pengurus tidak pernah menerima iuran melalui rekening pribadi individu)`;
     } else if (clean === '3' || clean.toLowerCase().includes('satpam') || clean.toLowerCase().includes('darurat')) {
       reply = `🚨 *KONTAK DARURAT POS SATPAM*\nKomplek Grand Sariwangi (24 Jam):\nPetugas: Pa Adri Harry\n📞 Telepon / WA: 0812-7777-8888\nLokasi: Pos Gerbang Utama`;
     } else if (clean === '4' || clean.toLowerCase().includes('booking') || clean.toLowerCase().includes('balai')) {

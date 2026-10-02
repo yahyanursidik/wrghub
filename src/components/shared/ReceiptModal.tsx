@@ -104,6 +104,49 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, dat
     return 'Yahya Nursidik';
   })() : (data.treasurerName || 'Yahya Nursidik');
 
+  // Master Bank Account State
+  const [masterBank, setMasterBank] = useState(() => {
+    let bName = 'Bank Mandiri';
+    let bAcc = '1300024446419';
+    let bHolder = 'Paguyuban Grand Sariwangi';
+    if (typeof window !== 'undefined') {
+      try {
+        const savedAccounts = localStorage.getItem('wargahub_bank_accounts');
+        if (savedAccounts) {
+          const list = JSON.parse(savedAccounts);
+          const pri = list.find((a: any) => a.isPrimary) || list[0];
+          if (pri && pri.accountNumber && pri.accountNumber !== 'BCA_MAIN') {
+            bName = pri.bankName || bName;
+            bAcc = pri.accountNumber;
+            bHolder = pri.accountHolder || bHolder;
+          }
+        } else {
+          const sB = localStorage.getItem('wargahub_set_bankname');
+          const sA = localStorage.getItem('wargahub_set_bankacc');
+          const sH = localStorage.getItem('wargahub_set_accholder');
+          if (sB) bName = JSON.parse(sB);
+          if (sA) bAcc = JSON.parse(sA);
+          if (sH) bHolder = JSON.parse(sH);
+        }
+      } catch (e) {}
+    }
+    return { bankName: bName, accountNumber: bAcc, accountHolder: bHolder };
+  });
+
+  React.useEffect(() => {
+    const handleBankUpdated = (e: any) => {
+      if (e.detail) {
+        setMasterBank((prev) => ({
+          bankName: e.detail.bankName || prev.bankName,
+          accountNumber: e.detail.accountNumber || prev.accountNumber,
+          accountHolder: e.detail.accountHolder || prev.accountHolder,
+        }));
+      }
+    };
+    window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+  }, []);
+
   const [sigLayoutMode, setSigLayoutMode] = useState<'KEPALA_ONLY' | 'DUAL'>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -330,15 +373,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, dat
               <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
                 <div className="p-2 bg-white rounded-lg border border-primary-100">
                   <span className="text-[9px] text-ink-muted block uppercase font-sans font-bold">Bank Kas</span>
-                  <strong>Jago Syariah / BSI</strong>
+                  <strong>{masterBank.bankName}</strong>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-primary-100">
                   <span className="text-[9px] text-ink-muted block uppercase font-sans font-bold">Nomor Rekening</span>
-                  <strong className="text-primary-800 select-all">505621101851</strong>
+                  <strong className="text-primary-800 select-all">{masterBank.accountNumber}</strong>
                 </div>
               </div>
               <p className="text-[10px] text-primary-800 italic">
-                Atas Nama: <strong>Yahya Nursidik</strong> (Bendahara / Pengurus Komplek Grand Sariwangi)
+                Atas Nama: <strong>{masterBank.accountHolder}</strong> ({kasManager} / Pengurus Komplek Grand Sariwangi)
               </p>
             </div>
           )}

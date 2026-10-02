@@ -257,6 +257,24 @@ export async function deleteExpense(expenseId: string) {
   }
 }
 
+export async function deleteExpenses(expenseIds: string[]) {
+  if (!expenseIds || expenseIds.length === 0) return { success: true, count: 0 };
+  
+  let deletedCount = 0;
+  for (const id of expenseIds) {
+    try {
+      const res = await deleteExpense(id);
+      if (res && res.success) {
+        deletedCount++;
+      }
+    } catch (err) {
+      console.warn(`Error deleting expense ${id}:`, err);
+    }
+  }
+
+  return { success: true, count: deletedCount };
+}
+
 export async function deleteLedgerEntry(ledgerId: string) {
   if (process.env.DATABASE_URL) {
     try {

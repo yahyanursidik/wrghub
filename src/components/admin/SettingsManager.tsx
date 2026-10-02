@@ -179,9 +179,15 @@ export const DEFAULT_CLUSTER_GUARDS: ClusterSecurityGuard[] = [
 
 interface SettingsManagerProps {
   initialTab?: string;
+  initialSettings?: any;
+  initialAccounts?: any[];
 }
 
-export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = 'branding' }) => {
+export const SettingsManager: React.FC<SettingsManagerProps> = ({
+  initialTab = 'branding',
+  initialSettings,
+  initialAccounts,
+}) => {
   // Persistence helpers
   const getPersisted = <T,>(key: string, fallback: T): T => {
     if (typeof window === 'undefined') return fallback;
@@ -219,7 +225,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = '
       if (tabParam === 'passwords' || tabParam === 'users' || tabParam === 'auth' || tabParam === 'password') {
         return 'passwords';
       }
-      if (tabParam === 'financial' || tabParam === 'keuangan' || tabParam === 'tarif' || tabParam === 'billing' || tabParam === 'tariffs') {
+      if (
+        tabParam === 'financial' ||
+        tabParam === 'keuangan' ||
+        tabParam === 'tarif' ||
+        tabParam === 'billing' ||
+        tabParam === 'tariffs' ||
+        tabParam === 'bank' ||
+        tabParam === 'rekening' ||
+        tabParam === 'account'
+      ) {
         return 'finances';
       }
       if (tabParam && ['branding', 'profile', 'finances', 'security', 'sanitation', 'notifications', 'committee', 'inputs_directory'].includes(tabParam)) {
@@ -363,10 +378,36 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = '
   const [dueDay, setDueDay] = useState(() => getPersisted('wargahub_set_dueday', '10'));
   const [gracePeriodDays, setGracePeriodDays] = useState(() => getPersisted('wargahub_set_grace_days', '5'));
   const [latePenaltyType, setLatePenaltyType] = useState(() => getPersisted('wargahub_set_penalty_type', 'NONE'));
-  const [bankName, setBankName] = useState(() => getPersisted('wargahub_set_bankname', 'Bank Kas Paguyuban (Bank Syariah / Kas Utama)'));
-  const [bankAccount, setBankAccount] = useState(() => getPersisted('wargahub_set_bankacc', '8830-1928-33'));
-  const [accountHolder, setAccountHolder] = useState(() => getPersisted('wargahub_set_accholder', 'PENGURUS KOMPLEK WARGAHUB'));
-  const [qrisNmid, setQrisNmid] = useState(() => getPersisted('wargahub_set_qris', 'ID1020088921829'));
+  const [bankName, setBankName] = useState(() => {
+    const saved = getPersisted<string>('wargahub_set_bankname', '');
+    if (saved && !saved.includes('Bank Kas Paguyuban (Bank Syariah / Kas Utama)')) return saved;
+    if (initialSettings?.bankName) return initialSettings.bankName;
+    const mainAcc = initialAccounts?.find((a: any) => a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.type === 'BANK');
+    if (mainAcc && (mainAcc.bank_name || mainAcc.bankName)) return mainAcc.bank_name || mainAcc.bankName;
+    return 'Bank Mandiri';
+  });
+  const [bankAccount, setBankAccount] = useState(() => {
+    const saved = getPersisted<string>('wargahub_set_bankacc', '');
+    if (saved && saved !== '8830-1928-33') return saved;
+    if (initialSettings?.bankAccount) return initialSettings.bankAccount;
+    const mainAcc = initialAccounts?.find((a: any) => a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.type === 'BANK');
+    if (mainAcc && (mainAcc.account_number || mainAcc.accountNumber) && (mainAcc.account_number || mainAcc.accountNumber) !== '-') {
+      return mainAcc.account_number || mainAcc.accountNumber;
+    }
+    return '1300024446419';
+  });
+  const [accountHolder, setAccountHolder] = useState(() => {
+    const saved = getPersisted<string>('wargahub_set_accholder', '');
+    if (saved && !saved.includes('PENGURUS KOMPLEK WARGAHUB')) return saved;
+    if (initialSettings?.accountHolder) return initialSettings.accountHolder;
+    return 'Paguyuban Grand Sariwangi';
+  });
+  const [qrisNmid, setQrisNmid] = useState(() => {
+    const saved = getPersisted<string>('wargahub_set_qris', '');
+    if (saved) return saved;
+    if (initialSettings?.qrisNmid) return initialSettings.qrisNmid;
+    return 'ID102008891230';
+  });
 
   // Master Komponen Alokasi Pengeluaran Riil (Khusus Grand Sariwangi)
   const [expenseComponents, setExpenseComponents] = useState<ExpenseComponentConfig[]>(() => {
@@ -726,17 +767,71 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = '
         }));
       }
 
-      // 9. Sync Bank Account list for payment portals
-      savePersisted('wargahub_bank_accounts', [
-        {
-          id: 'acc-bca',
-          bankName: bankName,
-          accountNumber: bankAccount,
-          accountHolder: accountHolder,
-          isPrimary: true,
-          qrisNmid: qrisNmid
+      // 9. Sync Bank Account list for payment portals & global listeners
+      const masterAccountItem = {
+        id: 'acc-main',
+        code: 'BCA_MAIN',
+        name: `Rekening Kas Paguyuban (${bankName})`,
+        bankName: bankName,
+        accountNumber: bankAccount,
+        accountHolder: accountHolder,
+        isPrimary: true,
+        qrisNmid: qrisNmid,
+      };
+
+      savePersisted('wargahub_bank_accounts', [masterAccountItem]);
+
+      // Sync wargahub_custom_accounts so LedgerManager stays perfectly aligned
+      try {
+        const customAccs = localStorage.getItem('wargahub_custom_accounts');
+        if (customAccs) {
+          const parsed = JSON.parse(customAccs);
+          if (Array.isArray(parsed)) {
+            const updated = parsed.map((a: any) =>
+              a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.type === 'BANK'
+                ? {
+                    ...a,
+                    bankName: bankName,
+                    accountNumber: bankAccount,
+                    account_number: bankAccount,
+                    bank_name: bankName,
+                    name: `Rekening Kas Paguyuban (${bankName})`,
+                  }
+                : a
+            );
+            localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updated));
+          }
         }
-      ]);
+      } catch (e) {}
+
+      // Dispatch global events for instant reactivity across all pages & tabs
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('wargahub_bank_accounts_updated', {
+            detail: {
+              bankName,
+              accountNumber: bankAccount,
+              accountHolder,
+              qrisNmid,
+              isPrimary: true,
+            },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent('wargahub_settings_updated', {
+            detail: {
+              communityName,
+              rtRw,
+              address,
+              bankName,
+              bankAccount,
+              accountHolder,
+              qrisNmid,
+              monthlyRate: totalTariff,
+            },
+          })
+        );
+      }
 
       setSaved(true);
       showToast('Seluruh pengaturan, judul & sub-judul sistem berhasil disimpan dan seketika aktif!');
@@ -765,6 +860,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = '
       category: 'KEUANGAN, IURAN & KASBON',
       color: 'border-emerald-200 bg-emerald-50/40 text-emerald-900',
       items: [
+        { title: '🏛️ Atur Rekening Master Kas Paguyuban', url: '/admin/settings?tab=finances#bank-account', desc: 'Setting nomor rekening kas resmi yang otomatis tampil di seluruh modul & laporan.', icon: CreditCard },
         { title: 'Terbitkan Tagihan Iuran Bulanan (Billing)', url: '/admin/billing', desc: 'Generate invoice iuran bulanan per unit atau massal seluruh rumah warga.', icon: Receipt },
         { title: 'Input Pembayaran & Verifikasi Transfer/QRIS', url: '/admin/payments', desc: 'Verifikasi setoran iuran warga, catat pembayaran tunai/manual & cetak kuitansi.', icon: CreditCard },
         { title: 'Input Pengeluaran Operasional Kas', url: '/admin/expenses', desc: 'Catat voucher belanja, kuitansi keluar kas, dan upload bukti transfer belanja.', icon: DollarSign },
@@ -1659,63 +1755,122 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({ initialTab = '
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-border">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-ink block">Nama Bank Kas Paguyuban *</label>
-                  <span className="text-[10px] text-ink-muted">Preset Cepat:</span>
+            {/* MASTER REKENING KAS PAGUYUBAN (SINGLE SOURCE OF TRUTH) */}
+            <div id="bank-account" className="mt-4 pt-4 border-t border-border space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-primary-50/60 p-4 rounded-2xl border border-primary-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-sm text-primary-950">Rekening Bank Kas Utama Paguyuban (Master)</h4>
+                      <span className="text-[10px] font-bold bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full border border-primary-300">
+                        Single Source of Truth
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-primary-800 mt-0.5 leading-relaxed">
+                      Pengaturan rekening master ini tersinkronisasi otomatis ke: <strong>Transparansi Publik</strong> (/transparency), <strong>Rekap Iuran Warga</strong> (/rekap-iuran), <strong>WhatsApp Tagihan & Bot</strong> (/admin/billing), <strong>AI Chatbot</strong>, <strong>Portal Warga</strong>, <strong>Slip Kuitansi</strong>, serta <strong>Buku Kas Ledger</strong>.
+                    </p>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  required
-                  placeholder="Contoh: Bank Syariah Indonesia (BSI) / GoPay Kas"
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {[
-                    { label: '🌙 BSI', val: 'Bank Syariah Indonesia (BSI)' },
-                    { label: '🌙 Muamalat', val: 'Bank Muamalat Indonesia' },
-                    { label: '🌙 BCA Syariah', val: 'BCA Syariah' },
-                    { label: '💳 GoPay Kas', val: 'GoPay Kas Paguyuban' },
-                    { label: '💳 DANA Bisnis', val: 'DANA Bisnis Kas Paguyuban' },
-                    { label: '🏦 BCA', val: 'Bank Central Asia (BCA)' },
-                    { label: '🏦 Mandiri', val: 'Bank Mandiri' },
-                    { label: '🏦 BRI', val: 'Bank Rakyat Indonesia (BRI)' },
-                  ].map((p, idx) => (
+
+                <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+                  <a
+                    href="/transparency"
+                    target="_blank"
+                    className="px-2.5 py-1.5 bg-white border border-primary-200 hover:bg-primary-50 text-primary-700 text-[11px] font-bold rounded-lg inline-flex items-center gap-1 transition-all shadow-2xs"
+                  >
+                    <span>Cek /transparency</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href="/rekap-iuran"
+                    target="_blank"
+                    className="px-2.5 py-1.5 bg-white border border-primary-200 hover:bg-primary-50 text-primary-700 text-[11px] font-bold rounded-lg inline-flex items-center gap-1 transition-all shadow-2xs"
+                  >
+                    <span>Cek /rekap-iuran</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-ink block text-xs">Nama Bank Kas Paguyuban *</label>
+                    <span className="text-[10px] text-ink-muted">Pilihan Bank:</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    required
+                    placeholder="Contoh: Bank Mandiri / Bank Syariah Indonesia"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-sm focus:ring-2 focus:ring-primary-500/20"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[
+                      { label: '🏦 Mandiri', val: 'Bank Mandiri' },
+                      { label: '🌙 BSI', val: 'Bank Syariah Indonesia (BSI)' },
+                      { label: '🏦 BCA', val: 'Bank Central Asia (BCA)' },
+                      { label: '🏦 BRI', val: 'Bank Rakyat Indonesia (BRI)' },
+                      { label: '💳 Jago Syariah', val: 'Bank Jago Syariah' },
+                      { label: '💳 GoPay Kas', val: 'GoPay Kas Paguyuban' },
+                    ].map((p, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setBankName(p.val)}
+                        className={`px-2 py-0.5 border rounded text-[10px] font-semibold transition-all ${
+                          bankName === p.val
+                            ? 'bg-primary-100 border-primary-300 text-primary-900 font-bold'
+                            : 'bg-surface hover:bg-canvas border-border text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-ink block text-xs">Nomor Rekening Bank *</label>
                     <button
-                      key={idx}
                       type="button"
-                      onClick={() => setBankName(p.val)}
-                      className="px-2 py-0.5 bg-surface hover:bg-canvas border border-border rounded text-[10px] font-semibold text-ink-muted hover:text-ink transition-colors"
+                      onClick={() => {
+                        navigator.clipboard.writeText(bankAccount);
+                        showToast(`Nomor rekening ${bankAccount} disalin ke clipboard!`);
+                      }}
+                      className="text-[10px] text-primary-700 hover:underline font-semibold"
                     >
-                      {p.label}
+                      Salin Rekening
                     </button>
-                  ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={bankAccount}
+                    onChange={(e) => setBankAccount(e.target.value)}
+                    required
+                    placeholder="Contoh: 1300024446419"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono font-black text-ink text-sm tracking-wider focus:ring-2 focus:ring-primary-500/20"
+                  />
+                  <span className="text-[10px] text-ink-muted mt-1 block">Nomor rekening kas aktif yang menerima setoran warga</span>
                 </div>
-              </div>
 
-              <div>
-                <label className="font-bold text-ink block mb-1">Nomor Rekening Bank *</label>
-                <input
-                  type="text"
-                  value={bankAccount}
-                  onChange={(e) => setBankAccount(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono font-black text-ink text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Nama Pemilik Rekening (Atas Nama) *</label>
-                <input
-                  type="text"
-                  value={accountHolder}
-                  onChange={(e) => setAccountHolder(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
+                <div>
+                  <label className="font-bold text-ink block mb-1 text-xs">Nama Pemilik Rekening (Atas Nama) *</label>
+                  <input
+                    type="text"
+                    value={accountHolder}
+                    onChange={(e) => setAccountHolder(e.target.value)}
+                    required
+                    placeholder="Contoh: Paguyuban Grand Sariwangi"
+                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-sm focus:ring-2 focus:ring-primary-500/20"
+                  />
+                  <span className="text-[10px] text-ink-muted mt-1 block">Nama resmi akun kas atau nama bendahara/paguyuban</span>
+                </div>
               </div>
             </div>
           </div>

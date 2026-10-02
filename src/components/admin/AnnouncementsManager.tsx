@@ -264,7 +264,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
       name: 'Pengingat Pembayaran Iuran Bulanan',
       category: 'KEUANGAN',
       subject: 'PENGINGAT IURAN KOMPLEK WARGAHUB',
-      content: 'Kepada Yth. Bapak/Ibu Warga Komplek,\n\nKami mengingatkan bahwa tagihan iuran bulan berjalan telah terbit. Mohon melakukan penyetoran sebelum tanggal 15 melalui transfer Rekening Kas Paguyuban (Bank Syariah / Bank Nasional) 8830-1928-33 a.n PENGURUS KOMPLEK atau QRIS di portal WargaHub.\n\nTerima kasih atas partisipasi aktif Bapak/Ibu dalam menjaga kenyamanan komplek kita.'
+      content: 'Kepada Yth. Bapak/Ibu Warga Komplek,\n\nKami mengingatkan bahwa tagihan iuran bulan berjalan telah terbit. Mohon melakukan penyetoran sebelum tanggal 15 melalui transfer Rekening Kas Paguyuban (Bank Mandiri: 1300024446419 a.n Paguyuban Grand Sariwangi) atau QRIS di portal WargaHub.\n\nTerima kasih atas partisipasi aktif Bapak/Ibu dalam menjaga kenyamanan komplek kita.'
     },
     {
       id: 'TPL-02',

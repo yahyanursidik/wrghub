@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Home,
   Users,
@@ -71,7 +71,7 @@ import {
   type VehicleItem,
   type PermitItem,
   type UtilityItem,
-} from '../../services/property-submodules.service';
+} from '../../types/property-submodules';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 
 interface PropertiesManagerProps {
@@ -91,7 +91,8 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   initialPermits,
   initialUtilities,
 }) => {
-  const resolveTab = (t: string): 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics' => {
+  const resolveTab = (t?: string): 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics' => {
+    if (!t) return 'units';
     if (t === 'occupants' || t === 'residents') return 'residents';
     if (t === 'owners') return 'units';
     if (t === 'vehicles' || t === 'rfid') return 'vehicles';
@@ -100,16 +101,43 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     return 'units';
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'units' | 'residents' | 'vehicles' | 'permits' | 'analytics'>(resolveTab(initialTab));
+  const [activeSubTab, setActiveSubTab] = useState<'units' | 'residents' | 'vehicles' | 'permits' | 'analytics'>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const qTab = p.get('tab');
+      if (qTab) return resolveTab(qTab);
+    }
+    return resolveTab(initialTab);
+  });
 
   const handleTabChange = (tab: 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics') => {
     setActiveSubTab(tab);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', tab);
-      window.history.replaceState({}, '', url.toString());
+      window.history.pushState({ tab }, '', url.toString());
     }
   };
+
+  // Synchronize activeSubTab if initialTab changes (Astro View Transitions)
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSubTab(resolveTab(initialTab));
+    }
+  }, [initialTab]);
+
+  // Listen to browser Back/Forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const p = new URLSearchParams(window.location.search);
+        const qTab = p.get('tab') || 'units';
+        setActiveSubTab(resolveTab(qTab));
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties || []);
   const [search, setSearch] = useState('');
@@ -222,61 +250,80 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         const savedResidents = localStorage.getItem('wargahub_residents');
         const deletedResStr = localStorage.getItem('wargahub_deleted_residents');
         const deletedResIds: string[] = deletedResStr ? JSON.parse(deletedResStr) : [];
+
+        // Detect and purge old mock dummy data
+        const isMockResident = (r: any) =>
+          r.fullName === 'Bu Viny' ||
+          r.fullName === 'Kenzo Verial' ||
+          r.fullName === 'Mahasiswa Polban' ||
+          r.fullName === 'Dr. Handoko' ||
+          r.fullName === 'Farhan Gunawan' ||
+          r.idCard === '3204281404840001' ||
+          r.birthPlaceDate === 'Jakarta, 22-09-1986' ||
+          (typeof r.id === 'string' && r.id.startsWith('res-kav-a-'));
+
         if (savedResidents !== null) {
           const parsed = JSON.parse(savedResidents);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed) && parsed.some(isMockResident)) {
+            localStorage.removeItem('wargahub_residents');
+            const cleanResidents = (initialResidents || []).filter((r: any) => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
+            setResidents(cleanResidents);
+            localStorage.setItem('wargahub_residents', JSON.stringify(cleanResidents));
+          } else if (Array.isArray(parsed)) {
             setResidents(parsed.filter((r: any) => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName)));
-          } else {
-            const fallback = (initialResidents && initialResidents.length > 0 ? initialResidents : DEFAULT_RESIDENTS)
-              .filter(r => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
-            setResidents(fallback);
-            localStorage.setItem('wargahub_residents', JSON.stringify(fallback));
           }
         } else {
-          const fallback = (initialResidents && initialResidents.length > 0 ? initialResidents : DEFAULT_RESIDENTS)
-            .filter(r => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
-          setResidents(fallback);
-          localStorage.setItem('wargahub_residents', JSON.stringify(fallback));
+          const cleanResidents = (initialResidents || []).filter((r: any) => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
+          setResidents(cleanResidents);
+          localStorage.setItem('wargahub_residents', JSON.stringify(cleanResidents));
         }
+
+        const isMockVehicle = (v: any) =>
+          v.plateNumber === 'D 1234 VRL' ||
+          v.model === 'Innova Zenix 2.0 Hybrid' ||
+          v.model === 'PCX 160 ABS';
 
         const savedVehicles = localStorage.getItem('wargahub_vehicles');
         const deletedVehStr = localStorage.getItem('wargahub_deleted_vehicles');
         const deletedVehIds: string[] = deletedVehStr ? JSON.parse(deletedVehStr) : [];
         if (savedVehicles !== null) {
           const parsed = JSON.parse(savedVehicles);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed) && parsed.some(isMockVehicle)) {
+            localStorage.removeItem('wargahub_vehicles');
+            const cleanVeh = (initialVehicles || []).filter((v: any) => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
+            setVehicles(cleanVeh);
+            localStorage.setItem('wargahub_vehicles', JSON.stringify(cleanVeh));
+          } else if (Array.isArray(parsed)) {
             setVehicles(parsed.filter((v: any) => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber)));
-          } else {
-            const fallback = (initialVehicles && initialVehicles.length > 0 ? initialVehicles : DEFAULT_VEHICLES)
-              .filter(v => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
-            setVehicles(fallback);
-            localStorage.setItem('wargahub_vehicles', JSON.stringify(fallback));
           }
         } else {
-          const fallback = (initialVehicles && initialVehicles.length > 0 ? initialVehicles : DEFAULT_VEHICLES)
-            .filter(v => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
-          setVehicles(fallback);
-          localStorage.setItem('wargahub_vehicles', JSON.stringify(fallback));
+          const cleanVeh = (initialVehicles || []).filter((v: any) => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
+          setVehicles(cleanVeh);
+          localStorage.setItem('wargahub_vehicles', JSON.stringify(cleanVeh));
         }
+
+        const isMockPermit = (p: any) =>
+          p.id === 'PERMIT-KAV-D-01' ||
+          p.contractorName === 'Mandor Kang Asep' ||
+          p.contractorName === 'Mandor Pak Ujang';
 
         const savedPermits = localStorage.getItem('wargahub_permits');
         const deletedPermitStr = localStorage.getItem('wargahub_deleted_permits');
         const deletedPermitIds: string[] = deletedPermitStr ? JSON.parse(deletedPermitStr) : [];
         if (savedPermits !== null) {
           const parsed = JSON.parse(savedPermits);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed) && parsed.some(isMockPermit)) {
+            localStorage.removeItem('wargahub_permits');
+            const cleanPermits = (initialPermits || []).filter((p: any) => !deletedPermitIds.includes(p.id));
+            setPermits(cleanPermits);
+            localStorage.setItem('wargahub_permits', JSON.stringify(cleanPermits));
+          } else if (Array.isArray(parsed)) {
             setPermits(parsed.filter((p: any) => !deletedPermitIds.includes(p.id)));
-          } else {
-            const fallback = (initialPermits && initialPermits.length > 0 ? initialPermits : DEFAULT_PERMITS)
-              .filter(p => !deletedPermitIds.includes(p.id));
-            setPermits(fallback);
-            localStorage.setItem('wargahub_permits', JSON.stringify(fallback));
           }
         } else {
-          const fallback = (initialPermits && initialPermits.length > 0 ? initialPermits : DEFAULT_PERMITS)
-            .filter(p => !deletedPermitIds.includes(p.id));
-          setPermits(fallback);
-          localStorage.setItem('wargahub_permits', JSON.stringify(fallback));
+          const cleanPermits = (initialPermits || []).filter((p: any) => !deletedPermitIds.includes(p.id));
+          setPermits(cleanPermits);
+          localStorage.setItem('wargahub_permits', JSON.stringify(cleanPermits));
         }
 
         const savedUtilities = localStorage.getItem('wargahub_utilities');
@@ -287,16 +334,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
           if (Array.isArray(parsed) && parsed.length > 0) {
             setUtilities(parsed.filter((u: any) => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode)));
           } else {
-            const fallback = (initialUtilities && initialUtilities.length > 0 ? initialUtilities : DEFAULT_UTILITIES)
-              .filter(u => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
-            setUtilities(fallback);
-            localStorage.setItem('wargahub_utilities', JSON.stringify(fallback));
+            const cleanUtils = (initialUtilities || []).filter((u: any) => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
+            setUtilities(cleanUtils);
+            localStorage.setItem('wargahub_utilities', JSON.stringify(cleanUtils));
           }
         } else {
-          const fallback = (initialUtilities && initialUtilities.length > 0 ? initialUtilities : DEFAULT_UTILITIES)
-            .filter(u => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
-          setUtilities(fallback);
-          localStorage.setItem('wargahub_utilities', JSON.stringify(fallback));
+          const cleanUtils = (initialUtilities || []).filter((u: any) => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
+          setUtilities(cleanUtils);
+          localStorage.setItem('wargahub_utilities', JSON.stringify(cleanUtils));
         }
       } catch (e) {
         console.warn('Error reading from localStorage:', e);
@@ -313,7 +358,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [residentPageSize, setResidentPageSize] = useState(10);
 
   const [residents, setResidents] = useState<ResidentItem[]>(
-    initialResidents && initialResidents.length > 0 ? initialResidents : DEFAULT_RESIDENTS
+    initialResidents && initialResidents.length > 0 ? initialResidents : []
   );
 
   // Resident Form Modal State
@@ -352,7 +397,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [vehiclePageSize, setVehiclePageSize] = useState(10);
 
   const [vehicles, setVehicles] = useState<VehicleItem[]>(
-    initialVehicles && initialVehicles.length > 0 ? initialVehicles : DEFAULT_VEHICLES
+    initialVehicles && initialVehicles.length > 0 ? initialVehicles : []
   );
 
   // Vehicle Form Modal State
@@ -394,7 +439,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [permitPageSize, setPermitPageSize] = useState(10);
 
   const [permits, setPermits] = useState<PermitItem[]>(
-    initialPermits && initialPermits.length > 0 ? initialPermits : DEFAULT_PERMITS
+    initialPermits && initialPermits.length > 0 ? initialPermits : []
   );
 
   // Permit Form Modal State
@@ -436,7 +481,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [utilityPageSize, setUtilityPageSize] = useState(10);
 
   const [utilities, setUtilities] = useState<UtilityItem[]>(
-    initialUtilities && initialUtilities.length > 0 ? initialUtilities : DEFAULT_UTILITIES
+    initialUtilities && initialUtilities.length > 0 ? initialUtilities : []
   );
 
   // Utility Form Modal State
@@ -1489,21 +1534,24 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // 2. Filtered & Sorted Residents
   const filteredAndSortedResidents = useMemo(() => {
+    const q = (residentSearch || '').toLowerCase().trim();
     const list = (residents || []).filter((r) => {
-      const matchSearch = r.fullName.toLowerCase().includes(residentSearch.toLowerCase()) ||
-                          r.houseCode.toLowerCase().includes(residentSearch.toLowerCase()) ||
-                          r.occupation.toLowerCase().includes(residentSearch.toLowerCase()) ||
-                          (r.phone || '').includes(residentSearch);
+      const matchSearch = !q ||
+                          (r.fullName || '').toLowerCase().includes(q) ||
+                          (r.houseCode || '').toLowerCase().includes(q) ||
+                          (r.occupation || '').toLowerCase().includes(q) ||
+                          (r.idCard || '').toLowerCase().includes(q) ||
+                          (r.phone || '').includes(q);
       const matchCat = residentCategory === 'ALL' || r.relation === residentCategory || r.domicileStatus === residentCategory;
       return matchSearch && matchCat;
     });
 
     list.sort((a, b) => {
       let comparison = 0;
-      if (residentSortBy === 'fullName') comparison = a.fullName.localeCompare(b.fullName);
-      else if (residentSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
-      else if (residentSortBy === 'relation') comparison = a.relation.localeCompare(b.relation);
-      else if (residentSortBy === 'occupation') comparison = a.occupation.localeCompare(b.occupation);
+      if (residentSortBy === 'fullName') comparison = (a.fullName || '').localeCompare(b.fullName || '');
+      else if (residentSortBy === 'houseCode') comparison = (a.houseCode || '').localeCompare(b.houseCode || '', undefined, { numeric: true });
+      else if (residentSortBy === 'relation') comparison = (a.relation || '').localeCompare(b.relation || '');
+      else if (residentSortBy === 'occupation') comparison = (a.occupation || '').localeCompare(b.occupation || '');
       return residentSortOrder === 'asc' ? comparison : -comparison;
     });
 
@@ -1535,11 +1583,15 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // 3. Filtered & Sorted Vehicles
   const filteredAndSortedVehicles = useMemo(() => {
+    const q = (vehicleSearch || '').toLowerCase().trim();
     const list = (vehicles || []).filter((v) => {
-      const matchSearch = v.plateNumber.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
-                          v.houseCode.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
-                          v.ownerName.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
-                          v.rfidTag.toLowerCase().includes(vehicleSearch.toLowerCase());
+      const matchSearch = !q ||
+                          (v.plateNumber || '').toLowerCase().includes(q) ||
+                          (v.houseCode || '').toLowerCase().includes(q) ||
+                          (v.ownerName || '').toLowerCase().includes(q) ||
+                          (v.rfidTag || '').toLowerCase().includes(q) ||
+                          (v.brand || '').toLowerCase().includes(q) ||
+                          (v.model || '').toLowerCase().includes(q);
       const matchType = vehicleTypeFilter === 'ALL' || v.type === vehicleTypeFilter;
       const matchRfid = vehicleRfidFilter === 'ALL' || v.rfidStatus === vehicleRfidFilter;
       return matchSearch && matchType && matchRfid;
@@ -1547,9 +1599,11 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
     list.sort((a, b) => {
       let comparison = 0;
-      if (vehicleSortBy === 'plateNumber') comparison = a.plateNumber.localeCompare(b.plateNumber);
-      else if (vehicleSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
-      else if (vehicleSortBy === 'type') comparison = a.type.localeCompare(b.type);
+      if (vehicleSortBy === 'plateNumber') comparison = (a.plateNumber || '').localeCompare(b.plateNumber || '');
+      else if (vehicleSortBy === 'houseCode') comparison = (a.houseCode || '').localeCompare(b.houseCode || '', undefined, { numeric: true });
+      else if (vehicleSortBy === 'type') comparison = (a.type || '').localeCompare(b.type || '');
+      else if (vehicleSortBy === 'brand') comparison = (a.brand || '').localeCompare(b.brand || '');
+      else if (vehicleSortBy === 'rfidStatus') comparison = (a.rfidStatus || '').localeCompare(b.rfidStatus || '');
       return vehicleSortOrder === 'asc' ? comparison : -comparison;
     });
 
@@ -1565,22 +1619,24 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // 4. Filtered & Sorted Permits
   const filteredAndSortedPermits = useMemo(() => {
+    const q = (permitSearch || '').toLowerCase().trim();
     const list = (permits || []).filter((p) => {
-      const matchSearch = p.id.toLowerCase().includes(permitSearch.toLowerCase()) ||
-                          p.houseCode.toLowerCase().includes(permitSearch.toLowerCase()) ||
-                          p.ownerName.toLowerCase().includes(permitSearch.toLowerCase()) ||
-                          p.workType.toLowerCase().includes(permitSearch.toLowerCase()) ||
-                          p.contractorName.toLowerCase().includes(permitSearch.toLowerCase());
+      const matchSearch = !q ||
+                          (p.id || '').toLowerCase().includes(q) ||
+                          (p.houseCode || '').toLowerCase().includes(q) ||
+                          (p.ownerName || '').toLowerCase().includes(q) ||
+                          (p.workType || '').toLowerCase().includes(q) ||
+                          (p.contractorName || '').toLowerCase().includes(q);
       const matchStatus = permitStatusFilter === 'ALL' || p.status === permitStatusFilter;
-      const matchType = permitTypeFilter === 'ALL' || p.workType.includes(permitTypeFilter);
+      const matchType = permitTypeFilter === 'ALL' || (p.workType || '').includes(permitTypeFilter);
       return matchSearch && matchStatus && matchType;
     });
 
     list.sort((a, b) => {
       let comparison = 0;
-      if (permitSortBy === 'id') comparison = a.id.localeCompare(b.id);
-      else if (permitSortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
-      else if (permitSortBy === 'startDate') comparison = a.startDate.localeCompare(b.startDate);
+      if (permitSortBy === 'id') comparison = (a.id || '').localeCompare(b.id || '');
+      else if (permitSortBy === 'houseCode') comparison = (a.houseCode || '').localeCompare(b.houseCode || '', undefined, { numeric: true });
+      else if (permitSortBy === 'startDate') comparison = (a.startDate || '').localeCompare(b.startDate || '');
       return permitSortOrder === 'asc' ? comparison : -comparison;
     });
 
@@ -1596,11 +1652,13 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // 5. Filtered & Sorted Utilities
   const filteredAndSortedUtilities = useMemo(() => {
-    const list = utilities.filter((u) => {
-      const matchSearch = u.houseCode.toLowerCase().includes(utilitySearch.toLowerCase()) ||
-                          u.ownerName.toLowerCase().includes(utilitySearch.toLowerCase()) ||
-                          u.pamMeterNo.toLowerCase().includes(utilitySearch.toLowerCase()) ||
-                          u.plnCustomerId.toLowerCase().includes(utilitySearch.toLowerCase());
+    const q = (utilitySearch || '').toLowerCase().trim();
+    const list = (utilities || []).filter((u) => {
+      const matchSearch = !q ||
+                          (u.houseCode || '').toLowerCase().includes(q) ||
+                          (u.ownerName || '').toLowerCase().includes(q) ||
+                          (u.pamMeterNo || '').toLowerCase().includes(q) ||
+                          (u.plnCustomerId || '').toLowerCase().includes(q);
       const matchPln = utilityPlnFilter === 'ALL' || u.plnCapacity === utilityPlnFilter;
       const matchPayment = utilityPaymentFilter === 'ALL' || u.paymentStatus === utilityPaymentFilter;
       return matchSearch && matchPln && matchPayment;
@@ -1608,11 +1666,11 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
     list.sort((a, b) => {
       let comparison = 0;
-      if (utilitySortBy === 'houseCode') comparison = a.houseCode.localeCompare(b.houseCode, undefined, { numeric: true });
-      else if (utilitySortBy === 'plnCapacity') comparison = a.plnCapacity.localeCompare(b.plnCapacity);
-      else if (utilitySortBy === 'pamUsage') comparison = a.pamUsage - b.pamUsage;
-      else if (utilitySortBy === 'monthlyIplFee') comparison = a.monthlyIplFee - b.monthlyIplFee;
-      else if (utilitySortBy === 'paymentStatus') comparison = a.paymentStatus.localeCompare(b.paymentStatus);
+      if (utilitySortBy === 'houseCode') comparison = (a.houseCode || '').localeCompare(b.houseCode || '', undefined, { numeric: true });
+      else if (utilitySortBy === 'plnCapacity') comparison = (a.plnCapacity || '').localeCompare(b.plnCapacity || '');
+      else if (utilitySortBy === 'pamUsage') comparison = (a.pamUsage || 0) - (b.pamUsage || 0);
+      else if (utilitySortBy === 'monthlyIplFee') comparison = (a.monthlyIplFee || 0) - (b.monthlyIplFee || 0);
+      else if (utilitySortBy === 'paymentStatus') comparison = (a.paymentStatus || '').localeCompare(b.paymentStatus || '');
       return utilitySortOrder === 'asc' ? comparison : -comparison;
     });
 
@@ -1914,7 +1972,11 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       </div>
 
       {/* ================= SUBTAB NAVIGATION PILL BAR ================= */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border overflow-x-auto shadow-2xs">
+      <div 
+        role="tablist" 
+        aria-label="Navigasi Pengelolaan Unit dan Warga"
+        className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border overflow-x-auto shadow-2xs no-scrollbar"
+      >
         {[
           { id: 'units', label: 'Data Rumah & Kavling', icon: Home, count: `${properties.length} Unit` },
           { id: 'residents', label: 'Sensus Penghuni & Warga', icon: Users, count: `${residents.length} Jiwa` },
@@ -1927,9 +1989,13 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
           return (
             <button
               key={tab.id}
+              id={`tab-btn-${tab.id}`}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`tab-panel-${tab.id}`}
               type="button"
               onClick={() => handleTabChange(tab.id as any)}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 active:scale-[0.98] ${
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 active:scale-[0.98] cursor-pointer ${
                 isActive
                   ? 'bg-primary-600 text-white shadow-xs'
                   : 'text-ink-muted hover:text-ink hover:bg-canvas border border-transparent hover:border-border/60'

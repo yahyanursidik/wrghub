@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { neonSql } from '../../../db/neon';
+import { getMasterBankAccount } from '../../../services/settings.service';
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -19,8 +20,14 @@ export const POST: APIRoute = async ({ request }) => {
     let suggestedActions: string[] = [];
 
     // Context Evaluation Engine for WargaHub
-    if (q.includes('rekening') || q.includes('transfer') || q.includes('bayar') || q.includes('bank') || q.includes('bca') || q.includes('syariah') || q.includes('ewallet') || q.includes('gopay') || q.includes('dana')) {
-      reply = `Halo Bapak/Ibu! Untuk pembayaran iuran bulanan (IPL) Komplek Grand Sariwangi sebesar **Rp 250.000 / bulan**, silakan transfer ke rekening resmi kas paguyuban (Bank Syariah / Bank Kas Utama):\n\n🌙 **Bank Kas Paguyuban (Bank Jago Syariah / BSI / Kas Utama)**\n💳 **No. Rekening:** \`505621101851\`\n👤 **Atas Nama:** PENGURUS KOMPLEK GRAND SARIWANGI\n📱 **QRIS:** Mendukung GoPay, DANA, OVO, ShopeePay, BSI Mobile, Livin', dll.\n\nSetelah transfer, jangan lupa unggah bukti pembayaran di menu *Bayar Iuran* untuk mendapatkan kuitansi berstempel digital resmi ya!`;
+    if (q.includes('rekening') || q.includes('transfer') || q.includes('bayar') || q.includes('bank') || q.includes('bca') || q.includes('mandiri') || q.includes('syariah') || q.includes('ewallet') || q.includes('gopay') || q.includes('dana')) {
+      const bank = await getMasterBankAccount().catch(() => ({
+        bankName: 'Bank Mandiri',
+        accountNumber: '1300024446419',
+        accountHolder: 'Paguyuban Grand Sariwangi',
+        qrisNmid: 'ID102008891230',
+      }));
+      reply = `Halo Bapak/Ibu! Untuk pembayaran iuran bulanan (IPL) Komplek Grand Sariwangi sebesar **Rp 250.000 / bulan**, silakan transfer ke rekening resmi kas paguyuban:\n\n🏦 **Bank Kas:** ${bank.bankName}\n💳 **No. Rekening:** \`${bank.accountNumber}\`\n👤 **Atas Nama:** ${bank.accountHolder}\n📱 **QRIS:** Mendukung GoPay, DANA, OVO, ShopeePay, Livin', BCA Mobile, dll.\n\nSetelah transfer, jangan lupa unggah bukti pembayaran di menu *Iuran* untuk diverifikasi pengurus dan diterbitkan kuitansi berstempel digital resmi ya!`;
       actionType = 'PAYMENT_INFO';
       suggestedActions = ['Lihat Status Tagihan Saya', 'Cara Cetak Kuitansi'];
     } else if (q.includes('tagihan') || q.includes('status') || q.includes('lunas') || q.includes('iuran')) {

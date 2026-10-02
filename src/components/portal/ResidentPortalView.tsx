@@ -154,10 +154,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
       { id: 'tf-rw', name: '2. Iuran RW (Retribusi Paguyuban & Wilayah RW)', fee: 100000, desc: 'Retribusi paguyuban komplek, koordinasi keamanan wilayah RW dan administrasi' },
     ];
   });
-  const [bankKasName, setBankKasName] = useState('Bank Syariah Indonesia (BSI) / Kas Paguyuban');
-  const [bankKasAcc, setBankKasAcc] = useState('8830-1928-33');
-  const [bankKasHolder, setBankKasHolder] = useState('PENGURUS KOMPLEK WARGAHUB');
-  const [qrisNmid, setQrisNmid] = useState('ID1020088921829');
+  const [bankKasName, setBankKasName] = useState('Bank Mandiri');
+  const [bankKasAcc, setBankKasAcc] = useState('1300024446419');
+  const [bankKasHolder, setBankKasHolder] = useState('Paguyuban Grand Sariwangi');
+  const [qrisNmid, setQrisNmid] = useState('ID102008891230');
   const [activeGuardName, setActiveGuardName] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -236,11 +236,24 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           setCommunityName('Komplek Grand Sariwangi');
         }
       }
-      if (savedFee) setMonthlyFeeRate(Number(JSON.parse(savedFee)));
-      if (savedBank) setBankKasName(JSON.parse(savedBank));
-      if (savedAcc) setBankKasAcc(JSON.parse(savedAcc));
-      if (savedHolder) setBankKasHolder(JSON.parse(savedHolder));
-      if (savedQris) setQrisNmid(JSON.parse(savedQris));
+      const savedAccounts = localStorage.getItem('wargahub_bank_accounts');
+      if (savedAccounts) {
+        try {
+          const list = JSON.parse(savedAccounts);
+          const pri = list.find((a: any) => a.isPrimary) || list[0];
+          if (pri && pri.accountNumber && pri.accountNumber !== 'BCA_MAIN') {
+            if (pri.bankName) setBankKasName(pri.bankName);
+            if (pri.accountNumber) setBankKasAcc(pri.accountNumber);
+            if (pri.accountHolder) setBankKasHolder(pri.accountHolder);
+            if (pri.qrisNmid) setQrisNmid(pri.qrisNmid);
+          }
+        } catch (e) {}
+      } else {
+        if (savedBank) setBankKasName(JSON.parse(savedBank));
+        if (savedAcc) setBankKasAcc(JSON.parse(savedAcc));
+        if (savedHolder) setBankKasHolder(JSON.parse(savedHolder));
+        if (savedQris) setQrisNmid(JSON.parse(savedQris));
+      }
       if (savedSecPhone) {
         const parsedP = JSON.parse(savedSecPhone);
         if (parsedP && parsedP !== '0812-3456-7801') setSecurityPhone(parsedP);
@@ -292,13 +305,22 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         if (e.detail.guardName) setActiveGuardName(e.detail.guardName);
       }
     };
-    window.addEventListener('wargahub_security_updated', handleSecurityUpdated);
+    const handleBankAccountsUpdated = (e: any) => {
+      if (e.detail) {
+        if (e.detail.bankName) setBankKasName(e.detail.bankName);
+        if (e.detail.accountNumber) setBankKasAcc(e.detail.accountNumber);
+        if (e.detail.accountHolder) setBankKasHolder(e.detail.accountHolder);
+        if (e.detail.qrisNmid) setQrisNmid(e.detail.qrisNmid);
+      }
+    };
+    window.addEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
 
     return () => {
       window.removeEventListener('wargahub_user_changed', handleUserChanged);
       window.removeEventListener('wargahub_tariffs_updated', handleTariffsChanged);
       window.removeEventListener('wargahub_committee_updated', handleCommitteeUpdated);
       window.removeEventListener('wargahub_security_updated', handleSecurityUpdated);
+      window.removeEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
     };
   }, []);
 
@@ -2610,10 +2632,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div>
                   <label className="font-bold text-ink block mb-1">Metode Pembayaran / Transfer</label>
                   <select className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-semibold focus:ring-2 focus:ring-primary-500/20">
-                    <optgroup label="🌙 Bank Syariah">
-                      <option>Bank Syariah Indonesia (BSI) - Rek Kas (8830-1928-33)</option>
-                      <option>Bank Muamalat Indonesia - Kas Paguyuban</option>
-                      <option>BCA Syariah - Kas Paguyuban</option>
+                    <optgroup label="🏦 Rekening Kas Utama Paguyuban (Master)">
+                      <option>{bankKasName} - {bankKasAcc} (a.n {bankKasHolder})</option>
+                    </optgroup>
+                    <optgroup label="🌙 Bank Syariah & Bank Lainnya">
+                      <option>Bank Mandiri / BCA / BRI Kas Paguyuban</option>
+                      <option>Bank Syariah Indonesia (BSI)</option>
+                      <option>Bank Jago Syariah / SeaBank</option>
                     </optgroup>
                     <optgroup label="🏦 Bank Konvensional & Digital">
                       <option>Transfer Bank Kas Paguyuban (Mandiri / BCA / BRI)</option>

@@ -116,29 +116,41 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
         if (savedAccounts) {
           const list = JSON.parse(savedAccounts);
           const primary = list.find((a: any) => a.isPrimary) || list[0];
-          if (primary && primary.accountNumber && primary.accountNumber !== 'BCA_MAIN' && primary.accountNumber !== '8830-1928-33') {
+          if (primary && primary.accountNumber && primary.accountNumber !== 'BCA_MAIN') {
             setBankInfo({
               bankName: primary.bankName || primary.name,
               accountNumber: primary.accountNumber,
               accountHolder: primary.accountHolder || 'Paguyuban Grand Sariwangi',
             });
-            return;
           }
-        }
-        const savedBank = localStorage.getItem('wargahub_set_bankname');
-        const savedAcc = localStorage.getItem('wargahub_set_bankacc');
-        const savedHolder = localStorage.getItem('wargahub_set_accholder');
-        if (savedBank || savedAcc) {
-          const parsedAcc = savedAcc ? JSON.parse(savedAcc) : null;
-          if (parsedAcc && parsedAcc !== 'BCA_MAIN' && parsedAcc !== '8830-1928-33') {
-            setBankInfo((prev) => ({
-              bankName: savedBank ? JSON.parse(savedBank) : prev.bankName,
-              accountNumber: parsedAcc || prev.accountNumber,
-              accountHolder: savedHolder ? JSON.parse(savedHolder) : prev.accountHolder,
-            }));
+        } else {
+          const savedBank = localStorage.getItem('wargahub_set_bankname');
+          const savedAcc = localStorage.getItem('wargahub_set_bankacc');
+          const savedHolder = localStorage.getItem('wargahub_set_accholder');
+          if (savedBank || savedAcc) {
+            const parsedAcc = savedAcc ? JSON.parse(savedAcc) : null;
+            if (parsedAcc && parsedAcc !== 'BCA_MAIN') {
+              setBankInfo((prev) => ({
+                bankName: savedBank ? JSON.parse(savedBank) : prev.bankName,
+                accountNumber: parsedAcc || prev.accountNumber,
+                accountHolder: savedHolder ? JSON.parse(savedHolder) : prev.accountHolder,
+              }));
+            }
           }
         }
       } catch (e) {}
+
+      const handleBankUpdated = (e: any) => {
+        if (e.detail) {
+          setBankInfo((prev) => ({
+            bankName: e.detail.bankName || prev.bankName,
+            accountNumber: e.detail.accountNumber || prev.accountNumber,
+            accountHolder: e.detail.accountHolder || prev.accountHolder,
+          }));
+        }
+      };
+      window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+      return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
     }
   }, []);
 

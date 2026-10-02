@@ -148,12 +148,14 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
 
   // Bank Info from initialBankInfo (Database), LocalStorage, or Default
   const [bankInfo, setBankInfo] = useState<BankAccountInfo>(() => {
-    return initialBankInfo || {
-      bankName: 'Jago Syariah',
-      accountNumber: '505621101851',
-      accountHolder: 'Yahya Nursidik',
-      qrisNmid: 'ID102008891230',
-    };
+    return (
+      initialBankInfo || {
+        bankName: 'Bank Mandiri',
+        accountNumber: '1300024446419',
+        accountHolder: 'Paguyuban Grand Sariwangi',
+        qrisNmid: 'ID102008891230',
+      }
+    );
   });
 
   useEffect(() => {
@@ -164,13 +166,15 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
           const accounts = JSON.parse(saved);
           if (Array.isArray(accounts) && accounts.length > 0) {
             const primary = accounts.find((a: any) => a.isPrimary) || accounts[0];
-            setBankInfo({
-              bankName: primary.bankName || primary.name || 'Jago Syariah',
-              accountNumber: primary.accountNumber || '505621101851',
-              accountHolder: primary.accountHolder || 'Yahya Nursidik',
-              qrisNmid: primary.qrisNmid || 'ID102008891230',
-            });
-            return;
+            if (primary && primary.accountNumber) {
+              setBankInfo({
+                bankName: primary.bankName || primary.name || 'Bank Mandiri',
+                accountNumber: primary.accountNumber,
+                accountHolder: primary.accountHolder || 'Paguyuban Grand Sariwangi',
+                qrisNmid: primary.qrisNmid || 'ID102008891230',
+              });
+              return;
+            }
           }
         }
         const savedBank = localStorage.getItem('wargahub_set_bankname');
@@ -188,6 +192,19 @@ export const PublicDuesLedger: React.FC<PublicDuesLedgerProps> = ({
       } catch (e) {
         console.warn(e);
       }
+
+      const handleBankUpdated = (e: any) => {
+        if (e.detail) {
+          setBankInfo((prev) => ({
+            bankName: e.detail.bankName || prev.bankName,
+            accountNumber: e.detail.accountNumber || prev.accountNumber,
+            accountHolder: e.detail.accountHolder || prev.accountHolder,
+            qrisNmid: e.detail.qrisNmid || prev.qrisNmid,
+          }));
+        }
+      };
+      window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
+      return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
     }
   }, []);
 

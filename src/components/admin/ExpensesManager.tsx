@@ -48,7 +48,10 @@ import {
   Banknote,
   Repeat,
   AlertCircle,
-  Info
+  Info,
+  CheckSquare,
+  Square,
+  MinusSquare
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { StaffLoansManager } from './StaffLoansManager';
@@ -142,6 +145,13 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const [selectedVoucher, setSelectedVoucher] = useState<ExpenseItem | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<ExpenseItem | null>(null);
   const [deleteReason, setDeleteReason] = useState('Koreksi Input / Pembelian Dibatalkan');
+  
+  // Bulk selection & deletion state
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState<boolean>(false);
+  const [bulkDeleteReason, setBulkDeleteReason] = useState<string>('Koreksi Input Massal / Pembatalan Belanja');
+  const [isDeletingBulk, setIsDeletingBulk] = useState<boolean>(false);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -582,6 +592,89 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const endIndex = Math.min(startIndex + pageSize, totalFiltered);
   const paginatedExpenses = filteredAndSortedExpenses.slice(startIndex, endIndex);
 
+  // Bulk Selection Computations & Handlers
+  const selectedExpenses = useMemo(() => {
+    return expenses.filter((e) => selectedExpenseIds.includes(e.id));
+  }, [expenses, selectedExpenseIds]);
+
+  const totalSelectedAmount = useMemo(() => {
+    return selectedExpenses.reduce((sum, e) => sum + e.amount, 0);
+  }, [selectedExpenses]);
+
+  const isAllPageSelected = useMemo(() => {
+    if (paginatedExpenses.length === 0) return false;
+    return paginatedExpenses.every((e) => selectedExpenseIds.includes(e.id));
+  }, [paginatedExpenses, selectedExpenseIds]);
+
+  const isSomePageSelected = useMemo(() => {
+    return paginatedExpenses.some((e) => selectedExpenseIds.includes(e.id)) && !isAllPageSelected;
+  }, [paginatedExpenses, selectedExpenseIds, isAllPageSelected]);
+
+  const toggleSelectAllPage = () => {
+    if (isAllPageSelected) {
+      const pageIds = new Set(paginatedExpenses.map((e) => e.id));
+      setSelectedExpenseIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const newSelected = new Set(selectedExpenseIds);
+      paginatedExpenses.forEach((e) => newSelected.add(e.id));
+      setSelectedExpenseIds(Array.from(newSelected));
+    }
+  };
+
+  const selectAllFiltered = () => {
+    const allFilteredIds = filteredAndSortedExpenses.map((e) => e.id);
+    setSelectedExpenseIds(allFilteredIds);
+    showToast(`Seluruh ${allFilteredIds.length} pengeluaran berhasil dipilih.`);
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedExpenseIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const clearSelection = () => {
+    setSelectedExpenseIds([]);
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedExpenseIds.length === 0) return;
+    setIsDeletingBulk(true);
+    try {
+      const res = await fetch('/api/expenses/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedExpenseIds,
+          totalAmount: totalSelectedAmount,
+          reason: bulkDeleteReason,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.data?.success) {
+        const deletedCount = data.data.count || selectedExpenseIds.length;
+        const deletedIdsSet = new Set(selectedExpenseIds);
+        setExpenses((prev) => prev.filter((e) => !deletedIdsSet.has(e.id)));
+        setCurrentBalance((prev) => prev + totalSelectedAmount);
+        showToast(`Berhasil menghapus ${deletedCount} catatan pengeluaran (${formatRupiah(totalSelectedAmount)} dikembalikan ke saldo kas).`);
+        setSelectedExpenseIds([]);
+        setShowBulkDeleteModal(false);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('wargahub_expenses_updated', {
+            detail: { deletedCount, totalRefunded: totalSelectedAmount }
+          }));
+        }
+      } else {
+        showToast(data?.error?.message || 'Gagal menghapus pengeluaran terpilih.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Terjadi kesalahan jaringan saat menghapus pengeluaran massal.');
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
+
   // Copy Public Link
   const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'https://wrghub.vercel.app/transparency';
   const handleCopyPublicLink = () => {
@@ -895,12 +988,80 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
             </div>
           </div>
 
+          {/* Bulk Selection Floating / Action Bar */}
+          {selectedExpenseIds.length > 0 && (
+            <div className="p-3 sm:p-4 bg-slate-950 text-white rounded-2xl shadow-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-150">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                  <CheckSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-sm text-white">
+                      {selectedExpenseIds.length} Pengeluaran Dipilih
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-mono font-bold tabular-nums">
+                      Total: {formatRupiah(totalSelectedAmount)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Hapus serentak catatan pengeluaran terpilih dan pulihkan saldo kas otomatis.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {totalFiltered > paginatedExpenses.length && selectedExpenseIds.length < totalFiltered && (
+                  <button
+                    type="button"
+                    onClick={selectAllFiltered}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-700 active:scale-[0.98]"
+                  >
+                    Pilih Semua Filter ({totalFiltered})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-[0.98]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Batal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteModal(true)}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-[0.98]"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Hapus Massal ({selectedExpenseIds.length})</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Table List of Expenses */}
           <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead className="bg-canvas border-b border-border text-ink-muted font-bold">
                   <tr>
+                    <th className="py-3.5 px-3 w-10 text-center">
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllPage}
+                        title={isAllPageSelected ? "Batalkan pilihan di halaman ini" : "Pilih semua di halaman ini"}
+                        className="p-1 rounded-lg hover:bg-surface text-ink transition-colors inline-flex items-center justify-center active:scale-95"
+                      >
+                        {isAllPageSelected ? (
+                          <CheckSquare className="w-4 h-4 text-rose-600" />
+                        ) : isSomePageSelected ? (
+                          <MinusSquare className="w-4 h-4 text-rose-600" />
+                        ) : (
+                          <Square className="w-4 h-4 text-ink-muted/50 hover:text-ink" />
+                        )}
+                      </button>
+                    </th>
                     <th className="py-3.5 px-4">Tanggal & No. Voucher</th>
                     <th className="py-3.5 px-4">Kategori Pos</th>
                     <th className="py-3.5 px-4">Uraian Pengeluaran & Vendor</th>
@@ -912,13 +1073,34 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                 <tbody className="divide-y divide-border/60">
                   {paginatedExpenses.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-ink-muted font-medium">
+                      <td colSpan={7} className="py-8 text-center text-ink-muted font-medium">
                         Tidak ada catatan pengeluaran kas yang sesuai dengan filter.
                       </td>
                     </tr>
                   ) : (
                     paginatedExpenses.map((exp) => (
-                      <tr key={exp.id} className="hover:bg-canvas/60 text-ink transition-colors">
+                      <tr
+                        key={exp.id}
+                        className={`transition-colors text-ink ${
+                          selectedExpenseIds.includes(exp.id)
+                            ? 'bg-rose-50/70 dark:bg-rose-950/20 font-medium'
+                            : 'hover:bg-canvas/60'
+                        }`}
+                      >
+                        <td className="py-3.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelectOne(exp.id)}
+                            title={selectedExpenseIds.includes(exp.id) ? "Batalkan pilihan pengeluaran ini" : "Pilih pengeluaran ini"}
+                            className="p-1 rounded-lg hover:bg-surface text-ink transition-colors inline-flex items-center justify-center active:scale-95"
+                          >
+                            {selectedExpenseIds.includes(exp.id) ? (
+                              <CheckSquare className="w-4 h-4 text-rose-600" />
+                            ) : (
+                              <Square className="w-4 h-4 text-ink-muted/40 hover:text-ink" />
+                            )}
+                          </button>
+                        </td>
                         <td className="py-3.5 px-4">
                           <span className="font-mono text-ink font-bold block">{exp.expenseDate}</span>
                           <span className="text-[10px] text-ink-muted font-mono bg-canvas px-1.5 py-0.5 rounded border border-border/80 inline-block mt-0.5">
@@ -1485,6 +1667,107 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                 className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
               >
                 Ya, Hapus Pengeluaran
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS MASSAL PENGELUARAN ================= */}
+      {showBulkDeleteModal && selectedExpenseIds.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-rose-300 shadow-modal space-y-4 text-xs animate-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 shadow-xs">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-ink">
+                  Hapus Massal {selectedExpenseIds.length} Pengeluaran?
+                </h3>
+                <p className="text-ink-muted text-xs mt-0.5">
+                  Tindakan ini akan menghapus seluruh data terpilih secara permanen dan memulihkan saldo kas paguyuban otomatis.
+                </p>
+              </div>
+            </div>
+
+            {/* Summary Box */}
+            <div className="p-3.5 bg-rose-50 rounded-2xl border border-rose-200 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-rose-900 font-medium">Jumlah Data Pengeluaran:</span>
+                <strong className="text-rose-950 font-mono font-bold">{selectedExpenseIds.length} Catatan</strong>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-rose-900 font-medium">Total Nominal Dikembalikan:</span>
+                <strong className="text-rose-700 font-mono font-black text-sm tabular-nums">
+                  + {formatRupiah(totalSelectedAmount)}
+                </strong>
+              </div>
+            </div>
+
+            {/* Preview List of Selected Expenses */}
+            <div>
+              <label className="font-bold text-ink block mb-1">Daftar Pengeluaran yang Akan Dihapus:</label>
+              <div className="max-h-44 overflow-y-auto divide-y divide-border/60 bg-canvas rounded-xl border border-border p-2 space-y-1">
+                {selectedExpenses.slice(0, 10).map((exp) => (
+                  <div key={exp.id} className="py-1.5 flex items-center justify-between text-[11px] gap-2">
+                    <div className="truncate">
+                      <span className="font-bold text-ink">{exp.title}</span>
+                      <span className="text-ink-muted ml-1.5 text-[10px]">({exp.expenseDate} • {exp.vendor || 'Mandiri'})</span>
+                    </div>
+                    <span className="font-mono font-bold text-rose-700 shrink-0 tabular-nums">
+                      - {formatRupiah(exp.amount)}
+                    </span>
+                  </div>
+                ))}
+                {selectedExpenses.length > 10 && (
+                  <div className="pt-1.5 text-center text-ink-muted text-[10px] font-bold">
+                    ... dan {selectedExpenses.length - 10} pengeluaran lainnya
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Reason selection */}
+            <div>
+              <label className="font-bold text-ink block mb-1">Alasan Penghapusan Massal:</label>
+              <select
+                value={bulkDeleteReason}
+                onChange={(e) => setBulkDeleteReason(e.target.value)}
+                className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-semibold"
+              >
+                <option value="Koreksi Input Massal / Pembatalan Belanja">Koreksi Input Massal / Pembatalan Belanja</option>
+                <option value="Pembersihan Data Duplikasi Transaksi">Pembersihan Data Duplikasi Transaksi</option>
+                <option value="Pembatalan Estimasi Pengadaan Paguyuban">Pembatalan Estimasi Pengadaan Paguyuban</option>
+                <option value="Koreksi Pembukuan Kas Bulanan">Koreksi Pembukuan Kas Bulanan</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingBulk}
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingBulk}
+                onClick={handleConfirmBulkDelete}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isDeletingBulk ? (
+                  <span>Menghapus...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Ya, Hapus {selectedExpenseIds.length} Pengeluaran</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
