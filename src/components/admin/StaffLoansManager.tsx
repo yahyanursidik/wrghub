@@ -143,38 +143,6 @@ export const DEFAULT_GRAND_SARIWANGI_LOANS: StaffLoan[] = [
     installments: [],
     notes: 'Pengajuan penarikan gaji di awal bulan September 2026.',
   },
-  {
-    id: 'LOAN-1003',
-    staffName: 'Pak Ujang Suhendra',
-    staffRole: 'PETUGAS_KEBERSIHAN',
-    staffPhone: '0813-7766-5544',
-    baseSalary: 250000,
-    loanType: 'DANA_DARURAT',
-    totalLoanAmount: 100000,
-    paidAmount: 100000,
-    remainingBalance: 0,
-    monthlyDeduction: 100000,
-    tenorMonths: 1,
-    remainingTenorMonths: 0,
-    loanDate: '2026-07-15',
-    dueDate: '2026-08-01',
-    purpose: 'Penggantian Perlengkapan Sarung Tangan & Sepatu Boot TPS Sampah',
-    approvedBy: 'Hendra Wijaya (Bendahara)',
-    status: 'PAID_OFF',
-    disbursementSource: 'Kas Operasional Paguyuban',
-    installments: [
-      {
-        id: 'inst-0801-ujang',
-        installmentNo: 1,
-        amount: 100000,
-        paymentDate: '2026-08-01',
-        paymentMethod: 'POTONG_GAJI',
-        receivedBy: 'Hendra Wijaya (Bendahara)',
-        notes: 'Pelunasan potong honor kebersihan periode Juli/Agustus',
-      },
-    ],
-    notes: 'Hutang lunas tepat waktu via payroll.',
-  },
 ];
 
 export interface StaffLoansManagerProps {
@@ -223,6 +191,10 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
 
   // Staff Loans Data State (dynamic, seeded with real Grand Sariwangi roster)
   const [loans, setLoans] = useState<StaffLoan[]>(() => {
+    // Data petugas fiktif (Pak Ujang Suhendra / Pak Hendro Siswanto) dibersihkan
+    // dari data yang tersimpan maupun default.
+    const isRemovedDummy = (name: string) =>
+      /ujang suhendra|hendro siswanto/i.test(String(name || ''));
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('wargahub_staff_loans');
@@ -231,7 +203,9 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
         if (saved !== null) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const filtered = parsed.filter((l: any) => !deletedIds.includes(l.id));
+            const filtered = parsed
+              .filter((l: any) => !deletedIds.includes(l.id))
+              .filter((l: any) => !isRemovedDummy(l.staffName));
             if (filtered.length > 0) return filtered;
           }
         }
@@ -239,7 +213,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
         console.warn(e);
       }
     }
-    return DEFAULT_GRAND_SARIWANGI_LOANS;
+    return DEFAULT_GRAND_SARIWANGI_LOANS.filter((l) => !isRemovedDummy(l.staffName));
   });
 
   // Subtab State with URL synchronization
@@ -341,8 +315,6 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   const staffPresets = [
     { name: 'Pa Adri Harry', role: 'SATPAM' as const, salary: 1350000, phone: '0812-2008-2240' },
     { name: 'Pak Slamet Radiyanto', role: 'SATPAM' as const, salary: 1100000, phone: '0813-8899-2241' },
-    { name: 'Pak Ujang Suhendra', role: 'PETUGAS_KEBERSIHAN' as const, salary: 250000, phone: '0813-7766-5544' },
-    { name: 'Pak Hendro Siswanto', role: 'TEKNISI' as const, salary: 450000, phone: '0812-3456-7805' },
   ];
 
   // Calculations & KPIs

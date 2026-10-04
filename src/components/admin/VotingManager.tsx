@@ -40,6 +40,7 @@ import {
 import { formatRupiah } from '../../lib/format';
 
 export interface CandidateItem {
+  id: string;
   number: string;
   name: string;
   tagline: string;
@@ -62,7 +63,7 @@ export interface PollOption {
 export interface PollItem {
   id: string;
   title: string;
-  category: 'KEAMANAN' | 'INFRASTRUKTUR' | 'FASUM' | 'KEUANGAN' | 'LINGKUNGAN';
+  category: 'KEAMANAN' | 'INFRASTRUKTUR' | 'FASUM' | 'KEUANGAN' | 'LINGKUNGAN' | 'LAINNYA';
   budget: number;
   description: string;
   status: 'ACTIVE' | 'CLOSED';
@@ -81,217 +82,130 @@ export interface VoterHouse {
   voteReceiptHash?: string;
 }
 
-interface VotingManagerProps {
-  initialTab?: string;
-  initialProperties?: any[];
+interface ElectionData {
+  id: string;
+  title: string;
+  description: string | null;
+  status: 'ACTIVE' | 'CLOSED';
+  endsAt: string | null;
+  totalEligible: number;
+  totalVoted: number;
+  turnout: number;
+  candidates: Array<{
+    id: string;
+    number: string;
+    label: string;
+    subtitle: string | null;
+    vision: string | null;
+    photoUrl: string | null;
+    votes: number;
+    percentage: number;
+    color: string;
+  }>;
 }
 
-export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'election', initialProperties = [] }) => {
-  // Persistence helpers
-  const getPersisted = <T,>(key: string, fallback: T): T => {
-    if (typeof window === 'undefined') return fallback;
-    try {
-      const val = localStorage.getItem(key);
-      return val ? JSON.parse(val) : fallback;
-    } catch {
-      return fallback;
-    }
-  };
+interface VotingDashboardData {
+  election: ElectionData | null;
+  polls: Array<{
+    id: string;
+    title: string;
+    category: string;
+    budgetEstimate: number;
+    description: string | null;
+    status: 'ACTIVE' | 'CLOSED';
+    endsAt: string | null;
+    totalVotes: number;
+    options: Array<{ id: string; number: string; label: string; color: string; votes: number; percentage: number }>;
+  }>;
+  voters: VoterHouse[];
+}
 
-  const savePersisted = (key: string, value: any) => {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
-      console.error('Failed to persist storage:', e);
-    }
-  };
+interface VotingManagerProps {
+  initialTab?: string;
+  initialData?: VotingDashboardData | null;
+}
 
-  const addDeletedIds = (key: string, ids: string[]) => {
-    if (typeof window === 'undefined') return;
-    try {
-      const existing = localStorage.getItem(key);
-      const list: string[] = existing ? JSON.parse(existing) : [];
-      const updated = Array.from(new Set([...list, ...ids]));
-      localStorage.setItem(key, JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Failed to save deleted IDs:', e);
-    }
-  };
+// Palet warna literal agar kelas Tailwind selalu terkompilasi (dipakai untuk
+// memetakan warna opsi/kandidat yang tersimpan di database).
+const FAMILIES = ['emerald', 'blue', 'rose', 'slate', 'amber'] as const;
+type Family = (typeof FAMILIES)[number];
 
+const BAR_COLOR: Record<Family, string> = {
+  emerald: 'bg-emerald-500',
+  blue: 'bg-blue-500',
+  rose: 'bg-rose-500',
+  slate: 'bg-slate-400',
+  amber: 'bg-amber-500',
+};
+
+const CANDIDATE_STYLE: Record<Family, { color: string; bgColor: string; borderColor: string }> = {
+  emerald: { color: 'bg-emerald-600', bgColor: 'bg-emerald-50/70', borderColor: 'border-emerald-300' },
+  blue: { color: 'bg-blue-600', bgColor: 'bg-blue-50/70', borderColor: 'border-blue-300' },
+  rose: { color: 'bg-rose-600', bgColor: 'bg-rose-50/70', borderColor: 'border-rose-300' },
+  slate: { color: 'bg-slate-600', bgColor: 'bg-slate-50/70', borderColor: 'border-slate-300' },
+  amber: { color: 'bg-amber-600', bgColor: 'bg-amber-50/70', borderColor: 'border-amber-300' },
+};
+
+const familyOf = (color: string | null | undefined, fallbackIdx = 0): Family => {
+  const m = (color || '').match(/emerald|blue|rose|slate|amber/);
+  if (m) return m[0] as Family;
+  return FAMILIES[fallbackIdx % FAMILIES.length];
+};
+
+const toPollItem = (p: VotingDashboardData['polls'][number]): PollItem => ({
+  id: p.id,
+  title: p.title,
+  category: (p.category as PollItem['category']) || 'LAINNYA',
+  budget: p.budgetEstimate,
+  description: p.description || '',
+  status: p.status,
+  totalVotes: p.totalVotes,
+  endDate: p.endsAt || '-',
+  options: p.options.map((o, i) => ({
+    label: o.label,
+    count: o.votes,
+    percentage: o.percentage,
+    color: BAR_COLOR[familyOf(o.color, i)],
+  })),
+});
+
+const toCandidate = (c: ElectionData['candidates'][number], idx: number): CandidateItem => {
+  const style = CANDIDATE_STYLE[familyOf(c.color, idx)];
+  return {
+    id: c.id,
+    number: c.number,
+    name: c.label,
+    tagline: c.subtitle || '',
+    vision: c.vision || '',
+    photoUrl: c.photoUrl || '',
+    votes: c.votes,
+    percentage: c.percentage,
+    ...style,
+  };
+};
+
+export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'election', initialData }) => {
   // Toast
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text: msg, type });
+    setTimeout(() => setToastMessage(null), type === 'error' ? 6000 : 3500);
   };
 
-  // 1. Initial Election Data
-  const defaultElection = {
-    title: 'Pemilihan Ketua RW 05 / RT 02 Paguyuban WargaHub Periode 2026 - 2029',
-    description: 'Musyawarah pemilihan ketua komplek baru untuk masa bakti 3 tahun ke depan secara digital, transparan, dan terverifikasi per unit rumah.',
-    period: '2026 - 2029',
-    status: 'ACTIVE',
-    totalEligible: initialProperties?.length || 0,
-    totalVoted: 0,
-    turnout: 0,
-    candidates: [
-      {
-        number: '01',
-        name: 'Yahya Nursidik',
-        tagline: 'Mewujudkan Komplek Aman, Asri, dan Transparan Berbasis Digital.',
-        vision: 'Meningkatkan transparansi buku kas publik secara realtime, modernisasi portal satpam dengan RFID scan otomatis, serta revitalisasi taman bermain anak fasum.',
-        photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-        votes: 0,
-        percentage: 0,
-        color: 'bg-emerald-600',
-        bgColor: 'bg-emerald-50/70',
-        borderColor: 'border-emerald-300',
-      },
-      {
-        number: '02',
-        name: 'Ibu Dr. Ratna Kusuma Wardani',
-        tagline: 'Guyub Rukun, Peduli Lansia, dan Pengelolaan Sampah Mandiri Ramah Lingkungan.',
-        vision: 'Optimalisasi pengelolaan TPS3R dan pemilahan daur ulang organik, program posyandu lansia & balita terpadu, serta pemasangan 16 titik CCTV di seluruh gang blok.',
-        photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80',
-        votes: 0,
-        percentage: 0,
-        color: 'bg-blue-600',
-        bgColor: 'bg-blue-50/70',
-        borderColor: 'border-blue-300',
-      },
-    ],
-  };
+  // 1. Election dari database (tabel voting_polls + voting_options + voting_votes)
+  const [election, setElection] = useState<ElectionData | null>(() => initialData?.election || null);
 
-  const [election, setElection] = useState(() =>
-    getPersisted('wargahub_election_data', defaultElection)
+  // 2. Polls proyek dari database
+  const [polls, setPolls] = useState<PollItem[]>(() => (initialData?.polls || []).map(toPollItem));
+
+  // 3. DPT dari database (properti aktif + status memilih dari voting_votes)
+  const [voters, setVoters] = useState<VoterHouse[]>(() => initialData?.voters || []);
+
+  // Kandidat terpetakan untuk tampilan (warna kartu & resi dari palet literal)
+  const candidates: CandidateItem[] = useMemo(
+    () => (election?.candidates || []).map(toCandidate),
+    [election]
   );
-
-  // 2. Initial Polls Data (5 Polls)
-  const defaultPolls: PollItem[] = [
-    {
-      id: 'poll-1',
-      title: 'Pemasangan 16 Titik Kamera CCTV HD 4K di Seluruh Gang Blok A - D',
-      category: 'KEAMANAN',
-      budget: 18500000,
-      description: 'Pemasangan kamera CCTV resolusi 4K dengan infrared night vision yang terhubung langsung ke monitor Pos Satpam 1 selama 24 jam nonstop.',
-      status: 'ACTIVE',
-      totalVotes: 104,
-      endDate: '2026-09-15',
-      options: [
-        { label: 'Setuju Disetujui', count: 91, percentage: 87.5, color: 'bg-emerald-500' },
-        { label: 'Tidak Setuju', count: 10, percentage: 9.6, color: 'bg-rose-500' },
-        { label: 'Abstain', count: 3, percentage: 2.9, color: 'bg-slate-400' },
-      ],
-    },
-    {
-      id: 'poll-2',
-      title: 'Pengaspalan Ulang (Hotmix) Jalan Utama Boulevard Masuk Komplek',
-      category: 'INFRASTRUKTUR',
-      budget: 45000000,
-      description: 'Pengaspalan hotmix sepanjang 450 meter jalan boulevard utama yang mengalami penurunan permukaan akibat musim hujan.',
-      status: 'ACTIVE',
-      totalVotes: 98,
-      endDate: '2026-09-18',
-      options: [
-        { label: 'Setuju Disetujui', count: 86, percentage: 87.8, color: 'bg-emerald-500' },
-        { label: 'Tidak Setuju', count: 8, percentage: 8.2, color: 'bg-rose-500' },
-        { label: 'Abstain', count: 4, percentage: 4.0, color: 'bg-slate-400' },
-      ],
-    },
-    {
-      id: 'poll-3',
-      title: 'Pembangunan Kanopi Rangka Baja Lapangan Badminton Indoor Balai Warga',
-      category: 'FASUM',
-      budget: 12000000,
-      description: 'Pemasangan atap kanopi spandek peredam panas agar lapangan badminton dapat digunakan saat hujan dan terik siang hari.',
-      status: 'ACTIVE',
-      totalVotes: 88,
-      endDate: '2026-09-22',
-      options: [
-        { label: 'Setuju Disetujui', count: 76, percentage: 86.4, color: 'bg-emerald-500' },
-        { label: 'Tidak Setuju', count: 8, percentage: 9.1, color: 'bg-rose-500' },
-        { label: 'Abstain', count: 4, percentage: 4.5, color: 'bg-slate-400' },
-      ],
-    },
-    {
-      id: 'poll-4',
-      title: 'Pengadaan Mesin Komposter & Alat Pencacah Sampah Organik TPS3R',
-      category: 'LINGKUNGAN',
-      budget: 8500000,
-      description: 'Pengolahan sisa makanan dan dedaunan taman menjadi pupuk kompos organik yang dapat dimanfaatkan warga dan dijual ke kas paguyuban.',
-      status: 'ACTIVE',
-      totalVotes: 92,
-      endDate: '2026-09-25',
-      options: [
-        { label: 'Setuju Disetujui', count: 84, percentage: 91.3, color: 'bg-emerald-500' },
-        { label: 'Tidak Setuju', count: 5, percentage: 5.4, color: 'bg-rose-500' },
-        { label: 'Abstain', count: 3, percentage: 3.3, color: 'bg-slate-400' },
-      ],
-    },
-    {
-      id: 'poll-5',
-      title: 'Pemasangan Portal Barrier Gate Otomatis RFID di Pos Gerbang 2 (Belakang)',
-      category: 'KEAMANAN',
-      budget: 14000000,
-      description: 'Modernisasi akses gerbang pos belakang agar sinkron dengan database RFID warga dan mencegah kendaraan asing masuk tanpa izin.',
-      status: 'CLOSED',
-      totalVotes: 108,
-      endDate: '2026-08-30',
-      options: [
-        { label: 'Setuju Disetujui', count: 98, percentage: 90.7, color: 'bg-emerald-500' },
-        { label: 'Tidak Setuju', count: 7, percentage: 6.5, color: 'bg-rose-500' },
-        { label: 'Abstain', count: 3, percentage: 2.8, color: 'bg-slate-400' },
-      ],
-    }
-  ];
-
-  const [polls, setPolls] = useState<PollItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_polls_data');
-        const deletedStr = localStorage.getItem('wargahub_deleted_polls');
-        const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
-        if (saved !== null) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((p: any) => !deletedIds.includes(p.id));
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return [];
-  });
-
-  // 3. Build DPT Voters List from Registered Properties
-  const buildVotersFromProperties = (propsList: any[] = []): VoterHouse[] => {
-    return propsList.map((p) => ({
-      propertyCode: p.code,
-      block: p.blockName || (p.blockCode ? `Blok ${p.blockCode}` : 'Komplek'),
-      residentName: p.ownerName ? `Bpk/Ibu ${p.ownerName}` : (p.headName ? `Bpk/Ibu ${p.headName}` : 'Penghuni'),
-      phone: '-',
-      hasVotedElection: false,
-    }));
-  };
-
-  const [voters, setVoters] = useState<VoterHouse[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_voters_dpt');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return buildVotersFromProperties(initialProperties);
-  });
 
   const uniqueBlocks = useMemo(() => {
     return Array.from(new Set(voters.map(v => v.block).filter(Boolean)));
@@ -391,7 +305,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
     if (!formPollTitle || !formPollDesc) return;
     setIsSaving(true);
     try {
-      await fetch('/api/voting/polls/create', {
+      const res = await fetch('/api/voting/polls/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -401,32 +315,21 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
           description: formPollDesc,
           endDate: formPollEndDate,
         }),
-      }).catch(() => {});
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data?.poll) {
+        showToast(json?.error?.message || 'Gagal membuat polling di server.', 'error');
+        return;
+      }
 
-      const newPoll: PollItem = {
-        id: `poll-${Date.now().toString().slice(-4)}`,
-        title: formPollTitle,
-        category: formPollCategory,
-        budget: Number(formPollBudget),
-        description: formPollDesc,
-        status: 'ACTIVE',
-        totalVotes: 0,
-        endDate: formPollEndDate,
-        options: [
-          { label: 'Setuju Disetujui', count: 0, percentage: 0, color: 'bg-emerald-500' },
-          { label: 'Tidak Setuju', count: 0, percentage: 0, color: 'bg-rose-500' },
-          { label: 'Abstain', count: 0, percentage: 0, color: 'bg-slate-400' },
-        ],
-      };
-
-      const updated = [newPoll, ...polls];
-      setPolls(updated);
-      savePersisted('wargahub_polls_data', updated);
-      showToast(`Polling baru "${formPollTitle}" berhasil dibuat.`);
+      setPolls(prev => [toPollItem(json.data.poll), ...prev]);
+      showToast(`Polling baru "${formPollTitle}" berhasil diterbitkan & tersimpan di database.`);
       setShowAddPollModal(false);
+      setFormPollTitle('');
+      setFormPollDesc('');
     } catch (e) {
       console.error(e);
-      showToast('Gagal membuat polling.');
+      showToast('Gagal menghubungi server untuk membuat polling.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -435,39 +338,43 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
   const handleTogglePollStatus = async (poll: PollItem) => {
     const nextStatus: 'ACTIVE' | 'CLOSED' = poll.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE';
     try {
-      await fetch('/api/voting/polls/update', {
+      const res = await fetch('/api/voting/polls/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: poll.id, status: nextStatus }),
-      }).catch(() => {});
-
-      const updated = polls.map(p => p.id === poll.id ? { ...p, status: nextStatus } : p);
-      setPolls(updated);
-      savePersisted('wargahub_polls_data', updated);
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data?.success) {
+        showToast(json?.error?.message || 'Gagal memperbarui status polling.', 'error');
+        return;
+      }
+      setPolls(prev => prev.map(p => p.id === poll.id ? { ...p, status: nextStatus } : p));
       showToast(nextStatus === 'CLOSED' ? `Polling "${poll.title}" telah ditutup.` : `Polling "${poll.title}" dibuka kembali.`);
     } catch (e) {
       console.error(e);
+      showToast('Gagal menghubungi server.', 'error');
     }
   };
 
   const handleConfirmDeletePoll = async () => {
     if (!pollToDelete) return;
     try {
-      await fetch('/api/voting/polls/delete', {
+      const res = await fetch('/api/voting/polls/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: pollToDelete.id, title: pollToDelete.title }),
-      }).catch(() => {});
-
-      const updated = polls.filter(p => p.id !== pollToDelete.id);
-      setPolls(updated);
-      savePersisted('wargahub_polls_data', updated);
-      addDeletedIds('wargahub_deleted_polls', [pollToDelete.id]);
-      showToast(`Polling "${pollToDelete.title}" berhasil dihapus.`);
+        body: JSON.stringify({ id: pollToDelete.id }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data?.success) {
+        showToast(json?.error?.message || 'Gagal menghapus polling.', 'error');
+        return;
+      }
+      setPolls(prev => prev.filter(p => p.id !== pollToDelete.id));
+      showToast(`Polling "${pollToDelete.title}" berhasil dihapus dari database.`);
       setPollToDelete(null);
     } catch (e) {
       console.error(e);
-      showToast('Gagal menghapus polling.');
+      showToast('Gagal menghubungi server.', 'error');
     }
   };
 
@@ -475,22 +382,24 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
     if (selectedPollIds.length === 0) return;
     setBulkProcessing(true);
     try {
-      await fetch('/api/voting/polls/delete', {
+      const res = await fetch('/api/voting/polls/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedPollIds }),
-      }).catch(() => {});
-
-      const updated = polls.filter(p => !selectedPollIds.includes(p.id));
-      setPolls(updated);
-      savePersisted('wargahub_polls_data', updated);
-      addDeletedIds('wargahub_deleted_polls', selectedPollIds);
-      showToast(`${selectedPollIds.length} polling berhasil dihapus.`);
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data?.success) {
+        showToast(json?.error?.message || 'Gagal menghapus polling massal.', 'error');
+        return;
+      }
+      const deletedCount = json.data.deleted ?? selectedPollIds.length;
+      setPolls(prev => prev.filter(p => !selectedPollIds.includes(p.id)));
+      showToast(`${deletedCount} polling berhasil dihapus dari database.`);
       setSelectedPollIds([]);
       setShowBulkDeleteModal(false);
     } catch (e) {
       console.error(e);
-      showToast('Gagal menghapus polling massal.');
+      showToast('Gagal menghubungi server.', 'error');
     } finally {
       setBulkProcessing(false);
     }
@@ -498,62 +407,63 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
 
   // Helper Manual Vote Support (for elderly assisted voting)
   const handleSaveManualVote = async () => {
-    if (!manualVoteVoter) return;
+    if (!manualVoteVoter || !election) return;
     try {
-      await fetch('/api/voting/cast-vote', {
+      const res = await fetch('/api/voting/cast-vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetType: 'ELECTION',
-          targetId: 'elect-2026',
+          targetId: election.id,
           choiceId: manualCandidateChoice,
           propertyCode: manualVoteVoter.propertyCode,
           voterName: manualVoteVoter.residentName,
         }),
-      }).catch(() => {});
+      });
+      const json = await res.json().catch(() => null);
 
+      if (res.status === 409 || json?.error?.code === 'ALREADY_VOTED') {
+        setVoters(prev => prev.map(v => v.propertyCode === manualVoteVoter.propertyCode ? { ...v, hasVotedElection: true } : v));
+        showToast(json?.error?.message || `Rumah ${manualVoteVoter.propertyCode} sudah tercatat memilih.`, 'error');
+        setManualVoteVoter(null);
+        return;
+      }
+      if (!res.ok || !json?.data) {
+        showToast(json?.error?.message || 'Gagal mencatat suara di server.', 'error');
+        return;
+      }
+
+      const receipt = json.data;
       // Update voter status
-      const updatedVoters = voters.map(v => {
+      setVoters(prev => prev.map(v => {
         if (v.propertyCode === manualVoteVoter.propertyCode) {
           return {
             ...v,
             hasVotedElection: true,
             votedAt: `${new Date().toISOString().slice(0, 10)}, ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`,
-            voteReceiptHash: `SHA256-${manualVoteVoter.propertyCode}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+            voteReceiptHash: receipt.receiptCode,
           };
         }
         return v;
-      });
-      setVoters(updatedVoters);
-      savePersisted('wargahub_voters_dpt', updatedVoters);
-
-      // Update election tally
-      const updatedCandidates = election.candidates.map(c => {
-        if (c.number === manualCandidateChoice) {
-          return { ...c, votes: c.votes + 1 };
-        }
-        return c;
-      });
-      const newTotalVoted = election.totalVoted + 1;
-      const finalCandidates = updatedCandidates.map(c => ({
-        ...c,
-        percentage: Number(((c.votes / newTotalVoted) * 100).toFixed(1))
       }));
 
-      const newElection = {
-        ...election,
-        totalVoted: newTotalVoted,
-        turnout: Number(((newTotalVoted / election.totalEligible) * 100).toFixed(1)),
-        candidates: finalCandidates
-      };
-      setElection(newElection);
-      savePersisted('wargahub_election_data', newElection);
+      // Update election tally dari tally resmi server
+      if (election) {
+        const newTotalVoted = receipt.totalVoted ?? election.totalVoted + 1;
+        const candidates = election.candidates.map(c => {
+          const t = (receipt.tally || []).find((x: any) => x.optionId === c.id);
+          return t
+            ? { ...c, votes: t.votes, percentage: t.percentage }
+            : c;
+        });
+        setElection({ ...election, totalVoted: newTotalVoted, candidates });
+      }
 
-      showToast(`Suara dari Rumah ${manualVoteVoter.propertyCode} berhasil dicatat sah.`);
+      showToast(`Suara dari Rumah ${manualVoteVoter.propertyCode} berhasil dicatat sah (${receipt.receiptCode}).`);
       setManualVoteVoter(null);
     } catch (e) {
       console.error(e);
-      showToast('Gagal mencatat suara.');
+      showToast('Gagal menghubungi server untuk mencatat suara.', 'error');
     }
   };
 
@@ -584,9 +494,13 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
     <div className="space-y-6">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 p-4 bg-slate-900 text-white rounded-2xl shadow-xl flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-top-3">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div className={`fixed top-5 right-5 z-50 p-4 text-white rounded-2xl shadow-xl flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-top-3 max-w-sm ${toastMessage.type === 'error' ? 'bg-red-700' : 'bg-slate-900'}`}>
+          {toastMessage.type === 'error' ? (
+            <AlertTriangle className="w-4 h-4 text-red-200 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{toastMessage.text}</span>
         </div>
       )}
 
@@ -634,17 +548,17 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
         <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
           <span className="text-[11px] text-ink-muted font-bold block">Tingkat Partisipasi Warga</span>
           <p className="text-2xl font-black text-emerald-700 mt-1 tabular-nums">
-            {election.turnout}% <span className="text-xs font-normal text-ink-muted">({election.totalVoted}/{election.totalEligible})</span>
+            {election?.turnout ?? 0}% <span className="text-xs font-normal text-ink-muted">({election?.totalVoted ?? 0}/{election?.totalEligible ?? voters.length})</span>
           </p>
           <div className="w-full bg-canvas h-1.5 rounded-full overflow-hidden mt-1">
-            <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${election.turnout}%` }} />
+            <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${election?.turnout ?? 0}%` }} />
           </div>
         </div>
 
         <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
           <span className="text-[11px] text-ink-muted font-bold block">Total Hak Pilih (DPT)</span>
           <p className="text-2xl font-black text-primary-700 mt-1 tabular-nums">
-            {election.totalEligible} <span className="text-xs font-normal text-ink-muted">Rumah</span>
+            {election?.totalEligible ?? voters.length} <span className="text-xs font-normal text-ink-muted">Rumah</span>
           </p>
           <span className="text-[10px] text-primary-600 font-bold">1 Rumah = 1 Suara Sah</span>
         </div>
@@ -654,22 +568,30 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
           <p className="text-2xl font-black text-amber-700 mt-1 tabular-nums">
             {polls.filter(p => p.status === 'ACTIVE').length} <span className="text-xs font-normal text-ink-muted">Musyawarah</span>
           </p>
-          <span className="text-[10px] text-amber-600 font-bold">CCTV, Aspal, Kanopi & Komposter</span>
+          <span className="text-[10px] text-amber-600 font-bold">MUSYAWARAH PROYEK AKTIF MENUNGGU SUARA WARGA</span>
         </div>
 
         <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
           <span className="text-[11px] text-ink-muted font-bold block">Periode Pemilu Digital</span>
-          <p className="text-lg font-black text-purple-700 mt-1">
-            Aktif s/d 15 Sep
-          </p>
-          <span className="text-[10px] text-purple-600 font-bold">Penutupan Pukul 23:59 WIB</span>
+          {election?.endsAt ? (
+            <>
+              <p className="text-lg font-black text-purple-700 mt-1">
+                s/d {new Date(election.endsAt + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+              <span className="text-[10px] text-purple-600 font-bold">
+                {election.status === 'ACTIVE' ? 'Pemilihan Aktif — Penutupan Pukul 23:59 WIB' : 'Pemilihan Telah Ditutup'}
+              </span>
+            </>
+          ) : (
+            <p className="text-lg font-black text-purple-700 mt-1">—</p>
+          )}
         </div>
       </div>
 
       {/* 4 Sub-Tabs Navigation */}
       <div className="flex items-center gap-2 p-1.5 bg-surface rounded-2xl border border-border shadow-xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'election', label: 'Pemilihan Ketua RT/RW (Quick Count)', icon: Award, count: `${election.turnout}%` },
+          { id: 'election', label: 'Pemilihan Ketua RT/RW (Quick Count)', icon: Award, count: election ? `${election.turnout}%` : '-' },
           { id: 'polls', label: 'Polling & Musyawarah Proyek', icon: BarChart3, count: polls.length },
           { id: 'voters', label: 'Daftar Partisipasi Pemilih per Rumah (DPT)', icon: Users, count: `${voters.filter(v => v.hasVotedElection).length}/${voters.length}` },
           { id: 'regulations', label: 'Tata Tertib & Berita Acara', icon: FileText },
@@ -702,10 +624,11 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
 
       {/* ================= SUBTAB 1: ELECTION QUICK COUNT ================= */}
       {activeSubTab === 'election' && (
+        election ? (
         <div className="space-y-6 animate-in fade-in duration-150 text-xs">
           {/* Candidates Live Tally Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {election.candidates.map((c) => (
+            {candidates.map((c) => (
               <div
                 key={c.number}
                 className={`p-5 rounded-3xl border ${c.borderColor} ${c.bgColor} space-y-4 shadow-card transition-all`}
@@ -762,8 +685,8 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                   href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
                     `📊 *HASIL SEMENTARA E-VOTING KETUA RW 05 / RT 02 WARGAHUB*\n\n` +
                     `Total Partisipasi: ${election.totalVoted}/${election.totalEligible} Rumah (${election.turnout}%)\n\n` +
-                    `• Kandidat #01 (${election.candidates[0].name}): ${election.candidates[0].votes} Suara (${election.candidates[0].percentage}%)\n` +
-                    `• Kandidat #02 (${election.candidates[1].name}): ${election.candidates[1].votes} Suara (${election.candidates[1].percentage}%)\n\n` +
+                    `• Kandidat #${candidates[0]?.number || '01'} (${candidates[0]?.name || '-'}): ${candidates[0]?.votes ?? 0} Suara (${candidates[0]?.percentage ?? 0}%)\n` +
+                    `• Kandidat #${candidates[1]?.number || '02'} (${candidates[1]?.name || '-'}): ${candidates[1]?.votes ?? 0} Suara (${candidates[1]?.percentage ?? 0}%)\n\n` +
                     `Pantau perolehan suara realtime: ${typeof window !== 'undefined' ? `${window.location.origin}/warga` : 'https://wrghub.vercel.app/warga'}\n- Panitia Pemilu WargaHub`
                   )}`}
                   target="_blank"
@@ -798,6 +721,15 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
             </div>
           </div>
         </div>
+        ) : (
+          <div className="p-12 text-center bg-surface rounded-3xl border border-dashed border-border space-y-2">
+            <Award className="w-10 h-10 text-primary-400 mx-auto opacity-60" />
+            <p className="font-black text-sm text-ink">Belum ada pemilihan ketua RT/RW yang dibuka.</p>
+            <p className="text-[11px] text-ink-muted">
+              Pemilihan dibuat oleh pengurus melalui tabel <strong>voting_polls</strong> (kategori ELECTION) pada database.
+            </p>
+          </div>
+        )
       )}
 
       {/* ================= SUBTAB 2: POLLS DENGAN PAGINATION ================= */}
@@ -865,6 +797,8 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                 <option value="INFRASTRUKTUR">Infrastruktur</option>
                 <option value="FASUM">Sarana & Fasum</option>
                 <option value="LINGKUNGAN">Lingkungan & Sampah</option>
+                <option value="KEUANGAN">Keuangan Kas</option>
+                <option value="LAINNYA">Lainnya</option>
               </select>
 
               <select
@@ -1158,7 +1092,10 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                             </a>
                             <button
                               type="button"
-                              onClick={() => setManualVoteVoter(v)}
+                              onClick={() => {
+                                setManualVoteVoter(v);
+                                setManualCandidateChoice(election?.candidates[0]?.id || '');
+                              }}
                               className="px-2.5 py-1 bg-primary-50 hover:bg-primary-100 text-primary-800 rounded-lg font-bold text-[10px]"
                               title="Bantu input suara manual lansia"
                             >
@@ -1281,7 +1218,7 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
               <button
                 type="button"
                 onClick={() => {
-                  const content = `BERITA ACARA REKAPITULASI HASIL E-VOTING WARGAHUB\n========================================================\nNomor Dokumen: BA-PLENO/RW05/IX/2026\nPerihal: Pemilihan Ketua RW 05 / RT 02 Periode 2026-2029\n\n1. Jumlah Daftar Pemilih Tetap (DPT): ${voters.length} Rumah\n2. Jumlah Suara Masuk: ${election.totalVoted} Rumah (${election.turnout}%)\n\nPEROLEHAN SUARA SAH KANDIDAT:\n• Kandidat #01 (${election.candidates[0].name}): ${election.candidates[0].votes} Suara (${election.candidates[0].percentage}%)\n• Kandidat #02 (${election.candidates[1].name}): ${election.candidates[1].votes} Suara (${election.candidates[1].percentage}%)\n\nDemikian Berita Acara ini dibuat dengan sebenarnya menggunakan sistem E-Voting WargaHub yang terenkripsi dan terverifikasi per unit rumah.\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}`;
+                  const content = `BERITA ACARA REKAPITULASI HASIL E-VOTING WARGAHUB\n========================================================\nNomor Dokumen: BA-PLENO/RW05/${new Date().getFullYear()}\nPerihal: ${election?.title || 'Pemilihan Ketua RW 05 / RT 02 Periode 2026-2029'}\n\n1. Jumlah Daftar Pemilih Tetap (DPT): ${voters.length} Rumah\n2. Jumlah Suara Masuk: ${election?.totalVoted ?? 0} Rumah (${election?.turnout ?? 0}%)\n\nPEROLEHAN SUARA SAH KANDIDAT:\n${candidates.map((c) => `• Kandidat #${c.number} (${c.name}): ${c.votes} Suara (${c.percentage}%)`).join('\n')}\n\nDemikian Berita Acara ini dibuat dengan sebenarnya menggunakan sistem E-Voting WargaHub yang terenkripsi dan terverifikasi per unit rumah.\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}`;
                   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
@@ -1439,12 +1376,12 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
 
             <div className="space-y-2">
               <label className="font-bold text-ink block">Pilih Kandidat Sesuai Mandat Warga:</label>
-              {election.candidates.map((c) => (
+              {(election?.candidates || []).map((c) => (
                 <div
-                  key={c.number}
-                  onClick={() => setManualCandidateChoice(c.number)}
+                  key={c.id}
+                  onClick={() => setManualCandidateChoice(c.id)}
                   className={`p-3 rounded-2xl border cursor-pointer flex items-center justify-between transition-colors ${
-                    manualCandidateChoice === c.number
+                    manualCandidateChoice === c.id
                       ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-300'
                       : 'bg-canvas border-border hover:bg-surface'
                   }`}
@@ -1454,12 +1391,15 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
                       #{c.number}
                     </span>
                     <div>
-                      <strong className="text-ink block">{c.name}</strong>
+                      <strong className="text-ink block">{c.label}</strong>
                     </div>
                   </div>
-                  {manualCandidateChoice === c.number && <Check className="w-4 h-4 text-primary-600" />}
+                  {manualCandidateChoice === c.id && <Check className="w-4 h-4 text-primary-600" />}
                 </div>
               ))}
+              {(!election || election.candidates.length === 0) && (
+                <p className="text-[11px] text-ink-muted">Belum ada kandidat terdaftar pada pemilihan aktif.</p>
+              )}
             </div>
 
             <div className="pt-2 flex gap-2">

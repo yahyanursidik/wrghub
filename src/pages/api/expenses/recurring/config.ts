@@ -28,6 +28,7 @@ const itemSchema = z.object({
   categoryId: z.string().default('cat-operasional'),
   categoryName: z.string().default('Operasional'),
   accountId: z.string().default('acc-main'),
+  accountName: z.string().optional(),
   executionDay: z.number().min(1).max(31).default(1),
   frequency: z.enum(['MONTHLY', 'SPECIFIC_MONTH', 'YEARLY']).optional().default('MONTHLY'),
   executionMonth: z.number().min(1).max(12).optional(),
@@ -36,8 +37,9 @@ const itemSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
+// Array boleh kosong: menghapus pos terakhir juga harus bisa tersimpan.
 const saveConfigSchema = z.object({
-  items: z.array(itemSchema).min(1),
+  items: z.array(itemSchema),
 });
 
 export const POST: APIRoute = async ({ request }) => {
@@ -69,12 +71,16 @@ export const POST: APIRoute = async ({ request }) => {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
+    const isZod = error instanceof z.ZodError;
+    const message = isZod
+      ? `Data pos tidak valid: ${error.issues.map((i) => `${i.path.join('.') || 'item'} — ${i.message}`).join('; ')}`
+      : (error?.message || 'Gagal menyimpan pengaturan');
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof z.ZodError ? error.issues : (error?.message || 'Gagal menyimpan pengaturan'),
+        error: message,
       }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+      { status: isZod ? 400 : 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 };

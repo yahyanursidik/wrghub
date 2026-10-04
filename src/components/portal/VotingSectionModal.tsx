@@ -1,5 +1,14 @@
-import React, { useState } from 'react';
-import { Vote, X, CheckCircle2, Award, ShieldCheck, ArrowRight, UserCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Vote, X, CheckCircle2, ShieldCheck, AlertTriangle } from 'lucide-react';
+
+interface VotingCandidate {
+  id: string;
+  number: string;
+  label: string;
+  subtitle: string | null;
+  vision: string | null;
+  photoUrl: string | null;
+}
 
 interface VotingSectionModalProps {
   isOpen: boolean;
@@ -14,52 +23,82 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
   propertyCode,
   residentName,
 }) => {
-  const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
+  const [election, setElection] = useState<{ id: string; title: string; status: string; candidates: VotingCandidate[] } | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
+  const [receiptCode, setReceiptCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Muat pemilihan aktif + status hak pilih rumah ini langsung dari database
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setFetching(true);
+    setErrorMessage(null);
+    fetch(`/api/voting/polls?propertyCode=${encodeURIComponent(propertyCode || '')}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return;
+        const data = json?.data;
+        if (data?.election) {
+          setElection({
+            id: data.election.id,
+            title: data.election.title,
+            status: data.election.status,
+            candidates: data.election.candidates || [],
+          });
+          if ((data.votedPollIds || []).includes(data.election.id)) {
+            setHasVoted(true);
+          }
+        } else {
+          setErrorMessage(json?.error?.message || 'Gagal memuat pemilihan aktif.');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setErrorMessage('Gagal menghubungi server voting.');
+      })
+      .finally(() => {
+        if (!cancelled) setFetching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, propertyCode]);
+
+  const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const candidates = [
-    {
-      id: 'cand-1',
-      number: '01',
-      name: 'Yahya Nursidik',
-      tagline: 'Mewujudkan Komplek Aman, Asri, dan Transparan Berbasis Digital.',
-      vision: 'Pemasangan smart barrier gate gerbang pos satpam, transparansi kas real-time, dan revitalisasi taman bermain anak.',
-      color: 'border-emerald-500 bg-emerald-50/50',
-    },
-    {
-      id: 'cand-2',
-      number: '02',
-      name: 'Ibu Dr. Ratna Kusuma Wardani',
-      tagline: 'Guyub Rukun, Peduli Lansia, dan Pengelolaan Sampah Mandiri Ramah Lingkungan.',
-      vision: 'Bank sampah bernilai ekonomis, posyandu lansia terpadu, dan penambahan CCTV 4K di seluruh gang komplek.',
-      color: 'border-blue-500 bg-blue-50/50',
-    },
-  ];
-
   const handleCastVote = async () => {
-    if (!selectedCandidate) return;
+    if (!selectedCandidate || !election) return;
     setLoading(true);
+    setErrorMessage(null);
     try {
       const res = await fetch('/api/voting/cast-vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetType: 'ELECTION',
-          targetId: 'elect-2026',
+          targetId: election.id,
           choiceId: selectedCandidate,
           propertyCode,
           voterName: residentName,
         }),
       });
       const json = await res.json();
-      if (json.data) {
+      if (res.ok && json?.data) {
         setHasVoted(true);
+        setReceiptCode(json.data.receiptCode || null);
+      } else if (res.status === 409 || json?.error?.code === 'ALREADY_VOTED') {
+        setHasVoted(true);
+        setErrorMessage(json?.error?.message || null);
+      } else {
+        setErrorMessage(json?.error?.message || 'Gagal mencatat suara. Coba lagi.');
       }
     } catch (err) {
       console.error(err);
+      setErrorMessage('Gagal menghubungi server voting.');
     } finally {
       setLoading(false);
     }
@@ -76,7 +115,9 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-sm leading-tight">Bilik Suara Digital (E-Voting)</h3>
-              <p className="text-[11px] text-surface/80">Pemilihan Ketua RW 05 / RT 02 (2026-2029)</p>
+              <p className="text-[11px] text-surface/80">
+                {election ? election.title : 'Memuat pemilihan aktif...'}
+              </p>
             </div>
           </div>
 
@@ -96,10 +137,15 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
               <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h4 className="font-bold text-base text-ink">Suara Anda Berhasil Dicatat!</h4>
+              <h4 className="font-bold text-base text-ink">Rumah {propertyCode} Sudah Menggunakan Hak Suara</h4>
               <p className="text-ink-muted leading-relaxed text-[11px] max-w-xs mx-auto">
-                Terima kasih atas partisipasi aktif Bapak/Ibu dari <strong>Rumah {propertyCode}</strong> dalam musyawarah pemilihan ketua komplek.
+                {errorMessage
+                  ? errorMessage
+                  : 'Terima kasih atas partisipasi aktif Anda. Suara tercatat sah di database pemilu (1 Rumah = 1 Suara) dan tidak dapat diulang.'}
               </p>
+              {receiptCode && (
+                <p className="font-mono text-[10px] text-primary-700 font-bold">Resi: {receiptCode}</p>
+              )}
               <div className="pt-2">
                 <button
                   type="button"
@@ -109,6 +155,22 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
                   Tutup Bilik Suara
                 </button>
               </div>
+            </div>
+          ) : fetching ? (
+            <div className="text-center py-10 text-ink-muted text-xs font-bold">Memuat bilik suara...</div>
+          ) : !election || election.candidates.length === 0 ? (
+            <div className="text-center py-10 space-y-2">
+              <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+              <p className="font-bold text-sm text-ink">
+                {errorMessage ? 'Pemilihan tidak dapat dimuat' : 'Belum ada pemilihan aktif'}
+              </p>
+              <p className="text-[11px] text-ink-muted">{errorMessage || 'Silakan cek kembali setelah pengurus membuka periode pemilihan.'}</p>
+            </div>
+          ) : election.status !== 'ACTIVE' ? (
+            <div className="text-center py-10 space-y-2">
+              <ShieldCheck className="w-8 h-8 text-slate-400 mx-auto" />
+              <p className="font-bold text-sm text-ink">Pemilihan Ini Telah Ditutup</p>
+              <p className="text-[11px] text-ink-muted">Hasil rekapitulasi akan diumumkan melalui panitia pemilu.</p>
             </div>
           ) : (
             <>
@@ -124,12 +186,12 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
 
               <div className="space-y-3">
                 <label className="font-bold text-ink block">Pilih Calon Ketua Komplek:</label>
-                {candidates.map((cand) => (
+                {election.candidates.map((cand) => (
                   <div
                     key={cand.id}
                     onClick={() => setSelectedCandidate(cand.id)}
                     className={`p-4 rounded-2xl border-2 transition-all cursor-pointer space-y-2 ${
-                      selectedCandidate === cand.id ? cand.color : 'border-border bg-surface hover:bg-canvas'
+                      selectedCandidate === cand.id ? 'border-primary-500 bg-primary-50/50' : 'border-border bg-surface hover:bg-canvas'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -141,8 +203,8 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
                       )}
                     </div>
                     <div>
-                      <h4 className="font-bold text-sm text-ink">{cand.name}</h4>
-                      <p className="text-[11px] text-ink-muted italic font-medium mt-0.5">"{cand.tagline}"</p>
+                      <h4 className="font-bold text-sm text-ink">{cand.label}</h4>
+                      <p className="text-[11px] text-ink-muted italic font-medium mt-0.5">"{cand.subtitle}"</p>
                     </div>
                     <p className="text-[11px] text-ink leading-relaxed pt-1 border-t border-border/50">
                       <strong>Program Kerja:</strong> {cand.vision}
@@ -150,6 +212,10 @@ export const VotingSectionModal: React.FC<VotingSectionModalProps> = ({
                   </div>
                 ))}
               </div>
+
+              {errorMessage && (
+                <p className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[11px] font-bold">{errorMessage}</p>
+              )}
 
               <div className="pt-2">
                 <button

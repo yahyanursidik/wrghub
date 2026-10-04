@@ -462,3 +462,41 @@ export const settings = sqliteTable('settings', {
   description: text('description'),
   updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+// ================= VOTING & MUSYAWARAH DIGITAL =================
+export const votingPolls = sqliteTable('voting_polls', {
+  id: text('id').primaryKey(),
+  communityId: text('community_id'),
+  title: text('title').notNull(),
+  description: text('description'),
+  category: text('category').notNull().default('INFRASTRUKTUR'), // ELECTION | KEAMANAN | INFRASTRUKTUR | FASUM | KEUANGAN | LINGKUNGAN | LAINNYA
+  budgetEstimate: real('budget_estimate').notNull().default(0),
+  status: text('status').notNull().default('ACTIVE'), // ACTIVE | CLOSED
+  endsAt: text('ends_at'),
+  createdBy: text('created_by'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const votingOptions = sqliteTable('voting_options', {
+  id: text('id').primaryKey(),
+  pollId: text('poll_id').notNull().references(() => votingPolls.id),
+  optionNumber: text('option_number').notNull().default('01'),
+  label: text('label').notNull(),
+  subtitle: text('subtitle'),
+  vision: text('vision'),
+  photoUrl: text('photo_url'),
+  color: text('color'),
+  sortOrder: integer('sort_order').notNull().default(0),
+});
+
+// 1 Rumah = 1 Suara: unique (poll_id, property_code)
+export const votingVotes = sqliteTable('voting_votes', {
+  id: text('id').primaryKey(),
+  pollId: text('poll_id').notNull().references(() => votingPolls.id),
+  optionId: text('option_id').notNull().references(() => votingOptions.id),
+  propertyCode: text('property_code').notNull(),
+  voterName: text('voter_name'),
+  receiptHash: text('receipt_hash'),
+  votedAt: text('voted_at').default(sql`CURRENT_TIMESTAMP`),
+});

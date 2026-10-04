@@ -95,3 +95,86 @@ export async function getMasterBankAccount(): Promise<{
     qrisNmid: profile.qrisNmid || 'ID102008891230',
   };
 }
+
+// ================= ROSTER JADWAL SHIFT & PENUGASAN AREA JAGA =================
+
+export interface SecurityShiftEntry {
+  id: string;
+  name: string;        // cth: 'Shift Pagi'
+  time: string;        // cth: '06:00 - 18:00 WIB'
+  staffName: string;
+  role: string;
+  phone: string;
+  areas: string[];     // daftar penugasan area jaga
+}
+
+export interface SecurityShiftRoster {
+  shifts: SecurityShiftEntry[];
+  notes: string;
+  updatedAt?: string;
+}
+
+// Default dibangun dari roster riil petugas jaga Grand Sariwangi
+// (sumber: konfigurasi honor petugas di modul keuangan).
+export const DEFAULT_SECURITY_SHIFT_ROSTER: SecurityShiftRoster = {
+  shifts: [
+    {
+      id: 'shift-pagi',
+      name: 'Shift Pagi',
+      time: '06:00 - 18:00 WIB',
+      staffName: 'Pa Adri Harry',
+      role: 'Petugas Jaga Utama',
+      phone: '0812-2008-2240',
+      areas: [
+        'Gerbang Utama & Barrier Gate',
+        'Pos Satpam & Buku Mutasi Tamu',
+        'Patroli Blok A - D & Taman Fasum',
+      ],
+    },
+    {
+      id: 'shift-malam',
+      name: 'Shift Malam',
+      time: '18:00 - 06:00 WIB',
+      staffName: 'Pak Slamet Radiyanto',
+      role: 'Petugas Jaga Malam',
+      phone: '0813-8899-2241',
+      areas: [
+        'Gerbang Utama & Kontrol Akses Malam',
+        'Pos Satpam (Jaga Malam)',
+        'Patroli Keamanan & Kontrol PJU Lingkungan',
+      ],
+    },
+  ],
+  notes:
+    'Penjagaan komplek berjalan 24 jam secara bergantian (2 shift x 12 jam). Perubahan jadwal atau penugasan area ditetapkan oleh Pengurus Paguyuban dan dapat diperbarui melalui menu Pengaturan > Keamanan.',
+};
+
+export async function getSecurityShiftRoster(): Promise<SecurityShiftRoster> {
+  if (process.env.DATABASE_URL) {
+    try {
+      const rows = await neonSql`SELECT value FROM settings WHERE key = 'security_shift_roster' LIMIT 1`;
+      if (rows.length && rows[0].value) {
+        const parsed = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
+        if (Array.isArray(parsed?.shifts) && parsed.shifts.length > 0) {
+          return parsed as SecurityShiftRoster;
+        }
+      }
+    } catch (e) {
+      console.warn('Neon get security roster error:', e);
+    }
+  }
+  return DEFAULT_SECURITY_SHIFT_ROSTER;
+}
+
+export async function saveSecurityShiftRoster(roster: SecurityShiftRoster): Promise<void> {
+  const jsonStr = JSON.stringify({ ...roster, updatedAt: new Date().toISOString() });
+  if (process.env.DATABASE_URL) {
+    await neonSql`
+      INSERT INTO settings (id, community_id, key, value, description, updated_at)
+      VALUES ('set-security-roster', 'comm-01', 'security_shift_roster', ${jsonStr}, 'Roster Jadwal Shift & Penugasan Area Jaga (halaman publik Transparency)', NOW())
+      ON CONFLICT (id) DO UPDATE SET value = ${jsonStr}, updated_at = NOW();
+    `;
+    return;
+  }
+  throw new Error('Database tidak tersedia untuk menyimpan roster jadwal shift.');
+}

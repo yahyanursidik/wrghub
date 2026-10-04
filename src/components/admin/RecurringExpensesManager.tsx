@@ -127,17 +127,65 @@ const DEFAULT_RECURRING_EXPENSES: RecurringExpenseItem[] = [
 
 const LOCAL_STORAGE_KEY = 'wargahub_recurring_expenses_config_v3';
 
-const ALL_2026_MONTHS = [
-  { value: '2026-01', label: 'Januari 2026' },
-  { value: '2026-02', label: 'Februari 2026' },
-  { value: '2026-03', label: 'Maret 2026' },
-  { value: '2026-04', label: 'April 2026' },
-  { value: '2026-05', label: 'Mei 2026' },
-  { value: '2026-06', label: 'Juni 2026' },
-  { value: '2026-07', label: 'Juli 2026' },
-  { value: '2026-08', label: 'Agustus 2026' },
-  { value: '2026-09', label: 'September 2026 (Bulan Berjalan)' },
+const MONTH_NAMES_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
+
+const NOW = new Date();
+const CURRENT_YEAR = NOW.getFullYear();
+const CURRENT_MONTH = NOW.getMonth() + 1; // 1-12
+const CURRENT_MONTH_VALUE = `${CURRENT_YEAR}-${String(CURRENT_MONTH).padStart(2, '0')}`;
+const CURRENT_MONTH_LABEL = `${MONTH_NAMES_ID[CURRENT_MONTH - 1]} ${CURRENT_YEAR}`;
+
+// Seluruh bulan tahun berjalan (Jan s/d Des), agar bulan berjalan & bulan depan
+// ikut tersedia untuk auto-bukukan — bukan hanya Jan s/d Sep yang di-hardcode.
+const YEAR_MONTHS = MONTH_NAMES_ID.map((name, idx) => ({
+  value: `${CURRENT_YEAR}-${String(idx + 1).padStart(2, '0')}`,
+  label: `${name} ${CURRENT_YEAR}`,
+}));
+
+// Bulan yang sudah berjalan (Jan s/d bulan ini) — default seleksi auto-bukukan.
+const ELAPSED_MONTH_VALUES = YEAR_MONTHS.slice(0, CURRENT_MONTH).map((m) => m.value);
+
+// Kategori pos yang tersambung ke tabel expense_categories (tampil di halaman Transparency).
+const CATEGORY_OPTIONS = [
+  { id: 'cat-gaji', name: 'Gaji (Honor Petugas Jaga & Keamanan)' },
+  { id: 'cat-iuran-rt', name: 'Iuran RT (Sampah & Kebersihan)' },
+  { id: 'cat-iuran-rw', name: 'Iuran RW (Paguyuban RW 08)' },
+  { id: 'cat-operasional', name: 'Operasional (Listrik PJU, Air & Pemeliharaan)' },
+  { id: 'cat-dana-kesehatan', name: 'Dana Kesehatan / Bantuan Satpam' },
+  { id: 'cat-dana-tak-terduga', name: 'Dana Tak Terduga (Agustusan / Acara & Sosial)' },
+];
+
+const resolveCategoryIdByName = (name: string): string =>
+  CATEGORY_OPTIONS.find((o) => o.name === name)?.id || 'cat-operasional';
+
+// Cek apakah judul pos sudah pernah dibukukan pada suatu bulan — toleran terhadap
+// perbedaan kecil antara judul config dan judul yang tersimpan di buku kas
+// (mis. 'Honor Petugas Jaga dan Keaman' vs 'Honor Petugas Jaga & Keamanan (...)').
+const TITLE_STOPWORDS = new Set(['dan', 'di', 'ke', 'dari', 'untuk', 'dengan', 'pada', 'the', 'tg', 'bulan']);
+const titleTokens = (t: string) =>
+  String(t)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w && !TITLE_STOPWORDS.has(w));
+
+const isDuplicateBookedTitle = (configTitle: string, bookedTitles: string[]): boolean => {
+  const cfgTokens = titleTokens(configTitle);
+  if (cfgTokens.length === 0) return false;
+  for (const booked of bookedTitles) {
+    const bookedTokens = titleTokens(booked);
+    const matched = cfgTokens.filter((cw) =>
+      bookedTokens.some((ew) =>
+        cw.length <= 3 || ew.length <= 3 ? cw === ew : ew.startsWith(cw) || cw.startsWith(ew)
+      )
+    ).length;
+    if (matched >= 2 && matched / cfgTokens.length >= 0.6) return true;
+  }
+  return false;
+};
 
 interface RecurringExpensesManagerProps {
   accounts?: any[];
@@ -187,27 +235,25 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     return DEFAULT_RECURRING_EXPENSES;
   });
 
-  // Current selected single month
-  const [selectedMonth, setSelectedMonth] = useState<string>('2026-09');
-
   // Modals state
   const [showItemModal, setShowItemModal] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<RecurringExpenseItem | null>(null);
 
-  // Multi-Month Auto-Generate Modal State
+  // Multi-Month Auto-Generate Modal State (default: Jan s/d bulan berjalan saja)
   const [showMultiMonthModal, setShowMultiMonthModal] = useState(false);
-  const [selectedMonthsForGen, setSelectedMonthsForGen] = useState<string[]>(
-    ALL_2026_MONTHS.map((m) => m.value)
-  );
+  const [selectedMonthsForGen, setSelectedMonthsForGen] = useState<string[]>(ELAPSED_MONTH_VALUES);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Toast State
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text: msg, type });
+    setTimeout(() => setToastMessage(null), type === 'error' ? 6000 : 4000);
   };
+
+  // Bukukan pos baru langsung ke bulan berjalan (default aktif)
+  const [formAutoBook, setFormAutoBook] = useState(true);
 
   // Form State
   const [formTitle, setFormTitle] = useState('');
@@ -221,22 +267,27 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
   const [formDescription, setFormDescription] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
 
-  // Persist to DB and localStorage
+  // Persist to DB and localStorage. Throws when the server refuses the save so
+  // callers can show a real error instead of a false success toast.
   const persistConfig = async (items: RecurringExpenseItem[]) => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
       } catch (e) {}
     }
-    try {
-      await fetch('/api/expenses/recurring/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
-      });
-    } catch (e) {
-      console.warn('Failed to persist config to server', e);
+    const res = await fetch('/api/expenses/recurring/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    const resJson = await res.json().catch(() => null);
+    if (!res.ok || !resJson?.success) {
+      const msg =
+        resJson?.error ||
+        `Gagal menyimpan konfigurasi ke server (HTTP ${res.status}). Perubahan hanya tersimpan di perangkat ini.`;
+      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
     }
+    return resJson;
   };
 
   // Calculations
@@ -257,14 +308,15 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
       return true; // Tidak berlaku untuk bulan ini
     }
     return existingExpenseTitles.some(
-      (t) => t.toLowerCase().includes(item.title.toLowerCase()) && t.includes(month)
+      (t) => t.includes(month) && isDuplicateBookedTitle(item.title, [t])
     );
   };
 
   // Monthly breakdown: which months have how many items booked
   const monthsStatus = useMemo(() => {
-    return ALL_2026_MONTHS.map((m) => {
+    return YEAR_MONTHS.map((m) => {
       const monthNum = parseInt(m.value.slice(5, 7), 10);
+      const isFuture = monthNum > CURRENT_MONTH;
       const applicableItems = activeItems.filter((item) => {
         if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth) {
           return item.executionMonth === monthNum;
@@ -273,12 +325,13 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
       });
       const bookedCount = applicableItems.filter((item) => {
         return existingExpenseTitles.some(
-          (t) => t.toLowerCase().includes(item.title.toLowerCase()) && t.includes(m.value)
+          (t) => t.includes(m.value) && isDuplicateBookedTitle(item.title, [t])
         );
       }).length;
-      const isComplete = bookedCount >= applicableItems.length && applicableItems.length > 0;
+      const isComplete = !isFuture && bookedCount >= applicableItems.length && applicableItems.length > 0;
       return {
         ...m,
+        isFuture,
         bookedCount,
         totalItems: applicableItems.length,
         isComplete,
@@ -286,9 +339,9 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     });
   }, [activeItems, existingExpenseTitles]);
 
-  // Count unbooked months
+  // Count unbooked months (bulan depan belum wajib dibukukan)
   const unbookedMonthsCount = useMemo(
-    () => monthsStatus.filter((m) => !m.isComplete).length,
+    () => monthsStatus.filter((m) => !m.isComplete && !m.isFuture).length,
     [monthsStatus]
   );
 
@@ -316,14 +369,15 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     setEditingItemId(null);
     setFormTitle('');
     setFormAmount(500000);
-    setFormCategory('Keamanan & Satpam');
+    setFormCategory(CATEGORY_OPTIONS[0].name);
     setFormExecutionDay(25);
     setFormFrequency('MONTHLY');
-    setFormExecutionMonth(8);
+    setFormExecutionMonth(CURRENT_MONTH);
     setFormAccountId('acc-main');
     setFormVendor('');
     setFormDescription('');
     setFormIsActive(true);
+    setFormAutoBook(true);
     setShowItemModal(true);
   };
 
@@ -335,11 +389,12 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     setFormCategory(item.categoryName);
     setFormExecutionDay(item.executionDay);
     setFormFrequency(item.frequency === 'SPECIFIC_MONTH' ? 'SPECIFIC_MONTH' : 'MONTHLY');
-    setFormExecutionMonth(item.executionMonth || 8);
+    setFormExecutionMonth(item.executionMonth || CURRENT_MONTH);
     setFormAccountId(item.accountId);
     setFormVendor(item.vendor);
     setFormDescription(item.description);
     setFormIsActive(item.isActive);
+    setFormAutoBook(false);
     setShowItemModal(true);
   };
 
@@ -358,8 +413,11 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
 
     const accountObj = accounts.find((a) => a.id === formAccountId);
     const accountName = accountObj ? accountObj.name : 'Kas Operasional Paguyuban';
+    // Kategori dipetakan ke id kategori resmi agar terbaca di halaman Transparency.
+    const categoryId = resolveCategoryIdByName(formCategory);
 
     let nextItems: RecurringExpenseItem[];
+    let newItem: RecurringExpenseItem | null = null;
     if (editingItemId) {
       nextItems = recurringItems.map((item) =>
         item.id === editingItemId
@@ -367,6 +425,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
               ...item,
               title: formTitle.trim(),
               amount: numAmount,
+              categoryId,
               categoryName: formCategory,
               executionDay: Number(formExecutionDay),
               frequency: formFrequency,
@@ -379,13 +438,12 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
             }
           : item
       );
-      showToast(`Pos "${formTitle}" berhasil diperbarui.`);
     } else {
-      const newItem: RecurringExpenseItem = {
+      newItem = {
         id: `rec-${Date.now()}`,
         title: formTitle.trim(),
         amount: numAmount,
-        categoryId: `cat-${Date.now()}`,
+        categoryId,
         categoryName: formCategory,
         accountId: formAccountId,
         accountName,
@@ -397,11 +455,63 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
         isActive: formIsActive,
       };
       nextItems = [...recurringItems, newItem];
+    }
+
+    try {
+      await persistConfig(nextItems);
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal menyimpan pos rutin ke server.', 'error');
+      return;
+    }
+
+    setRecurringItems(nextItems);
+    setShowItemModal(false);
+
+    if (newItem && formAutoBook && formIsActive) {
+      // Langsung bukukan pos baru agar langsung tampil di halaman Transparency
+      // pada bulan berjalan (atau bulan pelaksanaannya untuk pos tahunan).
+      const targetMonthNum =
+        newItem.frequency === 'SPECIFIC_MONTH' && newItem.executionMonth
+          ? newItem.executionMonth
+          : CURRENT_MONTH;
+      const targetMonth = `${CURRENT_YEAR}-${String(targetMonthNum).padStart(2, '0')}`;
+      setIsGenerating(true);
+      try {
+        const response = await fetch('/api/expenses/recurring/auto-generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ months: [targetMonth] }),
+        });
+        const resJson = await response.json().catch(() => null);
+        if (response.ok && resJson?.success) {
+          const created = resJson.data?.createdExpenses || [];
+          if (resJson.data?.newBalance !== undefined) {
+            onExpensesProcessed(created, resJson.data.newBalance);
+          }
+          if (created.length > 0) {
+            showToast(
+              `Pos "${newItem.title}" tersimpan & langsung dibukukan untuk ${MONTH_NAMES_ID[targetMonthNum - 1]} ${CURRENT_YEAR}. Data sudah tampil di halaman Transparency.`
+            );
+          } else {
+            showToast(`Pos "${newItem.title}" berhasil disimpan.`);
+          }
+        } else {
+          showToast(
+            `Pos tersimpan, namun pembukuan ${MONTH_NAMES_ID[targetMonthNum - 1]} gagal: ${resJson?.error || 'coba gunakan tombol Bukukan Otomatis.'}`,
+            'error'
+          );
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Pos tersimpan, namun gagal menghubungi server untuk pembukuan otomatis.', 'error');
+      } finally {
+        setIsGenerating(false);
+      }
+    } else if (editingItemId) {
+      showToast(`Pos "${formTitle}" berhasil diperbarui.`);
+    } else {
       showToast(`Pos rutin baru "${formTitle}" berhasil ditambahkan.`);
     }
-    setRecurringItems(nextItems);
-    await persistConfig(nextItems);
-    setShowItemModal(false);
   };
 
   // Toggle Active
@@ -415,15 +525,24 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
       return item;
     });
     setRecurringItems(nextItems);
-    await persistConfig(nextItems);
+    try {
+      await persistConfig(nextItems);
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal menyimpan status pos ke server.', 'error');
+    }
   };
 
   // Delete Item
   const handleDeleteItem = async () => {
     if (!itemToDelete) return;
     const nextItems = recurringItems.filter((i) => i.id !== itemToDelete.id);
+    try {
+      await persistConfig(nextItems);
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal menghapus pos di server.', 'error');
+      return;
+    }
     setRecurringItems(nextItems);
-    await persistConfig(nextItems);
     showToast(`Pos "${itemToDelete.title}" telah dihapus.`);
     setItemToDelete(null);
   };
@@ -474,9 +593,17 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
     <div className="space-y-6">
       {/* Toast */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 bg-emerald-700 text-white rounded-2xl shadow-xl font-bold text-xs animate-in slide-in-from-top-3">
-          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-          <span>{toastMessage}</span>
+        <div
+          className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 text-white rounded-2xl shadow-xl font-bold text-xs animate-in slide-in-from-top-3 max-w-sm ${
+            toastMessage.type === 'error' ? 'bg-red-700' : 'bg-emerald-700'
+          }`}
+        >
+          {toastMessage.type === 'error' ? (
+            <AlertTriangle className="w-4 h-4 text-red-200 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+          )}
+          <span>{toastMessage.text}</span>
         </div>
       )}
 
@@ -504,7 +631,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
               className="px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-2xl shadow-lg active:scale-[0.98] transition-all inline-flex items-center justify-center gap-2"
             >
               <Zap className="w-4 h-4 text-yellow-300" />
-              <span>⚡ Bukukan Otomatis Semua Bulan (Jan s/d Sep 2026)</span>
+              <span>⚡ Bukukan Otomatis (Jan s/d {MONTH_NAMES_ID[CURRENT_MONTH - 1]} {CURRENT_YEAR})</span>
             </button>
           </div>
         </div>
@@ -513,22 +640,24 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
         <div className="pt-2 border-t border-slate-700/80">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-mono uppercase font-bold text-slate-400">
-              Status Pembukuan Pengeluaran Rutin per Bulan (Tahun 2026):
+              Status Pembukuan Pengeluaran Rutin per Bulan (Tahun {CURRENT_YEAR}):
             </span>
             <span className="text-[11px] font-mono font-bold text-rose-300">
               {unbookedMonthsCount > 0
-                ? `${unbookedMonthsCount} Bulan Belum Dibukukan`
-                : '✓ Semua Bulan Sudah Lengkap Dibukukan'}
+                ? `${unbookedMonthsCount} Bulan Berjalan Belum Dibukukan`
+                : '✓ Semua Bulan Berjalan Sudah Lengkap Dibukukan'}
             </span>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5">
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1.5">
             {monthsStatus.map((m) => (
               <div
                 key={m.value}
                 className={`p-2 rounded-xl text-center border transition-all ${
                   m.isComplete
                     ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                    : m.isFuture
+                    ? 'bg-slate-800/40 border-slate-700/60 text-slate-400'
                     : 'bg-slate-800/60 border-slate-700 text-slate-300'
                 }`}
               >
@@ -539,10 +668,12 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                   className={`inline-block mt-0.5 px-1.5 py-0.2 text-[9px] font-black rounded-md ${
                     m.isComplete
                       ? 'bg-emerald-500/20 text-emerald-300'
+                      : m.isFuture
+                      ? 'bg-slate-600/30 text-slate-400'
                       : 'bg-amber-500/20 text-amber-300'
                   }`}
                 >
-                  {m.isComplete ? '✓ TERCATAT' : `${m.bookedCount}/${m.totalItems} POS`}
+                  {m.isComplete ? '✓ TERCATAT' : m.isFuture ? 'BELUM JALAN' : `${m.bookedCount}/${m.totalItems} POS`}
                 </span>
               </div>
             ))}
@@ -809,7 +940,7 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
             {/* Simulation Card */}
             <div className="p-4 bg-canvas rounded-2xl border border-border space-y-3">
               <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Simulasi Pemotongan Saldo Kas Kas
+                Simulasi Pemotongan Saldo Kas
               </span>
 
               <div className="space-y-1.5 font-mono text-xs">
@@ -845,22 +976,22 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                 <button
                   type="button"
                   onClick={() => {
-                    if (selectedMonthsForGen.length === ALL_2026_MONTHS.length) {
+                    if (selectedMonthsForGen.length === YEAR_MONTHS.length) {
                       setSelectedMonthsForGen([]);
                     } else {
-                      setSelectedMonthsForGen(ALL_2026_MONTHS.map((m) => m.value));
+                      setSelectedMonthsForGen(YEAR_MONTHS.map((m) => m.value));
                     }
                   }}
                   className="text-[10px] text-rose-600 hover:underline font-bold"
                 >
-                  {selectedMonthsForGen.length === ALL_2026_MONTHS.length
+                  {selectedMonthsForGen.length === YEAR_MONTHS.length
                     ? 'Batal Pilih Semua'
                     : 'Pilih Semua Bulan'}
                 </button>
               </div>
 
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 border border-border rounded-2xl bg-canvas/40">
-                {ALL_2026_MONTHS.map((m) => {
+                {YEAR_MONTHS.map((m) => {
                   const isChecked = selectedMonthsForGen.includes(m.value);
                   const statusObj = monthsStatus.find((x) => x.value === m.value);
                   return (
@@ -889,10 +1020,14 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                       </div>
                       <span
                         className={`text-[9px] font-mono mt-1 ${
-                          statusObj?.isComplete ? 'text-emerald-600 font-bold' : 'text-amber-600'
+                          statusObj?.isComplete
+                            ? 'text-emerald-600 font-bold'
+                            : statusObj?.isFuture
+                            ? 'text-slate-400'
+                            : 'text-amber-600'
                         }`}
                       >
-                        {statusObj?.isComplete ? '✓ Sudah Lengkap' : 'Siap Terbit'}
+                        {statusObj?.isComplete ? '✓ Sudah Lengkap' : statusObj?.isFuture ? 'Belum Jalan' : 'Siap Terbit'}
                       </span>
                     </label>
                   );
@@ -964,21 +1099,22 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Kategori Pos</label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="Gaji">Gaji (Satpam Pa Adri Harry & Pak Slamet)</option>
-                    <option value="Iuran RT">Iuran RT (Sampah & Kebersihan Saluran Got)</option>
-                    <option value="Iuran RW">Iuran RW (Paguyuban Komplek RW 08)</option>
-                    <option value="Operasional">Operasional (Listrik PJU & Air Pos Jaga)</option>
-                    <option value="Dana Kesehatan / Bantuan Satpam">Dana Kesehatan / Bantuan Satpam</option>
-                    <option value="Dana Tak Terduga">Dana Tak Terduga (Sumbangan Agustusan / Acara Kelurahan/RW)</option>
-                  </select>
-                </div>
+              <div>
+                <label className="font-bold text-ink block mb-1">Kategori Pos</label>
+                <select
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
+                >
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.name}>{opt.name}</option>
+                  ))}
+                  {/* Kategori warisan dari konfigurasi lama agar tidak hilang saat diedit */}
+                  {!CATEGORY_OPTIONS.some((o) => o.name === formCategory) && formCategory && (
+                    <option value={formCategory}>{formCategory}</option>
+                  )}
+                </select>
+              </div>
 
                 <div>
                   <label className="font-bold text-ink block mb-1">Nominal per Bulan (Rp) *</label>
@@ -1153,6 +1289,23 @@ export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> =
                   />
                 </button>
               </div>
+
+              {!editingItemId && (
+                <label className="flex items-start gap-2.5 p-3 rounded-2xl border border-primary-200 bg-primary-50/60 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formAutoBook}
+                    onChange={(e) => setFormAutoBook(e.target.checked)}
+                    className="mt-0.5 rounded border-border text-primary-600 focus:ring-primary-500 w-4 h-4 shrink-0"
+                  />
+                  <span className="text-[11px] leading-relaxed">
+                    <strong className="text-ink block">Langsung bukukan sekarang</strong>
+                    <span className="text-ink-muted">
+                      Catatkan pos ini ke kas & buku pengeluaran untuk {formFrequency === 'SPECIFIC_MONTH' ? 'bulan pelaksanaannya' : `bulan berjalan (${CURRENT_MONTH_LABEL})`} — agar langsung tampil di halaman publik Transparency, bagian "Uang Iuran Warga Dipakai Kemana Saja?".
+                    </span>
+                  </span>
+                </label>
+              )}
 
               <div className="pt-2 flex gap-2">
                 <button
