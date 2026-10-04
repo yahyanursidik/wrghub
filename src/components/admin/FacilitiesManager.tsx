@@ -162,7 +162,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
       operatingHours: '07:00 - 22:00 WIB',
       hourlyRate: 0,
       condition: 'GOOD',
-      picName: 'Hendro Siswanto (Pengurus Sarana)',
+      picName: 'Pengurus Sarana & Fasilitas',
       imageUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&auto=format&fit=crop&q=80',
       notes: 'Dilengkapi pendingin ruangan AC 3 PK, sound system wireless, 80 kursi lipat, dan proyektor presentasi.',
     },
@@ -190,7 +190,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
       operatingHours: '07:00 - 22:00 WIB',
       hourlyRate: 0,
       condition: 'GOOD',
-      picName: 'Hendro Siswanto',
+      picName: 'Pengurus Sarana & Fasilitas',
       imageUrl: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=600&auto=format&fit=crop&q=80',
       notes: 'Karpet vinyl standar PBSI dengan jaring net Yonex baru.',
     },
@@ -204,7 +204,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
       operatingHours: '06:30 - 18:00 WIB (Kecuali Senin Kuras Air)',
       hourlyRate: 0,
       condition: 'GOOD',
-      picName: 'Pak Ujang Suhendra & Teknisi Pompa',
+      picName: 'Pak Adri (Petugas Jaga & Pompa Air)',
       imageUrl: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=600&auto=format&fit=crop&q=80',
       notes: 'Klorinasi otomatis & sistem sirkulasi pompa sand filter Hayward 1.5 HP.',
     },
@@ -232,7 +232,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
       operatingHours: '06:00 - 18:30 WIB',
       hourlyRate: 0,
       condition: 'GOOD',
-      picName: 'Pak Ujang Suhendra (Petugas Taman)',
+      picName: 'Pak Slamet Radiyanto (Petugas Taman)',
       imageUrl: 'https://images.unsplash.com/photo-1588880331179-bc9b93a8cb5e?w=600&auto=format&fit=crop&q=80',
       notes: 'Ayunan, perosotan anak, jogging track paving block, dan 3 unit gazebo kayu jati.',
     },
@@ -260,11 +260,17 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
       operatingHours: 'Otomatis Sensor Cahaya (18:00 - 05:30 WIB)',
       hourlyRate: 0,
       condition: 'GOOD',
-      picName: 'Hendro Siswanto (Teknisi)',
+      picName: 'Pak Adri (Petugas Jaga PJU)',
       imageUrl: 'https://images.unsplash.com/photo-1508873696983-2df5293cb32b?w=600&auto=format&fit=crop&q=80',
       notes: '45 titik tiang lampu LED 60W solar cell otomatis menyala saat gelap.',
     }
   ];
+
+  // Nama petugas fiktif dibersihkan dari data default maupun yang tersimpan.
+  const sanitizeDummyName = (value: string) =>
+    /ujang suhendra|hendro siswanto/i.test(String(value || ''))
+      ? value.replace(/[^,()]*(?:Ujang Suhendra|Hendro Siswanto)[^,()]*/i, 'Petugas Jaga').replace(/\s{2,}/g, ' ').trim()
+      : value;
 
   const [facilities, setFacilities] = useState<FacilityItem[]>(() => {
     if (typeof window !== 'undefined') {
@@ -275,7 +281,9 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
         if (saved !== null) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            return parsed.filter((f: any) => !deletedIds.includes(f.id));
+            return parsed
+              .filter((f: any) => !deletedIds.includes(f.id))
+              .map((f: any) => ({ ...f, picName: sanitizeDummyName(f.picName) }));
           }
         }
       } catch (e) {
@@ -387,8 +395,8 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
       costEstimate: 450000,
       actualCost: 450000,
       scheduledDate: '2026-08-28',
-      performedBy: 'Hendro Siswanto (Teknisi)',
-      contractorPhone: '0812-3456-7805',
+      performedBy: 'Pak Adri (Petugas Jaga)',
+      contractorPhone: '0812-2008-2240',
       priority: 'ROUTINE',
       status: 'RESOLVED',
       notes: 'Selesai tepat waktu.'
@@ -413,19 +421,20 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
 
   const [maintenanceList, setMaintenanceList] = useState<MaintenanceProject[]>(() =>
     getPersisted('wargahub_facility_maintenance', [])
+      .map((m: any) => ({ ...m, performedBy: sanitizeDummyName(m.performedBy) }))
   );
 
   // 4. Staff & Technicians State
   const defaultStaff: FacilityStaff[] = [
     {
       id: 'STF-FAC-01',
-      name: 'Hendro Siswanto',
-      role: 'Koordinator Teknisi Sarana & Kelistrikan',
-      specialty: 'Instalasi Listrik, Genset, CCTV & Pompa Sirkulasi',
-      phone: '0812-3456-7805',
+      name: 'Pa Adri Harry',
+      role: 'Petugas Jaga & Kelistrikan Fasum',
+      specialty: 'PJU, Pompa Air Otomatis & Kontrol Akses Gerbang',
+      phone: '0812-2008-2240',
       status: 'AVAILABLE',
       assignedProjectsCount: 3,
-      notes: 'Penanggung jawab kelistrikan balai warga, genset darurat, dan pompa kolam.'
+      notes: 'Penanggung jawab penerangan jalan umum, pompa air fasum, dan pos satpam.'
     },
     {
       id: 'STF-FAC-02',
@@ -439,10 +448,10 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     },
     {
       id: 'STF-FAC-03',
-      name: 'Pak Ujang Suhendra',
+      name: 'Pak Slamet Radiyanto',
       role: 'Petugas Perawatan Taman & Fasum',
-      specialty: 'Pemotongan Rumput, Pemangkasan Dahan & Kolam',
-      phone: '0813-7766-5544',
+      specialty: 'Pemotongan Rumput, Pemangkasan Dahan & Drainase',
+      phone: '0813-8899-2241',
       status: 'AVAILABLE',
       assignedProjectsCount: 1,
       notes: 'Perawatan berkala area playground anak dan taman komplek.'
@@ -450,6 +459,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   ];
 
   const [staffList, setStaffList] = useState<FacilityStaff[]>(() => {
+    const isDummyStaff = (s: any) => /ujang suhendra|hendro siswanto/i.test(String(s?.name || ''));
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('wargahub_facility_staff');
@@ -458,15 +468,16 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
         if (saved !== null) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            return parsed.filter((s: any) => !deletedIds.includes(s.id));
+            const filtered = parsed.filter((s: any) => !deletedIds.includes(s.id) && !isDummyStaff(s));
+            if (filtered.length > 0) return filtered;
           }
         }
-        return defaultStaff.filter((s: any) => !deletedIds.includes(s.id));
+        return defaultStaff.filter((s: any) => !deletedIds.includes(s.id) && !isDummyStaff(s));
       } catch (e) {
         console.warn(e);
       }
     }
-    return defaultStaff;
+    return defaultStaff.filter((s: any) => !isDummyStaff(s));
   });
 
   // Active Subtab matching query parameter
@@ -512,7 +523,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   const [formFacHours, setFormFacHours] = useState('06:00 - 22:00 WIB');
   const [formFacRate, setFormFacRate] = useState(0);
   const [formFacCondition, setFormFacCondition] = useState<FacilityItem['condition']>('GOOD');
-  const [formFacPic, setFormFacPic] = useState('Hendro Siswanto');
+  const [formFacPic, setFormFacPic] = useState('Pengurus Sarana & Fasilitas');
   const [formFacNotes, setFormFacNotes] = useState('');
 
   // Form State for Add Booking
@@ -534,7 +545,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   const [mntDesc, setMntDesc] = useState('');
   const [mntCostEstimate, setMntCostEstimate] = useState(500000);
   const [mntScheduledDate, setMntScheduledDate] = useState(new Date().toISOString().slice(0, 10));
-  const [mntPerformedBy, setMntPerformedBy] = useState('Hendro Siswanto (Teknisi)');
+  const [mntPerformedBy, setMntPerformedBy] = useState('Pak Adri (Petugas Jaga)');
   const [mntPriority, setMntPriority] = useState<MaintenanceProject['priority']>('MEDIUM');
 
   // Form State for Add Staff
@@ -589,7 +600,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     setFormFacHours('06:00 - 22:00 WIB');
     setFormFacRate(0);
     setFormFacCondition('GOOD');
-    setFormFacPic('Hendro Siswanto');
+    setFormFacPic('Pengurus Sarana & Fasilitas');
     setFormFacNotes('');
     setShowAddFacilityModal(true);
   };
@@ -1727,7 +1738,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
                 <label className="font-bold text-ink block mb-1">Penanggung Jawab / PIC</label>
                 <input
                   type="text"
-                  placeholder="Hendro Siswanto"
+                  placeholder="Nama PIC fasilitas"
                   value={formFacPic}
                   onChange={(e) => setFormFacPic(e.target.value)}
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"

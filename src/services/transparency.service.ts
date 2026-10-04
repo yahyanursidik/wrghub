@@ -2,6 +2,7 @@ import { neonSql } from '../db/neon';
 import { db, schema } from '../db';
 import { eq } from 'drizzle-orm';
 import QRCode from 'qrcode';
+import { getSecurityShiftRoster, type SecurityShiftRoster } from './settings.service';
 
 export interface MonthStatus {
   monthIndex: number;
@@ -75,6 +76,17 @@ export interface PublicTransparencyData {
     amount: number;
     icon: string;
   }>;
+  // Bukti pengeluaran riil per periode (sumber modal "Lihat Nota")
+  expenseItems: Array<{
+    id: string;
+    date: string;
+    title: string;
+    description: string;
+    amount: number;
+    categoryName: string;
+  }>;
+  // Roster jadwal shift & penugasan area jaga (publik, dikelola pengurus)
+  securityRoster: SecurityShiftRoster;
   bankInfo?: {
     bankName: string;
     accountNumber: string;
@@ -115,6 +127,7 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
   const householdDuesList: HouseholdDuesRecord[] = [];
   let ledgerEntries: PublicLedgerEntry[] = [];
   let expenseBreakdown: Array<{ name: string; percentage: number; amount: number; icon: string }> = [];
+  const expenseItems: Array<{ id: string; date: string; title: string; description: string; amount: number; categoryName: string }> = [];
 
   if (process.env.DATABASE_URL) {
     try {
@@ -122,7 +135,8 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
       const targetMaxPeriod = `period-${year}-${month.toString().padStart(2, '0')}`;
       const minPeriod = `period-${year}-01`;
       const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const periodEnd = `${year}-${month.toString().padStart(2, '0')}-31`;
+      // Tanggal terakhir bulan berjalan (bulat dengan benar, mis. Feb → 28/29)
+      const periodEnd = `${year}-${month.toString().padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
 
       // Parallelize snapshot fetch and master property/invoice queries
       const [snaps, props, invoicesRows] = await Promise.all([
@@ -157,7 +171,7 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
         if (s.breakdown_json) expenseBreakdown = JSON.parse(s.breakdown_json);
       } else {
         // Query live counts and aggregations in parallel
-        const [pCount, invStats, expMonthSum, accSum, breakdownResult] = await Promise.all([
+        const [pCount, invStats, expMonthSum, accSum, breakdownResult, expenseItemRows] = await Promise.all([
           neonSql`SELECT COUNT(*) as total FROM properties WHERE is_active = true`,
           neonSql`
             SELECT 
@@ -187,21 +201,47 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
               AND e.expense_date <= ${periodEnd}
             GROUP BY ec.name, ec.icon
             ORDER BY amount DESC
+          `,
+          neonSql`
+            SELECT 
+              e.id, e.title, e.description, e.amount, e.expense_date,
+              ec.name as category_name
+            FROM expenses e
+            JOIN expense_categories ec ON e.category_id = ec.id
+            WHERE e.status = 'APPROVED'
+              AND e.expense_date >= ${periodStart}
+              AND e.expense_date <= ${periodEnd}
+            ORDER BY e.expense_date ASC, e.created_at ASC
           `
         ]);
+
+        // Bukti pengeluaran riil periode ini (ditampilkan di modal Nota Transparency)
+        for (const row of expenseItemRows || []) {
+          let dateFormatted = row.expense_date;
+          try {
+            const parts = String(row.expense_date || '').split('-');
+            if (parts.length === 3) {
+              dateFormatted = `${parts[2]} ${MONTH_NAMES[parseInt(parts[1], 10) - 1]?.name || parts[1]} ${parts[0]}`;
+            }
+          } catch (e) {}
+          expenseItems.push({
+            id: row.id,
+            date: dateFormatted,
+            title: row.title,
+            description: row.description || '',
+            amount: Number(row.amount) || 0,
+            categoryName: row.category_name || 'Operasional',
+          });
+        }
 
         totalProps = Number(pCount[0]?.total ?? 0);
         paidProps = Number(invStats[0]?.paid ?? 0);
         unpaidProps = Number(invStats[0]?.unpaid ?? 0);
         income = Number(invStats[0]?.income ?? 0);
 
-        const monthExpense = Number(expMonthSum[0]?.total ?? 0);
-        if (monthExpense > 0) {
-          expense = monthExpense;
-        } else {
-          const expSum = await neonSql`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE status = 'APPROVED'`;
-          expense = Number(expSum[0]?.total ?? 0);
-        }
+        // Total pengeluaran hanya dari periode terpilih — tanpa fallback all-time
+        // yang menampilkan total akumulasi bulan lain dengan label periode ini.
+        expense = Number(expMonthSum[0]?.total ?? 0);
 
         closingBalance = 0;
         openingBalance = 0;
@@ -272,22 +312,8 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
           console.warn('Neon ledger fetch error:', err);
         }
 
-        // Expense category breakdown for the selected period
-        let breakdownRows = breakdownResult;
-        if (!breakdownRows || breakdownRows.length === 0) {
-          // Fallback to all approved expenses
-          breakdownRows = await neonSql`
-            SELECT 
-              ec.name as name,
-              COALESCE(ec.icon, 'CircleDot') as icon,
-              SUM(e.amount) as amount
-            FROM expenses e
-            JOIN expense_categories ec ON e.category_id = ec.id
-            WHERE e.status = 'APPROVED'
-            GROUP BY ec.name, ec.icon
-            ORDER BY amount DESC
-          `;
-        }
+        // Expense category breakdown — hanya dari pengeluaran riil periode terpilih
+        const breakdownRows = breakdownResult;
 
         if (breakdownRows.length && expense > 0) {
           const totalBreakdown = breakdownRows.reduce((acc: number, b: any) => acc + Number(b.amount || 0), 0);
@@ -473,17 +499,9 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
     openingBalance = 0;
   }
 
-  // Ensure Grand Sariwangi 6 default categories if breakdown is empty
-  if (expenseBreakdown.length === 0) {
-    expenseBreakdown = [
-      { name: 'Gaji', amount: 2450000, percentage: 79.7, icon: 'ShieldCheck' },
-      { name: 'Iuran RT', amount: 250000, percentage: 8.1, icon: 'Sparkles' },
-      { name: 'Iuran RW', amount: 100000, percentage: 3.3, icon: 'Building2' },
-      { name: 'Operasional', amount: 75000, percentage: 2.4, icon: 'Zap' },
-      { name: 'Dana Kesehatan / Bantuan Satpam', amount: 100000, percentage: 3.3, icon: 'Heart' },
-      { name: 'Dana Tak Terduga', amount: 100000, percentage: 3.2, icon: 'AlertCircle' },
-    ];
-  }
+  // Breakdown kosong = memang belum ada pengeluaran yang dibukukan pada periode
+  // ini. Tampilkan kosong (jujur), jangan angka statis buatan yang menyesatkan
+  // laporan publik.
 
   // Fallback ledger entries if empty
   if (ledgerEntries.length === 0) {
@@ -572,6 +590,7 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
   }
 
   let qrCodeDataUrl = '';
+  const securityRoster = await getSecurityShiftRoster().catch(() => null);
   try {
     qrCodeDataUrl = await QRCode.toDataURL(`https://wargahub.id/transparency/${year}/${month.toString().padStart(2, '0')}`, {
       margin: 1,
@@ -602,6 +621,11 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
     householdDuesList,
     ledgerEntries,
     expenseBreakdown,
+    expenseItems,
+    securityRoster: securityRoster || {
+      shifts: [],
+      notes: 'Roster jadwal shift petugas jaga akan diperbarui oleh pengurus.',
+    },
     bankInfo: {
       bankName,
       accountNumber,

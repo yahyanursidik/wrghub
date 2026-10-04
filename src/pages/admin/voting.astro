@@ -1,13 +1,12 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { VotingManager } from '../../components/admin/VotingManager';
-import { getProperties } from '../../services/property.service';
+import { getVotingDashboard } from '../../services/voting.service';
 
 const tab = Astro.url.searchParams.get('tab') || 'election';
-const properties = await getProperties().catch(() => []);
+const votingData = await getVotingDashboard().catch(() => null);
 ---
 
 <AdminLayout title="E-Voting & Musyawarah Warga - WargaHub" currentPath="/admin/voting">
-  <VotingManager initialTab={tab} initialProperties={properties} client:load />
+  <VotingManager initialTab={tab} initialData={votingData} client:load />
 </AdminLayout>
-

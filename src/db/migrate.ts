@@ -441,6 +441,43 @@ export async function initializeDatabase(dbPath?: string) {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS voting_polls (
+      id TEXT PRIMARY KEY,
+      community_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'INFRASTRUKTUR',
+      budget_estimate REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      ends_at TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS voting_options (
+      id TEXT PRIMARY KEY,
+      poll_id TEXT NOT NULL REFERENCES voting_polls(id) ON DELETE CASCADE,
+      option_number TEXT NOT NULL DEFAULT '01',
+      label TEXT NOT NULL,
+      subtitle TEXT,
+      vision TEXT,
+      photo_url TEXT,
+      color TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS voting_votes (
+      id TEXT PRIMARY KEY,
+      poll_id TEXT NOT NULL REFERENCES voting_polls(id) ON DELETE CASCADE,
+      option_id TEXT NOT NULL REFERENCES voting_options(id) ON DELETE CASCADE,
+      property_code TEXT NOT NULL,
+      voter_name TEXT,
+      receipt_hash TEXT,
+      voted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (poll_id, property_code)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_properties_code ON properties(code);
     CREATE INDEX IF NOT EXISTS idx_invoices_property_id ON invoices(property_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_billing_period_id ON invoices(billing_period_id);

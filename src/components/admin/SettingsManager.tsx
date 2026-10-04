@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import { UserPasswordSettingsTab } from './UserPasswordSettingsTab';
+import type { SecurityShiftEntry, SecurityShiftRoster } from '../../services/settings.service';
 
 export interface TariffComponent {
   id: string;
@@ -517,6 +518,92 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
   const activeGuard2 = useMemo(() => {
     return guardsList.find(g => g.id === selectedGuardId2) || null;
   }, [guardsList, selectedGuardId2]);
+
+  // ================= ROSTER JADWAL SHIFT & PENUGASAN AREA JAGA (halaman publik Transparency) =================
+  const [rosterShifts, setRosterShifts] = useState<SecurityShiftEntry[]>([]);
+  const [rosterNotes, setRosterNotes] = useState('');
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterSaving, setRosterSaving] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'security') return;
+    let cancelled = false;
+    setRosterLoading(true);
+    fetch('/api/settings/security-roster')
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return;
+        const roster = json?.data as SecurityShiftRoster | null;
+        if (roster?.shifts?.length) {
+          setRosterShifts(roster.shifts);
+          setRosterNotes(roster.notes || '');
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRosterLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
+
+  const updateRosterShift = (idx: number, field: keyof SecurityShiftEntry, value: any) => {
+    setRosterShifts((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
+  };
+
+  const updateRosterAreas = (idx: number, text: string) => {
+    const areas = text.split('\n').map((a) => a.trim()).filter(Boolean);
+    setRosterShifts((prev) => prev.map((s, i) => (i === idx ? { ...s, areas } : s)));
+  };
+
+  const handleAddRosterShift = () => {
+    setRosterShifts((prev) => [
+      ...prev,
+      {
+        id: `shift-${Date.now()}`,
+        name: `Shift ${prev.length + 1}`,
+        time: '00:00 - 00:00 WIB',
+        staffName: '',
+        role: 'Petugas Jaga',
+        phone: '',
+        areas: [],
+      },
+    ]);
+  };
+
+  const handleRemoveRosterShift = (idx: number) => {
+    setRosterShifts((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSaveRoster = async () => {
+    if (rosterShifts.length === 0) {
+      showToast('Minimal harus ada 1 shift pada roster petugas jaga.');
+      return;
+    }
+    if (rosterShifts.some((s) => !s.staffName.trim())) {
+      showToast('Nama petugas wajib diisi untuk setiap shift.');
+      return;
+    }
+    setRosterSaving(true);
+    try {
+      const res = await fetch('/api/settings/security-roster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shifts: rosterShifts, notes: rosterNotes }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.data?.success) {
+        showToast('Roster jadwal shift berhasil disimpan & langsung tampil di halaman publik Transparency.');
+      } else {
+        showToast(json?.error?.message || 'Gagal menyimpan roster jadwal shift.');
+      }
+    } catch (e) {
+      showToast('Gagal menghubungi server untuk menyimpan roster.');
+    } finally {
+      setRosterSaving(false);
+    }
+  };
 
   const handleSelectGuard1 = (guardId: string) => {
     setSelectedGuardId(guardId);
@@ -2399,6 +2486,146 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                   />
                   <span className="text-[10px] text-ink-muted block mt-1">Kapasitas parkir jalan komplek</span>
                 </div>
+              </div>
+            </div>
+            {/* Roster Jadwal Shift & Penugasan Area Jaga (Tampil di Halaman Publik Transparency) */}
+            <div className="pt-3 border-t border-border space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-primary-600" />
+                  <div>
+                    <h4 className="font-bold text-xs text-ink">Roster Jadwal Shift &amp; Penugasan Area Jaga</h4>
+                    <p className="text-[10px] text-ink-muted">
+                      Ditampilkan di halaman publik Transparency. Simpan setelah mengubah jadwal atau penugasan area.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddRosterShift}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-canvas hover:bg-surface text-ink font-bold text-[11px] rounded-xl border border-border shadow-2xs transition-all"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5 text-primary-600" />
+                    <span>Tambah Shift</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveRoster}
+                    disabled={rosterSaving || rosterLoading}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white font-bold text-[11px] rounded-xl shadow-xs transition-all disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{rosterSaving ? 'Menyimpan...' : 'Simpan Roster'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {rosterLoading ? (
+                <div className="p-4 bg-canvas rounded-2xl border border-border text-ink-muted text-[11px] text-center">
+                  Memuat roster dari database...
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {rosterShifts.map((shift, idx) => (
+                    <div key={shift.id} className="p-4 rounded-2xl bg-canvas border border-border space-y-2.5">
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Nama Shift</label>
+                          <input
+                            type="text"
+                            value={shift.name}
+                            onChange={(e) => updateRosterShift(idx, 'name', e.target.value)}
+                            placeholder="Shift Pagi"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Jam Kerja</label>
+                          <input
+                            type="text"
+                            value={shift.time}
+                            onChange={(e) => updateRosterShift(idx, 'time', e.target.value)}
+                            placeholder="06:00 - 18:00 WIB"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Nama Petugas *</label>
+                          <input
+                            type="text"
+                            value={shift.staffName}
+                            onChange={(e) => updateRosterShift(idx, 'staffName', e.target.value)}
+                            placeholder="Nama petugas jaga"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Peran / Jabatan</label>
+                          <input
+                            type="text"
+                            value={shift.role}
+                            onChange={(e) => updateRosterShift(idx, 'role', e.target.value)}
+                            placeholder="Petugas Jaga Utama"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Kontak HP Petugas</label>
+                          <input
+                            type="text"
+                            value={shift.phone}
+                            onChange={(e) => updateRosterShift(idx, 'phone', e.target.value)}
+                            placeholder="08xx-xxxx-xxxx"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink text-xs"
+                          />
+                        </div>
+                        <div className="lg:col-span-2">
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">
+                            Penugasan Area Jaga (satu area per baris)
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={(shift.areas || []).join('\n')}
+                            onChange={(e) => updateRosterAreas(idx, e.target.value)}
+                            placeholder={'Gerbang Utama & Barrier Gate\nPos Satpam & Buku Mutasi\nPatroli Blok A - D'}
+                            className="w-full p-2 bg-surface border border-border rounded-xl text-ink text-xs leading-relaxed"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRosterShift(idx)}
+                          className="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 font-bold text-[10px] inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Hapus Shift Ini</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {rosterShifts.length === 0 && (
+                    <div className="p-4 bg-canvas rounded-2xl border border-dashed border-border text-center text-[11px] text-ink-muted">
+                      Belum ada shift pada roster. Klik "Tambah Shift" untuk menambahkan.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-bold text-ink-muted block mb-1">Catatan Roster (tampil di bawah jadwal)</label>
+                <textarea
+                  rows={2}
+                  value={rosterNotes}
+                  onChange={(e) => setRosterNotes(e.target.value)}
+                  placeholder="Cth: Penjagaan komplek berjalan 24 jam secara bergantian..."
+                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink text-xs leading-relaxed"
+                />
               </div>
             </div>
           </div>

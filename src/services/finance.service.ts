@@ -129,8 +129,60 @@ export async function getBudgetComparison() {
   ];
 }
 
+// Resolve to the 6 canonical Grand Sariwangi categories used by expense_categories:
+// cat-gaji, cat-iuran-rt, cat-iuran-rw, cat-operasional, cat-dana-kesehatan, cat-dana-tak-terduga.
+// Pos created from the UI carry a timestamp categoryId (cat-<ms>), so the human label
+// (categoryName) is checked first, then the raw categoryId, then the title.
+function resolveCanonicalCategoryId(categoryName?: string, categoryId?: string, title?: string): string {
+  const haystacks = [categoryName || '', categoryId || '', title || ''];
+  for (const raw of haystacks) {
+    const s = raw.toLowerCase();
+    if (!s) continue;
+    if (/(gaji|satpam|keamanan|honor)/.test(s)) return 'cat-gaji';
+    if (/(\brt\b|retribusi rt|sampah|kebersihan|sanitasi)/.test(s)) return 'cat-iuran-rt';
+    if (/(\brw\b|paguyuban)/.test(s)) return 'cat-iuran-rw';
+    if (/(kesehatan|bantuan|medis|p3k)/.test(s)) return 'cat-dana-kesehatan';
+    if (/(terduga|sumbangan|agustus|sosial|kegiatan|santunan)/.test(s)) return 'cat-dana-tak-terduga';
+    if (/(operasional|listrik|utilitas|pju|air|galon|pemeliharaan|perawatan|taman|pos jaga|cctv|internet)/.test(s)) return 'cat-operasional';
+  }
+  return 'cat-operasional';
+}
+
+// Cek duplikasi pembukuan secara toleran: judul yang sudah terbukukan bisa
+// berbeda sedikit dari judul di config (mis. 'Honor Petugas Jaga dan Keaman'
+// vs 'Honor Petugas Jaga & Keamanan (Pak Slamet)'). Cocokkan token dengan
+// toleransi awalan (prefix) supaya pos tidak dobel-terbukukan.
+const TITLE_STOPWORDS = new Set([
+  'dan', 'di', 'ke', 'dari', 'untuk', 'dengan', 'pada', 'the', 'tg', 'bulan', 'dan',
+]);
+
+function titleTokens(t: string): string[] {
+  return String(t)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w && !TITLE_STOPWORDS.has(w));
+}
+
+function tokenMatches(cfgToken: string, existingToken: string): boolean {
+  if (cfgToken.length <= 3 || existingToken.length <= 3) return cfgToken === existingToken;
+  return existingToken.startsWith(cfgToken) || cfgToken.startsWith(existingToken);
+}
+
+export function isDuplicateBookedTitle(configTitle: string, existingTitles: string[]): boolean {
+  const cfgTokens = titleTokens(configTitle);
+  if (cfgTokens.length === 0) return false;
+  for (const existing of existingTitles) {
+    const exTokens = titleTokens(existing);
+    const matched = cfgTokens.filter((cw) => exTokens.some((ew) => tokenMatches(cw, ew))).length;
+    if (matched >= 2 && matched / cfgTokens.length >= 0.6) return true;
+  }
+  return false;
+}
+
 export async function recordExpense(data: {
   categoryId: string;
+  categoryName?: string;
   accountId?: string;
   title: string;
   description?: string;
@@ -141,22 +193,7 @@ export async function recordExpense(data: {
   const expenseId = `exp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const accountId = data.accountId || 'acc-main';
 
-  // Normalize categoryId against Grand Sariwangi categories: cat-gaji, cat-iuran-rt, cat-iuran-rw, cat-operasional, cat-dana-kesehatan, cat-dana-tak-terduga
-  let safeCategoryId = data.categoryId || 'cat-operasional';
-  const catLower = safeCategoryId.toLowerCase();
-  if (catLower.includes('gaji') || catLower.includes('satpam') || catLower.includes('keamanan') || catLower.includes('honor')) {
-    safeCategoryId = 'cat-gaji';
-  } else if (catLower.includes('rt') || catLower.includes('sampah') || catLower.includes('kebersihan')) {
-    safeCategoryId = 'cat-iuran-rt';
-  } else if (catLower.includes('rw') || catLower.includes('paguyuban')) {
-    safeCategoryId = 'cat-iuran-rw';
-  } else if (catLower.includes('kesehatan') || catLower.includes('bantuan') || catLower.includes('medis')) {
-    safeCategoryId = 'cat-dana-kesehatan';
-  } else if (catLower.includes('terduga') || catLower.includes('sumbangan') || catLower.includes('agustus') || catLower.includes('sosial')) {
-    safeCategoryId = 'cat-dana-tak-terduga';
-  } else {
-    safeCategoryId = 'cat-operasional';
-  }
+  const safeCategoryId = resolveCanonicalCategoryId(data.categoryName, data.categoryId, data.title);
 
   // Normalize recordedBy to a valid user ID (user-bendahara, user-admin, etc.)
   const safeRecordedBy = (data.recordedBy && data.recordedBy.startsWith('user-')) ? data.recordedBy : 'user-bendahara';
@@ -430,6 +467,9 @@ export async function getRecurringExpensesConfig(): Promise<RecurringExpenseConf
 
 export async function saveRecurringExpensesConfig(items: RecurringExpenseConfigItem[]) {
   const jsonStr = JSON.stringify(items);
+  let persisted = false;
+  let lastError: any = null;
+
   if (process.env.DATABASE_URL) {
     try {
       await neonSql`
@@ -437,26 +477,38 @@ export async function saveRecurringExpensesConfig(items: RecurringExpenseConfigI
         VALUES ('set-recurring-expenses', 'comm-01', 'recurring_expenses_config', ${jsonStr}, 'Konfigurasi Pos Pengeluaran Rutin Bulanan', NOW())
         ON CONFLICT (id) DO UPDATE SET value = ${jsonStr}, updated_at = NOW();
       `;
+      persisted = true;
     } catch (e) {
+      lastError = e;
       console.warn('Neon save recurring config error:', e);
     }
   }
 
-  try {
-    const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, 'recurring_expenses_config')).limit(1);
-    if (existing.length) {
-      await db.update(schema.settings).set({ value: jsonStr, updatedAt: new Date().toISOString() }).where(eq(schema.settings.key, 'recurring_expenses_config'));
-    } else {
-      await db.insert(schema.settings).values({
-        id: 'set-recurring-expenses',
-        communityId: 'comm-01',
-        key: 'recurring_expenses_config',
-        value: jsonStr,
-        description: 'Konfigurasi Pos Pengeluaran Rutin Bulanan',
-      });
+  if (!persisted) {
+    try {
+      const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, 'recurring_expenses_config')).limit(1);
+      if (existing.length) {
+        await db.update(schema.settings).set({ value: jsonStr, updatedAt: new Date().toISOString() }).where(eq(schema.settings.key, 'recurring_expenses_config'));
+      } else {
+        await db.insert(schema.settings).values({
+          id: 'set-recurring-expenses',
+          communityId: 'comm-01',
+          key: 'recurring_expenses_config',
+          value: jsonStr,
+          description: 'Konfigurasi Pos Pengeluaran Rutin Bulanan',
+        });
+      }
+      persisted = true;
+    } catch (e) {
+      lastError = e;
+      console.warn('SQLite save recurring config error:', e);
     }
-  } catch (e) {
-    console.warn('SQLite save recurring config error:', e);
+  }
+
+  if (!persisted) {
+    throw new Error(
+      'Konfigurasi gagal disimpan ke database: ' + (lastError?.message || 'storage tidak tersedia')
+    );
   }
 
   return items;
@@ -466,9 +518,14 @@ export async function generateMonthlyRecurringExpenses(targetMonths?: string[]) 
   const config = await getRecurringExpensesConfig();
   const activeItems = config.filter((i) => i.isActive);
 
+  // Default: January of the current year up to and including the current month,
+  // so the running month (e.g. Oktober 2026) is always covered.
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
   const months = targetMonths && targetMonths.length > 0
     ? targetMonths
-    : ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'];
+    : Array.from({ length: currentMonth }, (_, i) => `${currentYear}-${String(i + 1).padStart(2, '0')}`);
 
   let totalItemsCreated = 0;
   let totalDeducted = 0;
@@ -502,11 +559,8 @@ export async function generateMonthlyRecurringExpenses(targetMonths?: string[]) 
         continue;
       }
 
-      // Check if already booked for this month
-      const isAlreadyBooked = existingTitles.some(t => 
-        t.includes(item.title.toLowerCase()) || 
-        (t.includes(item.id.toLowerCase()) && t.includes(month))
-      );
+      // Check if already booked for this month (pencocokan toleran agar tidak dobel-buku)
+      const isAlreadyBooked = isDuplicateBookedTitle(item.title, existingTitles);
 
       if (!isAlreadyBooked) {
         const safeDay = Math.min(Math.max(item.executionDay, 1), maxDaysInMonth);
@@ -515,6 +569,7 @@ export async function generateMonthlyRecurringExpenses(targetMonths?: string[]) 
 
         const expenseId = await recordExpense({
           categoryId: item.categoryId || 'cat-operasional',
+          categoryName: item.categoryName,
           accountId: item.accountId || 'acc-main',
           title,
           description: item.description || `Auto-Debit Pengeluaran Rutin Periode ${month}`,
@@ -561,23 +616,10 @@ export async function updateExpense(data: {
   description?: string;
   status?: string;
 }) {
-  let safeCategoryId = data.categoryId;
-  if (!safeCategoryId && data.categoryName) {
-    const catLower = data.categoryName.toLowerCase();
-    if (catLower.includes('gaji') || catLower.includes('satpam') || catLower.includes('keamanan') || catLower.includes('honor')) {
-      safeCategoryId = 'cat-gaji';
-    } else if (catLower.includes('rt') || catLower.includes('sampah') || catLower.includes('kebersihan')) {
-      safeCategoryId = 'cat-iuran-rt';
-    } else if (catLower.includes('rw') || catLower.includes('paguyuban')) {
-      safeCategoryId = 'cat-iuran-rw';
-    } else if (catLower.includes('kesehatan') || catLower.includes('bantuan') || catLower.includes('medis')) {
-      safeCategoryId = 'cat-dana-kesehatan';
-    } else if (catLower.includes('terduga') || catLower.includes('sumbangan') || catLower.includes('agustus') || catLower.includes('sosial')) {
-      safeCategoryId = 'cat-dana-tak-terduga';
-    } else {
-      safeCategoryId = 'cat-operasional';
-    }
-  }
+  const CANONICAL_CATEGORY_IDS = ['cat-gaji', 'cat-iuran-rt', 'cat-iuran-rw', 'cat-operasional', 'cat-dana-kesehatan', 'cat-dana-tak-terduga'];
+  const safeCategoryId = data.categoryId && CANONICAL_CATEGORY_IDS.includes(data.categoryId)
+    ? data.categoryId
+    : resolveCanonicalCategoryId(data.categoryName, data.categoryId, data.title);
 
   if (process.env.DATABASE_URL) {
     try {

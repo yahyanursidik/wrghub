@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { recordAuditLog } from '../../../../services/audit.service';
+import { createPoll, POLL_CATEGORIES } from '../../../../services/voting.service';
+
+export const prerender = false;
 
 const createPollSchema = z.object({
   title: z.string().min(3),
@@ -15,52 +17,33 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json();
     const validated = createPollSchema.parse(body);
 
-    const newPoll = {
-      id: `poll-${Date.now().toString().slice(-4)}`,
+    const poll = await createPoll({
       title: validated.title,
-      category: validated.category,
+      category: validated.category as (typeof POLL_CATEGORIES)[number],
       budgetEstimate: validated.budgetEstimate,
       description: validated.description,
-      status: 'ACTIVE',
-      totalVotes: 0,
-      createdAt: new Date().toISOString(),
-      endDate: validated.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      options: [
-        { label: 'Setuju Disetujui', count: 0, percentage: 0 },
-        { label: 'Tidak Setuju', count: 0, percentage: 0 },
-        { label: 'Abstain', count: 0, percentage: 0 },
-      ],
-    };
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Panitia Musyawarah / Pengurus',
-        action: 'voting.create_poll',
-        entityType: 'COMMUNITY_POLL',
-        entityId: newPoll.id,
-        newValue: {
-          title: validated.title,
-          category: validated.category,
-          budget: validated.budgetEstimate,
-        },
-      });
-    }
+      endsAt: validated.endDate,
+    });
 
     return new Response(
       JSON.stringify({
-        data: newPoll,
+        data: { poll },
         meta: {},
         error: null,
       }),
       { status: 201, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
+    const isZod = err instanceof z.ZodError;
+    const message = isZod
+      ? `Data polling tidak valid: ${err.issues.map((i) => `${i.path.join('.') || 'field'} — ${i.message}`).join('; ')}`
+      : err?.message || 'Gagal membuat polling';
     return new Response(
       JSON.stringify({
         data: null,
-        error: { code: 'POLL_CREATION_FAILED', message: err.message },
+        error: { code: isZod ? 'POLL_VALIDATION_FAILED' : 'POLL_CREATION_FAILED', message },
       }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+      { status: isZod ? 400 : 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 };
