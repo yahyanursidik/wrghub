@@ -22,7 +22,7 @@ export const POST: APIRoute = async ({ request }) => {
       category: validated.category,
       description: validated.description,
       reportedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB, ' + new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
-      assignedStaffName: validated.assignedStaffName || 'Pak Slamet Riyadi (Koordinator)',
+      assignedStaffName: validated.assignedStaffName || 'Belum ditugaskan',
       status: 'OPEN' as const,
       createdAt: new Date().toISOString(),
     };

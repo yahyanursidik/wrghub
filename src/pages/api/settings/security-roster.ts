@@ -20,6 +20,13 @@ export const GET: APIRoute = async () => {
   }
 };
 
+const timelineItemSchema = z.object({
+  time: z.string().min(1),
+  title: z.string().min(2),
+  label: z.string().default(''),
+  description: z.string().default(''),
+});
+
 const rosterSchema = z.object({
   shifts: z
     .array(
@@ -31,10 +38,16 @@ const rosterSchema = z.object({
         role: z.string().default('Petugas Jaga'),
         phone: z.string().default(''),
         areas: z.array(z.string().min(1)).default([]),
+        badgeNo: z.string().optional().default(''),
+        post: z.string().optional().default(''),
+        specialDuties: z.string().optional().default(''),
       })
     )
     .min(1),
   notes: z.string().default(''),
+  rotationStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  handoverTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  timeline: z.array(timelineItemSchema).optional(),
 });
 
 export const POST: APIRoute = async ({ request }) => {
@@ -42,7 +55,22 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json();
     const validated = rosterSchema.parse(body);
 
-    await saveSecurityShiftRoster(validated);
+    // Timeline & parameter rotasi tidak wajib dikirim editor; pertahankan
+    // nilai yang sudah tersimpan agar SOP piket tidak hilang saat menyimpan
+    // perubahan petugas saja.
+    const existing = await getSecurityShiftRoster();
+    const merged = {
+      shifts: validated.shifts,
+      notes: validated.notes,
+      rotationStartDate: validated.rotationStartDate || existing.rotationStartDate,
+      handoverTime: validated.handoverTime || existing.handoverTime,
+      timeline:
+        validated.timeline && validated.timeline.length > 0
+          ? validated.timeline
+          : existing.timeline,
+    };
+
+    await saveSecurityShiftRoster(merged);
 
     await recordAuditLog({
       actorName: 'Pengurus / Bendahara Komplek',

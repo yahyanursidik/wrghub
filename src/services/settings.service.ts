@@ -100,70 +100,147 @@ export async function getMasterBankAccount(): Promise<{
 
 export interface SecurityShiftEntry {
   id: string;
-  name: string;        // cth: 'Shift Pagi'
-  time: string;        // cth: '06:00 - 18:00 WIB'
+  name: string;        // cth: 'Dinas Hari Ini (Rotasi 1)'
+  time: string;        // cth: '07:00 - 07:00 WIB'
   staffName: string;
   role: string;
   phone: string;
-  areas: string[];     // daftar penugasan area jaga
+  areas: string[];     // penugasan area jaga (editor admin)
+  badgeNo?: string;    // cth: 'SEC.2026.2280'
+  post?: string;       // titik jaga, cth: 'Pos Gerbang Utama (Main Gate)'
+  specialDuties?: string; // tugas khusus harian petugas
+}
+
+export interface RosterTimelineItem {
+  time: string;        // '07:00 WIB'
+  title: string;
+  label: string;       // badge kategori, cth: 'Waktu Masuk'
+  description: string;
 }
 
 export interface SecurityShiftRoster {
   shifts: SecurityShiftEntry[];
   notes: string;
+  // Model dinas estafet 24 jam (pagi s/d pagi): petugas bergantian selang-seling
+  // setiap hari pada jam serah terima. rotationStartDate = tanggal petugas
+  // shifts[0] mulai dinas (patokan paritas rotasi).
+  rotationStartDate?: string; // 'YYYY-MM-DD'
+  handoverTime?: string;      // '07:00'
+  timeline?: RosterTimelineItem[];
   updatedAt?: string;
 }
 
 // Default dibangun dari roster riil petugas jaga Grand Sariwangi
-// (sumber: konfigurasi honor petugas di modul keuangan).
+// (sumber: Modul Keamanan & Jadwal — siklus piket estafet 24 jam).
 export const DEFAULT_SECURITY_SHIFT_ROSTER: SecurityShiftRoster = {
   shifts: [
     {
-      id: 'shift-pagi',
-      name: 'Shift Pagi',
-      time: '06:00 - 18:00 WIB',
+      id: 'officer-adri',
+      name: 'Dinas Hari Ini (Rotasi 1)',
+      time: '07:00 - 07:00 WIB',
       staffName: 'Pa Adri Harry',
-      role: 'Petugas Jaga Utama',
+      role: 'Satpam Utama (Piket Gerbang & Patroli 24 Jam)',
       phone: '0812-2008-2240',
+      badgeNo: 'SEC.2026.2280',
+      post: 'Pos Gerbang Utama (Main Gate)',
+      specialDuties: 'Standby Gerbang, PJU 18:00, Portal 21:00, Ronda 02:30',
       areas: [
-        'Gerbang Utama & Barrier Gate',
-        'Pos Satpam & Buku Mutasi Tamu',
-        'Patroli Blok A - D & Taman Fasum',
+        'Pos Jaga Depan (Pintu Utama)',
+        'Patroli Keliling Komplek',
+        'Pengawasan CCTV & Penerangan Jalan (PJU)',
       ],
     },
     {
-      id: 'shift-malam',
-      name: 'Shift Malam',
-      time: '18:00 - 06:00 WIB',
+      id: 'officer-slamet',
+      name: 'Dinas Berikutnya (Rotasi 2)',
+      time: '07:00 - 07:00 WIB',
       staffName: 'Pak Slamet Radiyanto',
-      role: 'Petugas Jaga Malam',
+      role: 'Petugas Jaga & Keamanan Komplek',
       phone: '0813-8899-2241',
+      badgeNo: 'SEC.2026.2281',
+      post: 'Pos Gerbang Utama (Main Gate)',
+      specialDuties: 'Serah Terima Piket 07:00, Standby Gerbang & Ronda Malam',
       areas: [
-        'Gerbang Utama & Kontrol Akses Malam',
-        'Pos Satpam (Jaga Malam)',
-        'Patroli Keamanan & Kontrol PJU Lingkungan',
+        'Pos Jaga Depan (Pintu Utama)',
+        'Patroli Keliling & Keamanan Malam',
+        'Kontrol Portal & Akses Tamu',
       ],
     },
   ],
+  rotationStartDate: '2026-10-04',
+  handoverTime: '07:00',
+  timeline: [
+    {
+      time: '07:00 WIB',
+      title: 'Serah Terima Piket & Cek HT/Kunci',
+      label: 'Waktu Masuk',
+      description: 'Serah terima mutasi pos antara Pa Adri Harry & Pak Slamet Radiyanto.',
+    },
+    {
+      time: '08:00 - 16:00 WIB',
+      title: 'Standby Gerbang, Tamu & Kurir Paket',
+      label: 'Siang Hari',
+      description: 'Pemeriksaan akses tamu kavling A - M, ojol makanan, paket kurir, dan keamanan jalan.',
+    },
+    {
+      time: '18:00 WIB',
+      title: 'Nyalakan Lampu Penerangan Jalan (PJU)',
+      label: 'Wajib Sore',
+      description: 'Mengaktifkan saklar PJU utama di gardu dan cek lampu jalan di sepanjang kavling A - M.',
+    },
+    {
+      time: '21:00 WIB',
+      title: 'Gembok & Kunci Portal Utama',
+      label: 'Keamanan Malam',
+      description: 'Akses terbatas 1 pintu diberlakukan. Setiap tamu malam wajib lapor satpam bertugas.',
+    },
+    {
+      time: '23:30 & 02:30 WIB',
+      title: 'Ronda Keliling Malam & Dini Hari',
+      label: 'Ronda Dini Hari',
+      description: 'Patroli jalan kaki bersenter keliling Kav A s/d Kav M, cek mobil di carport dan pagar keliling.',
+    },
+    {
+      time: '07:00 WIB Besok',
+      title: 'Buka Portal & Estafet ke Satpam Berikutnya',
+      label: 'Serah Terima',
+      description: 'Buka gembok portal, padamkan PJU, dan estafet tugas diserahkan kepada petugas mitra berikutnya.',
+    },
+  ],
   notes:
-    'Penjagaan komplek berjalan 24 jam secara bergantian (2 shift x 12 jam). Perubahan jadwal atau penugasan area ditetapkan oleh Pengurus Paguyuban dan dapat diperbarui melalui menu Pengaturan > Keamanan.',
+    'Rotasi estafet petugas jaga bergantian otomatis setiap pukul 07:00 WIB (pagi s/d pagi, dinas 24 jam). Perubahan jadwal atau penugasan area ditetapkan oleh Pengurus Paguyuban melalui menu Pengaturan > Keamanan.',
 };
 
 export async function getSecurityShiftRoster(): Promise<SecurityShiftRoster> {
+  const base = DEFAULT_SECURITY_SHIFT_ROSTER;
   if (process.env.DATABASE_URL) {
     try {
       const rows = await neonSql`SELECT value FROM settings WHERE key = 'security_shift_roster' LIMIT 1`;
       if (rows.length && rows[0].value) {
         const parsed = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
         if (Array.isArray(parsed?.shifts) && parsed.shifts.length > 0) {
-          return parsed as SecurityShiftRoster;
+          // Normalisasi data lama agar field baru selalu terisi
+          return {
+            ...base,
+            ...parsed,
+            shifts: parsed.shifts.map((s: any, i: number) => ({
+              badgeNo: '',
+              post: '',
+              specialDuties: '',
+              ...base.shifts[i % base.shifts.length],
+              ...s,
+            })),
+            timeline: Array.isArray(parsed.timeline) && parsed.timeline.length > 0 ? parsed.timeline : base.timeline,
+            rotationStartDate: parsed.rotationStartDate || base.rotationStartDate,
+            handoverTime: parsed.handoverTime || base.handoverTime,
+          } as SecurityShiftRoster;
         }
       }
     } catch (e) {
       console.warn('Neon get security roster error:', e);
     }
   }
-  return DEFAULT_SECURITY_SHIFT_ROSTER;
+  return base;
 }
 
 export async function saveSecurityShiftRoster(roster: SecurityShiftRoster): Promise<void> {
