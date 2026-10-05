@@ -87,6 +87,20 @@ export interface PublicTransparencyData {
   }>;
   // Roster jadwal shift & penugasan area jaga (publik, dikelola pengurus)
   securityRoster: SecurityShiftRoster;
+  // Tampilan roster siap-render: petugas yang sedang dinas hari ini + jadwal
+  // rotasi estafet 7 hari ke depan (dihitung server per zona WIB).
+  securityRosterView?: {
+    onDutyIndex: number;
+    handoverTime: string;
+    weekSchedule: Array<{
+      iso: string;
+      dayShort: string;
+      dayNum: number;
+      monthShort: string;
+      officerIndex: number;
+      isToday: boolean;
+    }>;
+  };
   bankInfo?: {
     bankName: string;
     accountNumber: string;
@@ -591,6 +605,42 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
 
   let qrCodeDataUrl = '';
   const securityRoster = await getSecurityShiftRoster().catch(() => null);
+  let securityRosterView: PublicTransparencyData['securityRosterView'];
+  if (securityRoster && securityRoster.shifts.length > 0) {
+    // Rotasi estafet: petugas bergantian selang-seling tiap hari pada jam serah
+    // terima (WIB). Dinas berjalan pagi-s/d-pagi, sehingga sebelum jam serah
+    // terima yang dinas masih petugas dari tanggal sebelumnya.
+    const DAY_SHORT = ['MIN', 'SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB'];
+    const MONTH_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
+    const n = securityRoster.shifts.length;
+    const handoverTime = securityRoster.handoverTime || '07:00';
+    const handoverHour = parseInt(handoverTime.split(':')[0], 10) || 7;
+    const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
+    const eff = new Date(nowWib);
+    if (nowWib.getUTCHours() < handoverHour) {
+      eff.setUTCDate(eff.getUTCDate() - 1);
+    }
+    const effIso = eff.toISOString().slice(0, 10);
+    const startIso = securityRoster.rotationStartDate || effIso;
+    const days = Math.floor((Date.parse(effIso) - Date.parse(startIso)) / 86400000);
+    const onDutyIndex = ((days % n) + n) % n;
+
+    const weekSchedule = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(nowWib);
+      d.setUTCDate(d.getUTCDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      return {
+        iso,
+        dayShort: DAY_SHORT[d.getUTCDay()],
+        dayNum: d.getUTCDate(),
+        monthShort: MONTH_SHORT[d.getUTCMonth()],
+        officerIndex: (((days + i) % n) + n) % n,
+        isToday: i === 0,
+      };
+    });
+
+    securityRosterView = { onDutyIndex, handoverTime, weekSchedule };
+  }
   try {
     qrCodeDataUrl = await QRCode.toDataURL(`https://wargahub.id/transparency/${year}/${month.toString().padStart(2, '0')}`, {
       margin: 1,
@@ -626,6 +676,7 @@ export async function getPublicMonthlyReport(year = 2026, month = 10): Promise<P
       shifts: [],
       notes: 'Roster jadwal shift petugas jaga akan diperbarui oleh pengurus.',
     },
+    securityRosterView,
     bankInfo: {
       bankName,
       accountNumber,

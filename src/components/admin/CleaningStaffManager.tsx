@@ -26,7 +26,6 @@ import {
   Square,
   Package,
   Building,
-  RefreshCw,
   X
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
@@ -102,241 +101,21 @@ interface CleaningStaffManagerProps {
 }
 
 // ================= DEFAULT REALISTIC DATASETS =================
-const defaultStaff: CleaningStaff[] = [
-  {
-    id: 'CLN-001',
-    name: 'Pak Slamet Riyadi',
-    role: 'KOORDINATOR_KEBERSIHAN',
-    phone: '0812-8877-6601',
-    zoneAssignment: 'Sentra TPS3R & Supervisi Seluruh Blok',
-    baseSalary: 4500000,
-    allowance: 600000,
-    employmentStatus: 'TETAP',
-    status: 'ACTIVE',
-    shift: 'FULL_DAY',
-    joinDate: '2023-01-15',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    notes: 'Koordinator operasional sanitasi komplek & penanggung jawab fasilitas TPS3R.'
-  },
-  {
-    id: 'CLN-002',
-    name: 'Pak Rohmat Hidayat',
-    role: 'PENGANGKUT_SAMPAH',
-    phone: '0813-2244-8802',
-    zoneAssignment: 'Rute Blok A, Blok B & Jl. Utama Boulevard',
-    baseSalary: 3800000,
-    allowance: 400000,
-    employmentStatus: 'KONTRAK',
-    status: 'ACTIVE',
-    shift: 'PAGI',
-    joinDate: '2023-04-10',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    notes: 'Driver operasional motor roda tiga Tossa Viar D-4821-WGH.'
-  },
-  {
-    id: 'CLN-003',
-    name: 'Pak Diding Supriyadi',
-    role: 'PENYAPU_JALAN',
-    phone: '0815-6677-9903',
-    zoneAssignment: 'Rute Blok C, Blok D & Drainase Utama',
-    baseSalary: 3600000,
-    allowance: 350000,
-    employmentStatus: 'KONTRAK',
-    status: 'ACTIVE',
-    shift: 'PAGI',
-    joinDate: '2023-08-01',
-    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
-    notes: 'Penanggung jawab kebersihan trotoar, selokan got, dan gerobak sampah GBK-01.'
-  },
-  {
-    id: 'CLN-004',
-    name: 'Pak Cecep Permana',
-    role: 'PETUGAS_TAMAN',
-    phone: '0857-3322-1104',
-    zoneAssignment: 'Taman Fasum Komunal & Jalur Hijau Gerbang',
-    baseSalary: 3600000,
-    allowance: 350000,
-    employmentStatus: 'KONTRAK',
-    status: 'ACTIVE',
-    shift: 'PAGI',
-    joinDate: '2024-02-15',
-    avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
-    notes: 'Operator mesin potong rumput Honda dan pemeliharaan vegetasi taman.'
-  }
-];
+const defaultStaff: CleaningStaff[] = [];
 
-const defaultRoutes: WasteRouteSchedule[] = [
-  {
-    id: 'RTE-01',
-    routeName: 'Pengangkutan Pagi: Blok A & B',
-    days: ['Senin', 'Rabu', 'Jumat'],
-    operationalHours: '06:30 - 09:30 WIB',
-    targetBlocks: 'Blok A (Kav 01-14) & Blok B (Kav 01-12)',
-    assignedStaffNames: ['Pak Rohmat Hidayat', 'Pak Slamet Riyadi'],
-    vehicleUsed: 'Motor Tossa Viar D-4821-WGH',
-    statusToday: 'COMPLETED',
-    completionTime: '09:15 WIB'
-  },
-  {
-    id: 'RTE-02',
-    routeName: 'Pengangkutan Siang: Blok C & D',
-    days: ['Selasa', 'Kamis', 'Sabtu'],
-    operationalHours: '07:00 - 10:30 WIB',
-    targetBlocks: 'Blok C (Kav 01-10) & Blok D (Kav 01-15)',
-    assignedStaffNames: ['Pak Rohmat Hidayat', 'Pak Diding Supriyadi'],
-    vehicleUsed: 'Motor Tossa Viar D-4821-WGH & Gerobak GBK-01',
-    statusToday: 'IN_PROGRESS'
-  },
-  {
-    id: 'RTE-03',
-    routeName: 'Pemilahan Organik & Anorganik TPS3R',
-    days: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'],
-    operationalHours: '10:30 - 13:00 WIB',
-    targetBlocks: 'Hanggar Sentral Pengolahan Sampah Terpadu TPS3R',
-    assignedStaffNames: ['Pak Slamet Riyadi', 'Pak Cecep Permana'],
-    vehicleUsed: 'Mesin Cacah Kompos & Timbangan Duduk',
-    statusToday: 'SCHEDULED'
-  }
-];
+const defaultRoutes: WasteRouteSchedule[] = [];
 
-const defaultTasks: DailyCleaningTask[] = [
-  {
-    id: 'TSK-01',
-    taskName: 'Pengangkutan Sampah Rumah Tangga Blok A & B',
-    category: 'SAMPAH_WARGA',
-    location: 'Blok A & Blok B',
-    assignedTo: 'Pak Rohmat Hidayat',
-    isCompleted: true,
-    completedAt: '09:15 WIB',
-    notes: 'Semua tempat sampah depan rumah terangkut tuntas ke TPS3R.'
-  },
-  {
-    id: 'TSK-02',
-    taskName: 'Penyapuan Daun Kering Boulevard & Area Gerbang',
-    category: 'SAPU_JALAN',
-    location: 'Jl. Utama Boulevard & Security Gate',
-    assignedTo: 'Pak Diding Supriyadi',
-    isCompleted: true,
-    completedAt: '08:45 WIB',
-    notes: 'Kondisi jalur protokol bersih rapi sebelum jam kantor warga.'
-  },
-  {
-    id: 'TSK-03',
-    taskName: 'Pengerukan Endapan Sedimen Got Drainase Blok C',
-    category: 'GOT_DRAINASE',
-    location: 'Saluran Drainase Terbuka Blok C',
-    assignedTo: 'Pak Diding Supriyadi',
-    isCompleted: false,
-    notes: 'Antisipasi genangan air saat hujan deras.'
-  },
-  {
-    id: 'TSK-04',
-    taskName: 'Pemangkasan Rumput & Siram Tanaman Fasum',
-    category: 'FASUM_TAMAN',
-    location: 'Taman Bermain Anak & Gazebo Warga',
-    assignedTo: 'Pak Cecep Permana',
-    isCompleted: false,
-    notes: 'Pemangkasan rumput gajah mini dan pemupukan tanaman hias.'
-  },
-  {
-    id: 'TSK-05',
-    taskName: 'Pengecekan Kebersihan Hanggar & Pencacahan Kompos TPS3R',
-    category: 'TPS_PENGOLAHAN',
-    location: 'Sentra TPS3R Belakang Komplek',
-    assignedTo: 'Pak Slamet Riyadi',
-    isCompleted: false,
-    notes: 'Pengolahan sampah daun menjadi pupuk kompos warga.'
-  }
-];
+const defaultTasks: DailyCleaningTask[] = [];
 
-const defaultEquipment: CleaningEquipment[] = [
-  {
-    id: 'EQ-01',
-    name: 'Motor Roda Tiga Bak Sampah Viar 200cc',
-    category: 'ARMADA_MOTOR',
-    unitCode: 'D-4821-WGH (ARM-01)',
-    quantity: 1,
-    condition: 'BAIK',
-    lastServiceDate: '2026-08-20',
-    nextServiceDueDate: '2026-09-20',
-    picName: 'Pak Rohmat Hidayat',
-    notes: 'Kondisi mesin prima, ganti oli rutin bulanan, hidrolik bak berfungsi baik.'
-  },
-  {
-    id: 'EQ-02',
-    name: 'Gerobak Dorong Sampah Plat Besi',
-    category: 'GEROBAK',
-    unitCode: 'GBK-01 & GBK-02',
-    quantity: 2,
-    condition: 'BAIK',
-    lastServiceDate: '2026-08-10',
-    nextServiceDueDate: '2026-10-10',
-    picName: 'Pak Diding Supriyadi',
-    notes: 'Roda karet bearing baru diganti, cat pelapis anti-karat terpasang.'
-  },
-  {
-    id: 'EQ-03',
-    name: 'Mesin Pemotong Rumput Gendong Honda GX35',
-    category: 'MESIN_RUMPUT',
-    unitCode: 'MSN-01',
-    quantity: 1,
-    condition: 'BAIK',
-    lastServiceDate: '2026-08-25',
-    nextServiceDueDate: '2026-09-25',
-    picName: 'Pak Cecep Permana',
-    notes: 'Pisau potong baja tajam dan senar cadangan tersedia 2 gulung.'
-  },
-  {
-    id: 'EQ-04',
-    name: 'Set Alat Pengeruk Selokan (Cangkul Got, Garpu, Sekop)',
-    category: 'ALAT_MANUAL',
-    unitCode: 'SET-DRN-01',
-    quantity: 4,
-    condition: 'BAIK',
-    lastServiceDate: '2026-07-15',
-    nextServiceDueDate: '2026-10-15',
-    picName: 'Pak Diding Supriyadi',
-    notes: 'Peralatan manual pengerukan sedimentasi got dan parit komplek.'
-  },
-  {
-    id: 'EQ-05',
-    name: 'Paket APD Petugas (Sepatu Boots Karet, Sarung Tangan, Rompi Scotlight)',
-    category: 'SAFETY_APD',
-    unitCode: 'APD-SET-04',
-    quantity: 4,
-    condition: 'BAIK',
-    lastServiceDate: '2026-08-01',
-    nextServiceDueDate: '2026-11-01',
-    picName: 'Pak Slamet Riyadi',
-    notes: 'Standar keselamatan kerja wajib bagi seluruh tim saat bertugas.'
-  }
-];
+const defaultEquipment: CleaningEquipment[] = [];
 
-const defaultTickets: CleaningTicket[] = [
-  {
-    id: 'TCK-101',
-    reporterHouse: 'Blok A / Kav 04',
-    reporterName: 'Ibu Ratna Dewi',
-    category: 'SAMPAH_TERLEWAT',
-    description: 'Tempat sampah di depan pagar terlewat saat pengangkutan pagi tadi karena tertutup dahan.',
-    reportedAt: '08:30 WIB',
-    assignedStaffId: 'CLN-002',
-    assignedStaffName: 'Pak Rohmat Hidayat',
-    status: 'ASSIGNED'
-  },
-  {
-    id: 'TCK-102',
-    reporterHouse: 'Blok D / Kav 11',
-    reporterName: 'Bapak Hendra Gunawan',
-    category: 'POHON_RANTING',
-    description: 'Dahan pohon di tepi jalan menjorok rendah dan menghalangi penerangan lampu jalan.',
-    reportedAt: 'Kemarin, 16:45 WIB',
-    assignedStaffId: 'CLN-004',
-    assignedStaffName: 'Pak Cecep Permana',
-    status: 'RESOLVED',
-    resolvedAt: '08:00 WIB'
-  }
-];
+const defaultTickets: CleaningTicket[] = [];
+
+// Nama petugas contoh bawaan lama — dibersihkan otomatis dari data yang
+// tersimpan di browser agar tidak muncul kembali (data riil dibiarkan utuh).
+const SAMPLE_STAFF_NAMES = ['slamet riyadi', 'rohmat hidayat', 'cecep permana'];
+const isSampleName = (v: any) => SAMPLE_STAFF_NAMES.some((n) => String(v || '').toLowerCase().includes(n));
+const asArray = (v: any): any[] => (Array.isArray(v) ? v : []);
 
 export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   totalProperties = 0,
@@ -348,11 +127,9 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     try {
       const val = localStorage.getItem(key);
       if (val === null) return fallback;
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed) && parsed.length === 0 && Array.isArray(fallback) && fallback.length > 0) {
-        return fallback;
-      }
-      return parsed;
+      // Data tersimpan dihormati apa adanya — termasuk array kosong hasil
+      // penghapusan semua item, agar data sampel tidak bangkit kembali.
+      return JSON.parse(val);
     } catch {
       return fallback;
     }
@@ -414,8 +191,12 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
         const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
         if (saved !== null) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((s: any) => !deletedIds.includes(s.id));
+          // Daftar tersimpan dihormati walau kosong (semua staf telah dihapus user),
+          // dengan pembersihan otomatis nama petugas contoh bawaan lama.
+          if (Array.isArray(parsed)) {
+            return parsed
+              .filter((s: any) => !deletedIds.includes(s.id) && !isSampleName(s.name))
+              .map((s: any) => ({ ...s }));
           }
         }
         return defaultStaff.filter(s => !deletedIds.includes(s.id));
@@ -426,24 +207,31 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     return defaultStaff;
   });
 
-  // 2. Routes Schedules State
+  // 2. Routes Schedules State — rute yang seluruh petugasnya contoh dihapus;
+  //    nama contoh pada rute campuran dibuang, rute riil tetap utuh.
   const [routes, setRoutes] = useState<WasteRouteSchedule[]>(() =>
-    getPersisted('wargahub_cleaning_routes', defaultRoutes)
+    asArray(getPersisted('wargahub_cleaning_routes', defaultRoutes))
+      .filter((r: any) => !((r.assignedStaffNames || []).length > 0 && r.assignedStaffNames.every(isSampleName)))
+      .map((r: any) => ({ ...r, assignedStaffNames: (r.assignedStaffNames || []).filter((n: string) => !isSampleName(n)) }))
   );
 
   // 3. Daily Checklist State
   const [dailyTasks, setDailyTasks] = useState<DailyCleaningTask[]>(() =>
-    getPersisted('wargahub_cleaning_tasks', defaultTasks)
+    asArray(getPersisted('wargahub_cleaning_tasks', defaultTasks)).filter((t: any) => !isSampleName(t.assignedTo))
   );
 
   // 4. Equipment & Vehicles State
   const [equipmentList, setEquipmentList] = useState<CleaningEquipment[]>(() =>
-    getPersisted('wargahub_cleaning_equipment', defaultEquipment)
+    asArray(getPersisted('wargahub_cleaning_equipment', defaultEquipment)).filter((eq: any) => !isSampleName(eq.picName))
   );
 
-  // 5. Citizen Cleaning Tickets State
+  // 5. Citizen Cleaning Tickets State — laporan warga tetap disimpan,
+  //    hanya penugasan ke petugas contoh yang dikosongkan.
   const [tickets, setTickets] = useState<CleaningTicket[]>(() =>
-    getPersisted('wargahub_cleaning_tickets', defaultTickets)
+    asArray(getPersisted('wargahub_cleaning_tickets', defaultTickets)).map((t: any) => ({
+      ...t,
+      assignedStaffName: isSampleName(t.assignedStaffName) ? 'Belum ditugaskan' : t.assignedStaffName,
+    }))
   );
 
   // Navigation Subtabs
@@ -493,14 +281,14 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   const [routeDays, setRouteDays] = useState<string[]>(['Senin', 'Rabu', 'Jumat']);
   const [routeHours, setRouteHours] = useState('06:30 - 09:30 WIB');
   const [routeBlocks, setRouteBlocks] = useState('');
-  const [routeStaff, setRouteStaff] = useState<string>('Pak Rohmat Hidayat');
+  const [routeStaff, setRouteStaff] = useState<string>('');
   const [routeVehicle, setRouteVehicle] = useState('Motor Tossa Viar D-4821-WGH');
 
   // Form State for Task Modal
   const [taskName, setTaskName] = useState('');
   const [taskCategory, setTaskCategory] = useState<DailyCleaningTask['category']>('SAMPAH_WARGA');
   const [taskLocation, setTaskLocation] = useState('');
-  const [taskAssignedTo, setTaskAssignedTo] = useState('Pak Slamet Riyadi');
+  const [taskAssignedTo, setTaskAssignedTo] = useState('');
   const [taskNotes, setTaskNotes] = useState('');
 
   // Form State for Equipment Modal
@@ -509,7 +297,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   const [eqUnitCode, setEqUnitCode] = useState('');
   const [eqQuantity, setEqQuantity] = useState(1);
   const [eqCondition, setEqCondition] = useState<CleaningEquipment['condition']>('BAIK');
-  const [eqPicName, setEqPicName] = useState('Pak Slamet Riyadi');
+  const [eqPicName, setEqPicName] = useState('');
   const [eqNotes, setEqNotes] = useState('');
 
   // Form State for Ticket Modal
@@ -517,7 +305,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   const [ticketName, setTicketName] = useState('');
   const [ticketCategory, setTicketCategory] = useState<CleaningTicket['category']>('SAMPAH_TERLEWAT');
   const [ticketDesc, setTicketDesc] = useState('');
-  const [ticketStaff, setTicketStaff] = useState('Pak Rohmat Hidayat');
+  const [ticketStaff, setTicketStaff] = useState('');
 
   // Calculations & KPIs
   const totalStaffCount = staffList.length;
@@ -983,24 +771,6 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     showToast('Aduan kebersihan warga berhasil diselesaikan.');
   };
 
-  // Reset Demo Data
-  const handleResetDemoData = () => {
-    if (confirm('Kembalikan data staf, rute, checklist, peralatan, dan tiket ke sampel bawaan komplek?')) {
-      setStaffList(defaultStaff);
-      setRoutes(defaultRoutes);
-      setDailyTasks(defaultTasks);
-      setEquipmentList(defaultEquipment);
-      setTickets(defaultTickets);
-      savePersisted('wargahub_cleaning_staff', defaultStaff);
-      savePersisted('wargahub_cleaning_routes', defaultRoutes);
-      savePersisted('wargahub_cleaning_tasks', defaultTasks);
-      savePersisted('wargahub_cleaning_equipment', defaultEquipment);
-      savePersisted('wargahub_cleaning_tickets', defaultTickets);
-      localStorage.removeItem('wargahub_deleted_cleaning_staff');
-      showToast('Data kebersihan komplek berhasil dipulihkan ke default.');
-    }
-  };
-
   // Export CSV
   const handleExportCSV = () => {
     const headers = ['ID Staf', 'Nama Lengkap', 'Jabatan / Peran', 'No. HP / WA', 'Zona Penugasan', 'Gaji Pokok', 'Tunjangan', 'Status Kepegawaian', 'Status Aktif', 'Tanggal Bergabung'];
@@ -1116,15 +886,6 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
                 {taskProgressPercent}% Selesai
               </span>
             </div>
-            <button
-              type="button"
-              onClick={handleResetDemoData}
-              title="Muat ulang dataset sampel jika data kosong"
-              className="p-2.5 bg-white/10 hover:bg-white/20 active:scale-[0.98] rounded-xl text-slate-300 hover:text-white transition-all text-xs flex items-center gap-1.5 border border-white/10"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Reset Sampel</span>
-            </button>
           </div>
         </div>
       </div>
@@ -1516,6 +1277,11 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {routes.length === 0 && (
+                <div className="col-span-full p-10 text-center bg-canvas rounded-2xl border border-dashed border-border text-xs text-ink-muted">
+                  Belum ada jadwal rute pengangkutan sampah. Klik "+ Tambah Rute Baru" untuk membuat jadwal rute riil komplek.
+                </div>
+              )}
               {routes.map((r) => (
                 <div key={r.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-3 shadow-xs hover:border-teal-300 transition-colors flex flex-col justify-between">
                   <div className="space-y-3">
@@ -1879,7 +1645,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
                 <label className="font-bold text-ink block mb-1">Nama Lengkap Petugas *</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Pak Slamet Riyadi"
+                  placeholder="Nama petugas penanggung jawab"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   required

@@ -522,6 +522,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
   // ================= ROSTER JADWAL SHIFT & PENUGASAN AREA JAGA (halaman publik Transparency) =================
   const [rosterShifts, setRosterShifts] = useState<SecurityShiftEntry[]>([]);
   const [rosterNotes, setRosterNotes] = useState('');
+  const [rosterHandover, setRosterHandover] = useState('07:00');
+  const [rosterRotationStart, setRosterRotationStart] = useState(new Date().toISOString().slice(0, 10));
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterSaving, setRosterSaving] = useState(false);
 
@@ -537,6 +539,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
         if (roster?.shifts?.length) {
           setRosterShifts(roster.shifts);
           setRosterNotes(roster.notes || '');
+          setRosterHandover(roster.handoverTime || '07:00');
+          setRosterRotationStart(roster.rotationStartDate || new Date().toISOString().slice(0, 10));
         }
       })
       .catch(() => {})
@@ -562,12 +566,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       ...prev,
       {
         id: `shift-${Date.now()}`,
-        name: `Shift ${prev.length + 1}`,
-        time: '00:00 - 00:00 WIB',
+        name: `Petugas ${prev.length + 1}`,
+        time: '07:00 - 07:00 WIB',
         staffName: '',
         role: 'Petugas Jaga',
         phone: '',
         areas: [],
+        badgeNo: '',
+        post: '',
+        specialDuties: '',
       },
     ]);
   };
@@ -590,7 +597,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       const res = await fetch('/api/settings/security-roster', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shifts: rosterShifts, notes: rosterNotes }),
+        body: JSON.stringify({
+          shifts: rosterShifts,
+          notes: rosterNotes,
+          handoverTime: rosterHandover,
+          rotationStartDate: rosterRotationStart,
+        }),
       });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.data?.success) {
@@ -2507,7 +2519,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                     className="inline-flex items-center gap-1.5 px-3 py-2 bg-canvas hover:bg-surface text-ink font-bold text-[11px] rounded-xl border border-border shadow-2xs transition-all"
                   >
                     <PlusCircle className="w-3.5 h-3.5 text-primary-600" />
-                    <span>Tambah Shift</span>
+                    <span>Tambah Petugas</span>
                   </button>
                   <button
                     type="button"
@@ -2531,26 +2543,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                     <div key={shift.id} className="p-4 rounded-2xl bg-canvas border border-border space-y-2.5">
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                         <div>
-                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Nama Shift</label>
-                          <input
-                            type="text"
-                            value={shift.name}
-                            onChange={(e) => updateRosterShift(idx, 'name', e.target.value)}
-                            placeholder="Shift Pagi"
-                            className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Jam Kerja</label>
-                          <input
-                            type="text"
-                            value={shift.time}
-                            onChange={(e) => updateRosterShift(idx, 'time', e.target.value)}
-                            placeholder="06:00 - 18:00 WIB"
-                            className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink text-xs"
-                          />
-                        </div>
-                        <div>
                           <label className="text-[10px] font-bold text-ink-muted block mb-1">Nama Petugas *</label>
                           <input
                             type="text"
@@ -2561,18 +2553,25 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                           />
                         </div>
                         <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">No. ID Satpam</label>
+                          <input
+                            type="text"
+                            value={shift.badgeNo || ''}
+                            onChange={(e) => updateRosterShift(idx, 'badgeNo', e.target.value)}
+                            placeholder="SEC.2026.2280"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink text-xs"
+                          />
+                        </div>
+                        <div>
                           <label className="text-[10px] font-bold text-ink-muted block mb-1">Peran / Jabatan</label>
                           <input
                             type="text"
                             value={shift.role}
                             onChange={(e) => updateRosterShift(idx, 'role', e.target.value)}
-                            placeholder="Petugas Jaga Utama"
+                            placeholder="Satpam Utama (Piket Gerbang & Patroli 24 Jam)"
                             className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
                           />
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
                         <div>
                           <label className="text-[10px] font-bold text-ink-muted block mb-1">Kontak HP Petugas</label>
                           <input
@@ -2583,18 +2582,42 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                             className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink text-xs"
                           />
                         </div>
-                        <div className="lg:col-span-2">
-                          <label className="text-[10px] font-bold text-ink-muted block mb-1">
-                            Penugasan Area Jaga (satu area per baris)
-                          </label>
-                          <textarea
-                            rows={3}
-                            value={(shift.areas || []).join('\n')}
-                            onChange={(e) => updateRosterAreas(idx, e.target.value)}
-                            placeholder={'Gerbang Utama & Barrier Gate\nPos Satpam & Buku Mutasi\nPatroli Blok A - D'}
-                            className="w-full p-2 bg-surface border border-border rounded-xl text-ink text-xs leading-relaxed"
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Titik Jaga</label>
+                          <input
+                            type="text"
+                            value={shift.post || ''}
+                            onChange={(e) => updateRosterShift(idx, 'post', e.target.value)}
+                            placeholder="Pos Gerbang Utama (Main Gate)"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
                           />
                         </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-ink-muted block mb-1">Tugas Khusus Harian</label>
+                          <input
+                            type="text"
+                            value={shift.specialDuties || ''}
+                            onChange={(e) => updateRosterShift(idx, 'specialDuties', e.target.value)}
+                            placeholder="Standby Gerbang, PJU 18:00, Portal 21:00, Ronda 02:30"
+                            className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-ink-muted block mb-1">
+                          Penugasan Area Jaga (satu area per baris)
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={(shift.areas || []).join('\n')}
+                          onChange={(e) => updateRosterAreas(idx, e.target.value)}
+                          placeholder={'Pos Jaga Depan (Pintu Utama)\nPatroli Keliling Komplek\nPengawasan CCTV & Penerangan Jalan'}
+                          className="w-full p-2 bg-surface border border-border rounded-xl text-ink text-xs leading-relaxed"
+                        />
                       </div>
 
                       <div className="flex justify-end">
@@ -2604,18 +2627,48 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                           className="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 font-bold text-[10px] inline-flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
-                          <span>Hapus Shift Ini</span>
+                          <span>Hapus Petugas Ini</span>
                         </button>
                       </div>
                     </div>
                   ))}
                   {rosterShifts.length === 0 && (
                     <div className="p-4 bg-canvas rounded-2xl border border-dashed border-border text-center text-[11px] text-ink-muted">
-                      Belum ada shift pada roster. Klik "Tambah Shift" untuk menambahkan.
+                      Belum ada petugas pada roster. Klik "Tambah Petugas" untuk menambahkan.
                     </div>
                   )}
                 </div>
               )}
+
+              {/* Parameter Rotasi Estafet */}
+              <div className="p-4 rounded-2xl bg-primary-50/60 border border-primary-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-primary-900 block mb-1">Jam Serah Terima Piket (WIB)</label>
+                  <input
+                    type="time"
+                    value={rosterHandover}
+                    onChange={(e) => setRosterHandover(e.target.value)}
+                    className="w-full p-2 bg-surface border border-primary-200 rounded-xl font-mono font-bold text-ink text-xs"
+                  />
+                  <span className="text-[10px] text-primary-800 block mt-1">
+                    Rotasi dinas bergantian otomatis setiap jam ini (pagi s/d pagi, 24 jam).
+                  </span>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-primary-900 block mb-1">
+                    Tanggal Petugas #1 Mulai Dinas (patokan rotasi)
+                  </label>
+                  <input
+                    type="date"
+                    value={rosterRotationStart}
+                    onChange={(e) => setRosterRotationStart(e.target.value)}
+                    className="w-full p-2 bg-surface border border-primary-200 rounded-xl font-mono font-bold text-ink text-xs"
+                  />
+                  <span className="text-[10px] text-primary-800 block mt-1">
+                    Penentu siapa yang dinas hari ini &amp; jadwal 7 hari ke depan (selang-seling).
+                  </span>
+                </div>
+              </div>
 
               <div>
                 <label className="text-[10px] font-bold text-ink-muted block mb-1">Catatan Roster (tampil di bawah jadwal)</label>

@@ -38,7 +38,9 @@ import {
   X,
   AlertTriangle,
   Heart,
-  Users
+  Users,
+  MapPin,
+  Smartphone
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import type { PublicTransparencyData } from '../../services/transparency.service';
@@ -977,16 +979,8 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 </div>
               </div>
 
-              {data.expenseBreakdown.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedExpenseCategory(data.expenseBreakdown[0])}
-                  className="w-full py-2.5 px-4 rounded-xl border border-primary-600 text-primary-700 hover:bg-primary-50 font-bold text-xs transition-all text-center flex items-center justify-center gap-1.5 shadow-2xs active:scale-[0.98]"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Buka Kuitansi & Nota Belanja Kas Operasional</span>
-                </button>
-              )}
+              {/* Tombol "Buka Kuitansi & Nota Belanja" dihilangkan: setiap baris kategori
+                  sudah bisa membuka rincian nota melalui aksi "Lihat Nota" pada barisnya. */}
             </div>
 
             {/* Kolom 2: Rekening Resmi Paguyuban & Neraca Kas */}
@@ -1066,84 +1060,246 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             </div>
           </div>
 
-          {/* 3B. ROSTER JADWAL SHIFT & PENUGASAN AREA JAGA */}
-          {(data.securityRoster?.shifts?.length ?? 0) > 0 && (
-            <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-bold border border-primary-200">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-ink">
-                      Roster Jadwal Shift &amp; Penugasan Area Jaga
-                    </h3>
-                    <p className="text-xs text-ink-muted mt-0.5">
-                      Personil petugas jaga resmi yang ditugaskan menjaga keamanan komplek, ditetapkan oleh Pengurus Paguyuban.
-                    </p>
-                  </div>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 self-start sm:self-auto">
-                  JAGA 24 JAM BERGANTIAN
-                </span>
-              </div>
+          {/* 3B. ROSTER JADWAL SHIFT & PENUGASAN AREA JAGA (DINAS ESTAFET 24 JAM) */}
+          {(data.securityRoster?.shifts?.length ?? 0) > 0 && data.securityRosterView && (() => {
+            const roster = data.securityRoster!;
+            const view = data.securityRosterView!;
+            const officers = roster.shifts;
+            const onDuty = officers[view.onDutyIndex] || officers[0];
+            const offDuty = officers.length > 1 ? officers[(view.onDutyIndex + 1) % officers.length] : null;
+            const waLink = (phone: string) =>
+              `https://wa.me/62${String(phone || '').replace(/[^0-9]/g, '').replace(/^0+/, '')}`;
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(data.securityRoster?.shifts || []).map((shift) => (
-                  <div
-                    key={shift.id}
-                    className="p-5 rounded-3xl bg-canvas border border-border space-y-3.5"
-                  >
+            return (
+              <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-bold border border-primary-200">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-ink">
+                        Roster Jadwal Shift &amp; Penugasan Area Jaga
+                      </h3>
+                      <p className="text-xs text-ink-muted mt-0.5">
+                        Personil petugas jaga resmi yang ditugaskan menjaga keamanan komplek, ditetapkan oleh Pengurus Paguyuban.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 self-start sm:self-auto">
+                    OPERASIONAL 24 JAM
+                  </span>
+                </div>
+
+                {/* Kartu Petugas: Yang Sedang Dinas & Mitra Estafet */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Petugas Hari Ini (Sedang Dinas) */}
+                  <div className="p-5 rounded-3xl bg-emerald-50/60 border-2 border-emerald-300 space-y-3.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="px-3 py-1 rounded-xl bg-primary-600 text-white text-[11px] font-black shadow-xs">
-                        {shift.name}
+                      <span className="px-3 py-1 rounded-xl bg-emerald-600 text-white text-[11px] font-black shadow-xs">
+                        PETUGAS HARI INI (SEDANG DINAS)
                       </span>
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface border border-border text-[11px] font-bold text-ink font-mono">
-                        <Clock className="w-3.5 h-3.5 text-primary-600" />
-                        {shift.time}
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface border border-emerald-200 text-[11px] font-bold text-ink font-mono">
+                        <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                        {view.handoverTime} - {view.handoverTime} WIB
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center shrink-0">
-                        <Users className="w-4.5 h-4.5 text-primary-700" />
+                      <div className="w-10 h-10 rounded-2xl bg-surface border border-emerald-200 flex items-center justify-center shrink-0">
+                        <Users className="w-4.5 h-4.5 text-emerald-700" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-ink leading-tight">{shift.staffName}</p>
-                        <p className="text-[11px] text-ink-muted font-bold">{shift.role}</p>
+                        <p className="text-sm font-black text-ink leading-tight">{onDuty.staffName}</p>
+                        <p className="text-[11px] text-ink-muted font-bold">
+                          {onDuty.badgeNo ? `${onDuty.badgeNo} • ` : ''}{onDuty.role}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                        Penugasan Area Jaga:
-                      </span>
-                      {(shift.areas || []).map((area, i) => (
-                        <div key={i} className="flex items-start gap-2 text-[11px] text-ink">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                          <span className="font-semibold">{area}</span>
+                    <div className="space-y-2 text-[11px]">
+                      {onDuty.post && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
+                          <span className="text-ink font-semibold">Titik Jaga: {onDuty.post}</span>
                         </div>
-                      ))}
+                      )}
+                      {onDuty.specialDuties && (
+                        <div className="flex items-start gap-2">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
+                          <span className="text-ink-muted">
+                            <strong className="text-ink font-bold">Tugas Khusus:</strong> {onDuty.specialDuties}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    {shift.phone && (
-                      <div className="pt-2.5 border-t border-border/70 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider">Kontak Shift</span>
-                        <span className="font-mono text-[11px] font-bold text-ink">{shift.phone}</span>
+                    {onDuty.phone && (
+                      <div className="pt-2.5 border-t border-emerald-200/80 flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold text-ink">
+                          <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
+                          {onDuty.phone}
+                        </span>
+                        <a
+                          href={waLink(onDuty.phone)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-xs inline-flex items-center gap-1.5 active:scale-95 transition-all"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>Hubungi WhatsApp</span>
+                        </a>
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
 
-              {data.securityRoster?.notes && (
-                <div className="p-3.5 bg-canvas rounded-2xl border border-dashed border-border flex items-start gap-2.5">
-                  <Info className="w-4 h-4 text-ink-muted shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-ink-muted leading-relaxed">{data.securityRoster.notes}</p>
+                  {/* Petugas Mitra (Lepas Piket / Dinas Besok) */}
+                  {offDuty && (
+                    <div className="p-5 rounded-3xl bg-canvas border-2 border-border space-y-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="px-3 py-1 rounded-xl bg-slate-600 text-white text-[11px] font-black shadow-xs">
+                          PETUGAS MITRA (LEPAS PIKET / DINAS BESOK)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center shrink-0">
+                          <Users className="w-4.5 h-4.5 text-ink-muted" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-ink leading-tight">{offDuty.staffName}</p>
+                          <p className="text-[11px] text-ink-muted font-bold">
+                            {offDuty.badgeNo ? `${offDuty.badgeNo} • ` : ''}{offDuty.role}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 text-[11px]">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
+                          <span className="text-ink-muted">
+                            <strong className="text-ink font-bold">Jadwal Masuk Dinas:</strong> Besok Pukul {view.handoverTime} WIB (24 Jam)
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Info className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
+                          <span className="text-ink-muted">
+                            <strong className="text-ink font-bold">Status Hari Ini:</strong> Istirahat Lepas Piket (Off) / Siaga Panggilan Darurat
+                          </span>
+                        </div>
+                      </div>
+
+                      {offDuty.phone && (
+                        <div className="pt-2.5 border-t border-border flex items-center gap-1.5 font-mono text-[11px] font-bold text-ink">
+                          <Smartphone className="w-3.5 h-3.5 text-ink-muted" />
+                          {offDuty.phone}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Timeline Siklus Piket 24 Jam */}
+                {(roster.timeline?.length ?? 0) > 0 && (
+                  <div className="p-5 bg-canvas rounded-3xl border border-border space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary-600" />
+                        <h4 className="text-sm font-black text-ink">
+                          Timeline Siklus Piket 24 Jam Pagi s/d Pagi
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-primary-700">
+                        Rotasi Estafet Bergantian Setiap {view.handoverTime} WIB
+                      </span>
+                    </div>
+
+                    <div className="space-y-0">
+                      {(roster.timeline || []).map((item, i, arr) => (
+                        <div key={i} className="flex gap-3.5">
+                          <div className="flex flex-col items-center shrink-0 w-24">
+                            <span className="font-mono text-[10px] font-black text-primary-700 bg-primary-50 border border-primary-200 rounded-lg px-1.5 py-0.5 text-center leading-tight">
+                              {item.time}
+                            </span>
+                            <span className={`flex-1 w-0.5 ${i === arr.length - 1 ? 'bg-transparent' : 'bg-border'}`} />
+                          </div>
+                          <div className={`pb-4 ${i === arr.length - 1 ? 'pb-1' : ''} space-y-1`}>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {item.label && (
+                                <span className="px-2 py-0.2 rounded-md text-[9px] font-black uppercase bg-surface border border-border text-ink-muted">
+                                  {item.label}
+                                </span>
+                              )}
+                              <h5 className="text-xs font-black text-ink">{item.title}</h5>
+                            </div>
+                            <p className="text-[11px] text-ink-muted leading-relaxed pr-2">{item.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Jadwal Rotasi Estafet 7 Hari */}
+                <div className="p-5 bg-canvas rounded-3xl border border-border space-y-3.5">
+                  <div className="flex items-center gap-2 border-b border-border pb-3">
+                    <Calendar className="w-4 h-4 text-primary-600" />
+                    <h4 className="text-sm font-black text-ink">
+                      Jadwal Rotasi Estafet {officers.length} Satpam
+                      <span className="font-bold text-ink-muted"> (7 Hari ke Depan — Selang-Seling Otomatis)</span>
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                    {view.weekSchedule.map((day) => {
+                      const officer = officers[day.officerIndex] || officers[0];
+                      const isOnDutyToday = day.isToday && day.officerIndex === view.onDutyIndex;
+                      return (
+                        <div
+                          key={day.iso}
+                          className={`p-2.5 rounded-2xl border text-center space-y-1 transition-all ${
+                            isOnDutyToday
+                              ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-200'
+                              : day.isToday
+                              ? 'bg-surface border-primary-300'
+                              : 'bg-surface border-border'
+                          }`}
+                        >
+                          <span className="block text-[9px] font-mono font-black uppercase text-ink-muted">
+                            {day.dayShort}
+                          </span>
+                          <span className="block text-sm font-black text-ink leading-none">
+                            {day.dayNum} <span className="text-[9px] text-ink-muted font-bold">{day.monthShort}</span>
+                          </span>
+                          <span
+                            className={`block text-[10px] font-bold leading-tight break-words ${
+                              isOnDutyToday ? 'text-emerald-800' : 'text-ink'
+                            }`}
+                          >
+                            {officer?.staffName || '-'}
+                          </span>
+                          {day.isToday && (
+                            <span className={`inline-block px-1.5 rounded text-[8px] font-black ${
+                              isOnDutyToday ? 'bg-emerald-200 text-emerald-900' : 'bg-primary-100 text-primary-800'
+                            }`}>
+                              {isOnDutyToday ? 'DINAS' : 'OFF'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {roster.notes && (
+                  <div className="p-3.5 bg-canvas rounded-2xl border border-dashed border-border flex items-start gap-2.5">
+                    <Info className="w-4 h-4 text-ink-muted shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-ink-muted leading-relaxed">{roster.notes}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* 4. FOOTER TAUTAN CEPAT AUDIT & DETAIL */}
           <div className="p-4 bg-canvas rounded-2xl border border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
