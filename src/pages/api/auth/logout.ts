@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 
-export const POST: APIRoute = async ({ cookies }) => {
+export const POST: APIRoute = async ({ cookies, session }) => {
+  await session?.destroy();
   cookies.delete('wargahub_user', { path: '/' });
   return new Response(
     JSON.stringify({

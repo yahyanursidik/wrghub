@@ -84,6 +84,7 @@ interface AdminDashboardViewProps {
   currentUser?: UserSession;
   pendingPayments?: any[];
   properties?: any[];
+  periodName?: string;
 }
 
 interface PendingPayment {
@@ -112,29 +113,19 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
   stats: initialStats, 
   currentUser,
   pendingPayments: initialPendingPayments = [],
-  properties: initialProperties = []
+   properties: initialProperties = [],
+   periodName = 'Periode berjalan'
 }) => {
   // Live stats with optimistic mutability
   const [stats, setStats] = useState(initialStats);
-  const [selectedMonth, setSelectedMonth] = useState('Agustus 2026');
+  const selectedMonth = periodName;
   const [activityFilter, setActivityFilter] = useState<'all' | 'finance' | 'complaint' | 'security' | 'facility'>('all');
   const [activitySearch, setActivitySearch] = useState('');
   const [budgetSearch, setBudgetSearch] = useState('');
   const [budgetCategoryFilter, setBudgetCategoryFilter] = useState('ALL');
 
   // Active user session state
-  const [activeUser, setActiveUser] = useState<UserSession>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_user');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') return parsed;
-        }
-      } catch (e) {}
-    }
-    return currentUser || DEFAULT_ADMIN;
-  });
+  const [activeUser, setActiveUser] = useState<UserSession>(currentUser || DEFAULT_ADMIN);
 
   // Dynamic dashboard role filter (defaults to active user role)
   const [activeRoleView, setActiveRoleView] = useState<UserRole>(() => {
@@ -142,8 +133,8 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
   });
 
   // Dynamic dashboard title & subtitle from settings
-  const [dashHeading, setDashHeading] = useState('Dashboard Eksekutif Komplek');
-  const [dashSubheading, setDashSubheading] = useState('Pusat Kendali Operasional, Keuangan Kas & Layanan Warga Komplek Grand Sariwangi.');
+  const [dashHeading, setDashHeading] = useState('Ringkasan lingkungan');
+  const [dashSubheading, setDashSubheading] = useState('Pantau kas, iuran, dan layanan warga. Mulai dari yang perlu ditindaklanjuti.');
   const [communityName, setCommunityName] = useState('Komplek Grand Sariwangi');
 
   // Security gate live state
@@ -251,7 +242,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
           setCommunityName('Komplek Grand Sariwangi');
         }
       }
-      if (savedUser) {
+      if (!currentUser && savedUser) {
         const parsed = JSON.parse(savedUser);
         setActiveUser(parsed);
         setActiveRoleView(parsed.role || 'CHAIRMAN');
@@ -537,37 +528,11 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
       )}
 
       {/* ================= TOP SEGMENTED ROLE CONTROLLER ================= */}
-      <div className="bg-surface rounded-3xl p-4 sm:p-5 border border-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-black border border-emerald-200 flex items-center gap-1.5 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              SISTEM AKTIF ONLINE
-            </span>
-            <span className="text-[11px] text-ink-muted font-medium font-mono">
-              RT 02 / RW 05 • {communityName}
-            </span>
-          </div>
-          <h2 className="text-base sm:text-lg font-black text-ink tracking-tight flex items-center gap-2">
-            <span>Pusat Kendali Peran:</span>
-            <span className="text-primary-700 font-extrabold">
-              {activeRoleView === 'CHAIRMAN' || activeRoleView === 'SUPER_ADMIN'
-                ? 'Ketua Paguyuban'
-                : activeRoleView === 'TREASURER'
-                ? 'Bendahara Keuangan'
-                : activeRoleView === 'SECRETARY'
-                ? 'Sekretaris Paguyuban'
-                : activeRoleView === 'SECURITY'
-                ? 'Satpam Pos Gerbang'
-                : activeRoleView === 'MAINTENANCE'
-                ? 'Tim Kebersihan & Teknisi'
-                : 'Warga Komplek'}
-            </span>
-          </h2>
-        </div>
-
-        {/* Role Selector Segmented Controller */}
-        <div className="flex items-center gap-1 p-1 bg-canvas border border-border/80 rounded-2xl overflow-x-auto no-scrollbar text-[11px]">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <p className="text-ink-muted">{communityName}<span className="mx-2 text-border-dark">/</span>{selectedMonth}</p>
+        {['SUPER_ADMIN', 'CHAIRMAN'].includes(activeUser.role) && <details className="w-full sm:w-auto">
+          <summary className="cursor-pointer py-2 text-ink-muted font-medium">Tampilan berdasarkan peran</summary>
+          <div className="flex flex-wrap items-center gap-1 p-1 mt-2 bg-surface border border-border rounded-xl text-xs">
           {[
             { role: 'CHAIRMAN' as UserRole, label: 'Ketua', count: null },
             { role: 'TREASURER' as UserRole, label: 'Bendahara', count: pendingList.length > 0 ? `${pendingList.length}` : null },
@@ -582,9 +547,10 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                 key={tab.role}
                 type="button"
                 onClick={() => setActiveRoleView(tab.role)}
+                aria-pressed={isActive}
                 className={`px-3.5 py-2 rounded-xl font-bold transition-all whitespace-nowrap active:scale-[0.98] flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-slate-900 text-white shadow-2xs'
+                    ? 'bg-primary-600 text-white'
                     : 'text-ink-muted hover:text-ink hover:bg-surface'
                 }`}
               >
@@ -599,7 +565,8 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
               </button>
             );
           })}
-        </div>
+          </div>
+        </details>}
       </div>
 
       {/* ========================================================================= */}
@@ -608,50 +575,41 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
       {(activeRoleView === 'CHAIRMAN' || activeRoleView === 'SUPER_ADMIN' || activeRoleView === 'RESIDENT_ADMIN') && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Executive Header Banner */}
-          <div className="bg-slate-950 text-white border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-card relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="absolute -right-20 -top-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="relative z-10 space-y-2 max-w-2xl">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-md bg-white/10 text-emerald-300 font-mono text-[10px] font-bold tracking-wider uppercase border border-white/10">
-                  EXECUTIVE SUMMARY
-                </span>
-                <span className="text-[11px] text-slate-400 font-mono">
-                  TAHUN ANGGARAN 2026
-                </span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+          <div className="bg-primary-50 rounded-2xl p-6 sm:p-8 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            <div className="space-y-3 max-w-xl">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
                 {dashHeading}
               </h1>
-              <p className="text-xs text-slate-300/90 leading-relaxed">
+              <p className="text-sm text-ink-muted leading-relaxed">
                 {dashSubheading}
               </p>
             </div>
 
             {/* Quick Action Trigger Buttons */}
-            <div className="relative z-10 flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <button
                 type="button"
                 onClick={() => setShowIssueInvoiceModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition-all"
+                className="flex items-center gap-2 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>Terbitkan Tagihan IPL</span>
+                <span>Buat tagihan</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowBroadcastModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 border border-slate-700 rounded-xl font-bold transition-all"
+                className="flex items-center gap-2 px-4 py-3 bg-surface hover:bg-canvas text-ink border border-border rounded-xl font-medium"
               >
-                <Megaphone className="w-4 h-4 text-primary-400" />
-                <span>Siaran Edaran Warga</span>
+                <Megaphone className="w-4 h-4 text-primary-700" />
+                <span>Pengumuman</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowAddExpenseModal(true)}
-                className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-slate-300 border border-slate-700 rounded-xl font-bold transition-all"
+                className="flex items-center gap-2 px-4 py-3 hover:bg-primary-100 text-primary-700 rounded-xl font-medium"
               >
-                <DollarSign className="w-4 h-4 text-rose-400" />
-                <span>Catat Beban Kas</span>
+                <DollarSign className="w-4 h-4" />
+                <span>Catat pengeluaran</span>
               </button>
             </div>
           </div>
@@ -673,13 +631,10 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                       <h4 className="font-bold text-ink text-sm">Rekening Operasional Kas Paguyuban</h4>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-bold">
-                    TERVERIFIKASI
-                  </span>
                 </div>
 
                 <div className="pt-2">
-                  <span className="text-[11px] text-ink-muted">Total Likuiditas Kas Aktif:</span>
+                  <span className="text-sm text-ink-muted">Saldo kas saat ini</span>
                   <p className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-ink tabular-nums mt-0.5">
                     {formatRupiah(stats.cashBalance)}
                   </p>
@@ -702,7 +657,6 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                   <span>Buka Buku Kas & Rekonsiliasi</span>
                   <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
                 </a>
-                <span className="text-[10px] font-mono text-ink-muted">Bank ID: 731-0988-221</span>
               </div>
             </div>
 
@@ -718,7 +672,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                       <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-ink-muted block">
                         Kepatuhan Warga
                       </span>
-                      <h4 className="font-bold text-ink text-sm">Kolektibilitas Iuran IPL</h4>
+                      <h4 className="font-semibold text-ink text-sm">Pembayaran iuran</h4>
                     </div>
                   </div>
                   <span className="font-mono font-black text-base text-primary-700">
@@ -729,14 +683,14 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                 <div>
                   <div className="flex items-baseline justify-between mb-1">
                     <span className="text-2xl font-black font-mono text-ink tabular-nums">
-                      {stats.paidCount} / {stats.totalProperties}
+                      {stats.paidCount} / {stats.paidCount + stats.unpaidCount}
                     </span>
                     <span className="text-ink-muted font-bold text-[11px]">Unit Lunas</span>
                   </div>
                   
                   {/* Visual Segmented Progress Bar */}
                   <div className="w-full bg-canvas h-3 rounded-full overflow-hidden border border-border/70 p-0.5">
-                    <div
+                    <div role="progressbar" aria-label="Persentase iuran lunas" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats.paidPercentage}
                       className="bg-primary-600 h-full rounded-full transition-all duration-500"
                       style={{ width: `${stats.paidPercentage}%` }}
                     />
@@ -773,17 +727,17 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold">
+                    <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center">
                       <Home className="w-5 h-5" />
                     </div>
                     <div>
                       <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-ink-muted block">
                         Inventaris Hunian
                       </span>
-                      <h4 className="font-bold text-ink text-sm">Okupansi Rumah</h4>
+                      <h4 className="font-semibold text-ink text-sm">Status hunian</h4>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 text-[10px] font-mono font-bold">
+                  <span className="px-2 py-0.5 rounded-md bg-primary-50 text-primary-700 text-xs font-semibold">
                     {stats.occupiedPercentage}%
                   </span>
                 </div>
@@ -799,9 +753,7 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                   </div>
                 </div>
 
-                <p className="text-[11px] text-ink-muted">
-                  Estimasi populasi warga aktif tercatat: <strong className="text-ink font-mono font-bold">342 Jiwa</strong> (117 Kepala Keluarga).
-                </p>
+                <p className="text-sm text-ink-muted">{stats.totalProperties} rumah tercatat di lingkungan Anda.</p>
               </div>
 
               <div className="pt-4 border-t border-border flex items-center justify-between">
@@ -809,77 +761,80 @@ const AdminDashboardInner: React.FC<AdminDashboardViewProps> = ({
                   <span>Data Blok Rumah</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </a>
-                <span className="text-[10px] font-mono text-ink-muted">4 Blok Aktif</span>
               </div>
             </div>
           </div>
 
           {/* OPERATIONAL STATUS TILES (Tactile 4-Column Strip) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <section aria-label="Perlu ditindaklanjuti" className="space-y-3">
+          <h2 className="text-base font-semibold text-ink">Perlu ditindaklanjuti</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {/* Tile 1: Antrean Verifikasi */}
-            <div
-              onClick={() => {
+            <a href="/admin/payments"
+              onClick={(event) => {
                 if (pendingList.length > 0) {
+                  event.preventDefault();
                   setSelectedPendingPayment(pendingList[0]);
                   setShowPaymentReviewModal(true);
                 }
               }}
-              className="p-4 bg-surface rounded-2xl border border-border hover:border-amber-400 hover:shadow-xs transition-all flex items-center justify-between cursor-pointer group active:scale-[0.98]"
+              className="p-4 bg-surface rounded-xl border border-border hover:border-primary-300 transition-all flex items-center justify-between gap-2 group"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center shrink-0">
                   <Hourglass className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-ink-muted block">Antrean Verifikasi</span>
-                  <p className="text-lg font-black font-mono text-ink tabular-nums">{pendingList.length} Pembayaran</p>
+                  <span className="text-xs text-ink-muted block">Perlu verifikasi</span>
+                  <p className="text-base font-semibold text-ink tabular-nums">{pendingList.length} pembayaran</p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-amber-700 group-hover:translate-x-0.5 transition-transform">Review →</span>
-            </div>
+              <ChevronRight size={17} className="text-ink-muted shrink-0" />
+            </a>
 
             {/* Tile 2: Tiket Aduan Warga */}
-            <a href="/admin/complaints" className="p-4 bg-surface rounded-2xl border border-border hover:border-rose-400 hover:shadow-xs transition-all flex items-center justify-between group active:scale-[0.98]">
+            <a href="/admin/complaints" className="p-4 bg-surface rounded-xl border border-border hover:border-primary-300 transition-all flex items-center justify-between gap-2 group">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center shrink-0">
                   <Headphones className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-ink-muted block">Aduan Lingkungan</span>
-                  <p className="text-lg font-black font-mono text-ink tabular-nums">{stats.openComplaintsCount} Tiket Aktif</p>
+                  <span className="text-xs text-ink-muted block">Belum selesai</span>
+                  <p className="text-base font-semibold text-ink tabular-nums">{stats.openComplaintsCount} aduan</p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-rose-700 group-hover:translate-x-0.5 transition-transform">Pantau →</span>
+              <ChevronRight size={17} className="text-ink-muted shrink-0" />
             </a>
 
             {/* Tile 3: Keamanan Pos Gerbang */}
-            <a href="/admin/security-gate" className="p-4 bg-surface rounded-2xl border border-border hover:border-purple-400 hover:shadow-xs transition-all flex items-center justify-between group active:scale-[0.98]">
+            <a href="/admin/facilities" className="p-4 bg-surface rounded-xl border border-border hover:border-primary-300 transition-all flex items-center justify-between gap-2 group">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold">
-                  <ShieldCheck className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center shrink-0">
+                  <Wrench className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-ink-muted block">Pos Satpam 24 Jam</span>
-                  <p className="text-lg font-black font-mono text-ink tabular-nums">4 Regu Aktif</p>
+                  <span className="text-xs text-ink-muted block">Perlu perbaikan</span>
+                  <p className="text-base font-semibold text-ink tabular-nums">{stats.needingRepairCount} fasilitas</p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-purple-700 group-hover:translate-x-0.5 transition-transform">Gerbang →</span>
+              <ChevronRight size={17} className="text-ink-muted shrink-0" />
             </a>
 
             {/* Tile 4: Armada Kebersihan */}
-            <a href="/admin/cleaning-staff" className="p-4 bg-surface rounded-2xl border border-border hover:border-teal-400 hover:shadow-xs transition-all flex items-center justify-between group active:scale-[0.98]">
+            <a href="/admin/billing" className="p-4 bg-surface rounded-xl border border-border hover:border-primary-300 transition-all flex items-center justify-between gap-2 group">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center font-bold">
-                  <Truck className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center shrink-0">
+                  <Receipt className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-ink-muted block">Armada Viar Tossa</span>
-                  <p className="text-lg font-black font-mono text-ink tabular-nums">Rute Pagi Beres</p>
+                  <span className="text-xs text-ink-muted block">Belum lunas</span>
+                  <p className="text-base font-semibold text-ink tabular-nums">{stats.unpaidCount} tagihan</p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-teal-700 group-hover:translate-x-0.5 transition-transform">Jadwal →</span>
+              <ChevronRight size={17} className="text-ink-muted shrink-0" />
             </a>
           </div>
+          </section>
 
           {/* REALISASI APB & BLOK MATRIX (2-Column Dense Grid) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

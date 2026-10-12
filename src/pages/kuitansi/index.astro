@@ -2,6 +2,7 @@
 import PublicLayout from '../../layouts/PublicLayout.astro';
 import { ReceiptValidator } from '../../components/public/ReceiptValidator';
 const tab = Astro.url.searchParams.get('tab') || 'verify_receipt';
+if (tab === 'receipts_history') return Astro.redirect('/warga?tab=iuran', 302);
 const q = Astro.url.searchParams.get('q') || '';
 ---
 

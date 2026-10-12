@@ -5,6 +5,7 @@ import { getCommunityProfile } from '../../services/settings.service';
 import { getAccounts } from '../../services/finance.service';
 
 const tab = Astro.url.searchParams.get('tab') || 'branding';
+if (['passwords', 'users', 'auth', 'password'].includes(tab)) return Astro.redirect('/admin/passwords', 302);
 const pageTitle = tab === 'passwords' || tab === 'users'
   ? 'Manajemen Akun & Password - WargaHub'
   : 'Pengaturan Komplek - WargaHub';

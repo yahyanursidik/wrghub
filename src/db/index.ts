@@ -4,7 +4,8 @@ import * as schema from './schema';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const dbDir = path.resolve(process.cwd(), 'data');
+// Test suites can use an isolated directory without touching the application's data.
+const dbDir = path.resolve(process.env.WARGAHUB_DATA_DIR || path.join(process.cwd(), 'data'));
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }

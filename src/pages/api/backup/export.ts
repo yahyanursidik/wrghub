@@ -8,6 +8,9 @@ export const GET: APIRoute = async () => {
       exportTimestamp: new Date().toISOString(),
       community: 'Komplek Grand Sariwangi',
       systemVersion: 'WargaHub v2.5 Enterprise Production',
+      scope: 'operational-snapshot',
+      limits: { operationalTableRows: 500, auditLogRows: 100, settingsRows: 50 },
+      restorable: false,
       tables: {},
     };
 
@@ -44,7 +47,7 @@ export const GET: APIRoute = async () => {
       await recordAuditLog({
         actorName: 'Ketua Komplek / Admin',
         action: 'system.backup_export',
-        entityType: 'FULL_DATABASE_BACKUP',
+        entityType: 'OPERATIONAL_SNAPSHOT',
         entityId: `backup-${Date.now()}`,
         newValue: { recordCounts: { properties: properties.length, invoices: invoices.length, ledger: ledger.length } },
       });

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
 import {
   TrendingUp,
   BarChart3,
@@ -79,7 +80,7 @@ export const AnalyticsManager: React.FC<AnalyticsManagerProps> = ({
   invoices = []
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('6_MONTHS');
-  const [activeSubTab, setActiveSubTab] = useState<'financial_trends' | 'block_compliance' | 'utility_efficiency' | 'security_sla'>('financial_trends');
+  const [activeSubTab, setActiveSubTab] = useUrlTab(['financial_trends', 'block_compliance', 'utility_efficiency', 'security_sla'] as const, 'financial_trends');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'month' | 'income' | 'expense' | 'net' | 'rate'>('month');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');

@@ -1,84 +1,50 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { neonSql } from '../../../db/neon';
-import { getMasterBankAccount } from '../../../services/settings.service';
+import type { UserSession } from '../../../types/auth';
+import { getCommunityProfile } from '../../../services/settings.service';
+import { getResidentOverview } from '../../../services/resident-overview.service';
+import { getMainAccountBalance } from '../../../services/finance.service';
+import { formatRupiah } from '../../../lib/format';
 
-const chatSchema = z.object({
-  message: z.string().min(1),
-  userRole: z.string().default('RESIDENT'),
-  propertyCode: z.string().default('A-17'),
-});
-
-export const POST: APIRoute = async ({ request }) => {
+const inputSchema = z.object({ message: z.string().min(1).max(2000) });
+export const POST: APIRoute = async ({ request, session }) => {
   try {
-    const body = await request.json();
-    const { message, propertyCode } = chatSchema.parse(body);
-    const q = message.toLowerCase();
-
-    let reply = '';
+    const user = await session?.get('wargahub_user') as UserSession | undefined;
+    if (!user) return Response.json({ error: { message: 'Masuk untuk menggunakan bantuan warga.' } }, { status: 401 });
+    const { message } = inputSchema.parse(await request.json());
+    const query = message.toLowerCase();
+    let reply: string;
     let actionType = 'TEXT';
     let suggestedActions: string[] = [];
-
-    // Context Evaluation Engine for WargaHub
-    if (q.includes('rekening') || q.includes('transfer') || q.includes('bayar') || q.includes('bank') || q.includes('bca') || q.includes('mandiri') || q.includes('syariah') || q.includes('ewallet') || q.includes('gopay') || q.includes('dana')) {
-      const bank = await getMasterBankAccount().catch(() => ({
-        bankName: 'Bank Mandiri',
-        accountNumber: '1300024446419',
-        accountHolder: 'Paguyuban Grand Sariwangi',
-        qrisNmid: 'ID102008891230',
-      }));
-      reply = `Halo Bapak/Ibu! Untuk pembayaran iuran bulanan (IPL) Komplek Grand Sariwangi sebesar **Rp 250.000 / bulan**, silakan transfer ke rekening resmi kas paguyuban:\n\n🏦 **Bank Kas:** ${bank.bankName}\n💳 **No. Rekening:** \`${bank.accountNumber}\`\n👤 **Atas Nama:** ${bank.accountHolder}\n📱 **QRIS:** Mendukung GoPay, DANA, OVO, ShopeePay, Livin', BCA Mobile, dll.\n\nSetelah transfer, jangan lupa unggah bukti pembayaran di menu *Iuran* untuk diverifikasi pengurus dan diterbitkan kuitansi berstempel digital resmi ya!`;
-      actionType = 'PAYMENT_INFO';
-      suggestedActions = ['Lihat Status Tagihan Saya', 'Cara Cetak Kuitansi'];
-    } else if (q.includes('tagihan') || q.includes('status') || q.includes('lunas') || q.includes('iuran')) {
-      reply = `Tagihan iuran bulanan untuk unit **Rumah ${propertyCode}** periode **September 2026** tercatat: **LUNAS (TERVERIFIKASI)** sejumlah **Rp 250.000**.\n\nKuitansi digital resmi ber-QR Code siap diunduh di tab *Iuran*.`;
-      actionType = 'INVOICE_STATUS';
-      suggestedActions = ['Cetak Kuitansi Resmi', 'Cek Rekening Kas Paguyuban'];
-    } else if (q.includes('satpam') || q.includes('darurat') || q.includes('pos') || q.includes('keamanan') || q.includes('nomor')) {
-      reply = `Berikut kontak penting & darurat Komplek Grand Sariwangi yang dapat dihubungi 24 jam:\n\n🚨 **Pos Satpam Utama (24 Jam):** \`0812-2008-2240\` (Pa Adri Harry)\n👤 **Ketua Lingkungan:** \`0812-3456-7890\`\n🔧 **Petugas Jaga/Fasum:** \`0813-8899-2241\` (Pak Slamet)\n\nPetugas satpam siap membantu pengawalan, pengaduan gangguan, maupun kendala palang gerbang otomatis.`;
+    if (/tagihan|status|lunas|iuran/.test(query) && !/rekening|bank/.test(query)) {
+      const overview = await getResidentOverview(user);
+      const invoice = overview.invoices[0];
+      reply = invoice ? `Tagihan ${invoice.name} untuk ${overview.property?.code}: ${invoice.status === 'paid' ? 'lunas' : 'belum lunas'}. Nominal ${formatRupiah(invoice.amount)}, sisa ${formatRupiah(invoice.remaining)}. Rincian tersedia di menu Iuran.` : 'Belum ada tagihan yang tercatat untuk rumah akun ini. Buka menu Iuran atau hubungi pengurus untuk memeriksa keterhubungan rumah.';
+      actionType = 'INVOICE_STATUS'; suggestedActions = ['Cek rekening komunitas'];
+    } else if (/rekening|transfer|bank|bayar/.test(query)) {
+      const profile = await getCommunityProfile();
+      reply = `Rekening komunitas: ${profile.bankName}, ${profile.bankAccount}, atas nama ${profile.accountHolder}. Setelah transfer, masukkan nomor referensi pada menu Iuran. Bendahara akan memeriksa konfirmasi tersebut; pembayaran tidak otomatis dianggap lunas.`;
+      actionType = 'PAYMENT_INFO'; suggestedActions = ['Status tagihan saya'];
+    } else if (/darurat|satpam|keamanan|kontak/.test(query)) {
+      const profile = await getCommunityProfile();
+      reply = `Kontak keamanan yang diatur pengurus: ${profile.securityPhone || 'belum diatur'}. Untuk kegawatdaruratan, hubungi layanan yang sesuai: polisi 110 atau medis 119. Kontak daerah lain perlu dikonfirmasi pengurus.`;
       actionType = 'EMERGENCY_CONTACTS';
-      suggestedActions = ['Laporkan Aduan', 'Pesan Balai Warga'];
-    } else if (q.includes('pesan') || q.includes('fasilitas') || q.includes('balai') || q.includes('lapangan') || q.includes('sewa')) {
-      reply = `Untuk memesan / meminjam sarana umum warga (Balai Warga Serbaguna, Lapangan Olahraga, atau Taman Bermain):\n\n1. Masuk ke **Tab Info** di aplikasi.\n2. Klik tombol **"Pesan Sarana"** di bagian atas.\n3. Pilih sarana, tentukan tanggal, jam mulai & jam selesai, serta keperluan acara.\n4. Klik **Ajukan Sewa**.\n\nPengurus komplek akan segera memverifikasi ketersediaan jadwal dalam waktu maksimal 1x24 jam.`;
-      actionType = 'FACILITY_GUIDE';
-      suggestedActions = ['Pesan Balai Warga Sekarang', 'Kontak Petugas Sarana'];
-    } else if (q.includes('aduan') || q.includes('lapor') || q.includes('rusak') || q.includes('mati') || q.includes('sampah')) {
-      reply = `Jika Anda menemukan kendala lingkungan (seperti lampu PJU mati, saluran air tersumbat, atau pohon menghalangi kabel), Anda dapat mengajukan laporan melalui tombol **"Aduan"** di Tab Info.\n\nSetiap laporan akan langsung didisposisikan ke petugas keamanan (Satpam) dan teknisi lingkungan komplek dengan status yang terpantau secara real-time.`;
-      actionType = 'COMPLAINT_GUIDE';
-      suggestedActions = ['Buat Aduan Baru', 'Lihat Kontak Satpam'];
-    } else if (q.includes('kas') || q.includes('transparansi') || q.includes('saldo') || q.includes('keuangan')) {
-      reply = `Ringkasan Laporan Kas & Transparansi Keuangan Komplek Grand Sariwangi periode **Agustus - September 2026**:\n\n💰 **Saldo Kas Tersedia:** Rp 125.000 (di Kas Paguyuban)\n📈 **Total Penerimaan Kas:** Rp 3.000.000\n📉 **Realisasi Belanja:** Rp 2.875.000\n📊 **Tingkat Kepatuhan Warga:** 100%\n\nLaporan terperinci beserta foto nota kuitansi per pos biaya dapat diakses di portal **/transparency**.`;
+    } else if (/kas|transparansi|saldo|keuangan/.test(query)) {
+      reply = `Saldo kas yang tercatat: ${formatRupiah(await getMainAccountBalance())}. Buka /transparency untuk rincian pemasukan dan pengeluaran. Ini saldo pembukuan aplikasi, bukan konfirmasi saldo bank secara langsung.`;
       actionType = 'TRANSPARENCY_INFO';
-      suggestedActions = ['Buka Laporan Transparansi', 'Cek Rekening Kas Paguyuban'];
-    } else if (q.includes('tata tertib') || q.includes('renovasi') || q.includes('jam malam') || q.includes('aturan')) {
-      reply = `Ketentuan & Tata Tertib Utama Komplek Grand Sariwangi 2026:\n\n1. **Jam Tenang & Keamanan:** Pukul 23:00 – 06:00 WIB. Tamu wajib lapor pos satpam.\n2. **Renovasi Rumah:** Pengerjaan renovasi hanya diizinkan Senin – Sabtu pukul 08:00 – 17:00 WIB (Minggu libur).\n3. **Pengangkutan Sampah:** Setiap hari Senin, Rabu, dan Jumat pagi.\n4. **Iuran Bulanan (IPL):** Jatuh tempo tanggal 10 setiap bulan sebesar Rp 250.000.\n\nBerkas lengkap Tata Tertib dapat diunduh di menu *Arsip & Dokumen*.`;
+    } else if (/fasilitas|balai|lapangan|pesan|sewa/.test(query)) {
+      reply = 'Buka Info & layanan, pilih fasilitas yang tercatat, isi tanggal serta waktu, lalu ajukan reservasi. Pengurus meninjau permohonan; belum ada jaminan persetujuan otomatis.';
+      actionType = 'FACILITY_GUIDE';
+    } else if (/aduan|lapor|rusak|sampah/.test(query)) {
+      reply = 'Gunakan Laporkan aduan di beranda atau menu Info. Masukkan kategori, lokasi, dan uraian kendala. Status ditampilkan berdasarkan catatan pengurus; pengiriman laporan tidak berarti masalah sudah ditangani.';
+      actionType = 'COMPLAINT_GUIDE';
+    } else if (/aturan|tata tertib|renovasi/.test(query)) {
+      reply = 'Ketentuan lingkungan harus mengikuti dokumen resmi pengurus. Saya tidak menetapkan jam kerja atau aturan izin. Minta dokumen terbaru melalui pengurus sebelum melakukan renovasi.';
       actionType = 'RULES_INFO';
-      suggestedActions = ['Unduh Tata Tertib PDF', 'Cek Rekening Kas Paguyuban'];
     } else {
-      reply = `Halo! Saya adalah **Warga AI**, asisten pintar Komplek Grand Sariwangi. Saya dapat membantu Anda seputar:\n\n- Informasi nomor rekening resmi & status tagihan iuran\n- Prosedur pemesanan Balai Warga & Lapangan\n- Layanan pengajuan keluhan (aduan lingkungan)\n- Kontak darurat pos satpam 24 jam\n- Ringkasan transparansi kas keuangan warga\n\nAda yang bisa saya bantu untuk keperluan hunian Anda?`;
-      suggestedActions = ['Cek Rekening Kas Paguyuban', 'Status Tagihan Saya', 'Kontak Darurat Satpam', 'Cara Pesan Balai Warga'];
+      reply = 'Saya membantu membaca data dan menjelaskan menu WargaHub. Tanyakan tagihan, rekening komunitas, kontak keamanan, reservasi fasilitas, atau pelaporan aduan.';
+      suggestedActions = ['Status tagihan saya', 'Cek rekening komunitas', 'Kontak keamanan'];
     }
-
-    return new Response(
-      JSON.stringify({
-        data: {
-          reply,
-          actionType,
-          suggestedActions,
-          timestamp: new Date().toISOString(),
-        },
-        meta: {},
-        error: null,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'AI_CHAT_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
+    return Response.json({ data: { reply, actionType, suggestedActions, timestamp: new Date().toISOString() }, error: null });
+  } catch { return Response.json({ error: { message: 'Bantuan belum bisa membaca data. Coba lagi.' } }, { status: 503 }); }
 };

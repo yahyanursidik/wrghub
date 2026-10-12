@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   Banknote,
   DollarSign,
@@ -217,30 +219,8 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   });
 
   // Subtab State with URL synchronization
-  const [activeSubTab, setActiveSubTab] = useState<StaffLoanSubTab>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab') as StaffLoanSubTab;
-      if (
-        tabParam &&
-        ['active_loans', 'new_requests', 'payroll_deductions', 'repayment_history', 'loan_policies'].includes(
-          tabParam
-        )
-      ) {
-        return tabParam;
-      }
-    }
-    return initialTab;
-  });
-
-  const handleTabChange = (tab: StaffLoanSubTab) => {
-    setActiveSubTab(tab);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
-      window.history.replaceState({}, '', url.toString());
-    }
-  };
+  const [activeSubTab, setActiveSubTab] = useUrlTab<StaffLoanSubTab>(['active_loans', 'new_requests', 'payroll_deductions', 'repayment_history', 'loan_policies'], initialTab);
+  const handleTabChange = setActiveSubTab;
 
   // State Filters
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -472,7 +452,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
     }
 
     try {
-      await fetch('/api/expenses/loans/installment', {
+      await apiFetch('/api/expenses/loans/installment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -732,7 +712,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
 
     setIsSaving(true);
     try {
-      await fetch('/api/expenses/loans/installment', {
+      await apiFetch('/api/expenses/loans/installment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -794,7 +774,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   const handleConfirmDelete = async () => {
     if (!loanToDelete) return;
     try {
-      await fetch('/api/expenses/loans/delete', {
+      await apiFetch('/api/expenses/loans/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loanId: loanToDelete.id }),

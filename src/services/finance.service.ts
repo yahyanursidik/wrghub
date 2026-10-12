@@ -312,41 +312,6 @@ export async function deleteExpenses(expenseIds: string[]) {
   return { success: true, count: deletedCount };
 }
 
-export async function deleteLedgerEntry(ledgerId: string) {
-  if (process.env.DATABASE_URL) {
-    try {
-      const rows = await neonSql`SELECT id, account_id, direction, amount FROM ledger_entries WHERE id = ${ledgerId} LIMIT 1`;
-      if (rows.length) {
-        const entry = rows[0];
-        const amount = Number(entry.amount) || 0;
-        const accountId = entry.account_id;
-
-        // Reverse balance
-        if (accountId && amount > 0) {
-          if (entry.direction === 'OUT') {
-            await neonSql`UPDATE accounts SET balance = balance + ${amount} WHERE id = ${accountId}`;
-          } else if (entry.direction === 'IN') {
-            await neonSql`UPDATE accounts SET balance = balance - ${amount} WHERE id = ${accountId}`;
-          }
-        }
-
-        await neonSql`DELETE FROM ledger_entries WHERE id = ${ledgerId}`;
-        return { success: true, id: ledgerId };
-      }
-    } catch (e) {
-      console.warn('Neon delete ledger error:', e);
-    }
-  }
-
-  try {
-    await db.delete(schema.ledgerEntries).where(eq(schema.ledgerEntries.id, ledgerId));
-    return { success: true, id: ledgerId };
-  } catch (e) {
-    console.warn('SQLite delete ledger error:', e);
-    return { success: false, error: e };
-  }
-}
-
 // ================= RECURRING EXPENSES AUTOMATION =================
 
 export interface RecurringExpenseConfigItem {

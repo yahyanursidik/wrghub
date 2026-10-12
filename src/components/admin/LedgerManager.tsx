@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   Download,
   Search,
@@ -94,26 +96,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       balance: Number(a.balance) || 0,
     }));
 
-  const [accounts, setAccounts] = useState<AccountItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_custom_accounts');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const savedSum = parsed.reduce((sum: number, a: any) => sum + (Number(a.balance) || 0), 0);
-            const initSum = initialAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
-            if (savedSum > 0 || initSum === 0) {
-              return normalizeAccounts(parsed);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return normalizeAccounts(initialAccounts);
-  });
+  const [accounts, setAccounts] = useState<AccountItem[]>(normalizeAccounts(initialAccounts));
 
   // Reactive listener: when master bank account is updated from Settings or Payments
   useEffect(() => {
@@ -122,7 +105,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
         const { bankName, accountNumber } = e.detail;
         setAccounts((prev) =>
           prev.map((a) =>
-            a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.type === 'BANK'
+              a.id === 'acc-main' || ['BCA_MAIN', 'BCA-UTAMA'].includes(a.code)
               ? {
                   ...a,
                   bankName: bankName || a.bankName,
@@ -141,28 +124,8 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   const [entries, setEntries] = useState<LedgerEntryItem[]>(initialEntries);
 
   // Subtab State with URL synchronization
-  const [activeSubTab, setActiveSubTab] = useState<LedgerSubTab>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab') as LedgerSubTab;
-      if (
-        tabParam &&
-        ['ledger_list', 'accounts_manage', 'bank_reconciliation', 'financial_reports'].includes(tabParam)
-      ) {
-        return tabParam;
-      }
-    }
-    return initialTab;
-  });
-
-  const handleTabChange = (tab: LedgerSubTab) => {
-    setActiveSubTab(tab);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
-      window.history.replaceState({}, '', url.toString());
-    }
-  };
+  const [activeSubTab, setActiveSubTab] = useUrlTab<LedgerSubTab>(['ledger_list', 'accounts_manage', 'bank_reconciliation', 'financial_reports'], initialTab);
+  const handleTabChange = setActiveSubTab;
 
   // State Filters
   const [monthFilter, setMonthFilter] = useState<string>('ALL');
@@ -340,7 +303,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
 
     try {
       if (editingEntryId) {
-        const res = await fetch('/api/ledger/update', {
+        const res = await apiFetch('/api/ledger/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -400,7 +363,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
           setShowAddModal(false);
         }
       } else {
-        const res = await fetch('/api/ledger/create', {
+        const res = await apiFetch('/api/ledger/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -462,55 +425,20 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     setIsTransferring(true);
 
     try {
-      const outRes = await fetch('/api/ledger/create', {
+      const response = await apiFetch('/api/ledger/transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accountId: transferFrom,
-          direction: 'OUT',
+          fromAccountId: transferFrom,
+          toAccountId: transferTo,
           amount: num,
-          sourceType: 'MUTASI_KAS_INTERNAL',
-          description: `Transfer keluar ke ${accounts.find(a => a.id === transferTo)?.name || 'Rekening Tujuan'}: ${transferNotes}`,
+          description: `Mutasi internal: ${transferNotes || 'Pemindahan kas'}`,
           entryDate: new Date().toISOString().slice(0, 10),
         }),
       });
-
-      const inRes = await fetch('/api/ledger/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: transferTo,
-          direction: 'IN',
-          amount: num,
-          sourceType: 'MUTASI_KAS_INTERNAL',
-          description: `Transfer masuk dari ${accounts.find(a => a.id === transferFrom)?.name || 'Rekening Sumber'}: ${transferNotes}`,
-          entryDate: new Date().toISOString().slice(0, 10),
-        }),
-      });
-
-      if (outRes.ok && inRes.ok) {
-        const outEntry: LedgerEntryItem = {
-          id: `led-${Date.now()}-out`,
-          accountId: transferFrom,
-          entryDate: new Date().toISOString().slice(0, 10),
-          direction: 'OUT',
-          amount: num,
-          sourceType: 'MUTASI_KAS_INTERNAL',
-          sourceId: `TRF-${Date.now().toString().slice(-4)}A`,
-          description: `Transfer keluar: ${transferNotes}`,
-          createdBy: 'Bendahara Komplek',
-        };
-        const inEntry: LedgerEntryItem = {
-          id: `led-${Date.now()}-in`,
-          accountId: transferTo,
-          entryDate: new Date().toISOString().slice(0, 10),
-          direction: 'IN',
-          amount: num,
-          sourceType: 'MUTASI_KAS_INTERNAL',
-          sourceId: `TRF-${Date.now().toString().slice(-4)}B`,
-          description: `Transfer masuk: ${transferNotes}`,
-          createdBy: 'Bendahara Komplek',
-        };
+      const payload = await response.json();
+      if (payload.data) {
+        const { outEntry, inEntry } = payload.data;
 
         const updatedAccs = accounts.map((acc) => {
           if (acc.id === transferFrom) return { ...acc, balance: acc.balance - num };
@@ -539,7 +467,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   const handleConfirmDelete = async () => {
     if (!entryToDelete) return;
     try {
-      const res = await fetch('/api/ledger/delete', {
+      const res = await apiFetch('/api/ledger/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -551,17 +479,16 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       });
 
       if (res.ok) {
-        // Reverse account balance in state
-        const reverseDelta = entryToDelete.direction === 'IN' ? -entryToDelete.amount : entryToDelete.amount;
-        const updatedAccs = accounts.map((acc) =>
-          acc.id === entryToDelete.accountId ? { ...acc, balance: acc.balance + reverseDelta } : acc
-        );
+        const payload = await res.json();
+        const deletedIds: string[] = payload.data.ids || [entryToDelete.id];
+        const deletedEntries = entries.filter(entry => deletedIds.includes(entry.id));
+        const updatedAccs = accounts.map(acc => ({ ...acc, balance: deletedEntries.filter(entry => entry.accountId === acc.id).reduce((balance, entry) => balance + (entry.direction === 'IN' ? -entry.amount : entry.amount), acc.balance) }));
         setAccounts(updatedAccs);
         if (typeof window !== 'undefined') {
           localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updatedAccs));
         }
 
-        setEntries(entries.filter((e) => e.id !== entryToDelete.id));
+        setEntries(entries.filter(entry => !deletedIds.includes(entry.id)));
         showToast(`Entri jurnal kas "${entryToDelete.description}" berhasil dihapus.`);
         setEntryToDelete(null);
       }
@@ -594,80 +521,26 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
     setShowAccountModal(true);
   };
 
-  const handleSaveAccount = (e: React.FormEvent) => {
+  const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formAccName) return;
 
-    if (editingAccount) {
-      const updated = accounts.map((a) =>
-        a.id === editingAccount.id
-          ? {
-              ...a,
-              name: formAccName,
-              code: formAccCode,
-              type: formAccType,
-              bankName: formAccBankName,
-              accountNumber: formAccNumber,
-            }
-          : a
-      );
-      setAccounts(updated);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updated));
+    try {
+      const response = await apiFetch('/api/accounts/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingAccount?.id, name: formAccName, code: formAccCode, type: formAccType, bankName: formAccBankName, accountNumber: formAccNumber, balance: formAccBalance || 0 }),
+      });
+      const payload = await response.json();
+      const savedAccount = payload.data as AccountItem;
+      setAccounts(previous => editingAccount ? previous.map(account => account.id === savedAccount.id ? savedAccount : account) : [...previous, savedAccount]);
+      if (savedAccount.id === 'acc-main' || ['BCA_MAIN', 'BCA-UTAMA'].includes(savedAccount.code)) {
+        localStorage.setItem('wargahub_set_bankname', JSON.stringify(savedAccount.bankName));
+        localStorage.setItem('wargahub_set_bankacc', JSON.stringify(savedAccount.accountNumber));
+        window.dispatchEvent(new CustomEvent('wargahub_bank_accounts_updated', { detail: { bankName: savedAccount.bankName, accountNumber: savedAccount.accountNumber, isPrimary: true } }));
       }
-
-      // If the primary bank account was modified, synchronize settings & broadcast global event
-      if (editingAccount.id === 'acc-main' || editingAccount.code === 'BCA_MAIN' || editingAccount.type === 'BANK') {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('wargahub_set_bankname', JSON.stringify(formAccBankName));
-          localStorage.setItem('wargahub_set_bankacc', JSON.stringify(formAccNumber));
-          window.dispatchEvent(
-            new CustomEvent('wargahub_bank_accounts_updated', {
-              detail: {
-                bankName: formAccBankName,
-                accountNumber: formAccNumber,
-                accountHolder: 'Paguyuban Grand Sariwangi',
-                isPrimary: true,
-              },
-            })
-          );
-        }
-        fetch('/api/settings/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            communityName: 'Komplek Grand Sariwangi',
-            rtRw: 'RT 01 / RW 08',
-            address: 'Grand Sariwangi, Sariwangi, Bandung Barat',
-            monthlyRate: 250000,
-            bankName: formAccBankName,
-            bankAccount: formAccNumber,
-            accountHolder: 'Paguyuban Grand Sariwangi',
-            securityPhone: '0812-2008-2240',
-            rwHeadPhone: '0812-3456-7890',
-          }),
-        }).catch(() => {});
-      }
-
-      showToast(`Rekening kas "${formAccName}" berhasil diperbarui.`);
-    } else {
-      const newAcc: AccountItem = {
-        id: `acc-${Date.now().toString().slice(-6)}`,
-        name: formAccName,
-        code: formAccCode,
-        type: formAccType,
-        bankName: formAccBankName,
-        accountNumber: formAccNumber,
-        balance: formAccBalance || 0,
-      };
-      const updated = [...accounts, newAcc];
-      setAccounts(updated);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updated));
-      }
-      showToast(`Rekening kas baru "${formAccName}" berhasil ditambahkan.`);
-    }
-    setShowAccountModal(false);
+      showToast(`Rekening kas "${formAccName}" tersimpan.`);
+      setShowAccountModal(false);
+    } catch { showToast('Rekening belum tersimpan. Periksa data dan coba lagi.'); }
   };
 
   // WhatsApp & Copy Voucher Handlers
@@ -1064,7 +937,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
       {activeSubTab === 'ledger_list' && (
         <div className="space-y-4 animate-in fade-in duration-150">
           {/* Summary Metric Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
               <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
                 Total Saldo Kas & Bank
@@ -2260,6 +2133,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
 
             <div className="text-center space-y-1">
               <h3 className="font-black text-base text-ink">Hapus Jurnal "{entryToDelete.description}"?</h3>
+              {entryToDelete.sourceType === 'INTERNAL_TRANSFER' && <p className="text-sm text-ink-muted">Membatalkan mutasi akan menghapus kedua entri yang berpasangan dan mengembalikan saldo kedua rekening.</p>}
               <p className="text-ink-muted">
                 Mutasi kas sebesar <strong>{formatRupiah(entryToDelete.amount)}</strong> akan dibatalkan/dihapus
                 dari buku kas. Tindakan ini tercatat di Jejak Audit.

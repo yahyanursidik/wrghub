@@ -37,6 +37,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
+import { ResidentWelcomeLoginGate } from './ResidentWelcomeLoginGate';
 
 export type LoginSubTab = 'portal_login' | 'resident_register' | 'guard_terminal' | 'security_faq';
 export type PortalType = 'resident' | 'admin' | 'security';
@@ -184,7 +185,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           identifier: identifier.trim(),
-          password: password.trim(),
+          password,
           portal: activePortal === 'security' ? 'admin' : activePortal
         }),
       });
@@ -281,20 +282,22 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
       setErrorMsg('Nama Lengkap dan Nomor WhatsApp wajib diisi.');
       return;
     }
-    setRegSubmitting(true);
-    setTimeout(() => {
-      setRegSubmitting(false);
-      setRegSuccessModal(true);
-    }, 800);
+    setErrorMsg('');
+    setSuccessMsg('');
+    setRegSuccessModal(true);
   };
 
   // =========================================================================
   // DEDICATED STREAMLINED ADMIN LOGIN VIEW (PORTAL=ADMIN)
   // Clean, focused, minimal, professional backoffice sign-in without distraction
   // =========================================================================
+  if (activePortal === 'resident' && activeTab === 'portal_login') {
+    return <ResidentWelcomeLoginGate />;
+  }
+
   if (activePortal === 'admin') {
     return (
-      <div className="min-h-screen bg-canvas text-ink flex flex-col justify-between selection:bg-primary-100 selection:text-primary-900 font-sans p-4 sm:p-6 lg:p-8">
+      <div className="min-h-[100dvh] bg-canvas text-ink flex flex-col justify-between selection:bg-primary-100 selection:text-primary-900 font-sans p-4 sm:p-6 lg:p-8">
         {/* Top Header / Back Link */}
         <div className="max-w-md w-full mx-auto flex items-center justify-between">
           <a
@@ -327,7 +330,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                   Backoffice Pengurus
                 </span>
                 <h1 className="text-2xl font-black text-ink tracking-tight">
-                  Login Administrator
+                  Masuk pengurus
                 </h1>
                 <p className="text-xs text-ink-muted mt-1 leading-relaxed">
                   Kelola data warga, iuran IPL, kas keuangan, dan operasional lingkungan komplek.
@@ -353,7 +356,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
             {/* Form */}
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-ink mb-1.5">
+                <label htmlFor="admin-identifier" className="block text-sm font-medium text-ink mb-1.5">
                   Username atau Email
                 </label>
                 <div className="relative">
@@ -362,6 +365,10 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                   </div>
                   <input
                     type="text"
+                    id="admin-identifier"
+                    name="username"
+                    autoComplete="username"
+                    autoCapitalize="none"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="Contoh: admin"
@@ -374,7 +381,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-ink">
+                  <label htmlFor="admin-password" className="block text-sm font-medium text-ink">
                     Kata Sandi
                   </label>
                   <button
@@ -391,6 +398,9 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                   </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    id="admin-password"
+                    name="password"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={(e) => setIsCapsLockOn(e.getModifierState('CapsLock'))}
@@ -401,6 +411,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-ink-muted hover:text-ink"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -444,21 +455,9 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
               </button>
             </form>
 
-            {/* Quick Demo Fill Pill (Discrete & Helpful) */}
-            <div className="pt-2 border-t border-border/80 flex items-center justify-between text-[11px] text-ink-muted">
-              <span>Akun Demo: <strong className="text-ink">admin</strong> / <strong className="text-ink">admin123</strong></span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIdentifier('admin');
-                  setPassword('admin123');
-                  setErrorMsg('');
-                }}
-                className="text-primary-700 font-bold hover:underline"
-              >
-                Isi Otomatis
-              </button>
-            </div>
+            <p className="pt-2 border-t border-border/80 text-[11px] text-ink-muted">
+              Gunakan akun pengurus yang terdaftar. Hubungi administrator jika akses Anda belum tersedia.
+            </p>
 
             {/* Switch to Resident Portal */}
             <div className="p-3 bg-canvas rounded-2xl border border-border text-center text-xs">
@@ -1375,7 +1374,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                   <div className="p-4 bg-canvas rounded-2xl border border-border space-y-1 text-xs">
                     <p className="font-bold text-ink">Bagaimana cara login jika saya belum tahu password?</p>
                     <p className="text-ink-muted leading-relaxed text-[11px]">
-                      Bagi pemilik unit terdaftar, kata sandi awal diberikan oleh pengurus saat serah terima data warga (default: <span className="font-mono font-bold">warga123</span>). Anda dapat mengubah kata sandi kapan saja melalui menu Pengaturan Profil di Portal Warga.
+                      Bagi pemilik unit terdaftar, kata sandi awal diberikan oleh pengurus saat serah terima data warga. Hubungi pengurus untuk meminta pembaruan kata sandi akun Anda.
                     </p>
                   </div>
 
@@ -1495,22 +1494,29 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h3 className="font-black text-xl text-ink">Pendaftaran Diterima!</h3>
+              <h3 className="font-semibold text-xl text-ink">Tinjau permohonan hunian</h3>
               <p className="text-xs text-ink-muted">
-                Terima kasih, Bpk/Ibu <span className="font-bold text-ink">{regFullName}</span>. Data pendaftaran unit <span className="font-bold text-primary-700">Blok {regBlock} No. {regNumber}</span> telah terekam.
+                Permohonan <span className="font-bold text-ink">{regFullName}</span> untuk <span className="font-bold text-primary-700">Blok {regBlock} No. {regNumber}</span> belum dikirim atau disimpan. Salin data ini dan sampaikan kepada pengurus.
               </p>
             </div>
 
             <div className="p-4 bg-canvas rounded-2xl border border-border text-left text-xs space-y-1.5">
               <span className="font-bold text-ink block text-[11px] uppercase tracking-wider">Tahapan Selanjutnya:</span>
               <p className="text-ink-muted text-[11px]">
-                1. Sekretaris RT akan mencocokkan nomor unit dan mengirim konfirmasi via WhatsApp ke nomor <span className="font-mono font-bold text-ink">{regPhone}</span>.
+                Pengurus akan memeriksa data hunian dan menghubungi Anda di <span className="font-mono font-bold text-ink">{regPhone}</span> setelah menerima permohonan.
               </p>
               <p className="text-ink-muted text-[11px]">
-                2. Akun portal mandiri dan kode akses gerbang Anda akan aktif dalam 1x24 jam.
+                Akun hanya aktif setelah pengurus menyelesaikan verifikasi. Formulir ini tidak membuat akun otomatis.
               </p>
             </div>
 
+            <button type="button" className="w-full py-3 bg-primary-50 text-primary-700 font-semibold rounded-xl" onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(`Permohonan hunian WargaHub\nNama: ${regFullName}\nUnit: ${regBlock}-${regNumber}\nStatus: ${regOwnership}\nWhatsApp: ${regPhone}\nEmail: ${regEmail}\nJumlah anggota: ${regMembersCount}\nKendaraan: ${regVehiclePlate}\nCatatan: ${regNotes}`);
+                setSuccessMsg('Data permohonan disalin. Kirimkan kepada pengurus.');
+              } catch { setSuccessMsg('Belum bisa menyalin. Salin rincian permohonan secara manual.'); }
+            }}>Salin permohonan</button>
+            {successMsg && <p role="status" className="text-sm text-ink-muted">{successMsg}</p>}
             <button
               type="button"
               onClick={() => {

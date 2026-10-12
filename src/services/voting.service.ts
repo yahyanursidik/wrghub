@@ -236,7 +236,6 @@ async function fetchPollsWithResultsSqlite(): Promise<VotingPollRow[]> {
 }
 
 export async function getPollsWithResults(): Promise<VotingPollRow[]> {
-  await ensureVotingSchema();
   if (process.env.DATABASE_URL) {
     try {
       return await fetchPollsWithResultsNeon();
@@ -329,7 +328,6 @@ async function fetchVoterRollSqlite(electionPollId: string | null): Promise<Vote
 }
 
 export async function getVoterRoll(electionPollId: string | null): Promise<VoterRollRow[]> {
-  await ensureVotingSchema();
   if (process.env.DATABASE_URL) {
     try {
       return await fetchVoterRollNeon(electionPollId);
@@ -346,7 +344,6 @@ export async function getVoterRoll(electionPollId: string | null): Promise<Voter
 }
 
 export async function getVotedPollIdsByProperty(propertyCode: string): Promise<string[]> {
-  await ensureVotingSchema();
   if (process.env.DATABASE_URL) {
     try {
       const rows = await neonSql`SELECT poll_id FROM voting_votes WHERE property_code = ${propertyCode}`;

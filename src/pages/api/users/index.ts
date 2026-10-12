@@ -1,4 +1,8 @@
 import type { APIRoute } from 'astro';
+import { hashPassword } from '../../../lib/passwords';
+import { setLocalCredentialHash } from '../../../services/local-credentials.service';
+import { getProperties } from '../../../services/property.service';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { neonSql } from '../../../db/neon';
 import { db, schema } from '../../../db';
@@ -39,7 +43,6 @@ export const GET: APIRoute = async () => {
           u.role, 
           u.property_id, 
           u.property_code,
-          u.password_hash, 
           u.is_active, 
           u.created_at,
           COALESCE(per.phone, '') as phone,
@@ -66,7 +69,6 @@ export const GET: APIRoute = async () => {
         role: r.role,
         propertyId: r.property_id,
         propertyCode: r.property_code,
-        passwordHash: r.password_hash || 'warga123',
         isActive: Boolean(r.is_active),
         phone: r.phone || '',
         propertyAddress: r.property_address || '',
@@ -95,16 +97,21 @@ export const GET: APIRoute = async () => {
   }
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, session }) => {
   try {
     const body = await request.json();
     const validated = createUserSchema.parse(body);
+    const actor = await session?.get('wargahub_user') as { role?: string } | undefined;
+    if (validated.role === 'SUPER_ADMIN' && actor?.role !== 'SUPER_ADMIN') return Response.json({ error: 'Hanya super admin dapat membuat akun super admin.' }, { status: 403 });
 
     const cleanUsername = validated.username.trim().toLowerCase().replace(/\s+/g, '_');
-    const userId = `user-${cleanUsername.replace(/[^a-z0-9_-]/g, '')}-${Date.now().toString().slice(-4)}`;
+    const userId = `user-${randomUUID()}`;
     const cleanEmail = validated.email?.trim() || `${cleanUsername}@wargahub.id`;
     const cleanPropCode = validated.propertyCode?.trim() || null;
-    const cleanPropId = cleanPropCode ? `prop-${cleanPropCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}` : null;
+    const property = cleanPropCode ? (await getProperties()).find(property => property.code.toLowerCase() === cleanPropCode.toLowerCase()) : undefined;
+    if (cleanPropCode && !property) return Response.json({ error: 'Rumah yang dipilih tidak ditemukan.' }, { status: 400 });
+    const cleanPropId = property?.id || null;
+    const passwordHash = hashPassword(validated.password);
 
     if (process.env.DATABASE_URL) {
       // Create person record if phone is provided
@@ -124,14 +131,14 @@ export const POST: APIRoute = async ({ request }) => {
           property_id, property_code, password_hash, person_id, is_active
         ) VALUES (
           ${userId}, ${cleanUsername}, ${cleanEmail}, ${validated.fullName}, ${validated.role},
-          ${cleanPropId}, ${cleanPropCode}, ${validated.password}, ${personId}, true
+          ${cleanPropId}, ${cleanPropCode}, ${passwordHash}, ${personId}, true
         )
         ON CONFLICT (id) DO UPDATE SET
           full_name = ${validated.fullName},
           role = ${validated.role},
           property_id = ${cleanPropId},
           property_code = ${cleanPropCode},
-          password_hash = ${validated.password},
+          password_hash = ${passwordHash},
           person_id = COALESCE(${personId}, users.person_id),
           is_active = true;
       `;
@@ -177,8 +184,11 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    await db.insert(schema.users).values({ id: userId, username: cleanUsername, email: cleanEmail, fullName: validated.fullName, role: validated.role, isActive: true });
+    await setLocalCredentialHash(userId, passwordHash);
+    if (cleanPropId) await db.insert(schema.userPropertyAccess).values({ id: `uacc-${userId}`, userId, propertyId: cleanPropId, relationship: 'OWNER', canViewBilling: true, canPay: true, canEditOccupants: true, canViewProperty: true, startedAt: new Date().toISOString() });
     return new Response(JSON.stringify({
-      data: { id: userId, message: 'Akun berhasil dibuat di mode lokal.' }
+      data: { id: userId, username: cleanUsername, fullName: validated.fullName, role: validated.role, propertyCode: cleanPropCode, message: 'Akun tersimpan di database lokal.' }
     }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }

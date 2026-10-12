@@ -51,6 +51,11 @@ import { ReceiptModal } from '../shared/ReceiptModal';
 import { WargaAIChatWidget } from '../shared/WargaAIChatWidget';
 import { VotingSectionModal } from './VotingSectionModal';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
+import { useResidentNavigation } from '../../lib/resident-navigation';
+import { ResidentNavigation } from '../layout/ResidentNavigation';
+import { apiFetch } from '../../lib/api-fetch';
+import { RequestErrorNotice } from '../shared/RequestErrorNotice';
+import type { ResidentOverview, ResidentInvoice } from '../../services/resident-overview.service';
 
 /**
  * TASTE-SKILL V2 DESIGN STANDARD
@@ -63,15 +68,15 @@ import { ErrorBoundary } from '../shared/ErrorBoundary';
 interface ResidentPortalViewProps {
   initialUser?: UserSession;
   initialAnnouncements?: any[];
+  initialOverview?: ResidentOverview;
 }
 
 const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   initialUser,
   initialAnnouncements = [],
+  initialOverview,
 }) => {
-  const [activeTab, setActiveTab] = useState<'beranda' | 'iuran' | 'info' | 'rumah' | 'akun'>('beranda');
-  const [rumahSubTab, setRumahSubTab] = useState<'specs' | 'occupants' | 'vehicles' | 'permits' | 'pass'>('specs');
-  const [infoSubTab, setInfoSubTab] = useState<'announcements' | 'facilities' | 'sanitation' | 'complaints'>('announcements');
+  const { activeTab, setActiveTab, rumahSubTab, setRumahSubTab, infoSubTab, setInfoSubTab } = useResidentNavigation();
   const [selectedMonth, setSelectedMonth] = useState('Sep');
 
   // Modals state
@@ -81,20 +86,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [showVotingModal, setShowVotingModal] = useState(false);
   const [copiedAcc, setCopiedAcc] = useState(false);
   const [copiedPass, setCopiedPass] = useState(false);
+  const [overview, setOverview] = useState<ResidentOverview | undefined>(initialOverview);
+  const [overviewError, setOverviewError] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
   // Current resident user session
-  const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedUser = localStorage.getItem('wargahub_user');
-        if (savedUser) {
-          const parsed = JSON.parse(savedUser);
-          if (parsed && typeof parsed === 'object') return parsed;
-        }
-      } catch (e) {}
-    }
-    return initialUser || null;
-  });
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(initialUser || null);
 
   useEffect(() => {
     if (!currentUser && typeof window !== 'undefined') {
@@ -205,7 +203,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem('wargahub_user');
-      if (savedUser) {
+      if (!initialUser && savedUser) {
         const parsed = JSON.parse(savedUser);
         if (parsed && typeof parsed === 'object') setCurrentUser(parsed);
       }
@@ -336,48 +334,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [showEditSpecsModal, setShowEditSpecsModal] = useState(false);
 
   // Occupants State
-  const [occupants, setOccupants] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(`wargahub_occupants_${userKey}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (e) {}
-    }
-    return currentUser?.fullName
-      ? [
-          {
-            id: 'occ-1',
-            fullName: currentUser.fullName,
-            relation: 'Kepala Keluarga',
-            idCardNumber: '3171091203850001',
-            phone: currentUser.email || '0812-3456-7890',
-            isEmergencyContact: true,
-            birthDate: '12 Maret 1985',
-          },
-          {
-            id: 'occ-2',
-            fullName: 'Ibu Hj. Siti Nurjanah',
-            relation: 'Istri',
-            idCardNumber: '3171095508880002',
-            phone: '0813-8899-7711',
-            isEmergencyContact: true,
-            birthDate: '15 Agustus 1988',
-          },
-          {
-            id: 'occ-3',
-            fullName: 'Muhammad Raihan Sutrisno',
-            relation: 'Anak',
-            idCardNumber: '3171092004120003',
-            phone: '0812-9900-1122',
-            isEmergencyContact: false,
-            birthDate: '20 April 2012',
-          },
-        ]
-      : [];
-  });
+  const [occupants, setOccupants] = useState<any[]>(initialOverview?.occupants || []);
   const [showAddOccupantModal, setShowAddOccupantModal] = useState(false);
   const [newOccName, setNewOccName] = useState('');
   const [newOccRelation, setNewOccRelation] = useState('ANAK');
@@ -386,29 +343,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [newOccEmergency, setNewOccEmergency] = useState(false);
 
   // Permits (SIK Renovasi) State
-  const [permits, setPermits] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(`wargahub_permits_${userKey}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (e) {}
-    }
-    return [
-      {
-        id: 'SIK-2026-0811',
-        workType: 'Pengecatan & Kanopi Depan',
-        contractorName: 'Bpk. Sugeng (CV Berkah Abadi)',
-        workersCount: 3,
-        startDate: '2026-08-15',
-        endDate: '2026-08-30',
-        status: 'SELESAI',
-        description: 'Pengecatan fasad luar dan pergantian atap kanopi carport alderon.',
-      },
-    ];
-  });
+  const [permits, setPermits] = useState<any[]>(initialOverview?.permits || []);
   const [showAddPermitModal, setShowAddPermitModal] = useState(false);
   const [permitWorkType, setPermitWorkType] = useState('Pengecatan & Kanopi');
   const [permitContractor, setPermitContractor] = useState('');
@@ -419,28 +354,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [permitSuccess, setPermitSuccess] = useState(false);
 
   // Complaints State
-  const [complaints, setComplaints] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(`wargahub_complaints_${userKey}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (e) {}
-    }
-    return [
-      {
-        id: 'COMP-8821',
-        title: 'Lampu Penerangan Jalan (PJU) Depan Rumah Berkedip',
-        description: 'Lampu tiang PJU no. 14 di seberang rumah padam saat malam hari mulai pukul 22:00.',
-        category: 'FASILITAS',
-        location: 'Depan Rumah A-17',
-        status: 'SEDANG_DITANGANI',
-        createdAt: '2 September 2026, 19:30 WIB',
-      },
-    ];
-  });
+  const [complaints, setComplaints] = useState<any[]>(initialOverview?.complaints || []);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [compTitle, setCompTitle] = useState('');
   const [compDesc, setCompDesc] = useState('');
@@ -449,39 +363,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [compSuccess, setCompSuccess] = useState(false);
 
   // Vehicle State (RFID Gate)
-  const [vehicles, setVehicles] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(`wargahub_vehicles_${userKey}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (e) {}
-    }
-    return [
-      {
-        id: 'veh-1',
-        plateNumber: 'B 1988 WHB',
-        type: 'Mobil',
-        brand: 'Toyota',
-        model: 'Innova Zenix',
-        color: 'Hitam Metalik',
-        year: '2024',
-        rfidStatus: 'AKTIF',
-      },
-      {
-        id: 'veh-2',
-        plateNumber: 'B 4421 SJE',
-        type: 'Motor',
-        brand: 'Honda',
-        model: 'PCX 160',
-        color: 'Putih Mutiara',
-        year: '2023',
-        rfidStatus: 'AKTIF',
-      },
-    ];
-  });
+  const [vehicles, setVehicles] = useState<any[]>(initialOverview?.vehicles || []);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [vehPlate, setVehPlate] = useState('');
   const [vehType, setVehType] = useState('Mobil');
@@ -491,32 +373,51 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
 
   // Facility Booking State
   const [showFacilityModal, setShowFacilityModal] = useState(false);
-  const [facId, setFacId] = useState('fac-balai');
-  const [facName, setFacName] = useState('Balai Warga Serbaguna');
-  const [facDate, setFacDate] = useState('2026-09-12');
+  const [facId, setFacId] = useState(initialOverview?.facilities[0]?.id || '');
+  const [facName, setFacName] = useState(initialOverview?.facilities[0]?.name || '');
+  const [facDate, setFacDate] = useState('');
   const [facStart, setFacStart] = useState('09:00');
   const [facEnd, setFacEnd] = useState('13:00');
   const [facPurpose, setFacPurpose] = useState('');
-  const [facPhone, setFacPhone] = useState('0812-3456-7890');
+  const [facPhone, setFacPhone] = useState('');
   const [facSuccess, setFacSuccess] = useState(false);
 
   // 12 Months Billing Record
-  const monthsBilling = [
-    { code: 'Jan', name: 'Januari 2026', status: 'paid', paidAt: '12 Jan 2026, 09:14 WIB', inv: 'INV-202601-A17' },
-    { code: 'Feb', name: 'Februari 2026', status: 'paid', paidAt: '10 Feb 2026, 11:02 WIB', inv: 'INV-202602-A17' },
-    { code: 'Mar', name: 'Maret 2026', status: 'paid', paidAt: '08 Mar 2026, 14:20 WIB', inv: 'INV-202603-A17' },
-    { code: 'Apr', name: 'April 2026', status: 'paid', paidAt: '10 Apr 2026, 08:45 WIB', inv: 'INV-202604-A17' },
-    { code: 'Mei', name: 'Mei 2026', status: 'paid', paidAt: '09 Mei 2026, 10:15 WIB', inv: 'INV-202605-A17' },
-    { code: 'Jun', name: 'Juni 2026', status: 'paid', paidAt: '10 Jun 2026, 13:30 WIB', inv: 'INV-202606-A17' },
-    { code: 'Jul', name: 'Juli 2026', status: 'paid', paidAt: '08 Jul 2026, 09:40 WIB', inv: 'INV-202607-A17' },
-    { code: 'Agu', name: 'Agustus 2026', status: 'paid', paidAt: '20 Agu 2026, 10:21 WIB', inv: 'INV-202608-A17' },
-    { code: 'Sep', name: 'September 2026', status: 'pending', paidAt: null, inv: 'INV-202609-A17' },
-    { code: 'Okt', name: 'Oktober 2026', status: 'upcoming', paidAt: null, inv: 'INV-202610-A17' },
-    { code: 'Nov', name: 'November 2026', status: 'upcoming', paidAt: null, inv: 'INV-202611-A17' },
-    { code: 'Des', name: 'Desember 2026', status: 'upcoming', paidAt: null, inv: 'INV-202612-A17' },
-  ];
+  const monthsBilling = overview?.invoices || [];
+  const currentSelectedMonthData: ResidentInvoice = monthsBilling.find(invoice => invoice.code === selectedMonth) || monthsBilling[0] || {
+    id: '', code: '', shortLabel: '-', name: 'Belum ada tagihan', status: 'upcoming', paidAt: null, inv: '-', billingPeriodId: '', amount: 0, remaining: 0, dueDate: '-', method: '-', reference: '-',
+  };
+  const propertyId = overview?.property?.id || currentUser?.propertyId;
+  const requirePropertyId = () => { if (!propertyId) throw new Error('Akun belum terhubung ke rumah. Hubungi pengurus.'); return propertyId; };
 
-  const currentSelectedMonthData = monthsBilling.find((m) => m.code === selectedMonth) || monthsBilling[8];
+  const applyOverview = (data: ResidentOverview) => {
+    setOverview(data); setOccupants(data.occupants); setVehicles(data.vehicles);
+    setPermits(data.permits); setComplaints(data.complaints);
+    if (data.property) setOccupancyStatus(data.property.occupancyStatus === 'RENTED' ? 'Disewakan' : data.property.occupancyStatus === 'VACANT' ? 'Kosong' : 'Dihuni pemilik');
+  };
+  const refreshOverview = async () => {
+    try {
+      const response = await fetch('/api/resident/overview');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message || 'Data belum bisa dimuat.');
+      applyOverview(payload.data); setOverviewError('');
+    } catch (error) { setOverviewError(error instanceof Error ? error.message : 'Tidak bisa memuat data rumah.'); }
+  };
+  useEffect(() => { if (currentUser && !initialOverview) void refreshOverview(); }, [currentUser?.id]);
+  useEffect(() => {
+    if (overview?.profile) {
+      setCommunityName(overview.profile.communityName); setMonthlyFeeRate(overview.profile.monthlyRate);
+      setBankKasName(overview.profile.bankName); setBankKasAcc(overview.profile.bankAccount); setBankKasHolder(overview.profile.accountHolder);
+      setSecurityPhone(overview.profile.securityPhone); setRwHeadPhone(overview.profile.rwHeadPhone);
+    }
+    if (overview?.facilities.length && !overview.facilities.some(facility => facility.id === facId)) {
+      setFacId(overview.facilities[0].id); setFacName(overview.facilities[0].name);
+    }
+  }, [overview]);
+  const showActualReceipt = (invoice = currentSelectedMonthData) => {
+    if (!invoice.id || invoice.status !== 'paid') return;
+    setSelectedReceipt({ invoiceNumber: invoice.inv, periodName: invoice.name, propertyCode: overview?.property?.code || currentUser?.propertyCode || '-', residentName: currentUser?.fullName || '-', amount: invoice.amount, paidAt: invoice.paidAt || '-', paymentMethod: invoice.method, referenceNumber: invoice.reference, kepalaKomplekName, isInvoice: false });
+  };
 
   // Component breakdown calculation
   const feeSecurity = Math.round(monthlyFeeRate * 0.46);
@@ -527,16 +428,21 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   // Handlers
   const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (paymentSubmitting) return;
+    setPaymentSubmitting(true);
     try {
-      await fetch('/api/payments/submit', {
+      if (!propertyId || !currentSelectedMonthData.billingPeriodId || !currentSelectedMonthData.id) throw new Error('Pilih tagihan yang tercatat untuk rumah Anda.');
+      if (!paymentReference.trim()) throw new Error('Masukkan nomor referensi transfer.');
+      await apiFetch('/api/payments/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-user',
-          billingPeriodId: `period-2026-${selectedMonth.toLowerCase()}`,
-          amount: monthlyFeeRate,
+          propertyId,
+          billingPeriodId: currentSelectedMonthData.billingPeriodId,
+          invoiceId: currentSelectedMonthData.id,
+          amount: currentSelectedMonthData.remaining,
           method: 'TRANSFER',
-          reference: `TRX-${Date.now().toString().slice(-6)}`,
+          reference: paymentReference.trim(),
           notes: `Konfirmasi pembayaran via Portal Warga Mobile (${currentSelectedMonthData.name})`,
         }),
       });
@@ -546,21 +452,21 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         setShowPaymentModal(false);
       }, 1500);
     } catch (err) {
-      console.error(err);
-    }
+      window.dispatchEvent(new CustomEvent('wargahub:request-error', { detail: err instanceof Error ? err.message : 'Pembayaran belum diajukan.' }));
+    } finally { setPaymentSubmitting(false); }
   };
 
   const handleBookFacility = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!facPurpose) return;
     try {
-      await fetch('/api/facilities/book', {
+      await apiFetch('/api/facilities/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           facilityId: facId,
           facilityName: facName,
-          propertyId: currentUser?.propertyId || 'prop-a-17',
+          propertyId: requirePropertyId(),
           residentName: currentUser?.fullName || currentUser?.name || 'Warga',
           date: facDate,
           startTime: facStart,
@@ -592,19 +498,12 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
       status: 'MENUNGGU_VERIFIKASI',
       createdAt: 'Baru saja',
     };
-    const updated = [newComp, ...complaints];
-    setComplaints(updated);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`wargahub_complaints_${userKey}`, JSON.stringify(updated));
-      } catch (e) {}
-    }
     try {
-      await fetch('/api/complaints/create', {
+      const response = await apiFetch('/api/complaints/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-user',
+          propertyId: requirePropertyId(),
           title: compTitle,
           description: compDesc,
           category: compCategory,
@@ -612,6 +511,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           priority: 'MEDIUM',
         }),
       });
+      const payload = await response.json();
+      const updated = [{ ...newComp, id: payload.data.id }, ...complaints];
+      setComplaints(updated);
+      try { localStorage.setItem(`wargahub_complaints_${userKey}`, JSON.stringify(updated)); } catch {}
       setCompSuccess(true);
       setTimeout(() => {
         setCompSuccess(false);
@@ -638,19 +541,12 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
       year: new Date().getFullYear().toString(),
       rfidStatus: 'AKTIF',
     };
-    const updated = [...vehicles, newVeh];
-    setVehicles(updated);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`wargahub_vehicles_${userKey}`, JSON.stringify(updated));
-      } catch (e) {}
-    }
     try {
-      await fetch('/api/vehicles/create', {
+      const response = await apiFetch('/api/vehicles/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-user',
+          propertyId: requirePropertyId(),
           plateNumber: vehPlate.toUpperCase().trim(),
           type: vehType,
           brand: vehBrand,
@@ -658,6 +554,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           color: vehColor || 'Hitam',
         }),
       });
+      const payload = await response.json();
+      const updated = [...vehicles, { ...newVeh, id: payload.data.id }];
+      setVehicles(updated);
+      try { localStorage.setItem(`wargahub_vehicles_${userKey}`, JSON.stringify(updated)); } catch {}
       setShowVehicleModal(false);
       setVehPlate('');
       setVehBrand('');
@@ -693,19 +593,12 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
       isEmergencyContact: newOccEmergency,
       birthDate: '-',
     };
-    const updated = [...occupants, newOcc];
-    setOccupants(updated);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`wargahub_occupants_${userKey}`, JSON.stringify(updated));
-      } catch (e) {}
-    }
     try {
-      await fetch('/api/properties/occupants/create', {
+      const response = await apiFetch('/api/properties/occupants/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          propertyId: currentUser?.propertyId || 'prop-user',
+          propertyId: requirePropertyId(),
           fullName: newOccName,
           relation: newOccRelation,
           idCardNumber: newOccIdCard,
@@ -713,6 +606,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           isEmergencyContact: newOccEmergency,
         }),
       });
+      const payload = await response.json();
+      const updated = [...occupants, { ...newOcc, id: payload.data.id }];
+      setOccupants(updated);
+      try { localStorage.setItem(`wargahub_occupants_${userKey}`, JSON.stringify(updated)); } catch {}
       setShowAddOccupantModal(false);
       setNewOccName('');
       setNewOccIdCard('');
@@ -743,18 +640,11 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
       workersCount: Number(permitWorkers),
       startDate: permitStart,
       endDate: permitEnd,
-      status: 'DISETUJUI',
+      status: 'PENDING_REVIEW',
       description: permitDesc,
     };
-    const updated = [newPermit, ...permits];
-    setPermits(updated);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`wargahub_permits_${userKey}`, JSON.stringify(updated));
-      } catch (e) {}
-    }
     try {
-      await fetch('/api/properties/permits/create', {
+      const response = await apiFetch('/api/properties/permits/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -765,8 +655,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           startDate: permitStart,
           endDate: permitEnd,
           description: permitDesc,
+          status: 'PENDING_REVIEW',
         }),
       });
+      const payload = await response.json();
+      const updated = [{ ...newPermit, id: payload.data.id }, ...permits];
+      setPermits(updated);
+      try { localStorage.setItem(`wargahub_permits_${userKey}`, JSON.stringify(updated)); } catch {}
       setPermitSuccess(true);
       setTimeout(() => {
         setPermitSuccess(false);
@@ -782,7 +677,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const handleUpdateSpecs = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch('/api/properties/update', {
+      await apiFetch('/api/properties/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -802,10 +697,12 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-canvas flex flex-col items-center justify-start antialiased selection:bg-primary-100 selection:text-primary-900">
+    <div className="resident-app min-h-[100dvh] bg-canvas flex flex-col items-center justify-start antialiased selection:bg-primary-100 selection:text-primary-900">
+      <RequestErrorNotice />
+      <a href="#main-content" className="skip-link">Lewati menu, ke konten</a>
       {/* Top Application Bar - Clean Architectural Header */}
-      <header className="w-full bg-surface/95 backdrop-blur-md border-b border-border sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+      <header className="w-full bg-surface border-b border-border sticky top-0 z-30">
+        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-primary-50 border border-primary-200 flex items-center justify-center text-primary-700 shadow-2xs">
               <Building2 className="w-4 h-4 text-primary-700 stroke-[2.2]" />
@@ -813,12 +710,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
             <div className="leading-tight">
               <span className="font-extrabold text-base tracking-tight text-ink flex items-center gap-1.5">
                 Warga<span className="text-primary-600">Hub</span>
-                <span className="px-1.5 py-0.5 bg-primary-50 text-primary-800 text-[10px] font-bold rounded border border-primary-200 uppercase tracking-wide">
-                  Portal Warga
-                </span>
               </span>
               <p className="text-[10px] text-ink-muted hidden sm:block">
-                {communityName} • RT 01 / RW 08
+                {communityName}
               </p>
             </div>
           </div>
@@ -841,24 +735,26 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 href="/admin"
                 className="text-xs font-bold text-primary-800 hover:text-primary-900 px-3 py-1.5 rounded-xl bg-primary-50 hover:bg-primary-100 transition-all flex items-center gap-1 border border-primary-200 active:scale-[0.98]"
               >
-                Dashboard Pengurus
+                 Pengurus
                 <ExternalLink className="w-3 h-3 text-primary-700" />
               </a>
             )}
             <button
               type="button"
               onClick={() => setActiveTab('akun')}
-              className="w-8 h-8 rounded-full bg-primary-600 text-surface font-extrabold text-xs flex items-center justify-center border border-primary-400 shrink-0 hover:ring-2 hover:ring-primary-500/40 active:scale-95 transition-all ml-1 uppercase shadow-2xs"
+               className="w-11 h-11 rounded-xl bg-primary-50 text-primary-700 font-bold text-xs flex items-center justify-center shrink-0 hover:bg-primary-100 transition-all ml-1 uppercase"
               title="Profil Pengguna"
             >
               {getInitials(currentUser?.fullName || currentUser?.name)}
             </button>
           </div>
         </div>
+        <ResidentNavigation activeTab={activeTab} onNavigate={setActiveTab} />
       </header>
 
       {/* Main Application Container */}
-      <main className="w-full max-w-2xl mx-auto bg-surface sm:border-x border-border shadow-xs pb-24 min-h-[calc(100vh-3.5rem)] flex flex-col justify-between">
+      <main id="main-content" tabIndex={-1} aria-label={`Portal warga: ${activeTab}`} className="w-full max-w-3xl mx-auto bg-surface sm:border-x border-border min-h-[calc(100dvh-4rem)] flex flex-col justify-between">
+        {overviewError && <div role="status" className="m-4 p-4 rounded-xl bg-canvas border border-border text-sm text-ink-muted">{overviewError} <button onClick={refreshOverview} className="text-primary-700 font-semibold underline">Coba lagi</button></div>}
         <div className="flex-1">
           {/* ========================================================================= */}
           {/* TAB 1: BERANDA                                                            */}
@@ -866,22 +762,22 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           {activeTab === 'beranda' && (
             <div className="p-4 sm:p-6 space-y-5 animate-in fade-in duration-150">
               {/* Header Greeting & Date */}
-              <div className="flex items-start justify-between">
+              <div className="resident-greeting flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 text-primary-700 font-bold text-[11px] mb-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span>{communityName}</span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black tracking-tight text-ink">
-                    {getGreeting()}, {currentUser?.fullName?.split(' ')[0] || currentUser?.name?.split(' ')[0] || 'Warga'} 👋
+                    {getGreeting()}, {currentUser?.fullName?.split(' ')[0] || currentUser?.name?.split(' ')[0] || 'Warga'}
                   </h2>
                   <p className="text-xs text-ink-muted mt-0.5">
-                    {getFormattedDate()} • {residentSubtitle}
+                    {getFormattedDate()}
                   </p>
                 </div>
                 <span className="px-2 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-lg border border-emerald-200 shrink-0 flex items-center gap-1">
                   <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Warga Terverifikasi
+                    Portal warga
                 </span>
               </div>
 
@@ -921,193 +817,30 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               </div>
 
               {/* Status Iuran Terkini - Struk Style Invoice Card */}
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                    <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Tagihan Iuran IPL Bulan Ini</h3>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200">
-                    Lunas Terverifikasi
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between pt-1 border-t border-dashed border-border/80">
-                  <div>
-                    <span className="text-[10px] text-ink-muted block">Periode Agustus 2026</span>
-                    <p className="text-xl font-black text-ink tabular-nums">{formatRupiah(monthlyFeeRate)}</p>
-                    <span className="text-[10px] text-ink-muted">Terverifikasi otomatis via Transfer Bank / E-Wallet</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedReceipt({
-                          invoiceNumber: `INV-202608-${currentUser?.propertyCode || 'A17'}`.replace('-', ''),
-                          periodName: 'Agustus 2026',
-                          propertyCode: currentUser?.propertyCode || 'A-17',
-                          residentName: currentUser?.fullName || currentUser?.name || 'Warga Komplek',
-                          amount: monthlyFeeRate,
-                          paidAt: '20 Agustus 2026, 10:21 WIB',
-                          paymentMethod: 'Transfer Bank / Syariah (Otomatis)',
-                          referenceNumber: 'TRX-BANK-A17-882',
-                          kepalaKomplekName: kepalaKomplekName,
-                          isInvoice: false,
-                          items: monthlyFeeRate === 350000 ? [
-                            { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                            { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                          ] : (monthlyFeeRate === 250000 ? [
-                            { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                          ] : undefined),
-                        })
-                      }
-                      className="px-3 py-2 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink hover:text-primary-700 transition-all shadow-2xs flex items-center gap-1.5 active:scale-[0.98]"
-                      title="Lihat Kuitansi Resmi Pembayaran IPL"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-primary-600" />
-                      <span>Kuitansi</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedReceipt({
-                          invoiceNumber: `INV-202608-${currentUser?.propertyCode || 'A17'}`.replace('-', ''),
-                          periodName: 'Agustus 2026',
-                          propertyCode: currentUser?.propertyCode || 'A-17',
-                          residentName: currentUser?.fullName || currentUser?.name || 'Warga Komplek',
-                          amount: monthlyFeeRate,
-                          paidAt: '20 Agustus 2026, 10:21 WIB',
-                          paymentMethod: 'Transfer Bank (Jago Syariah / BSI)',
-                          referenceNumber: 'TRX-BANK-A17-882',
-                          kepalaKomplekName: kepalaKomplekName,
-                          isInvoice: true,
-                          items: monthlyFeeRate === 350000 ? [
-                            { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                            { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                          ] : (monthlyFeeRate === 250000 ? [
-                            { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                          ] : undefined),
-                        })
-                      }
-                      className="px-2.5 py-2 bg-canvas hover:bg-surface border border-border rounded-xl text-xs font-bold text-ink-muted hover:text-ink transition-all shadow-2xs flex items-center gap-1.5 active:scale-[0.98]"
-                      title="Lihat Surat Tagihan / Invoice IPL Resmi"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-ink-muted" />
-                      <span>Invoice</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('iuran')}
-                      className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-surface rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 active:scale-[0.98] transition-all"
-                    >
-                      <span>Rincian IPL</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <section className="p-5 rounded-2xl border border-border space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Iuran rumah Anda</h3><span className="text-xs text-ink-muted">{currentSelectedMonthData.id ? currentSelectedMonthData.status === 'paid' ? 'Lunas' : 'Belum lunas' : 'Belum ada tagihan'}</span></div>
+                <div className="resident-invoice-actions flex items-center justify-between gap-4"><div><p className="text-sm text-ink-muted">{currentSelectedMonthData.name}</p><p className="text-2xl font-semibold tabular-nums mt-1">{formatRupiah(currentSelectedMonthData.amount)}</p></div><button onClick={() => setActiveTab('iuran')} className="px-4 py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold">Lihat iuran</button></div>
+                {currentSelectedMonthData.status === 'paid' && <button onClick={() => showActualReceipt()} className="inline-flex items-center gap-2 py-2 text-sm font-semibold text-primary-700"><Printer size={17} />Lihat kuitansi</button>}
+              </section>
 
               {/* 6 Quick Action Pads - Anti Slop Tactile Buttons */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Layanan Warga Cepat</h3>
-                  <span className="text-[10px] text-ink-muted">Akses Langsung 24 Jam</span>
+                  <h3 className="text-sm font-semibold text-ink">Apa yang Anda butuhkan?</h3>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('iuran')}
-                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold shadow-2xs">
-                      <CreditCard className="w-4 h-4 text-emerald-700" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-ink block leading-tight">Bayar Iuran</span>
-                      <span className="text-[9px] text-ink-muted">Tagihan IPL & Kas</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('info');
-                      setInfoSubTab('facilities');
-                    }}
-                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center font-bold shadow-2xs">
-                      <Building2 className="w-4 h-4 text-sky-700" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-ink block leading-tight">Pesan Sarana</span>
-                      <span className="text-[9px] text-ink-muted">Balai & Lapangan</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('rumah');
-                      setRumahSubTab('pass');
-                    }}
-                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold shadow-2xs">
-                      <QrCode className="w-4 h-4 text-purple-700" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-ink block leading-tight">Pas Tamu QR</span>
-                      <span className="text-[9px] text-ink-muted">Akses Pos Satpam</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('info');
-                      setInfoSubTab('sanitation');
-                    }}
-                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center font-bold shadow-2xs">
-                      <Trash2 className="w-4 h-4 text-teal-700" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-ink block leading-tight">Jadwal Sampah</span>
-                      <span className="text-[9px] text-ink-muted">Viar Tossa TPS3R</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowVotingModal(true)}
-                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold shadow-2xs">
-                      <Vote className="w-4 h-4 text-indigo-700" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-ink block leading-tight">E-Voting Warga</span>
-                      <span className="text-[9px] text-ink-muted">Musyawarah RT</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowComplaintModal(true)}
-                    className="p-3 bg-surface hover:bg-canvas rounded-2xl border border-border/90 hover:border-primary-300 shadow-2xs flex flex-col items-center text-center gap-1.5 transition-all active:scale-[0.97]"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-bold shadow-2xs">
-                      <Headphones className="w-4 h-4 text-rose-700" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-ink block leading-tight">Aduan & Keluhan</span>
-                      <span className="text-[9px] text-ink-muted">Respon Cepat</span>
-                    </div>
-                  </button>
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  {[
+                    { label: 'Bayar iuran', detail: 'Tagihan dan pembayaran', icon: CreditCard, action: () => setActiveTab('iuran') },
+                    { label: 'Laporkan aduan', detail: 'Sampaikan kendala lingkungan', icon: MessageSquarePlus, action: () => setShowComplaintModal(true) },
+                    { label: 'Pas tamu', detail: 'Akses tamu dengan QR', icon: QrCode, action: () => { setActiveTab('rumah'); setRumahSubTab('pass'); } },
+                    { label: 'Pesan fasilitas', detail: 'Balai dan lapangan', icon: Building2, action: () => { setActiveTab('info'); setInfoSubTab('facilities'); } },
+                    { label: 'Jadwal sampah', detail: 'Waktu pengangkutan', icon: Trash2, action: () => { setActiveTab('info'); setInfoSubTab('sanitation'); } },
+                    { label: 'Musyawarah', detail: 'Berikan suara Anda', icon: Vote, action: () => setShowVotingModal(true) },
+                  ].map(item => <button key={item.label} type="button" onClick={item.action} className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-canvas hover:bg-primary-50 text-left">
+                    <item.icon size={21} strokeWidth={1.8} className="text-primary-700 shrink-0" />
+                    <span><span className="block text-sm font-semibold text-ink">{item.label}</span><span className="hidden sm:block text-xs text-ink-muted mt-1">{item.detail}</span></span>
+                  </button>)}
                 </div>
               </div>
 
@@ -1266,26 +999,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() =>
-                      setSelectedReceipt({
-                        invoiceNumber: currentSelectedMonthData.inv,
-                        periodName: currentSelectedMonthData.name,
-                        propertyCode: currentUser?.propertyCode || 'A-17',
-                        residentName: currentUser?.fullName || currentUser?.name || 'Warga Komplek',
-                        amount: monthlyFeeRate,
-                        paidAt: currentSelectedMonthData.paidAt || (currentSelectedMonthData.code === 'Sep' ? '05 September 2026, 10:21 WIB' : '20 Agustus 2026, 10:21 WIB'),
-                        paymentMethod: 'Transfer Bank / Syariah (Otomatis)',
-                        referenceNumber: `TRX-${currentSelectedMonthData.code.toUpperCase()}-A17`,
-                        kepalaKomplekName: kepalaKomplekName,
-                        isInvoice: false,
-                        items: monthlyFeeRate === 350000 ? [
-                          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                        ] : (monthlyFeeRate === 250000 ? [
-                          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                        ] : undefined),
-                      })
-                    }
+                    onClick={() => showActualReceipt()}
+                    disabled={currentSelectedMonthData.status !== 'paid'}
                     className="px-3 py-1.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs active:scale-[0.98] transition-all"
                     title="Buka Dokumen Kuitansi Resmi"
                   >
@@ -1300,22 +1015,17 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                         periodName: currentSelectedMonthData.name,
                         propertyCode: currentUser?.propertyCode || 'A-17',
                         residentName: currentUser?.fullName || currentUser?.name || 'Warga Komplek',
-                        amount: monthlyFeeRate,
-                        paidAt: currentSelectedMonthData.paidAt || (currentSelectedMonthData.code === 'Sep' ? '05 September 2026, 10:21 WIB' : '20 Agustus 2026, 10:21 WIB'),
-                        paymentMethod: 'Transfer Bank (Jago Syariah / BSI)',
-                        referenceNumber: `TRX-${currentSelectedMonthData.code.toUpperCase()}-A17`,
+                        amount: currentSelectedMonthData.amount,
+                        paidAt: currentSelectedMonthData.paidAt || '-',
+                        paymentMethod: currentSelectedMonthData.method,
+                        referenceNumber: currentSelectedMonthData.reference,
                         kepalaKomplekName: kepalaKomplekName,
                         isInvoice: true,
-                        items: monthlyFeeRate === 350000 ? [
-                          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                        ] : (monthlyFeeRate === 250000 ? [
-                          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                        ] : undefined),
                       })
                     }
                     className="px-2.5 py-1.5 bg-surface hover:bg-canvas border border-border text-ink-muted hover:text-ink text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs active:scale-[0.98] transition-all"
                     title="Buka Dokumen Surat Tagihan / Invoice IPL Resmi"
+                    disabled={!currentSelectedMonthData.id}
                   >
                     <FileText className="w-3.5 h-3.5 text-ink-muted" />
                     <span>Invoice</span>
@@ -1326,7 +1036,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
               {/* 12 Months Interactive Matrix Bar */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-ink uppercase tracking-wide">Status Iuran Tahun 2026</h3>
+                  <h3 className="text-sm font-semibold text-ink">Tagihan yang tercatat</h3>
                   <div className="flex items-center gap-3 text-[10px] text-ink-muted">
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" /> Lunas
@@ -1340,7 +1050,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-6 gap-2">
+                {!monthsBilling.length && <p className="text-sm text-ink-muted py-3">Belum ada tagihan untuk rumah Anda.</p>}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {monthsBilling.map((m) => {
                     const isCurrent = m.code === selectedMonth;
                     const isPaid = m.status === 'paid';
@@ -1357,7 +1068,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                         }`}
                       >
                         <span className={`text-[11px] font-bold ${isCurrent ? 'text-primary-700' : 'text-ink'}`}>
-                          {m.code}
+                            {m.shortLabel}
                         </span>
                         {isPaid ? (
                           <div className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-1">
@@ -1384,7 +1095,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       NO. INVOICE: {currentSelectedMonthData.inv}
                     </span>
                     <h3 className="text-base font-bold text-ink">Tagihan Iuran {currentSelectedMonthData.name}</h3>
-                    <p className="text-[11px] text-ink-muted">Jatuh Tempo: Tanggal 10 {currentSelectedMonthData.name}</p>
+                    <p className="text-xs text-ink-muted">Jatuh tempo: {currentSelectedMonthData.dueDate}</p>
                   </div>
 
                   <span
@@ -1407,7 +1118,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 {/* Breakdown Items */}
                 <div className="space-y-2 text-xs">
                   <span className="text-[10px] uppercase font-bold text-ink-muted tracking-wide block">
-                    {tariffComponents && tariffComponents.length === 1 ? 'Tagihan Iuran Bulanan Warga (All-in):' : 'Rincian Alokasi Komponen IPL:'}
+                      Tarif lingkungan sebagai referensi
                   </span>
                   <div className="space-y-1.5">
                     {tariffComponents && tariffComponents.length > 0 ? (
@@ -1444,7 +1155,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div className="pt-3 border-t border-dashed border-border flex items-center justify-between">
                   <div>
                     <span className="text-[11px] text-ink-muted">Total Tagihan Bulanan:</span>
-                    <p className="text-xl font-black text-primary-800 tabular-nums">{formatRupiah(monthlyFeeRate)}</p>
+                    <p className="text-xl font-semibold text-primary-800 tabular-nums">{formatRupiah(currentSelectedMonthData.amount)}</p>
                   </div>
 
                   {currentSelectedMonthData.status === 'paid' ? (
@@ -1456,10 +1167,11 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowPaymentModal(true)}
+                      disabled={!currentSelectedMonthData.id || currentSelectedMonthData.remaining <= 0}
                       className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-xl shadow-xs active:scale-[0.98] transition-all flex items-center gap-1.5"
                     >
                       <Upload className="w-4 h-4" />
-                      Bayar Sekarang
+                        Konfirmasi transfer
                     </button>
                   )}
                 </div>
@@ -1510,10 +1222,11 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(true)}
-                    className="flex-1 py-2.5 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-surface font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                    disabled={!currentSelectedMonthData.id || currentSelectedMonthData.remaining <= 0}
+                    className="flex-1 py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-surface font-semibold text-sm rounded-xl flex items-center justify-center gap-2"
                   >
                     <Upload className="w-4 h-4" />
-                    Konfirmasi / Unggah Bukti Transfer
+                    Konfirmasi transfer
                   </button>
                 </div>
               </div>
@@ -1526,11 +1239,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  {[
-                    { month: 'Juli 2026', date: '18 Jul 2026, 09:14 WIB', amount: monthlyFeeRate, method: 'Transfer BSI Syariah' },
-                    { month: 'Juni 2026', date: '20 Jun 2026, 10:02 WIB', amount: monthlyFeeRate, method: 'QRIS / GoPay' },
-                    { month: 'Mei 2026', date: '20 Mei 2026, 09:47 WIB', amount: monthlyFeeRate, method: 'Transfer Kas Mandiri' },
-                  ].map((row, idx) => (
+                  {monthsBilling.filter(invoice => invoice.status === 'paid').map((invoice, idx) => {
+                    const row = { month: invoice.name, date: invoice.paidAt || '-', amount: invoice.amount, method: invoice.method };
+                    return (
                     <div
                       key={idx}
                       className="p-3 rounded-2xl bg-surface border border-border shadow-2xs flex items-center justify-between hover:border-primary-200 transition-all"
@@ -1548,7 +1259,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                         </span>
                       </div>
                     </div>
-                  ))}
+                  ); })}
                 </div>
               </div>
             </div>
@@ -1704,41 +1415,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   </div>
 
                   <div className="space-y-2.5">
-                    {[
-                      {
-                        id: 'fac-balai',
-                        name: 'Balai Warga Serbaguna',
-                        capacity: '150 Orang',
-                        fee: 'Gratis untuk Acara Warga',
-                        icon: Building2,
-                        status: 'Tersedia',
-                      },
-                      {
-                        id: 'fac-tennis',
-                        name: 'Lapangan Tenis & Badminton',
-                        capacity: '2 Lapangan',
-                        fee: 'Gratis (Wajib Reservasi)',
-                        icon: Trophy,
-                        status: 'Tersedia',
-                      },
-                      {
-                        id: 'fac-pool',
-                        name: 'Kolam Renang Anak Komplek',
-                        capacity: '30 Orang',
-                        fee: 'Khusus Penghuni Terdaftar',
-                        icon: Droplets,
-                        status: 'Operasional',
-                      },
-                      {
-                        id: 'fac-mosque',
-                        name: 'Masjid Al-Ikhlas Komplek',
-                        capacity: '200 Jamaah',
-                        fee: 'Kegiatan Ibadah & Sosial',
-                        icon: Home,
-                        status: 'Buka',
-                      },
-                    ].map((fac) => {
-                      const Icon = fac.icon || Building2;
+                    {(overview?.facilities || []).map((fac) => {
+                      const Icon = Building2;
                       return (
                         <div
                           key={fac.id}
@@ -1751,10 +1429,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                             <div>
                               <p className="text-xs font-bold text-ink">{fac.name}</p>
                               <p className="text-[10px] text-ink-muted">
-                                Kapasitas: {fac.capacity} • {fac.fee}
+                                {fac.location}
                               </p>
                               <span className="inline-block mt-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-bold rounded border border-emerald-200">
-                                {fac.status}
+                                {fac.condition === 'GOOD' ? 'Kondisi baik' : 'Perlu perhatian'}
                               </span>
                             </div>
                           </div>
@@ -2493,7 +2171,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <button
                   type="button"
                   onClick={async () => {
-                    await fetch('/api/auth/logout', { method: 'POST' });
+                    await apiFetch('/api/auth/logout', { method: 'POST' });
+                    localStorage.removeItem('wargahub_user');
                     window.location.href = '/';
                   }}
                   className="w-full py-2.5 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl flex items-center justify-between transition-all active:scale-[0.98] mt-2"
@@ -2508,74 +2187,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           {/* ========================================================================= */}
           {/* BOTTOM APPLICATION NAVIGATION BAR (Ergonomic, Tactile Touch)              */}
           {/* ========================================================================= */}
-          <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface/95 backdrop-blur-md border-t border-border shadow-lg">
-            <div className="max-w-2xl mx-auto h-16 flex items-center justify-around px-2 select-none">
-              <button
-                type="button"
-                onClick={() => setActiveTab('beranda')}
-                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
-                  activeTab === 'beranda'
-                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                <Home className="w-5 h-5" />
-                <span className="text-[10px]">Beranda</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('iuran')}
-                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
-                  activeTab === 'iuran'
-                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                <Receipt className="w-5 h-5" />
-                <span className="text-[10px]">Iuran</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('info')}
-                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
-                  activeTab === 'info'
-                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                <Megaphone className="w-5 h-5" />
-                <span className="text-[10px]">Info</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('rumah')}
-                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
-                  activeTab === 'rumah'
-                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                <Building2 className="w-5 h-5" />
-                <span className="text-[10px]">Rumah</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('akun')}
-                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all active:scale-95 ${
-                  activeTab === 'akun'
-                    ? 'text-primary-800 font-extrabold bg-primary-50/70'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                <User className="w-5 h-5" />
-                <span className="text-[10px]">Akun</span>
-              </button>
-            </div>
-          </div>
+           <ResidentNavigation activeTab={activeTab} onNavigate={setActiveTab} mobile />
         </div>
       </main>
 
@@ -2590,7 +2202,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h3 className="font-bold text-sm text-ink">Konfirmasi Pembayaran Iuran</h3>
-                <p className="text-[11px] text-ink-muted">Unggah bukti transfer untuk verifikasi kasir RT</p>
+                <p className="text-xs text-ink-muted">Masukkan referensi transfer untuk verifikasi bendahara.</p>
               </div>
               <button
                 type="button"
@@ -2606,7 +2218,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto">
                   <Check className="w-6 h-6 stroke-[3]" />
                 </div>
-                <p className="font-bold text-sm text-ink">Bukti Pembayaran Terkirim!</p>
+                <p className="font-semibold text-sm text-ink">Konfirmasi pembayaran terkirim</p>
                 <p className="text-xs text-ink-muted">Bendahara paguyuban akan memverifikasi transaksi Anda.</p>
               </div>
             ) : (
@@ -2625,42 +2237,18 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={formatRupiah(monthlyFeeRate)}
+                    value={formatRupiah(currentSelectedMonthData.remaining)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink tabular-nums"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-ink block mb-1">Metode Pembayaran / Transfer</label>
-                  <select className="w-full p-2.5 bg-surface border border-border rounded-xl text-ink font-semibold focus:ring-2 focus:ring-primary-500/20">
-                    <optgroup label="🏦 Rekening Kas Utama Paguyuban (Master)">
-                      <option>{bankKasName} - {bankKasAcc} (a.n {bankKasHolder})</option>
-                    </optgroup>
-                    <optgroup label="🌙 Bank Syariah & Bank Lainnya">
-                      <option>Bank Mandiri / BCA / BRI Kas Paguyuban</option>
-                      <option>Bank Syariah Indonesia (BSI)</option>
-                      <option>Bank Jago Syariah / SeaBank</option>
-                    </optgroup>
-                    <optgroup label="🏦 Bank Konvensional & Digital">
-                      <option>Transfer Bank Kas Paguyuban (Mandiri / BCA / BRI)</option>
-                      <option>Bank Digital (Bank Jago / SeaBank / Blu)</option>
-                    </optgroup>
-                    <optgroup label="💳 Dompet Digital / E-Wallet">
-                      <option>GoPay Kas Paguyuban</option>
-                      <option>DANA Bisnis Kas Paguyuban</option>
-                      <option>OVO / ShopeePay / LinkAja</option>
-                    </optgroup>
-                    <optgroup label="📱 QRIS Standar Nasional">
-                      <option>QRIS Dinamis WargaHub (Semua Bank & E-Wallet)</option>
-                    </optgroup>
-                  </select>
+                  <p className="font-semibold text-ink">Transfer ke rekening komunitas</p>
+                  <p className="text-sm text-ink-muted mt-2">{bankKasName} · {bankKasAcc}<br />a.n. {bankKasHolder}</p>
                 </div>
                 <div>
-                  <label className="font-bold text-ink block mb-1">Unggah Struk / Bukti Transfer</label>
-                  <div className="p-4 border-2 border-dashed border-border hover:border-primary-500 rounded-xl text-center cursor-pointer bg-canvas/40 transition-colors">
-                    <Upload className="w-5 h-5 text-ink-muted mx-auto mb-1" />
-                    <span className="text-[11px] text-ink-muted block">Klik untuk memilih foto bukti transfer</span>
-                    <span className="text-[10px] text-primary-700 font-semibold mt-1 block">JPG, PNG atau PDF maks. 5MB</span>
-                  </div>
+                  <label htmlFor="payment-reference" className="font-semibold text-ink block mb-2">Nomor referensi transfer</label>
+                  <input id="payment-reference" required value={paymentReference} onChange={event => setPaymentReference(event.target.value)} placeholder="Nomor transaksi dari aplikasi bank" className="w-full border border-border rounded-xl p-3 text-sm" />
+                  <p className="text-xs text-ink-muted mt-2">Simpan bukti transfer asli. Bendahara dapat memintanya saat verifikasi.</p>
                 </div>
 
                 <div className="pt-2 flex gap-2">
@@ -2673,9 +2261,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   </button>
                   <button
                     type="submit"
+                    disabled={paymentSubmitting}
                     className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-surface font-bold shadow-xs active:scale-[0.98] transition-all"
                   >
-                    Kirim Bukti
+                    {paymentSubmitting ? 'Mengirim…' : 'Kirim konfirmasi'}
                   </button>
                 </div>
               </form>
@@ -2920,10 +2509,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     }}
                     className="w-full p-2.5 bg-surface border border-border rounded-xl font-semibold text-ink"
                   >
-                    <option value="fac-balai">Balai Warga Serbaguna</option>
-                    <option value="fac-tennis">Lapangan Tenis & Badminton</option>
-                    <option value="fac-pool">Kolam Renang Anak Komplek</option>
-                    <option value="fac-taman">Taman & Area Bermain Blok A</option>
+                    <option value="" disabled>Pilih fasilitas</option>
+                    {(overview?.facilities || []).map(facility => <option key={facility.id} value={facility.id}>{facility.name}</option>)}
                   </select>
                 </div>
 

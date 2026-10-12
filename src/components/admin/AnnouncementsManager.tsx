@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   Megaphone,
   PlusCircle,
@@ -294,10 +296,8 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
   );
 
   // Active Subtab matching query parameter
-  const validTabs = ['announcements', 'agenda', 'templates', 'audience'];
-  const [activeSubTab, setActiveSubTab] = useState<'announcements' | 'agenda' | 'templates' | 'audience'>(
-    validTabs.includes(initialTab) ? (initialTab as any) : 'announcements'
-  );
+  const validTabs = ['announcements', 'agenda', 'templates', 'audience'] as const;
+  const [activeSubTab, setActiveSubTab] = useUrlTab(validTabs, validTabs.includes(initialTab as any) ? initialTab as typeof validTabs[number] : 'announcements');
 
   // View Mode: Cards vs Table
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -428,7 +428,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
     setIsSaving(true);
     try {
       if (editingAnnId) {
-        await fetch('/api/announcements/update', {
+        await apiFetch('/api/announcements/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -441,7 +441,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
             location: formLocation || null,
             isPinned: formIsPinned,
           }),
-        }).catch(() => {});
+        });
 
         const updated = announcements.map(a => {
           if (a.id === editingAnnId) {
@@ -465,7 +465,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
         showToast(`Pengumuman "${formTitle}" berhasil diperbarui.`);
         setShowCreateModal(false);
       } else {
-        await fetch('/api/announcements/create', {
+        await apiFetch('/api/announcements/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -478,7 +478,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
             isPinned: formIsPinned,
             createdBy: formAuthor,
           }),
-        }).catch(() => {});
+        });
 
         const newId = `ANN-${Date.now().toString().slice(-4)}`;
         const newAnn: AnnouncementItem = {
@@ -512,11 +512,11 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
   const handleTogglePin = async (ann: AnnouncementItem) => {
     const nextPin = !ann.isPinned;
     try {
-      await fetch('/api/announcements/update', {
+      await apiFetch('/api/announcements/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: ann.id, isPinned: nextPin }),
-      }).catch(() => {});
+      });
 
       const updated = announcements.map(a => a.id === ann.id ? { ...a, isPinned: nextPin } : a);
       setAnnouncements(updated);
@@ -530,11 +530,11 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
   const handleConfirmDelete = async () => {
     if (!annToDelete) return;
     try {
-      await fetch('/api/announcements/delete', {
+      await apiFetch('/api/announcements/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: annToDelete.id, title: annToDelete.title }),
-      }).catch(() => {});
+      });
 
       const updated = announcements.filter(a => a.id !== annToDelete.id);
       setAnnouncements(updated);
@@ -552,11 +552,11 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
     if (selectedAnnIds.length === 0) return;
     setBulkProcessing(true);
     try {
-      await fetch('/api/announcements/delete', {
+      await apiFetch('/api/announcements/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedAnnIds }),
-      }).catch(() => {});
+      });
 
       const updated = announcements.filter(a => !selectedAnnIds.includes(a.id));
       setAnnouncements(updated);

@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { recordAuditLog } from '../../../services/audit.service';
+import { updateManualLedgerEntry } from '../../../services/manual-ledger.service';
+import { authorizeApi, financeEditors } from '../../../lib/api-authorization';
 
 const updateLedgerSchema = z.object({
   ledgerId: z.string().min(1),
@@ -11,10 +13,14 @@ const updateLedgerSchema = z.object({
   accountId: z.string().optional(),
 });
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async (context) => {
+  const authorization = await authorizeApi(context, financeEditors);
+  if (authorization.response) return authorization.response;
+  const { request } = context;
   try {
     const body = await request.json();
     const validated = updateLedgerSchema.parse(body);
+    await updateManualLedgerEntry(validated.ledgerId, validated);
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({

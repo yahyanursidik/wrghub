@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
 import {
   PieChart,
   TrendingUp,
@@ -199,7 +200,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
   initialBalance = 0,
 }) => {
   const [period, setPeriod] = useState('September 2026');
-  const [activeSubTab, setActiveSubTab] = useState<'budget_matrix' | 'sinking_fund' | 'public_transparency' | 'manual_form'>('budget_matrix');
+  const [activeSubTab, setActiveSubTab] = useUrlTab(['budget_matrix', 'sinking_fund', 'public_transparency', 'manual_form'] as const, 'budget_matrix');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'category' | 'budget' | 'actual' | 'percentage' | 'variance'>('percentage');
@@ -1399,7 +1400,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
                       Kelola Tagihan Iuran
                     </a>
                     <a
-                      href="/admin/rekap-iuran"
+                  href="/rekap-iuran"
                       className="px-3.5 py-2 bg-surface hover:bg-canvas active:scale-[0.98] text-ink border border-border font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all"
                     >
                       <FileText className="w-3.5 h-3.5" />

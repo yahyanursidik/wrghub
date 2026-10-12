@@ -8,6 +8,11 @@ import { getPendingPaymentsCount, getPayments } from '../../services/payment.ser
 import { getOpenComplaintsCount } from '../../services/complaint.service';
 import { getNeedingRepairCount } from '../../services/facility.service';
 import { getProperties } from '../../services/property.service';
+import { can, type UserSession } from '../../services/auth.service';
+
+const currentUser = await Astro.session?.get('wargahub_user') as UserSession;
+const financeAccess = can(currentUser, 'billing.read');
+const propertyAccess = can(currentUser, 'property.read');
 
 const [
   propStats,
@@ -19,12 +24,12 @@ const [
   openComplaints,
   needingRepair
 ] = await Promise.all([
-  getPropertyStats().catch(() => ({ total: 13, occupied: 10, vacant: 3, occupiedPercentage: '76.9', vacantPercentage: '23.1' })),
-  getProperties().catch(() => []),
-  getCurrentBillingPeriod().catch(() => null),
-  getMainAccountBalance().catch(() => 0),
-  getPendingPaymentsCount().catch(() => 0),
-  getPayments(undefined, 'PENDING').catch(() => []),
+  propertyAccess ? getPropertyStats().catch(() => ({ total: 0, occupied: 0, vacant: 0, occupiedPercentage: '0.0', vacantPercentage: '0.0' })) : { total: 0, occupied: 0, vacant: 0, occupiedPercentage: '0.0', vacantPercentage: '0.0' },
+  propertyAccess ? getProperties().catch(() => []) : [],
+  financeAccess ? getCurrentBillingPeriod().catch(() => null) : null,
+  financeAccess ? getMainAccountBalance().catch(() => 0) : 0,
+  financeAccess ? getPendingPaymentsCount().catch(() => 0) : 0,
+  financeAccess ? getPayments(undefined, 'PENDING').catch(() => []) : [],
   getOpenComplaintsCount().catch(() => 0),
   getNeedingRepairCount().catch(() => 0),
 ]);
@@ -59,14 +64,6 @@ const stats = {
   needingRepairCount: needingRepair ?? 0,
 };
 
-const cookieUser = Astro.cookies.get('wargahub_user');
-let currentUser = undefined;
-if (cookieUser && cookieUser.value) {
-  try {
-    currentUser = JSON.parse(cookieUser.value);
-  } catch (e) {}
-}
-
 const pageTitle = currentUser?.role === 'TREASURER' ? 'Dashboard Bendahara - WargaHub'
   : currentUser?.role === 'SECRETARY' ? 'Dashboard Sekretaris - WargaHub'
   : currentUser?.role === 'SECURITY' ? 'Dashboard Satpam & Keamanan - WargaHub'
@@ -80,6 +77,7 @@ const pageTitle = currentUser?.role === 'TREASURER' ? 'Dashboard Bendahara - War
     currentUser={currentUser} 
     pendingPayments={pendingPaymentsList} 
     properties={propertiesList} 
+    periodName={currentPeriod?.name || 'Belum ada periode iuran'}
     client:load 
   />
 </AdminLayout>

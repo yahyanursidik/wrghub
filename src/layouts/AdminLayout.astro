@@ -2,6 +2,7 @@
 import { AdminSidebar } from '../components/layout/AdminSidebar';
 import { AdminHeader } from '../components/layout/AdminHeader';
 import { WargaAIChatWidget } from '../components/shared/WargaAIChatWidget';
+import { RequestErrorNotice } from '../components/shared/RequestErrorNotice';
 import { ClientRouter } from 'astro:transitions';
 import '../styles/global.css';
 
@@ -12,13 +13,7 @@ interface Props {
 
 const { title = 'WargaHub - Tata Kelola Komplek', currentPath = Astro.url.pathname } = Astro.props;
 
-const cookieUser = Astro.cookies.get('wargahub_user');
-let currentUser = undefined;
-if (cookieUser && cookieUser.value) {
-  try {
-    currentUser = JSON.parse(cookieUser.value);
-  } catch (e) {}
-}
+const currentUser = await Astro.session?.get('wargahub_user');
 ---
 
 <!doctype html>
@@ -30,7 +25,8 @@ if (cookieUser && cookieUser.value) {
     <ClientRouter />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#059669" />
+    <meta name="theme-color" content="#245C4A" />
+    <meta name="description" content="Kelola data warga, iuran, keuangan, dan layanan lingkungan dalam satu ruang pengurus WargaHub." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -40,49 +36,15 @@ if (cookieUser && cookieUser.value) {
           navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
-      try {
-        const CLEAN_VERSION = 'wargahub_demo_cleaned_v4';
-        if (!localStorage.getItem(CLEAN_VERSION)) {
-          const demoKeys = [
-            'wargahub_announcements',
-            'wargahub_deleted_announcements',
-            'wargahub_announcement_agenda',
-            'wargahub_facilities',
-            'wargahub_facility_bookings',
-            'wargahub_facility_maintenance',
-            'wargahub_security_guards',
-            'wargahub_patrol_logs',
-            'wargahub_cleaning_staff',
-            'wargahub_cleaning_routes',
-            'wargahub_staff_loans',
-            'wargahub_deleted_loans',
-            'wargahub_polls_data',
-            'wargahub_deleted_polls',
-            'wargahub_payments',
-            'wargahub_deleted_payments',
-            'wargahub_properties',
-            'wargahub_deleted_properties',
-            'wargahub_residents',
-            'wargahub_deleted_residents',
-            'wargahub_vehicles',
-            'wargahub_deleted_vehicles',
-            'wargahub_permits',
-            'wargahub_deleted_permits',
-            'wargahub_utilities',
-            'wargahub_deleted_utilities',
-          ];
-          demoKeys.forEach(function(k) { localStorage.removeItem(k); });
-          localStorage.setItem(CLEAN_VERSION, 'true');
-        }
-      } catch (e) {}
     </script>
   </head>
-  <body class="bg-canvas text-ink font-sans min-h-screen flex antialiased selection:bg-primary-100 selection:text-primary-900 relative">
+  <body class="admin-app bg-canvas text-ink font-sans min-h-[100dvh] flex antialiased selection:bg-primary-100 selection:text-primary-900 relative">
+    <a href="#main-content" class="skip-link">Lewati menu, ke konten</a>
     <AdminSidebar currentPath={currentPath} currentUser={currentUser} client:load />
 
     <div class="flex-1 flex flex-col min-w-0">
-      <AdminHeader currentUser={currentUser} client:load />
-      <main class="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto pb-28 sm:pb-36">
+      <AdminHeader currentUser={currentUser} currentPath={currentPath} client:load />
+      <main id="main-content" tabindex="-1" class="admin-content flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-28 sm:pb-28">
         <slot />
       </main>
       <footer class="border-t border-border bg-surface/80 py-4 px-6 sm:px-8 mt-auto text-xs text-ink-muted">
@@ -101,5 +63,6 @@ if (cookieUser && cookieUser.value) {
 
     <!-- Floating Warga AI Assistant -->
     <WargaAIChatWidget client:load />
+    <RequestErrorNotice client:load />
   </body>
 </html>

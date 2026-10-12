@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   Settings,
   Save,
@@ -50,7 +52,6 @@ import {
   Zap
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
-import { UserPasswordSettingsTab } from './UserPasswordSettingsTab';
 import type { SecurityShiftEntry, SecurityShiftRoster } from '../../services/settings.service';
 
 export interface TariffComponent {
@@ -217,33 +218,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
   };
 
   // Navigation Subtabs
-  const [activeTab, setActiveTab] = useState<
-    'branding' | 'profile' | 'finances' | 'security' | 'sanitation' | 'notifications' | 'committee' | 'inputs_directory' | 'passwords'
-  >(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab');
-      if (tabParam === 'passwords' || tabParam === 'users' || tabParam === 'auth' || tabParam === 'password') {
-        return 'passwords';
-      }
-      if (
-        tabParam === 'financial' ||
-        tabParam === 'keuangan' ||
-        tabParam === 'tarif' ||
-        tabParam === 'billing' ||
-        tabParam === 'tariffs' ||
-        tabParam === 'bank' ||
-        tabParam === 'rekening' ||
-        tabParam === 'account'
-      ) {
-        return 'finances';
-      }
-      if (tabParam && ['branding', 'profile', 'finances', 'security', 'sanitation', 'notifications', 'committee', 'inputs_directory'].includes(tabParam)) {
-        return tabParam as any;
-      }
-    }
-    return (initialTab as any) || 'branding';
-  });
+  const [activeTab, setActiveTab] = useUrlTab(
+    ['branding', 'profile', 'finances', 'security', 'sanitation', 'notifications', 'committee', 'inputs_directory', 'passwords'] as const,
+    (initialTab as any) || 'branding', 'tab',
+    { users: 'passwords', auth: 'passwords', password: 'passwords', financial: 'finances', keuangan: 'finances', tarif: 'finances', billing: 'finances', tariffs: 'finances', bank: 'finances', rekening: 'finances', account: 'finances' }
+  );
 
   // Preview Mode for Branding
   const [brandingPreviewScreen, setBrandingPreviewScreen] = useState<'login' | 'admin_dash' | 'resident_dash'>('login');
@@ -707,7 +686,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
     setSaving(true);
     try {
       // 1. API Call to update database
-      await fetch('/api/settings/update', {
+      await apiFetch('/api/settings/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -721,7 +700,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           securityPhone,
           rwHeadPhone,
         }),
-      }).catch(() => {});
+      });
 
       // 2. Persist Branding, Titles & Subtitles
       savePersisted('wargahub_set_sys_title', systemTitle);
@@ -1076,7 +1055,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => tab.id === 'passwords' ? window.location.assign('/admin/passwords') : setActiveTab(tab.id as any)}
+              aria-pressed={isActive}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap ${
                 isActive
                   ? 'bg-primary-600 text-white shadow-xs'
@@ -1481,7 +1461,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 w-full sm:w-auto">
                       <div className={`p-2 rounded-xl ${tariffMode === 'FLAT' ? 'bg-primary-600 text-white shadow-2xs' : 'bg-canvas text-ink-muted border border-border'}`}>
                         <Wallet className="w-4 h-4" />
                       </div>
@@ -2065,12 +2045,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                   className="p-4 bg-canvas rounded-2xl border border-border space-y-3 hover:border-border-strong transition-all shadow-2xs"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 w-full sm:w-auto">
                       <div className="w-8 h-8 rounded-xl bg-surface border border-border flex items-center justify-center shrink-0 shadow-2xs">
                         {getExpenseIcon(item.iconName)}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
                           <input
                             type="text"
                             value={item.name}
@@ -2079,7 +2059,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                               updated[idx].name = e.target.value;
                               setExpenseComponents(updated);
                             }}
-                            className="font-black text-xs text-ink bg-transparent border-b border-dashed border-border/80 hover:border-primary-500 focus:outline-hidden focus:border-primary-600 px-0.5 py-0.5"
+                            className="w-full min-w-0 font-semibold text-sm text-ink bg-transparent border-b border-dashed border-border/80 hover:border-primary-500 focus:border-primary-600 px-0.5 py-1"
                           />
                           <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface border border-border text-ink-muted">
                             {item.code}
@@ -3000,7 +2980,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
 
       {/* ================= TAB: MANAJEMEN AKUN & PASSWORD WARGA / STAFF ================= */}
       {activeTab === 'passwords' && (
-        <UserPasswordSettingsTab />
+        <a href="/admin/passwords" className="inline-flex py-3 text-primary-700 font-semibold">Kelola akun warga →</a>
       )}
     </div>
   );

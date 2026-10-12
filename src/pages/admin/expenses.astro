@@ -7,6 +7,7 @@ import {
   getMainAccountBalance,
   getRecurringExpensesConfig 
 } from '../../services/finance.service';
+if (Astro.url.searchParams.get('tab') === 'staff_loans') return Astro.redirect('/admin/staff-loans', 302);
 
 const [expenses, accounts, mainBalance, recurringConfig] = await Promise.all([
   getExpenses().catch(() => []),

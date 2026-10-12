@@ -1,99 +1,83 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Home, CreditCard, PlusCircle, MessageCircle, Megaphone, FileText, X, ArrowRight } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUpRight, Home, Search, X } from 'lucide-react';
+import { dashboardItem, navigationForRole, type NavigationItem } from '../../lib/navigation';
+import type { UserRole } from '../../types/auth';
+import type { PropertyListItem } from '../../services/property.service';
+import { ModalDialog } from './ModalDialog';
 
-interface CommandPaletteProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
+interface Props { isOpen: boolean; onClose: () => void; role?: UserRole }
 
-export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
+export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, role = 'CHAIRMAN' }) => {
   const [query, setQuery] = useState('');
+  const [properties, setProperties] = useState<PropertyListItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [selected, setSelected] = useState(0);
+  const [retry, setRetry] = useState(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const groups = navigationForRole(role);
+  const canSearchProperties = groups.some(group => group.items.some(item => item.href === '/admin/properties'));
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (isOpen) onClose();
-      }
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    if (!isOpen) return;
+    setQuery(''); setSelected(0);
+    if (!canSearchProperties) return;
+    const controller = new AbortController();
+    setLoading(true); setError(false);
+    fetch('/api/properties', { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error('Request failed');
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error('Invalid data');
+        setProperties(data);
+      })
+      .catch(() => { if (!controller.signal.aborted) setError(true); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [isOpen, canSearchProperties, retry]);
 
-  if (!isOpen) return null;
+  const results = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('id');
+    const items: NavigationItem[] = [dashboardItem, ...groups.flatMap(group => group.items)];
+    const menu = items.filter(item => `${item.label} ${item.description} ${item.keywords || ''}`.toLowerCase().includes(q));
+    const houses: NavigationItem[] = q && canSearchProperties ? properties.filter(property =>
+      `${property.code} ${property.ownerName || ''} ${property.occupantName || ''} ${property.address || ''}`.toLowerCase().includes(q)
+    ).map(property => ({ label: property.code, description: property.currentResident || property.ownerName || property.address || 'Data rumah', href: `/admin/properties?q=${encodeURIComponent(property.code)}`, icon: Home })) : [];
+    return [...menu, ...houses];
+  }, [query, role, properties]);
 
-  const quickActions = [
-    { title: 'Lihat Dashboard Ketua', href: '/admin', icon: Home, category: 'Navigasi' },
-    { title: 'Verifikasi Pembayaran Iuran', href: '/admin/payments', icon: CreditCard, category: 'Aksi Cepat' },
-    { title: 'Catat Pengeluaran Baru', href: '/admin/expenses', icon: PlusCircle, category: 'Aksi Cepat' },
-    { title: 'Lihat Daftar Rumah (120 Unit)', href: '/admin/properties', icon: Home, category: 'Data Warga' },
-    { title: 'Buat Pengumuman Warga', href: '/admin/announcements', icon: Megaphone, category: 'Komunikasi' },
-    { title: 'Laporan Transparansi Publik', href: '/transparency', icon: FileText, category: 'Laporan' },
-    { title: 'Tampilan Portal Warga Mobile', href: '/', icon: ArrowRight, category: 'Warga' },
-  ];
+  useEffect(() => { setSelected(0); }, [query, role]);
+  useEffect(() => {
+    resultsRef.current?.querySelectorAll('a')[selected]?.scrollIntoView({ block: 'nearest' });
+  }, [selected]);
 
-  const filtered = quickActions.filter(a => a.title.toLowerCase().includes(query.toLowerCase()));
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-ink/40 backdrop-blur-xs animate-in fade-in duration-100">
-      <div className="w-full max-w-xl bg-surface rounded-2xl shadow-modal border border-border overflow-hidden">
-        {/* Input */}
-        <div className="px-4 py-3 border-b border-border flex items-center gap-3">
-          <Search className="w-5 h-5 text-ink-muted" />
-          <input
-            type="text"
-            placeholder="Ketik nama menu, aksi, atau cari rumah (cth: A-17, iuran, kas)..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-            className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted focus:outline-hidden"
-          />
-          <button onClick={onClose} className="p-1 text-ink-muted hover:text-ink rounded-lg">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Results */}
-        <div className="max-h-80 overflow-y-auto p-2 divide-y divide-border/40">
-          <div className="space-y-1 py-1">
-            {filtered.map((item) => {
-              const Icon = item.icon;
-              return (
-                <a
-                  key={item.title}
-                  href={item.href}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-canvas text-sm text-ink group transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center group-hover:bg-primary-100 transition-colors">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <span className="font-medium text-ink">{item.title}</span>
-                  </div>
-                  <span className="text-xs text-ink-muted bg-canvas group-hover:bg-surface px-2 py-0.5 rounded-md border border-border">
-                    {item.category}
-                  </span>
-                </a>
-              );
-            })}
-
-            {filtered.length === 0 && (
-              <div className="py-8 text-center text-sm text-ink-muted">
-                Tidak ada hasil yang cocok dengan &quot;{query}&quot;
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 py-2.5 bg-canvas/60 border-t border-border flex items-center justify-between text-xs text-ink-muted">
-          <span>Tekan <kbd className="px-1.5 py-0.5 bg-surface border border-border rounded font-mono">ESC</kbd> untuk menutup</span>
-          <span>WargaHub Navigation</span>
-        </div>
-      </div>
+  return <ModalDialog open={isOpen} onClose={onClose} label="Cari menu dan warga" className="search-dialog">
+    <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+      <Search size={21} className="text-primary-600 shrink-0" />
+      <input autoFocus aria-label="Cari menu, rumah atau nama warga" placeholder={canSearchProperties ? 'Cari menu, rumah, atau nama warga…' : 'Cari menu…'}
+        className="flex-1 min-w-0 bg-transparent text-base py-2 outline-none" value={query}
+        onChange={event => setQuery(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            setSelected(previous => Math.max(0, Math.min(results.length - 1, previous + (event.key === 'ArrowDown' ? 1 : -1))));
+          }
+          if (event.key === 'Enter' && results[selected]) { event.preventDefault(); resultsRef.current?.querySelectorAll('a')[selected]?.click(); }
+        }} />
+      <button onClick={onClose} className="icon-button" aria-label="Tutup pencarian"><X size={20} /></button>
     </div>
-  );
+    <div className="px-5 pt-4 pb-2 text-xs font-semibold text-ink-muted">{query ? 'Hasil pencarian' : 'Buka halaman'}</div>
+    <div ref={resultsRef} className="p-2 max-h-[55dvh] overflow-y-auto modern-scrollbar">
+      {results.map((item, index) => <a key={item.href} href={item.href} onClick={onClose}
+        className={`search-result ${selected === index ? 'is-selected' : ''}`}>
+        <span className="w-10 h-10 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center shrink-0"><item.icon size={19} /></span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold text-sm">{item.label}</span><span className="block text-xs text-ink-muted mt-1 truncate">{item.description}</span></span>
+        <ArrowUpRight size={17} className="text-ink-muted" />
+      </a>)}
+      {results.length === 0 && <div className="px-5 py-10 text-center"><Search size={28} className="mx-auto mb-3 text-ink-muted" /><p className="font-semibold text-sm">Belum ada hasil</p><p className="text-sm text-ink-muted mt-2">Coba nama menu, nomor rumah, atau nama warga lain.</p></div>}
+      {loading && <div role="status" aria-label="Memuat data warga" className="p-3 space-y-2"><div className="skeleton h-10" /><div className="skeleton h-10" /><span className="sr-only">Memuat data warga…</span></div>}
+      {error && <div role="status" className="p-3 text-sm text-ink-muted">Data warga belum bisa dimuat. Menu tetap tersedia. <button onClick={() => setRetry(value => value + 1)} className="text-primary-700 font-semibold underline">Coba lagi</button></div>}
+    </div>
+    <div className="border-t border-border px-5 py-3 flex justify-between gap-3 text-xs text-ink-muted"><span>{results.length} hasil</span><span>↑ ↓ Pilih · Enter Buka · Esc Tutup</span></div>
+  </ModalDialog>;
 };

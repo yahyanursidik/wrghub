@@ -1,6 +1,7 @@
 import { neonSql } from '../db/neon';
 import { db, schema } from '../db';
 import { desc } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 
 export interface AuditLogItem {
   id: string;
@@ -27,7 +28,7 @@ export async function recordAuditLog(log: {
   ipAddress?: string;
   userAgent?: string;
 }) {
-  const id = `aud-${Date.now()}`;
+  const id = `aud-${randomUUID()}`;
   const oldJson = log.oldValue ? JSON.stringify(log.oldValue) : null;
   const newJson = log.newValue ? JSON.stringify(log.newValue) : null;
 
