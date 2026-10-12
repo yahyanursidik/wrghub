@@ -1,48 +1,34 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { getAuditLogs } from '../../services/audit.service';
-
-const auditLogs = await getAuditLogs(50);
+import { getPendingPaymentsCount } from '../../services/payment.service';
+import { getOpenComplaintsCount } from '../../services/complaint.service';
+import { getNeedingRepairCount } from '../../services/facility.service';
+import { canAccessAdminPage } from '../../lib/access-policy';
+import type { UserSession } from '../../types/auth';
+const currentUser = await Astro.session?.get('wargahub_user') as UserSession;
+const paymentAccess = canAccessAdminPage(currentUser.role, '/admin/payments');
+const complaintAccess = canAccessAdminPage(currentUser.role, '/admin/complaints');
+const facilityAccess = canAccessAdminPage(currentUser.role, '/admin/facilities');
+const [payments, complaints, facilities] = await Promise.all([
+  paymentAccess ? getPendingPaymentsCount().catch(() => null) : null,
+  complaintAccess ? getOpenComplaintsCount().catch(() => null) : null,
+  facilityAccess ? getNeedingRepairCount().catch(() => null) : null,
+]);
+const tasks = [
+  { label: 'Pembayaran menunggu verifikasi', count: payments, href: '/admin/payments?tab=verification', action: 'Periksa pembayaran' },
+  { label: 'Aduan belum selesai', count: complaints, href: '/admin/complaints', action: 'Tindak lanjuti aduan' },
+  { label: 'Fasilitas perlu perbaikan', count: facilities, href: '/admin/facilities?tab=maintenance', action: 'Lihat perawatan' },
+].filter(task => canAccessAdminPage(currentUser.role, task.href.split('?')[0]));
 ---
-
-<AdminLayout title="Pusat Notifikasi & Audit Trail - WargaHub" currentPath="/admin/notifications">
-  <div class="space-y-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-ink">Histori Aktivitas & Audit Trail</h1>
-      <p class="text-sm text-ink-muted mt-1">Log rekam jejak setiap aksi penting (verifikasi, pengeluaran, pengumuman).</p>
+<AdminLayout title="Notifikasi - WargaHub" currentPath="/admin/notifications">
+  <section class="space-y-6">
+    <div><h1 class="text-2xl font-semibold tracking-tight">Notifikasi</h1><p class="text-sm text-ink-muted mt-2">Pekerjaan yang perlu ditindaklanjuti. Riwayat perubahan tetap tersedia di menu aktivitas.</p></div>
+    <div class="bg-surface rounded-2xl border border-border divide-y divide-border">
+      {tasks.map(task => <a href={task.href} class="flex flex-wrap items-center justify-between gap-4 p-5 hover:bg-primary-50">
+        <div><p class="text-sm font-semibold">{task.label}</p><p class="text-sm text-ink-muted mt-1">{task.count === null ? 'Data belum bisa dimuat' : task.count === 0 ? 'Tidak ada antrean' : `${task.count} perlu ditindaklanjuti`}</p></div>
+        <span class="text-sm text-primary-700 font-semibold">{task.action} →</span>
+      </a>)}
     </div>
-
-    <div class="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-xs text-left">
-          <thead>
-            <tr class="border-b border-border bg-canvas/40 text-ink-muted font-semibold">
-              <th class="py-3 px-4">Waktu</th>
-              <th class="py-3 px-4">Pelaku (Actor)</th>
-              <th class="py-3 px-4">Aksi</th>
-              <th class="py-3 px-4">Entitas</th>
-              <th class="py-3 px-4">Detail Perubahan</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border/60">
-            {auditLogs.map((log) => (
-              <tr class="hover:bg-canvas/50 text-ink">
-                <td class="py-3 px-4 font-mono text-ink-muted">{log.createdAt}</td>
-                <td class="py-3 px-4 font-semibold text-primary-700">{log.actorName}</td>
-                <td class="py-3 px-4">
-                  <span class="px-2 py-0.5 rounded-md bg-canvas border border-border font-mono text-[11px]">
-                    {log.action}
-                  </span>
-                </td>
-                <td class="py-3 px-4 font-semibold">{log.entityType}</td>
-                <td class="py-3 px-4 font-mono text-[11px] text-ink-muted max-w-xs truncate">
-                  {log.newValueJson || log.oldValueJson || '-'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+    <a href="/admin/audit" class="inline-flex py-3 text-sm font-semibold text-primary-700">Lihat riwayat aktivitas →</a>
+  </section>
 </AdminLayout>

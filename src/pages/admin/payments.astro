@@ -4,6 +4,7 @@ import { PaymentsManager } from '../../components/admin/PaymentsManager';
 import { getPayments } from '../../services/payment.service';
 import { getAccounts } from '../../services/finance.service';
 import { getProperties } from '../../services/property.service';
+if (Astro.url.searchParams.get('tab') === 'receiving_channels') return Astro.redirect('/admin/ledger?tab=accounts_manage', 302);
 
 const [payments, accounts, properties] = await Promise.all([
   getPayments().catch(() => []),
@@ -15,4 +16,3 @@ const [payments, accounts, properties] = await Promise.all([
 <AdminLayout title="Pembayaran & Verifikasi - WargaHub" currentPath="/admin/payments">
   <PaymentsManager initialPayments={payments} initialAccounts={accounts} initialProperties={properties} client:load />
 </AdminLayout>
-

@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   Building2,
   Wrench,
@@ -104,12 +106,14 @@ interface FacilitiesManagerProps {
   facilities: FacilityItem[];
   maintenanceRequests: any[];
   initialTab?: string;
+  initialBookings?: FacilityBooking[];
 }
 
 export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   facilities: initialServerFacilities,
   maintenanceRequests: initialServerRequests,
   initialTab = 'facilities',
+  initialBookings = [],
 }) => {
   // Helper storage persistence
   const getPersisted = <T,>(key: string, fallback: T): T => {
@@ -347,9 +351,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     }
   ];
 
-  const [bookings, setBookings] = useState<FacilityBooking[]>(() =>
-    getPersisted('wargahub_facility_bookings', [])
-  );
+  const [bookings, setBookings] = useState<FacilityBooking[]>(initialBookings);
 
   // 3. Maintenance Projects State
   const defaultMaintenance: MaintenanceProject[] = [
@@ -481,10 +483,8 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   });
 
   // Active Subtab matching query parameter
-  const validTabs = ['facilities', 'bookings', 'maintenance', 'staff'];
-  const [activeSubTab, setActiveSubTab] = useState<'facilities' | 'bookings' | 'maintenance' | 'staff'>(
-    validTabs.includes(initialTab) ? (initialTab as any) : 'facilities'
-  );
+  const validTabs = ['facilities', 'bookings', 'maintenance', 'staff'] as const;
+  const [activeSubTab, setActiveSubTab] = useUrlTab(validTabs, validTabs.includes(initialTab as any) ? initialTab as typeof validTabs[number] : 'facilities');
 
   // Filters & State
   const [searchTerm, setSearchTerm] = useState('');
@@ -625,7 +625,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     setIsSaving(true);
     try {
       if (editingFacilityId) {
-        await fetch('/api/facilities/update', {
+        await apiFetch('/api/facilities/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -641,7 +641,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
             picName: formFacPic,
             notes: formFacNotes,
           }),
-        }).catch(() => {});
+        });
 
         const updated = facilities.map(f => {
           if (f.id === editingFacilityId) {
@@ -667,7 +667,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
         showToast(`Data fasilitas ${formFacName} berhasil diperbarui.`);
         setShowAddFacilityModal(false);
       } else {
-        await fetch('/api/facilities/create', {
+        await apiFetch('/api/facilities/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -682,7 +682,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
             picName: formFacPic,
             notes: formFacNotes,
           }),
-        }).catch(() => {});
+        });
 
         const newId = `fac-${Date.now().toString().slice(-4)}`;
         const newFac: FacilityItem = {
@@ -717,11 +717,11 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   const handleConfirmDeleteFacility = async () => {
     if (!facilityToDelete) return;
     try {
-      await fetch('/api/facilities/delete', {
+      await apiFetch('/api/facilities/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: facilityToDelete.id, name: facilityToDelete.name })
-      }).catch(() => {});
+      });
 
       const updated = facilities.filter(f => f.id !== facilityToDelete.id);
       setFacilities(updated);
@@ -739,11 +739,11 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     if (selectedFacilityIds.length === 0) return;
     setBulkProcessing(true);
     try {
-      await fetch('/api/facilities/delete', {
+      await apiFetch('/api/facilities/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedFacilityIds })
-      }).catch(() => {});
+      });
 
       const updated = facilities.filter(f => !selectedFacilityIds.includes(f.id));
       setFacilities(updated);
@@ -766,7 +766,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     setIsSaving(true);
     try {
       const selectedFac = facilities.find(f => f.id === bkgFacilityId) || facilities[0];
-      await fetch('/api/facilities/book', {
+      const response = await apiFetch('/api/facilities/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -779,10 +779,11 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
           purpose: bkgPurpose,
           contactPhone: bkgPhone,
         })
-      }).catch(() => {});
+      });
+      const payload = await response.json();
 
       const newBkg: FacilityBooking = {
-        id: `BKG-${Date.now().toString().slice(-4)}`,
+        id: payload.data.id,
         bookingNumber: `RES-${bkgDate.replace(/-/g, '').slice(0, 6)}-${bkgPropertyCode.replace(/[^A-Z0-9]/g, '')}`,
         facilityId: selectedFac.id,
         facilityName: selectedFac.name,
@@ -794,15 +795,14 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
         endTime: bkgEndTime,
         purpose: bkgPurpose,
         depositAmount: Number(bkgDeposit),
-        status: 'APPROVED',
-        approvedBy: 'Pengurus Sarana WargaHub',
+        status: 'PENDING',
         notes: bkgNotes,
       };
 
       const updated = [newBkg, ...bookings];
       setBookings(updated);
       savePersisted('wargahub_facility_bookings', updated);
-      showToast(`Reservasi fasilitas ${selectedFac.name} untuk Rumah ${bkgPropertyCode} berhasil disetujui.`);
+      showToast(`Reservasi ${selectedFac.name} tercatat dan menunggu persetujuan.`);
       setShowAddBookingModal(false);
     } catch (err) {
       console.error(err);
@@ -812,11 +812,14 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     }
   };
 
-  const handleUpdateBookingStatus = (id: string, newStatus: FacilityBooking['status']) => {
+  const handleUpdateBookingStatus = async (id: string, newStatus: FacilityBooking['status']) => {
+    try {
+    await apiFetch('/api/facilities/booking-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: newStatus }) });
     const updated = bookings.map(b => b.id === id ? { ...b, status: newStatus, approvedBy: 'Ketua RW / Pengurus' } : b);
     setBookings(updated);
     savePersisted('wargahub_facility_bookings', updated);
     showToast(`Status booking diubah menjadi ${newStatus}.`);
+    } catch { showToast('Status reservasi belum berubah. Coba lagi.'); }
   };
 
   // Handlers for Maintenance
@@ -846,11 +849,12 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   };
 
   const handleUpdateMaintenanceStatus = async (id: string, newStatus: MaintenanceProject['status']) => {
-    await fetch('/api/facilities/update-status', {
+    try {
+    await apiFetch('/api/facilities/update-status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId: id, status: newStatus }),
-    }).catch(() => {});
+    });
 
     const updated = maintenanceList.map(m => {
       if (m.id === id) {
@@ -866,6 +870,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     setMaintenanceList(updated);
     savePersisted('wargahub_facility_maintenance', updated);
     showToast(`Status maintenance diubah menjadi ${newStatus}.`);
+    } catch { /* apiFetch reports the error; do not change local status. */ }
   };
 
   // Handlers for Staff / Technicians

@@ -8,7 +8,7 @@
     --color-surface: #FFFFFF;
     --color-primary: #245C4A;
     --color-ink: #18201D;
-    --color-muted: #6E7772;
+    --color-muted: #59675F;
     --color-border: #E3E7E2;
   }
 
@@ -20,10 +20,93 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  button, a { touch-action: manipulation; }
+  button:not(:disabled), a { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease; }
+  button:not(:disabled):active { transform: translateY(1px); }
+  button:disabled { cursor: not-allowed; }
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid #245C4A; outline-offset: 3px; }
+  input, select, textarea { accent-color: #245C4A; }
+  dialog { color: #18201D; }
+
   /* Financial numbers always use tabular numbers for clear alignment */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+}
+
+@layer components {
+  /* Layers: header/sidebar 30, popovers 40, native dialogs in the top layer. */
+  .skip-link { @apply fixed left-4 top-4 z-50 rounded-xl bg-primary-700 text-white px-5 py-3 font-semibold; transform: translateY(-160%); }
+  .skip-link:focus { transform: translateY(0); }
+  .brand-mark { @apply w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shrink-0; }
+  .icon-button { @apply inline-flex items-center justify-center w-11 h-11 rounded-xl text-ink-muted hover:bg-canvas hover:text-ink shrink-0; }
+  .admin-sidebar { @apply hidden lg:flex flex-col bg-surface border-r border-border sticky top-0 shrink-0 z-30; width: 16rem; height: 100dvh; }
+  .admin-sidebar.is-collapsed { width: 4.75rem; }
+  .sidebar-brand { @apply flex items-center gap-2 px-4 border-b border-border shrink-0; min-height: 4.5rem; }
+  .sidebar-link { @apply flex items-center gap-3 px-3 rounded-xl text-sm font-medium text-ink-muted hover:bg-canvas hover:text-ink; min-height: 2.75rem; }
+  .sidebar-link.is-active { @apply bg-primary-50 text-primary-700 font-semibold; box-shadow: inset 3px 0 #245C4A; }
+  .sidebar-link.is-compact { @apply justify-center px-0; }
+  .sidebar-group-trigger { @apply flex items-center justify-between gap-3 w-full px-3 py-3 rounded-xl text-sm font-semibold text-ink-muted hover:bg-canvas; }
+  .sidebar-group-trigger svg { transition: transform 160ms ease; }
+  .admin-header { @apply flex items-center justify-between gap-3 bg-surface border-b border-border sticky top-0 z-30 px-4 sm:px-6 lg:px-8; min-height: 4.5rem; }
+  .header-search { @apply inline-flex items-center justify-center gap-2 text-sm text-ink-muted rounded-xl p-3 md:px-3 md:py-2.5 md:bg-canvas md:border md:border-border hover:text-primary-700; min-height: 2.75rem; }
+  .header-search kbd { @apply ml-5 rounded-md border border-border bg-surface px-1.5 py-0.5 text-[10px]; }
+  .avatar-initials { @apply flex items-center justify-center h-9 w-9 rounded-xl bg-primary-50 text-primary-700 text-xs font-bold; }
+  .profile-popover { @apply absolute right-0 mt-3 w-72 max-w-[calc(100vw-2rem)] bg-surface border border-border rounded-2xl shadow-modal overflow-hidden z-40; }
+  .app-dialog { @apply bg-surface border border-border rounded-2xl shadow-modal p-0; max-height: 90dvh; }
+  .app-dialog::backdrop { background: rgba(24, 32, 29, .38); }
+  .search-dialog { width: min(40rem, calc(100vw - 2rem)); margin: 8dvh auto auto; }
+  .chat-dialog { position: fixed; inset: auto 1rem 5.5rem auto; margin: 0; width: min(380px, calc(100vw - 2rem)); max-height: 75dvh; }
+  .chat-dialog.dock-left { left: 1rem; right: auto; }
+  .navigation-drawer { @apply rounded-none border-0 border-r border-border; margin: 0 auto 0 0; width: min(20rem, 88vw); height: 100dvh; max-height: 100dvh; }
+  .search-result { @apply flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-canvas; }
+  .search-result.is-selected { @apply bg-primary-50; }
+  .skeleton { @apply rounded-xl bg-canvas; }
+  .bottom-navigation { @apply fixed bottom-0 left-0 right-0 z-30 bg-surface border-t border-border; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .bottom-navigation a, .bottom-navigation button { @apply flex flex-col items-center justify-center gap-1 rounded-xl text-ink-muted font-medium; min-height: 3.5rem; min-width: 3.5rem; }
+  .bottom-navigation [aria-current="page"] { @apply text-primary-700 bg-primary-50 font-semibold; }
+  .public-navigation-link { @apply flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-medium text-ink-muted hover:bg-canvas hover:text-ink whitespace-nowrap; }
+  .public-navigation-link[aria-current="page"] { @apply bg-primary-50 text-primary-700 font-semibold; }
+}
+
+/* Shared readability improvements for the existing management screens. */
+.admin-content :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) { min-height: 2.75rem; }
+.admin-content :where(input, select, textarea) { max-width: 100%; min-width: 0; }
+.admin-content :where(table) { font-variant-numeric: tabular-nums; }
+.admin-content :where(th) { text-align: start; }
+.admin-content :where(td, th) { vertical-align: middle; }
+.admin-content :where(.overflow-x-auto) { overscroll-behavior-x: contain; }
+.admin-content h1 { font-size: clamp(1.5rem, 2vw, 2rem); font-weight: 600; line-height: 1.25; }
+.admin-content h1 svg { flex-shrink: 0; }
+.admin-content :where(div):has(> h1) { flex-wrap: wrap; }
+.resident-app main { padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)); }
+.resident-app .resident-greeting { flex-wrap: wrap; gap: 1rem; }
+.resident-app .resident-invoice-actions { flex-wrap: wrap; gap: 1rem; }
+
+@media (max-width: 639px) {
+  /* Prevent iOS zoom on focus and keep data tables independently scrollable. */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
+  .admin-content :where(.text-xs) { font-size: .8125rem; }
+}
+
+@media (min-width: 768px) {
+  .resident-app main { padding-bottom: 3rem; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton { animation: skeleton-pulse 1.4s ease-in-out infinite; }
+  .app-dialog[open] { animation: dialog-enter 160ms ease-out; }
+  @keyframes skeleton-pulse { 50% { opacity: .45; } }
+  @keyframes dialog-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 
 /* Custom subtle global scrollbar */
@@ -73,4 +156,3 @@
 .modern-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(36, 92, 74, 0.7);
 }
-

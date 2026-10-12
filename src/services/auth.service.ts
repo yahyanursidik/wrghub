@@ -1,11 +1,14 @@
 import { neonSql } from '../db/neon';
-import { PORTAL_ACCOUNTS, type UserRole, type UserSession, type DemoAccountInfo } from '../types/auth';
+import { type UserRole, type UserSession } from '../types/auth';
+import { client } from '../db';
+import { credentialVersion, verifyPassword } from '../lib/passwords';
+import { getLocalCredentialHash } from './local-credentials.service';
 
 export * from '../types/auth';
 
-export async function authenticateUser(identifier: string, password: string): Promise<{ success: boolean; user?: UserSession; error?: string }> {
+export async function authenticateUser(identifier: string, password: string): Promise<{ success: boolean; user?: UserSession; credentialVersion?: string; error?: string }> {
   const cleanId = identifier.trim().toLowerCase();
-  const cleanPass = password.trim();
+  const cleanPass = password;
 
   // 1. Check in Neon PostgreSQL
   if (process.env.DATABASE_URL) {
@@ -34,18 +37,10 @@ export async function authenticateUser(identifier: string, password: string): Pr
       `;
       if (users.length) {
         const u = users[0];
-        if (
-          u.password_hash === cleanPass ||
-          cleanPass === '1234' ||
-          cleanPass === '123456' ||
-          cleanPass === 'admin123' ||
-          cleanPass === 'warga123' ||
-          cleanPass === 'bendahara123' ||
-          cleanPass === 'satpam123' ||
-          cleanPass === 'sekretaris123'
-        ) {
+        if (verifyPassword(cleanPass, u.password_hash)) {
           return {
             success: true,
+            credentialVersion: credentialVersion(u.password_hash),
             user: {
               id: u.id,
               username: u.username,
@@ -63,35 +58,27 @@ export async function authenticateUser(identifier: string, password: string): Pr
       }
     } catch (e) {
       console.warn('Neon auth query error:', e);
+      return { success: false, error: 'Layanan masuk belum bisa dihubungi. Coba lagi.' };
     }
-  }
-
-  // 2. Demo fallback matching
-  for (const key of Object.keys(PORTAL_ACCOUNTS)) {
-    const acc = PORTAL_ACCOUNTS[key];
-    if (
-      acc.username.toLowerCase() === cleanId ||
-      acc.id.toLowerCase() === cleanId ||
-      (acc.propertyCode && acc.propertyCode.toLowerCase() === cleanId)
-    ) {
-      if (acc.defaultPassword === cleanPass || cleanPass === '1234' || cleanPass === '123456' || cleanPass === 'admin123' || cleanPass === 'warga123' || cleanPass === 'bendahara123' || cleanPass === 'sekretaris123' || cleanPass === 'satpam123' || cleanPass === 'teknisi123') {
-        return {
-          success: true,
-          user: {
-            id: acc.id,
-            username: acc.username,
-            fullName: acc.name,
-            email: `${acc.username}@wargahub.id`,
-            role: acc.role,
-            avatarUrl: acc.avatarUrl,
-            propertyCode: acc.propertyCode,
-            propertyId: acc.propertyCode ? `prop-${acc.propertyCode.toLowerCase()}` : undefined,
-          }
-        };
-      } else {
-        return { success: false, error: 'Password atau PIN yang dimasukkan salah.' };
+  } else {
+    try {
+      const rows = await client.execute({
+        sql: `SELECT u.*, p.id AS resolved_property_id, p.code AS resolved_property_code FROM users u
+          LEFT JOIN user_property_access upa ON upa.user_id = u.id AND upa.ended_at IS NULL
+          LEFT JOIN properties p ON p.id = upa.property_id
+          WHERE u.is_active = 1 AND (LOWER(u.username) = ? OR LOWER(u.email) = ? OR LOWER(p.code) = ?) LIMIT 1`,
+        args: [cleanId, cleanId, cleanId],
+      });
+      const row = rows.rows[0];
+      if (row) {
+        const stored = await getLocalCredentialHash(String(row.id)) || row.password_hash?.toString();
+        if (verifyPassword(cleanPass, stored)) return { success: true, credentialVersion: credentialVersion(stored!), user: {
+          id: String(row.id), username: String(row.username), fullName: String(row.full_name), email: String(row.email), role: row.role as UserRole,
+          avatarUrl: row.avatar_url?.toString() || '', propertyId: row.resolved_property_id?.toString(), propertyCode: row.resolved_property_code?.toString(),
+        } };
+        return { success: false, error: 'Username atau kata sandi tidak sesuai.' };
       }
-    }
+    } catch { return { success: false, error: 'Layanan masuk lokal belum dikonfigurasi. Hubungi pengurus.' }; }
   }
 
   return { success: false, error: 'Akun / No. Rumah tidak terdaftar di sistem komplek.' };

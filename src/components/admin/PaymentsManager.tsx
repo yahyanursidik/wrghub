@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   CreditCard,
   CheckCircle2,
@@ -328,7 +330,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   );
 
   // Navigation & SubTabs
-  const [activeSubTab, setActiveSubTab] = useState<'verification' | 'history' | 'manual_counter' | 'receiving_channels'>('verification');
+  const [activeSubTab, setActiveSubTab] = useUrlTab(['verification', 'history', 'manual_counter', 'receiving_channels'] as const, 'verification');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('ALL');
   const [periodFilter, setPeriodFilter] = useState<string>('September 2026');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
@@ -517,7 +519,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   // ================= VERIFY & REJECT =================
   const handleVerify = async (paymentId: string) => {
     try {
-      await fetch('/api/payments/verify', {
+      await apiFetch('/api/payments/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentId, verifierUserId: 'user-bendahara', verifierName: 'Hendra Wijaya' }),
@@ -539,7 +541,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
   const handleReject = async (paymentId: string) => {
     try {
-      await fetch('/api/payments/reject', {
+      await apiFetch('/api/payments/reject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentId, reason: rejectionReasonInput }),
@@ -566,11 +568,11 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     setBulkProcessing(true);
     try {
       for (const id of selectedPaymentIds) {
-        await fetch('/api/payments/verify', {
+        await apiFetch('/api/payments/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paymentId: id, verifierUserId: 'user-bendahara', verifierName: 'Hendra Wijaya' }),
-        }).catch(() => {});
+        });
       }
       const updated = payments.map((p) => {
         if (selectedPaymentIds.includes(p.id)) {
@@ -684,7 +686,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
       const todayStr = new Date().toISOString().slice(0, 10);
       const generatedRef = counterRef || `KAS-TUNAI-${Date.now().toString().slice(-6)}`;
 
-      await fetch('/api/payments/create', {
+      await apiFetch('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -698,7 +700,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
           status: 'VERIFIED',
           notes: `${counterNotes} (Petugas: ${counterCollector})`,
         }),
-      }).catch(() => {});
+      });
 
       const newPay: PaymentListItem = {
         id: `pay-${Date.now()}`,
@@ -907,7 +909,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     const safeRtRw = localRtRw.toLowerCase().includes('02 / rw 05') || localRtRw.toLowerCase().includes('04 / rw 09') ? 'RT 01 / RW 08' : localRtRw;
     const safeAddr = localAddr.toLowerCase().includes('taman sejahtera') || localAddr.toLowerCase().includes('graha raya') ? 'Grand Sariwangi, Sariwangi, Bandung Barat' : localAddr;
 
-    await fetch('/api/settings/update', {
+    await apiFetch('/api/settings/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -922,7 +924,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         rwHeadPhone: '0812-3456-7890',
         balance: Number(bBalance),
       })
-    }).catch(() => {});
+    });
 
     setShowBankEditModal(false);
     showToast(isAddingBank ? 'Rekening / E-Wallet kas baru berhasil ditambahkan!' : 'Informasi rekening kas paguyuban berhasil diperbarui!');
@@ -1237,7 +1239,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveSubTab(tab.id as any)}
+              onClick={() => tab.id === 'receiving_channels' ? window.location.assign('/admin/ledger?tab=accounts_manage') : setActiveSubTab(tab.id as any)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-[0.98] ${
                 isActive
                   ? 'bg-slate-900 text-white shadow-2xs'

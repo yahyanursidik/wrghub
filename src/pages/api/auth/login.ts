@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { authenticateUser } from '../../../services/auth.service';
 
 const loginSchema = z.object({
-  identifier: z.string().min(1, 'Username atau No. Rumah wajib diisi'),
-  password: z.string().min(1, 'Password / PIN wajib diisi'),
+  identifier: z.string().min(1, 'Username atau No. Rumah wajib diisi').max(200),
+  password: z.string().min(1, 'Password / PIN wajib diisi').max(1024),
   portal: z.enum(['resident', 'admin', 'any']).default('any'),
 });
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, session }) => {
   try {
     const body = await request.json();
     const { identifier, password, portal } = loginSchema.parse(body);
@@ -25,11 +25,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     const user = result.user;
+    if (!session) throw new Error('Penyimpanan sesi belum tersedia. Hubungi pengurus.');
+    await session.regenerate();
+    await session.set('wargahub_user', user);
+    await session.set('credential_version', result.credentialVersion);
+    await session.set('issued_at', Date.now());
     const isAdminRole = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY', 'MAINTENANCE', 'AUDITOR'].includes(user.role);
 
     // Determine redirect
     let redirectUrl = '/warga';
-    if (portal === 'admin' || (isAdminRole && portal !== 'resident')) {
+    if (isAdminRole && portal !== 'resident') {
       redirectUrl = user.role === 'TREASURER' ? '/admin/payments'
         : user.role === 'SECURITY' ? '/admin/security-gate'
         : user.role === 'MAINTENANCE' ? '/admin/cleaning-staff'
@@ -39,13 +44,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       redirectUrl = '/warga';
     }
 
-    // Set cookie
-    cookies.set('wargahub_user', JSON.stringify(user), {
-      path: '/',
-      httpOnly: false,
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      sameSite: 'lax',
-    });
+    // Retire the legacy identity cookie; authorization and SSR use the server session.
+    cookies.delete('wargahub_user', { path: '/' });
 
     return new Response(
       JSON.stringify({
@@ -57,7 +57,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         meta: {},
         error: null,
       }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
     );
   } catch (err: any) {
     return new Response(

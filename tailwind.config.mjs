@@ -9,7 +9,7 @@ export default {
         ink: {
           DEFAULT: '#18201D',
           light: '#2D3833',
-          muted: '#6E7772',
+          muted: '#59675F',
         },
         border: {
           DEFAULT: '#E3E7E2',
@@ -41,9 +41,9 @@ export default {
         sans: ['Inter', 'Geist', 'Manrope', 'system-ui', '-apple-system', 'sans-serif'],
       },
       boxShadow: {
-        'card': '0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02)',
-        'card-hover': '0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.03)',
-        'modal': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+        'card': '0 2px 8px rgba(24, 55, 39, 0.035)',
+        'card-hover': '0 6px 18px rgba(24, 55, 39, 0.07)',
+        'modal': '0 20px 60px -12px rgba(24, 55, 39, 0.2)',
       },
       borderRadius: {
         'xl': '0.75rem',

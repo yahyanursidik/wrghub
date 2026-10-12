@@ -141,6 +141,12 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties || []);
   const [search, setSearch] = useState('');
+  useEffect(() => {
+    const syncSearch = () => setSearch(new URLSearchParams(window.location.search).get('q') || '');
+    syncSearch();
+    window.addEventListener('popstate', syncSearch);
+    return () => window.removeEventListener('popstate', syncSearch);
+  }, []);
   const [selectedBlock, setSelectedBlock] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState(initialTab === 'owners' ? 'OWNER_OCCUPIED' : 'ALL');
   const [sortBy, setSortBy] = useState<'code' | 'owner' | 'status' | 'residents'>('code');

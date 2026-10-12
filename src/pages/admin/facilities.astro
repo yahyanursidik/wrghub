@@ -1,15 +1,16 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { FacilitiesManager } from '../../components/admin/FacilitiesManager';
-import { getFacilities, getMaintenanceRequests } from '../../services/facility.service';
+import { getFacilities, getMaintenanceRequests, getFacilityBookings } from '../../services/facility.service';
 
-const [facilities, maintenanceRequests] = await Promise.all([
+const [facilities, maintenanceRequests, bookings] = await Promise.all([
   getFacilities().catch(() => []),
   getMaintenanceRequests().catch(() => []),
+  getFacilityBookings().catch(() => []),
 ]);
 const tab = Astro.url.searchParams.get('tab') || 'facilities';
 ---
 
 <AdminLayout title="Sarana & Maintenance - WargaHub" currentPath="/admin/facilities">
-  <FacilitiesManager facilities={facilities} maintenanceRequests={maintenanceRequests} initialTab={tab} client:load />
+  <FacilitiesManager facilities={facilities} maintenanceRequests={maintenanceRequests} initialBookings={bookings} initialTab={tab} client:load />
 </AdminLayout>

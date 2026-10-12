@@ -1,7 +1,9 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { neonSql } from '../../../db/neon';
 import { recordAuditLog } from '../../../services/audit.service';
+import { createComplaint } from '../../../services/complaint.service';
+import { getProperties } from '../../../services/property.service';
+import type { UserSession } from '../../../types/auth';
 
 const complaintSchema = z.object({
   propertyId: z.string(),
@@ -12,45 +14,24 @@ const complaintSchema = z.object({
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM'),
 });
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, session }) => {
   try {
     const body = await request.json();
     const validated = complaintSchema.parse(body);
-    const id = `comp-${Date.now()}`;
+    if (!(await getProperties()).some(property => property.id === validated.propertyId)) return Response.json({ error: { message: 'Rumah tidak ditemukan.' } }, { status: 404 });
+    const id = await createComplaint(validated);
+    const actor = await session?.get('wargahub_user') as UserSession;
 
-    if (process.env.DATABASE_URL) {
-      await neonSql`
-        INSERT INTO complaints (
-          id, property_id, title, description, category, location, status, priority, created_at
-        ) VALUES (
-          ${id}, ${validated.propertyId}, ${validated.title},
-          ${validated.description}, ${validated.category}, ${validated.location || '-'},
-          'REPORTED', ${validated.priority}, NOW()
-        );
-      `;
+    await recordAuditLog({
+      actorUserId: actor.id,
+      actorName: actor.fullName,
+      action: 'complaint.create',
+      entityType: 'COMPLAINT',
+      entityId: id,
+      newValue: { title: validated.title, category: validated.category, location: validated.location },
+    });
 
-      await recordAuditLog({
-        actorName: `Warga (${validated.propertyId})`,
-        action: 'complaint.create',
-        entityType: 'COMPLAINT',
-        entityId: id,
-        newValue: { title: validated.title, category: validated.category, location: validated.location },
-      });
-
-      return new Response(
-        JSON.stringify({
-          data: { id, message: 'Aduan berhasil dicatat dan diteruskan ke pengurus & satpam.' },
-          meta: {},
-          error: null,
-        }),
-        { status: 201, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ data: { id, message: 'Aduan tersimpan.' } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
+    return Response.json({ data: { id, message: 'Aduan berhasil dicatat dan tersedia untuk ditindaklanjuti pengurus.' }, meta: {}, error: null }, { status: 201 });
   } catch (err: any) {
     return new Response(
       JSON.stringify({

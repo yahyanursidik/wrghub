@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
 import {
   ShieldCheck,
   QrCode,
@@ -218,7 +219,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   initialVehicles = [],
 }) => {
   // Main Subtab State
-  const [activeTab, setActiveTab] = useState<'guards' | 'roster' | 'patrol' | 'gate' | 'inventory' | 'emergency'>('guards');
+  const [activeTab, setActiveTab] = useUrlTab(['guards', 'roster', 'patrol', 'gate', 'inventory', 'emergency'] as const, 'guards');
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -2674,7 +2675,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                             </span>
                           </div>
                           {g.specialDuty && (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-surface text-ink border border-border rounded-md shrink-0 text-right">
+                            <span className="text-xs font-medium px-2 py-1 bg-surface text-ink border border-border rounded-md min-w-0 max-w-full break-words text-right">
                               {g.specialDuty}
                             </span>
                           )}
@@ -3386,20 +3387,17 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
 
               <div className="space-y-2 pt-1">
                 {[
-                  { name: 'Polsek Terdekat / Sentra Pelayanan Kepolisian', phone: '(021) 887-2233 / 110', label: 'Keamanan POLRI' },
-                  { name: 'Babinsa & Bhabinkamtibmas Komplek', phone: '0812-8899-7711 (Serka Budi)', label: 'Pembina Wilayah' },
-                  { name: 'Dinas Pemadam Kebakaran & Penyelamatan (Damkar)', phone: '(021) 113 / 0811-2233-113', label: 'Damkar' },
-                  { name: 'IGD Rumah Sakit & Layanan Ambulans 24 Jam', phone: '(021) 8899-0011 / 118', label: 'Medis & Ambulans' },
-                  { name: 'Layanan Gangguan PLN (Listrik Padam / Korsleting)', phone: '123 / (021) 123', label: 'PLN Gardu' },
-                  { name: 'Layanan Darurat PDAM (Pipa Pecah / Pompa)', phone: '(021) 8899-4455', label: 'Air Bersih' },
+                  { name: 'Layanan kepolisian', phone: '110', label: 'POLRI' },
+                  { name: 'Kegawatdaruratan medis', phone: '119', label: 'Layanan medis' },
+                  { name: 'Layanan gangguan listrik', phone: '123', label: 'PLN' },
                 ].map((item, idx) => (
-                  <div key={idx} className="p-3 bg-canvas rounded-xl border border-border flex items-center justify-between gap-2">
+                  <div key={idx} className="p-3 bg-canvas rounded-xl border border-border flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <span className="font-bold text-ink block">{item.name}</span>
                       <span className="text-[10px] text-ink-muted font-semibold">{item.label}</span>
                     </div>
                     <a
-                      href={`tel:${item.phone.split('/')[0].trim()}`}
+                      href={`tel:${item.phone}`}
                       className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1 shrink-0 transition-colors"
                     >
                       <Phone className="w-3 h-3" />
@@ -3408,6 +3406,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-ink-muted">Kontak Babinsa, Damkar, dan PDAM setempat harus dikonfirmasi oleh pengurus. Nomor pribadi contoh tidak ditampilkan.</p>
             </div>
 
             {/* Security SOPs */}

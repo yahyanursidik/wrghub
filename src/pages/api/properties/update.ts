@@ -5,6 +5,8 @@ import { recordAuditLog } from '../../../services/audit.service';
 import { neonSql } from '../../../db/neon';
 import { db, schema } from '../../../db';
 import { eq } from 'drizzle-orm';
+import { getProperties } from '../../../services/property.service';
+import type { UserSession } from '../../../types/auth';
 
 const propUpdateSchema = z.object({
   id: z.string().optional(),
@@ -25,13 +27,20 @@ const propUpdateSchema = z.object({
   monthlyRate: z.number().optional(),
 });
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, session }) => {
   try {
     const body = await request.json();
     const validated = propUpdateSchema.parse(body);
 
-    const code = validated.code || validated.propertyCode || 'A-17';
-    const id = validated.id || `prop-${code.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+    const propertyCode = validated.code || validated.propertyCode;
+    if (!validated.id && !propertyCode) throw new Error('ID atau kode rumah wajib disertakan.');
+    const properties = await getProperties();
+    const property = properties.find(item => validated.id ? item.id === validated.id : item.code.toLowerCase() === propertyCode?.trim().toLowerCase());
+    if (!property) return Response.json({ error: { message: 'Rumah tidak ditemukan.' } }, { status: 404 });
+    if ([validated.code, validated.propertyCode].some(value => value !== undefined && value.trim().toLowerCase() !== property.code.toLowerCase())) throw new Error('ID dan kode rumah tidak cocok.');
+    const code = property.code;
+    const id = property.id;
+    const actor = await session?.get('wargahub_user') as UserSession;
 
     const updated = {
       propertyCode: code,
@@ -41,7 +50,7 @@ export const POST: APIRoute = async ({ request }) => {
       buildingArea: validated.buildingArea || 72,
       plnCapacity: validated.plnCapacity || '3.500 VA',
       pamMeterNo: validated.pamMeterNo || 'PAM-88301',
-      occupancyStatus: validated.occupancyStatus || 'DIHUNI_PEMILIK',
+      occupancyStatus: validated.occupancyStatus || property.occupancyStatus,
       ownerName: validated.ownerName,
       occupantName: validated.occupantName || validated.headName,
       updatedAt: new Date().toISOString(),
@@ -63,7 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
             occupancy_status = COALESCE(${validated.occupancyStatus || null}, occupancy_status),
             notes = COALESCE(${resolvedNotes}, notes),
             updated_at = NOW()
-          WHERE id = ${id} OR LOWER(code) = LOWER(${code});
+          WHERE id = ${id};
         `;
       }
 
@@ -107,16 +116,7 @@ export const POST: APIRoute = async ({ request }) => {
         `;
       }
 
-      await recordAuditLog({
-        actorName: `Admin Komplek`,
-        action: 'property.update',
-        entityType: 'PROPERTY',
-        entityId: id,
-        newValue: updated,
-      });
-    }
-
-    try {
+    } else {
       await db.update(schema.properties).set({
         address: validated.address || undefined,
         occupancyStatus: validated.occupancyStatus || undefined,
@@ -124,9 +124,9 @@ export const POST: APIRoute = async ({ request }) => {
         number: validated.number || undefined,
         updatedAt: new Date().toISOString(),
       }).where(eq(schema.properties.id, id));
-    } catch (sqliteErr) {
-      console.warn('SQLite property update fallback error:', sqliteErr);
     }
+
+    await recordAuditLog({ actorUserId: actor.id, actorName: actor.fullName, action: 'property.update', entityType: 'PROPERTY', entityId: id, newValue: updated });
 
     return new Response(
       JSON.stringify({

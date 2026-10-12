@@ -1,64 +1,50 @@
-# 🏡 WargaHub — Sistem Manajemen & Transparansi Komplek Perumahan
+# WargaHub
 
-**WargaHub** adalah aplikasi modern untuk tata kelola perumahan, transparansi keuangan warga, penagihan iuran masal, pemesanan sarana umum, kontrol gerbang pos satpam, dan repositori dokumen resmi komplek.
+Aplikasi pengelolaan lingkungan perumahan: portal warga, iuran dan pembayaran, buku kas, aduan, fasilitas, dokumen, serta transparansi keuangan.
 
----
+Stack pada checkout ini: Astro 7 SSR, React 19, Tailwind CSS 3, Drizzle ORM, dan Neon PostgreSQL. SQLite tersedia untuk mode lokal dan pengujian terisolasi.
 
-## 🚀 Fitur Utama
+## Menjalankan aplikasi
 
-- 📱 **Portal Warga PWA**: Informasi tagihan iuran, cetak kuitansi berstempel digital resmi, sewa fasilitas, aduan, dan registrasi kendaraan keluarga.
-- 📊 **Laporan Transparansi Keuangan**: Laporan publik kas bulanan dengan drilldown nota kuitansi per pos biaya dan opsi privasi nomor rumah.
-- ⚙️ **Dashboard Pengurus & Billing Masal**: Generator tagihan masal 120 rumah, pengingat WhatsApp otomatis, verifikasi transfer, dan buku kas.
-- 🛡️ **Pos Satpam & Kontrol Gerbang**: Pemindai QR Code kuitansi/pass tamu, pencarian plat nomor kendaraan warga, dan buku tamu digital.
-- 📈 **Analitik Tren Finansial**: Perbandingan kepatuhan pembayaran antar Blok A, B, C, D dan evaluasi serapan anggaran.
-- 💾 **Pencadangan & Serah Terima**: Ekspor basis data JSON lengkap untuk pemulihan bencana dan paket serah terima kepengurusan RT/RW.
-- 🩺 **Health Check & Monitoring API**: Endpoint diagnostik real-time memeriksa latensi database Neon PostgreSQL dan memori runtime.
+Gunakan konfigurasi database milik Anda di `.env`; contoh nama variabel tersedia di `.env.example`. Jangan menyalin kredensial asli ke repositori. Untuk mode lokal, kosongkan `DATABASE_URL` dan gunakan database SQLite yang sudah diinisialisasi.
 
----
-
-## 🛠️ Stack Teknologi
-
-- **Frontend & Fullstack**: [Astro v5 SSR](https://astro.build/) + [React 19](https://react.dev/) + [Tailwind CSS v4](https://tailwindcss.com/)
-- **Database**: [Neon PostgreSQL Cloud](https://neon.tech/) (34 Relational Tables, Connection Pooling)
-- **Icons & Styling**: Lucide React + Tabular Fonts
-- **PWA & Offline**: Web App Manifest (`manifest.webmanifest`) + Service Worker (`sw.js`)
-- **Containerization**: Docker (Multi-stage Alpine) + Docker Compose
-- **Process Manager**: Standalone Node.js & PM2 Cluster
-
----
-
-## ⚡ Cara Menjalankan Aplikasi
-
-### 1. Mode Produksi (Lokal / Server Node.js)
-```bash
-# Install dependencies
+```sh
 npm install
-
-# Build asset produksi
-node ./node_modules/astro/astro.js build
-
-# Jalankan server live production
-node prod-server.mjs
-```
-Akses aplikasi:
-- 📱 Portal Warga: `http://localhost:4321/`
-- 📊 Transparansi: `http://localhost:4321/transparency`
-- ⚙️ Admin Dashboard: `http://localhost:4321/admin`
-- 🛡️ Pos Satpam: `http://localhost:4321/admin/security-gate`
-
-### 2. Mode Docker & Docker Compose
-```bash
-# Jalankan container dalam 1 perintah
-docker compose up -d --build
+npm run dev
 ```
 
-### 3. Menjalankan Pengujian Otomatis (*End-to-End Test Suite*)
-```bash
-node ./node_modules/tsx/dist/cli.mjs scripts/verify-all.ts
+Build produksi Node:
+
+```sh
+npm run build
+npm start
 ```
 
----
+Alamat default adalah `http://localhost:4321`. Portal warga berada di `/warga`, login di `/login`, dashboard pengurus di `/admin`, dan laporan publik di `/transparency`. Halaman privat memerlukan akun terdaftar serta sesi server yang valid.
 
-## 📖 Panduan Pengguna Lengkap
+## Pengujian
 
-Silakan baca berkas [MANUAL_PANDUAN_PENGGUNA.md](file:///c:/Users/P%20R%20E%20D%20A%20T%20O%20R/Documents/wargahub/MANUAL_PANDUAN_PENGGUNA.md) untuk panduan operasional langkah-demi-langkah bagi Warga, Petugas Satpam, dan Pengurus RT/RW.
+```sh
+npm run build
+npm run typecheck
+npm run test:access
+npm run test:authorization
+npm run test:ledger
+npm run audit:navigation
+npm run test:ui
+```
+
+`test:ui` membuat fixture SQLite sementara, menjalankan server build pada localhost, menguji seluruh menu/tab melalui Chrome atau Edge headless, lalu menjalankan tes HTTP keamanan. `npm run test:security` menjalankan suite HTTP saja pada fixture baru. Mutasi suite ini tidak diarahkan ke database produksi.
+
+Selesaikan build sebelum menjalankan tes UI/HTTP, dan jangan rebuild `dist` selama tes berlangsung. `CHROME_PATH` menentukan browser, `UI_AUDIT_PORT` menentukan port server, dan `UI_TEST_OUTPUT` menentukan lokasi screenshot. Suite memerlukan izin koneksi localhost pada lingkungan sandbox.
+
+## Status dan dokumentasi
+
+Pemeriksaan 12 Oktober 2026: build dan TypeScript lulus; 75 halaman/tab browser tanpa temuan, dan 92 metode API privat menolak akses anonim. Pemeriksaan lokal tidak menggantikan pengujian transaksi PostgreSQL dan integrasi eksternal.
+
+- [Laporan kelanjutan](PROJECT_COMPLETION_REPORT.md)
+- [Audit UI, navigasi, akses, serta temuan terbuka](UI_UX_NAVIGATION_AUDIT.md)
+- [Panduan pengguna](MANUAL_PANDUAN_PENGGUNA.md)
+- [Roadmap](13-IMPLEMENTATION-ROADMAP.md)
+
+Dokumen menggunakan tautan berkas HTTPS; upload binary belum tersedia. Ekspor merupakan snapshot operasional terbatas, bukan backup lengkap yang dapat dipulihkan otomatis. WhatsApp masih berupa simulator; aktivasi RFID dan perangkat gerbang memerlukan integrasi tersendiri. Rincian fitur yang belum persisten tersedia di laporan audit.

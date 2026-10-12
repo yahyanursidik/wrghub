@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { recordAuditLog } from '../../../services/audit.service';
+import { createManualLedgerEntry } from '../../../services/manual-ledger.service';
+import { authorizeApi, financeEditors } from '../../../lib/api-authorization';
 
 const createLedgerSchema = z.object({
   accountId: z.string().default('acc-main'),
@@ -14,23 +16,15 @@ const createLedgerSchema = z.object({
   createdBy: z.string().default('user-bendahara'),
 });
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async (context) => {
+  const authorization = await authorizeApi(context, financeEditors);
+  if (authorization.response) return authorization.response;
+  const { request } = context;
   try {
     const body = await request.json();
     const validated = createLedgerSchema.parse(body);
 
-    const newEntry = {
-      id: `led-${Date.now()}`,
-      accountId: validated.accountId,
-      entryDate: validated.entryDate,
-      direction: validated.direction,
-      amount: validated.amount,
-      sourceType: validated.sourceType,
-      sourceId: validated.referenceNo || `JRN-${Date.now().toString().slice(-4)}`,
-      description: validated.description,
-      createdBy: validated.createdBy,
-      createdAt: new Date().toISOString(),
-    };
+    const newEntry = await createManualLedgerEntry({ ...validated, createdBy: authorization.user!.id });
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({

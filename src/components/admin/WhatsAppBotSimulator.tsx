@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
 import {
   MessageSquare,
   Send,
@@ -209,7 +210,7 @@ export const WhatsAppBotSimulator: React.FC<WhatsAppBotSimulatorProps> = ({
   allPeriods = [],
   allInvoices = [],
 }) => {
-  const [activeTab, setActiveTab] = useState<'templates' | 'simulator' | 'history' | 'settings'>('templates');
+  const [activeTab, setActiveTab] = useUrlTab(['templates', 'simulator', 'history', 'settings'] as const, 'templates');
 
   // ================= TEMPLATES DIRECTORY STATE =================
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');

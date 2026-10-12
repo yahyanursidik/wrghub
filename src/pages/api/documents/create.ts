@@ -2,12 +2,13 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { neonSql } from '../../../db/neon';
 import { recordAuditLog } from '../../../services/audit.service';
+import { db, schema } from '../../../db';
 
 const documentSchema = z.object({
   title: z.string().min(3),
   category: z.enum(['TATA_TERTIB', 'LAPORAN_KEUANGAN', 'SURAT_EDARAN', 'SK_PENGURUS', 'FORMULIR']),
-  fileUrl: z.string().default('/documents/sample.pdf'),
-  fileSize: z.string().default('1.2 MB'),
+  fileUrl: z.string().url().refine(value => value.startsWith('https://'), 'Tautan dokumen harus menggunakan HTTPS.'),
+  fileSize: z.string().default('-'),
   visibility: z.enum(['PUBLIC', 'RESIDENT', 'COMMITTEE', 'ADMIN']).default('RESIDENT'),
   uploadedBy: z.string().default('user-ketua'),
 });
@@ -47,10 +48,8 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({ data: { message: 'Dokumen tersimpan.' } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
+    await db.insert(schema.documents).values({ id, communityId: 'comm-01', title: validated.title, category: validated.category, fileUrl: validated.fileUrl, fileSize: validated.fileSize, visibility: validated.visibility, uploadedBy: validated.uploadedBy, createdAt: new Date().toISOString() });
+    return new Response(JSON.stringify({ data: { id, message: 'Tautan dokumen tersimpan.' }, error: null }), { status: 201, headers: { 'Content-Type': 'application/json' } });
   } catch (err: any) {
     return new Response(
       JSON.stringify({

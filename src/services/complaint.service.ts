@@ -2,6 +2,7 @@ import { neonSql } from '../db/neon';
 import { db, schema } from '../db';
 import { eq, desc } from 'drizzle-orm';
 import { recordAuditLog } from './audit.service';
+import { randomUUID } from 'node:crypto';
 
 export async function getComplaints() {
   if (process.env.DATABASE_URL) {
@@ -74,7 +75,7 @@ export async function createComplaint(data: {
   location?: string;
   priority?: string;
 }) {
-  const id = `comp-${Date.now()}`;
+  const id = `comp-${randomUUID()}`;
   if (process.env.DATABASE_URL) {
     try {
       await neonSql`
@@ -88,6 +89,7 @@ export async function createComplaint(data: {
       return id;
     } catch (e) {
       console.warn('Neon create complaint error:', e);
+      throw e;
     }
   }
 

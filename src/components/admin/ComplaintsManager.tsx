@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiFetch } from '../../lib/api-fetch';
 import { MessageCircle, CheckCircle, Clock, AlertTriangle, ChevronRight, Check, ShieldCheck, Wrench, Sparkles, Send } from 'lucide-react';
 
 interface ComplaintItem {
@@ -28,7 +29,7 @@ export const ComplaintsManager: React.FC<ComplaintsManagerProps> = ({ initialCom
   const handleUpdateStatus = async (id: string, newStatus: string, notes?: string) => {
     setUpdatingId(id);
     try {
-      await fetch('/api/complaints/update', {
+      await apiFetch('/api/complaints/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Printer, Download, CheckCircle2, ShieldCheck, QrCode, AlertCircle, FileText, Wallet } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
+import { receiptNumber } from '../../lib/receipt-number';
 
 export interface ReceiptItemBreakdown {
   name: string;
@@ -33,8 +34,9 @@ interface ReceiptModalProps {
   data: ReceiptModalData;
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, data }) => {
-  if (!isOpen) return null;
+export const ReceiptModal: React.FC<ReceiptModalProps> = props => props.isOpen ? <ReceiptModalContent {...props} /> : null;
+
+const ReceiptModalContent: React.FC<ReceiptModalProps> = ({ onClose, data }) => {
 
   const isInitiallyPaid = data.status === 'PAID' || Boolean(data.paidAt && !data.isInvoice);
   const [activeDocMode, setActiveDocMode] = useState<'AUTO' | 'INVOICE' | 'RECEIPT'>(
@@ -47,7 +49,27 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, dat
     window.print();
   };
 
-  const receiptNo = data.receiptNumber || `KW-${(data.periodName || '2026').replace(/\s+/g, '')}-${data.propertyCode.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const receiptNo = data.receiptNumber || receiptNumber(data.periodName || '', data.propertyCode);
+  const verificationQuery = data.referenceNumber && data.referenceNumber !== '-' ? data.referenceNumber : receiptNo;
+  const [qrCode, setQrCode] = useState('');
+  const [verification, setVerification] = useState<'pending' | 'matched' | 'unmatched' | 'unavailable'>('pending');
+  const verificationPath = `/kuitansi?q=${encodeURIComponent(verificationQuery)}`;
+  useEffect(() => {
+    if (!isReceipt) return;
+    let cancelled = false;
+    setVerification('pending');
+    import('qrcode').then(module => module.default.toDataURL(`${window.location.origin}${verificationPath}`, { width: 160, margin: 1, errorCorrectionLevel: 'M' }))
+      .then(image => { if (!cancelled) setQrCode(image); }).catch(() => { if (!cancelled) setQrCode(''); });
+    fetch(`/api/receipts/verify?q=${encodeURIComponent(verificationQuery)}`)
+      .then(async response => {
+        if (response.status === 404) return 'unmatched' as const;
+        if (!response.ok) return 'unavailable' as const;
+        const payload = await response.json();
+        return payload.data?.propertyCode === data.propertyCode && Math.abs(Number(payload.data.amount) - data.amount) < 0.01 ? 'matched' as const : 'unmatched' as const;
+      }).then(result => { if (!cancelled) setVerification(result); })
+      .catch(() => { if (!cancelled) setVerification('unavailable'); });
+    return () => { cancelled = true; };
+  }, [isReceipt, verificationQuery, data.propertyCode, data.amount]);
 
   const commName = typeof window !== 'undefined' ? (() => {
     try {
@@ -389,7 +411,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, dat
           {/* Total Box */}
           <div className="p-3 bg-canvas rounded-2xl flex items-center justify-between border border-border">
             <span className="font-black text-ink text-xs">
-              {isReceipt ? 'Total Nominal Diterima Lunas:' : 'Total Tagihan Yang Harus Dibayar:'}
+              {isReceipt ? 'Nominal dokumen:' : 'Total tagihan:'}
             </span>
             <span className="text-lg font-black text-primary-800 tabular-nums font-mono">
               {formatRupiah(data.amount)}
@@ -401,20 +423,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, dat
         <div className="pt-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-12 h-12 bg-canvas border border-border rounded-xl flex items-center justify-center p-1 shrink-0">
-                <QrCode className="w-9 h-9 text-primary-800" />
-              </div>
+              {isReceipt && <a href={verificationPath} target="_blank" rel="noopener noreferrer" aria-label="Verifikasi kuitansi di tab baru" className="w-16 h-16 bg-surface border border-border rounded-xl flex items-center justify-center p-1 shrink-0">{qrCode ? <img src={qrCode} width={64} height={64} alt="QR tautan verifikasi pembayaran" /> : <QrCode className="w-9 h-9 text-primary-800" />}</a>}
               <div className="text-[10px] text-ink-muted leading-tight">
                 {isReceipt ? (
                   <span className="font-black text-emerald-700 block text-xs flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> LUNAS / TERVERIFIKASI
+                    <CheckCircle2 className="w-3.5 h-3.5" /> {verification === 'matched' ? 'Cocok dengan pembayaran terverifikasi' : verification === 'pending' ? 'Memeriksa catatan pembayaran…' : verification === 'unmatched' ? 'Belum cocok dengan catatan pembayaran' : 'Verifikasi belum tersedia'}
                   </span>
                 ) : (
                   <span className="font-black text-amber-700 block text-xs flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" /> RESMI TERBIT DARI WARGAHUB
+                    <AlertCircle className="w-3.5 h-3.5" /> Tagihan, bukan bukti pembayaran
                   </span>
                 )}
-                <span>Dokumen elektronik sah Komplek Grand Sariwangi.</span>
+                <span>Salinan catatan WargaHub; QR bukan tanda tangan digital.</span>
               </div>
             </div>
 
@@ -559,4 +579,3 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, dat
     </div>
   );
 };
-

@@ -1,8 +1,11 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { DocumentsManager } from '../../components/admin/DocumentsManager';
+import { getDocuments } from '../../services/document.service';
+let loadFailed = false;
+const documents = await getDocuments().catch(() => { loadFailed = true; return []; });
 ---
 
 <AdminLayout title="Arsip Dokumen - WargaHub" currentPath="/admin/documents">
-  <DocumentsManager client:load />
+  <DocumentsManager initialDocuments={documents} loadFailed={loadFailed} client:load />
 </AdminLayout>

@@ -35,12 +35,13 @@ export async function getPayments(billingPeriodId?: string, status?: string): Pr
         ORDER BY p.paid_at DESC
       `;
       return rows.filter((p: any) => {
+        if (billingPeriodId && p.billing_period_id !== billingPeriodId) return false;
         if (status && p.status !== status) return false;
         return true;
       }).map((p: any) => ({
         id: p.id,
         propertyCode: p.property_code || 'N/A',
-        amount: Number(p.amount) || 250000,
+        amount: Number(p.amount) || 0,
         method: p.method,
         reference: p.reference,
         proofFileUrl: p.proof_file_url,
@@ -78,6 +79,7 @@ export async function getPayments(billingPeriodId?: string, status?: string): Pr
   .orderBy(desc(schema.payments.paidAt));
 
   return result.filter(p => {
+    if (billingPeriodId && p.billingPeriodId !== billingPeriodId) return false;
     if (status && p.status !== status) return false;
     return true;
   }).map(p => ({
@@ -131,13 +133,14 @@ export async function submitPayment(data: {
         ) VALUES (
           ${paymentId}, ${data.propertyId}, ${data.billingPeriodId}, ${data.invoiceId || null}, ${data.amount},
           ${data.method || 'TRANSFER'}, ${data.reference || 'REF-' + Date.now().toString().slice(-6)},
-          ${data.proofFileUrl || '/uploads/proof-sample.png'}, 'PENDING',
+          ${data.proofFileUrl || null}, 'PENDING',
           ${data.notes || 'Pembayaran via Portal Warga'}, ${now}, ${data.submittedBy || null}
         )
       `;
       return paymentId;
     } catch (e) {
       console.warn('Neon submit payment error:', e);
+      throw e;
     }
   }
 
@@ -149,7 +152,7 @@ export async function submitPayment(data: {
     amount: data.amount,
     method: data.method || 'TRANSFER',
     reference: data.reference || `REF-${Date.now().toString().slice(-6)}`,
-    proofFileUrl: data.proofFileUrl || '/uploads/proof-sample.png',
+    proofFileUrl: data.proofFileUrl || null,
     notes: data.notes || 'Pembayaran diajukan via Portal Warga',
     status: 'PENDING',
     paidAt: now,

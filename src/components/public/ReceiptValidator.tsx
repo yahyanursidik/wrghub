@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Receipt,
   Search,
@@ -30,6 +30,7 @@ import {
   Scan
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
+import { useUrlTab } from '../../lib/use-url-tab';
 
 export type ReceiptSubTab = 'verify_receipt' | 'receipts_history' | 'request_receipt' | 'security_guarantee';
 
@@ -66,28 +67,14 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
   initialQuery = ''
 }) => {
   // Navigation State with URL synchronization
-  const [activeTab, setActiveTab] = useState<ReceiptSubTab>(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab') as ReceiptSubTab;
-      if (['verify_receipt', 'receipts_history', 'request_receipt', 'security_guarantee'].includes(tabParam)) {
-        return tabParam;
-      }
-    }
-    return initialTab;
-  });
-
-  const handleTabChange = (tab: ReceiptSubTab) => {
-    setActiveTab(tab);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
-      window.history.replaceState({}, '', url.toString());
-    }
-  };
+  const [activeTab, setActiveTab] = useUrlTab<ReceiptSubTab>(['verify_receipt', 'receipts_history', 'request_receipt', 'security_guarantee'], initialTab);
+  const handleTabChange = setActiveTab;
 
   // Pre-configured Official Receipts Database
-  const officialReceipts: OfficialReceipt[] = useMemo(() => [], []);
+  const [officialReceipts, setOfficialReceipts] = useState<OfficialReceipt[]>([]);
+  const [searchError, setSearchError] = useState('');
+  const [searching, setSearching] = useState(false);
+  const latestSearch = useRef(0);
 
   // Search & Validation State
   const [searchQuery, setSearchQuery] = useState(initialQuery || '');
@@ -113,20 +100,23 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
   const [reqError, setReqError] = useState('');
 
   // Handle Search Submission
-  const handlePerformSearch = (customQuery?: string) => {
+  const handlePerformSearch = async (customQuery?: string) => {
     const q = (customQuery !== undefined ? customQuery : searchQuery).trim().toUpperCase();
     if (!q) return;
 
     setSearched(true);
-    // Find match in official database
-    const found = officialReceipts.find(r => 
-      r.propertyCode.toUpperCase() === q ||
-      r.receiptNumber.toUpperCase().includes(q) ||
-      r.residentName.toUpperCase().includes(q) ||
-      r.refNumber.toUpperCase().includes(q)
-    );
-
-    setActiveReceipt(found || null);
+    setSearching(true); setSearchError(''); setActiveReceipt(null);
+    const searchId = ++latestSearch.current;
+    try {
+      const response = await fetch(`/api/receipts/verify?q=${encodeURIComponent(q)}`);
+      const payload = await response.json();
+      if (searchId !== latestSearch.current) return;
+      if (response.status === 404) return;
+      if (!response.ok) throw new Error(payload.error?.message || 'Validasi belum bisa dilakukan.');
+      setActiveReceipt(payload.data);
+      setOfficialReceipts([payload.data]);
+    } catch (error) { if (searchId === latestSearch.current) setSearchError(error instanceof Error ? error.message : 'Tidak bisa terhubung. Coba lagi.'); }
+    finally { if (searchId === latestSearch.current) setSearching(false); }
   };
 
   // Auto-search if initialQuery provided
@@ -169,13 +159,8 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
       setReqError('Nomor Unit Rumah, Nama Pemohon, dan No. WhatsApp wajib diisi.');
       return;
     }
-    setReqSubmitting(true);
     setReqError('');
-
-    setTimeout(() => {
-      setReqSubmitting(false);
-      setReqSuccessModal(true);
-    }, 600);
+    setReqSuccessModal(true);
   };
 
   return (
@@ -190,7 +175,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-bold tracking-tight">VALIDATOR RESMI KUITANSI DIGITAL (PAGUYUBAN WARGA RW 05)</span>
             <span className="hidden sm:inline opacity-40">•</span>
-            <span className="hidden sm:inline text-primary-200">Enkripsi Integritas Dokumen SHA-256</span>
+            <span className="hidden sm:inline text-primary-200">Cocokkan dengan pembayaran terverifikasi</span>
           </div>
           <div className="flex items-center gap-3 text-primary-200 font-mono text-[10px]">
             <span className="px-2 py-0.5 rounded bg-primary-900 text-emerald-300 font-bold border border-primary-800">
@@ -234,7 +219,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
 
         <button
           type="button"
-          onClick={() => handleTabChange('receipts_history')}
+          onClick={() => window.location.assign('/warga?tab=iuran')}
           className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'receipts_history'
               ? 'bg-primary-600 text-white shadow-xs'
@@ -296,7 +281,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
                 }`}
               >
                 <Scan className="w-4 h-4" />
-                <span>{scannerActive ? 'Matikan Simulator Scanner' : 'Simulasi Kamera Scan QR'}</span>
+                <span>{scannerActive ? 'Tutup panduan' : 'Panduan scan QR'}</span>
               </button>
             </div>
 
@@ -308,7 +293,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
                   <QrCode className="w-16 h-16 text-emerald-400/80" />
                 </div>
                 <p className="text-xs font-mono text-emerald-300 mt-3">
-                  Kamera aktif mendeteksi barcode kuitansi fisik...
+                  Gunakan kamera HP untuk membuka tautan QR kuitansi. Halaman ini tidak mengaktifkan kamera.
                 </p>
                 <div className="mt-3 flex items-center justify-center gap-2">
                   <button
@@ -316,12 +301,14 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
                     onClick={() => setScannerActive(false)}
                     className="px-3 py-1.5 bg-canvas/20 hover:bg-canvas/30 text-white font-bold text-xs rounded-xl transition-colors"
                   >
-                    Tutup Scanner
+                    Tutup panduan
                   </button>
                 </div>
               </div>
             )}
 
+            {searching && <p role="status" className="text-sm text-ink-muted">Memeriksa pembayaran…</p>}
+            {searchError && <p role="alert" className="text-sm text-red-800 bg-red-50 rounded-xl p-3">{searchError}</p>}
             {/* Search Input Form */}
             <form
               onSubmit={(e) => {
@@ -334,7 +321,8 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
                 <Search className="w-4 h-4 text-ink-muted absolute left-3.5 top-3" />
                 <input
                   type="text"
-                  placeholder="Ketik Nomor Unit (A-17, B-04) atau No Seri Kuitansi..."
+                  aria-label="Nomor kuitansi atau referensi pembayaran lengkap"
+                  placeholder="Nomor kuitansi atau referensi pembayaran lengkap"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
@@ -342,6 +330,7 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
               </div>
               <button
                 type="submit"
+                disabled={searching}
                 className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
               >
                 <Search className="w-3.5 h-3.5" />
@@ -947,9 +936,9 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
             </div>
 
             <div>
-              <h3 className="text-lg font-black text-ink">Permohonan Kuitansi Terkirim!</h3>
+              <h3 className="text-lg font-semibold text-ink">Tinjau permohonan kuitansi</h3>
               <p className="text-xs text-ink-muted mt-1 leading-relaxed">
-                Permohonan salinan kuitansi untuk unit <strong>{reqUnit}</strong> ({reqName}) periode <strong>{reqPeriod}</strong> telah diteruskan ke bendahara komplek.
+                Permohonan untuk <strong>{reqUnit}</strong> ({reqName}), periode <strong>{reqPeriod}</strong>, belum dikirim. Salin rincian dan sampaikan kepada bendahara.
               </p>
             </div>
 
@@ -965,16 +954,19 @@ export const ReceiptValidator: React.FC<ReceiptValidatorProps> = ({
             </div>
 
             <div className="pt-2 flex flex-col gap-2">
+              <button type="button" className="w-full py-3 bg-primary-600 text-white rounded-xl font-semibold text-sm" onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(`Permohonan kuitansi WargaHub\nUnit: ${reqUnit}\nNama: ${reqName}\nPeriode: ${reqPeriod}\nKeperluan: ${reqPurpose}\nWhatsApp: ${reqPhone}\nEmail: ${reqEmail}\nCatatan: ${reqNotes}`);
+                  setCopiedLink(true);
+                } catch { setReqError('Belum bisa menyalin. Salin rincian secara manual.'); }
+              }}>{copiedLink ? 'Permohonan disalin' : 'Salin permohonan'}</button>
+              {reqError && <p role="alert" className="text-sm text-red-700">{reqError}</p>}
               <a
-                href={`https://api.whatsapp.com/send?phone=6281234567802&text=${encodeURIComponent(
-                  `Halo Bendahara Komplek, saya mengajukan permohonan salinan kuitansi resmi via WargaHub:\n- Unit: ${reqUnit}\n- Nama: ${reqName}\n- Periode: ${reqPeriod}\n- Keperluan: ${reqPurpose}\nMohon dikirimkan filenya ke nomor ini. Terima kasih.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                href="/login?tab=security_faq"
+                className="w-full py-2.5 text-primary-700 font-semibold text-sm rounded-xl transition-colors flex items-center justify-center gap-1.5"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Hubungi Bendahara via WhatsApp</span>
+                <span>Lihat panduan kontak pengurus</span>
               </a>
 
               <button

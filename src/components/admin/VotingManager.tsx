@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
 import {
   Vote,
   Users,
@@ -212,10 +213,8 @@ export const VotingManager: React.FC<VotingManagerProps> = ({ initialTab = 'elec
   }, [voters]);
 
   // Active Subtab matching query parameter
-  const validTabs = ['election', 'polls', 'voters', 'regulations'];
-  const [activeSubTab, setActiveSubTab] = useState<'election' | 'polls' | 'voters' | 'regulations'>(
-    validTabs.includes(initialTab) ? (initialTab as any) : 'election'
-  );
+  const validTabs = ['election', 'polls', 'voters', 'regulations'] as const;
+  const [activeSubTab, setActiveSubTab] = useUrlTab(validTabs, validTabs.includes(initialTab as any) ? initialTab as typeof validTabs[number] : 'election');
 
   // Filters & State for Polls Subtab
   const [pollSearchTerm, setPollSearchTerm] = useState('');

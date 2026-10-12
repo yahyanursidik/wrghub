@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { deleteLedgerEntry } from '../../../services/finance.service';
+import { deleteManualLedgerEntry } from '../../../services/manual-ledger.service';
 import { recordAuditLog } from '../../../services/audit.service';
+import { authorizeApi, financeEditors } from '../../../lib/api-authorization';
 
 const deleteLedgerSchema = z.object({
   id: z.string().optional(),
@@ -11,7 +12,10 @@ const deleteLedgerSchema = z.object({
   reason: z.string().optional(),
 });
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async (context) => {
+  const authorization = await authorizeApi(context, financeEditors);
+  if (authorization.response) return authorization.response;
+  const { request } = context;
   try {
     const body = await request.json();
     const validated = deleteLedgerSchema.parse(body);
@@ -22,7 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Delete from Neon / SQLite database and reverse balance
-    await deleteLedgerEntry(targetId);
+    const result = await deleteManualLedgerEntry(targetId);
 
     if (process.env.DATABASE_URL) {
       await recordAuditLog({
@@ -45,6 +49,7 @@ export const POST: APIRoute = async ({ request }) => {
         data: {
           success: true,
           id: targetId,
+          ids: result.ids,
           message: `Entri jurnal ${targetId} berhasil dibatalkan / dihapus.`
         },
         meta: {},

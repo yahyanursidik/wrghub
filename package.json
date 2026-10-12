@@ -11,7 +11,14 @@
     "prisma:generate": "prisma generate",
     "prisma:pull": "prisma db pull",
     "prisma:studio": "prisma studio",
-    "prisma:test": "tsx scripts/test-prisma.ts"
+    "prisma:test": "tsx scripts/test-prisma.ts",
+    "test:ui": "node scripts/run-ui-audit.mjs",
+    "test:security": "node scripts/run-ui-audit.mjs --security-only",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "audit:navigation": "node scripts/audit-navigation.mjs",
+    "test:ledger": "node --import tsx scripts/test-ledger-integrity.ts",
+    "test:authorization": "node --import tsx scripts/test-api-authorization.ts",
+    "test:access": "node --import tsx scripts/test-access-policy.ts"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.4",

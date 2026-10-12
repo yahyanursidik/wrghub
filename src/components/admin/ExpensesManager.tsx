@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
 import {
   FileMinus,
   Plus,
@@ -127,9 +128,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
 }) => {
   const [expenses, setExpenses] = useState<ExpenseItem[]>(initialExpenses);
   const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
-  const [activeSubTab, setActiveSubTab] = useState<
-    'expenses_list' | 'recurring_expenses' | 'staff_loans' | 'social_aid' | 'fasum_projects'
-  >('expenses_list');
+  const [activeSubTab, setActiveSubTab] = useUrlTab(['expenses_list', 'recurring_expenses', 'staff_loans', 'social_aid', 'fasum_projects'] as const, 'expenses_list');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'amount' | 'category'>('date');
@@ -698,16 +697,15 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-black tracking-tight text-ink flex items-center gap-2">
-              <TrendingDown className="w-6 h-6 text-rose-600" />
-              Pengeluaran, Kasbon & Pemeliharaan Fasum
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">
+              Pengeluaran
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black border border-rose-200 tabular-nums">
-              Kas Operasional: {formatRupiah(currentBalance)}
+              Saldo kas: {formatRupiah(currentBalance)}
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1">
-            Pusat pengelolaan belanja operasional, <strong>Kasbon & Pinjaman Petugas Satpam/Kebersihan</strong>, <strong>Dana Santunan Sosial & Kesehatan</strong>, serta <strong>Proyek Cat Komplek & Perbaikan Peralatan</strong>.
+            Catat belanja, kelola pengeluaran rutin, dan simpan bukti transaksi.
           </p>
         </div>
 
@@ -718,15 +716,15 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
           >
             <Download className="w-4 h-4 text-rose-600" />
-            <span>Ekspor Mutasi (CSV)</span>
+            <span>Ekspor CSV</span>
           </button>
           <button
             type="button"
             onClick={handleOpenAddExpense}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-all"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>Catat Pengeluaran Baru</span>
+            <span>Catat pengeluaran</span>
           </button>
           {activeSubTab === 'staff_loans' && (
             <button
@@ -775,14 +773,14 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end shrink-0">
           <button
             type="button"
             onClick={handleCopyPublicLink}
             className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-            <span>Salin Link Publik</span>
+            <span>Salin tautan</span>
           </button>
           <a
             href={publicTransparencyUrl}
@@ -791,7 +789,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
             className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
           >
             <ExternalLink className="w-4 h-4" />
-            <span>Buka Transparansi</span>
+            <span>Lihat laporan</span>
           </a>
         </div>
       </div>
@@ -799,18 +797,19 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
       {/* 6 Sub-Tabs Navigation Bar */}
       <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
         {[
-          { id: 'expenses_list', label: 'Buku Pengeluaran & Nota Belanja', icon: FileText, count: `${expenses.length} Pos` },
-          { id: 'recurring_expenses', label: '⚙️ Setting Pengeluaran Rutin (Auto-Debit)', icon: Repeat },
-          { id: 'staff_loans', label: 'Kasbon & Pinjaman Petugas (Satpam)', icon: Banknote, count: `${staffLoans.length} Petugas` },
-          { id: 'social_aid', label: 'Dana Santunan & Kesehatan Petugas', icon: HeartHandshake, count: `${socialAids.length} Agenda` },
-          { id: 'fasum_projects', label: 'Dana Cat Komplek & Perbaikan Alat', icon: Paintbrush, count: `${maintenanceProjects.length} Proyek` },
+          { id: 'expenses_list', label: 'Transaksi', icon: FileText, count: `${expenses.length}` },
+          { id: 'recurring_expenses', label: 'Pengeluaran rutin', icon: Repeat },
+          { id: 'staff_loans', label: 'Kasbon', icon: Banknote, count: `${staffLoans.length}` },
+          { id: 'social_aid', label: 'Santunan', icon: HeartHandshake, count: `${socialAids.length}` },
+          { id: 'fasum_projects', label: 'Pemeliharaan', icon: Paintbrush, count: `${maintenanceProjects.length}` },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveSubTab(tab.id as any)}
+               onClick={() => tab.id === 'staff_loans' ? window.location.assign('/admin/staff-loans') : setActiveSubTab(tab.id as any)}
+               aria-pressed={isActive}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-[0.98] ${
                 isActive
                   ? 'bg-slate-900 text-white shadow-2xs'

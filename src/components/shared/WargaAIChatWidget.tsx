@@ -16,6 +16,7 @@ import {
   Maximize2,
   ArrowLeftRight,
 } from 'lucide-react';
+import { ModalDialog } from './ModalDialog';
 
 interface ChatMessage {
   id: string;
@@ -33,7 +34,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(true);
   const [dockSide, setDockSide] = useState<'right' | 'left'>('right');
   const [bottomPos, setBottomPos] = useState<number>(100);
 
@@ -169,6 +170,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
       });
 
       const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || 'Bantuan belum bisa membaca data.');
       if (json.data) {
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
@@ -180,7 +182,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
         setMessages((prev) => [...prev, aiMsg]);
       }
     } catch (err) {
-      console.error(err);
+      setMessages(previous => [...previous, { id: `error-${Date.now()}`, sender: 'ai', text: err instanceof Error ? err.message : 'Bantuan belum tersedia. Coba lagi.', time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }]);
     } finally {
       setLoading(false);
     }
@@ -203,30 +205,21 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
         >
           {isMinimized ? (
             /* Minimized Mode: Compact circular icon */
-            <div
+            <button type="button" aria-label="Buka bantuan Warga AI" aria-haspopup="dialog"
+              onClick={() => { if (!hasMovedRef.current) setIsOpen(true); }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               title="Tanya Warga AI (Klik untuk buka, seret vertikal untuk pindah posisi)"
-              className="relative group cursor-grab active:cursor-grabbing p-3 bg-primary-600 hover:bg-primary-700 active:scale-95 text-surface rounded-2xl shadow-xl border border-primary-500 flex items-center justify-center transition-transform touch-none"
+              className="relative group cursor-grab active:cursor-grabbing p-3 bg-primary-600 hover:bg-primary-700 text-surface rounded-2xl shadow-card-hover flex items-center justify-center touch-none"
             >
-              <Sparkles className="w-5 h-5 text-surface animate-pulse" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-primary-600 animate-ping" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-primary-600" />
-
-              {/* Expand Toggle */}
-              <button
-                type="button"
-                onClick={toggleMinimized}
-                title="Buka Tampilan Penuh"
-                className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-surface text-ink border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-xs"
-              >
-                <Maximize2 className="w-2.5 h-2.5" />
-              </button>
-            </div>
+              <MessageSquare className="w-5 h-5 text-surface" />
+            </button>
           ) : (
             /* Full Pill Mode */
             <div
+              role="button" tabIndex={0} aria-label="Buka bantuan Warga AI" aria-haspopup="dialog"
+              onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setIsOpen(true); } }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
@@ -278,11 +271,8 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
 
       {/* Floating Chat Modal */}
       {isOpen && (
-        <div
-          className={`fixed bottom-5 z-50 w-[92vw] sm:w-[380px] h-[520px] bg-surface rounded-3xl border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 ${
-            dockSide === 'right' ? 'right-4 sm:right-6' : 'left-4 sm:left-6'
-          }`}
-        >
+        <ModalDialog open={isOpen} onClose={() => setIsOpen(false)} label="Bantuan Warga AI" className={`chat-dialog ${dockSide === 'left' ? 'dock-left' : ''}`}>
+        <div className="h-[min(520px,72dvh)] flex flex-col overflow-hidden">
           {/* Chat Header */}
           <div className="p-4 bg-primary-600 text-surface flex items-center justify-between shadow-xs shrink-0">
             <div className="flex items-center gap-3">
@@ -291,14 +281,14 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
               </div>
               <div>
                 <h3 className="font-bold text-sm leading-tight flex items-center gap-1.5">
-                  Warga AI
-                  <span className="px-1.5 py-0.2 bg-emerald-400/30 text-emerald-100 text-[10px] rounded font-semibold">Aktif</span>
+                  Bantuan Warga AI
                 </h3>
                 <p className="text-[11px] text-surface/80">Asisten Cerdas Komplek Grand Sariwangi</p>
               </div>
             </div>
 
             <div className="flex items-center gap-1">
+              <button type="button" onClick={toggleMinimized} className="p-2 hover:bg-white/20 rounded-xl" aria-label={isMinimized ? 'Gunakan tombol bantuan lengkap' : 'Gunakan tombol bantuan ringkas'}>{isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}</button>
               <button
                 type="button"
                 onClick={toggleDockSide}
@@ -310,6 +300,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
+                aria-label="Tutup bantuan"
                 className="p-1.5 hover:bg-white/20 rounded-xl transition-colors text-surface"
               >
                 <X className="w-5 h-5" />
@@ -318,7 +309,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
           </div>
 
           {/* Messages Container */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-canvas/40 text-xs">
+          <div role="log" aria-label="Percakapan bantuan" aria-live="polite" className="flex-1 p-4 overflow-y-auto space-y-3 bg-canvas/40 text-sm">
             {messages.map((m) => (
               <div
                 key={m.id}
@@ -390,6 +381,8 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
           <form onSubmit={handleSubmit} className="p-3 bg-surface border-t border-border flex items-center gap-2 shrink-0">
             <input
               type="text"
+              aria-label="Pesan untuk Warga AI"
+              autoFocus
               placeholder="Tanyakan sesuatu ke Warga AI..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -397,6 +390,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
             />
             <button
               type="submit"
+              aria-label="Kirim pesan"
               disabled={loading || !inputText.trim()}
               className="p-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-surface rounded-xl shadow-xs transition-colors"
             >
@@ -404,6 +398,7 @@ export const WargaAIChatWidget: React.FC<WargaAIChatWidgetProps> = ({ currentPro
             </button>
           </form>
         </div>
+        </ModalDialog>
       )}
     </>
   );

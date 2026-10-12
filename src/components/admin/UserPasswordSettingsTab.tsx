@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { apiErrorMessage } from '../../lib/api-error';
 import {
   KeyRound,
   Search,
@@ -128,7 +129,8 @@ export const UserPasswordSettingsTab: React.FC = () => {
 
   // 1-Click Copy Credential
   const handleCopyCredential = (u: UserItem) => {
-    const pwd = u.passwordHash || 'warga123';
+    const pwd = u.passwordHash;
+    if (!pwd) { showToast('Kata sandi lama tidak dapat dibaca. Tetapkan kata sandi baru untuk membagikan akses.'); return; }
     const text = `Username: ${u.username} | Password: ${pwd} (Unit: ${u.propertyCode || '-'}, Nama: ${u.fullName})`;
     navigator.clipboard.writeText(text);
     setCopiedCredentialId(u.id);
@@ -160,7 +162,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
         setUsers(prev => prev.map(item => item.id === u.id ? { ...item, passwordHash: 'warga123' } : item));
         showToast(`✓ Password ${targetName} berhasil di-reset ke default "warga123"`);
       } else {
-        showToast(json.error || 'Gagal mereset password.');
+        showToast(apiErrorMessage(json.error, 'Gagal mereset password.'));
       }
     } catch (e) {
       showToast('Terjadi kesalahan jaringan.');
@@ -240,7 +242,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
   // Open Edit Password Modal
   const handleOpenEditModal = (user: UserItem) => {
     setSelectedUser(user);
-    setNewPassword(user.passwordHash || 'warga123');
+    setNewPassword('');
     setShowPasswordText(false);
     setShowEditModal(true);
     setCopiedWa(false);
@@ -274,7 +276,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
         setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, passwordHash: newPassword } : u));
         setSelectedUser(prev => prev ? { ...prev, passwordHash: newPassword } : null);
       } else {
-        showToast(json.error || 'Gagal memperbarui password.');
+        showToast(apiErrorMessage(json.error, 'Gagal memperbarui password.'));
       }
     } catch (err) {
       showToast('Terjadi kesalahan jaringan.');
@@ -323,7 +325,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
         setCreatePassword('warga123');
         fetchUsers();
       } else {
-        showToast(json.error || 'Gagal membuat akun.');
+        showToast(apiErrorMessage(json.error, 'Gagal membuat akun.'));
       }
     } catch (err) {
       showToast('Terjadi gangguan koneksi server.');
@@ -352,7 +354,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
         setShowBulkResetModal(false);
         fetchUsers();
       } else {
-        showToast(json.error || 'Gagal melakukan reset massal.');
+        showToast(apiErrorMessage(json.error, 'Gagal melakukan reset massal.'));
       }
     } catch (err) {
       showToast('Terjadi kesalahan jaringan.');
@@ -675,7 +677,7 @@ export const UserPasswordSettingsTab: React.FC = () => {
                 filteredUsers.map((u) => {
                   const isKavling = (u.propertyCode || '').toUpperCase().startsWith('KAV');
                   const isPwdVisible = !!visiblePasswords[u.id];
-                  const currentPassword = u.passwordHash || 'warga123';
+                  const currentPassword = u.passwordHash || 'Tidak ditampilkan';
                   const isResetting = resettingId === u.id;
 
                   return (

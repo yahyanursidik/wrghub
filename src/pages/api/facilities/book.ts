@@ -2,16 +2,17 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { neonSql } from '../../../db/neon';
 import { recordAuditLog } from '../../../services/audit.service';
+import { db, schema } from '../../../db';
 
 const bookingSchema = z.object({
-  facilityId: z.string(),
+  facilityId: z.string().min(1),
   facilityName: z.string(),
   propertyId: z.string().optional(),
   residentName: z.string(),
-  date: z.string(),
-  startTime: z.string(),
-  endTime: z.string(),
-  purpose: z.string(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  purpose: z.string().min(3),
   contactPhone: z.string().optional(),
 });
 
@@ -19,21 +20,23 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
     const validated = bookingSchema.parse(body);
+    if (validated.endTime <= validated.startTime) throw new Error('Waktu selesai harus setelah waktu mulai.');
     const id = `maint-${Date.now()}`;
 
     if (process.env.DATABASE_URL) {
       // Find facility ID in Neon
-      let targetFacId = 'fac-3'; // Default to Balai Warga & Lapangan
+      let targetFacId = '';
       try {
         const facs = await neonSql`
-          SELECT id FROM facilities WHERE id = ${validated.facilityId} OR LOWER(name) LIKE ${'%' + validated.facilityName.toLowerCase() + '%'} LIMIT 1
+          SELECT id FROM facilities WHERE id = ${validated.facilityId} LIMIT 1
         `;
         if (facs.length) {
           targetFacId = facs[0].id;
         }
       } catch (e) {
-        console.warn('Facility lookup error:', e);
+        throw new Error('Fasilitas belum bisa diperiksa. Coba lagi.');
       }
+      if (!targetFacId) throw new Error('Fasilitas tidak ditemukan. Pilih fasilitas yang tercatat.');
 
       await neonSql`
         INSERT INTO maintenance_requests (
@@ -64,10 +67,10 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({ data: { message: 'Booking berhasil diajukan.' } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
+    const facilities = await db.select().from(schema.facilities);
+    if (!facilities.some(facility => facility.id === validated.facilityId)) throw new Error('Fasilitas tidak ditemukan.');
+    await db.insert(schema.maintenanceRequests).values({ id, facilityId: validated.facilityId, title: `Reservasi: ${validated.facilityName} (${validated.date})`, description: `Waktu: ${validated.startTime} - ${validated.endTime} WIB | Keperluan: ${validated.purpose} | Kontak: ${validated.contactPhone || '-'}`, costEstimate: 0, actualCost: 0, status: 'PLANNED', scheduledDate: validated.date, performedBy: validated.residentName });
+    return Response.json({ data: { id, message: 'Pemesanan diajukan untuk ditinjau pengurus.' }, error: null }, { status: 201 });
   } catch (err: any) {
     return new Response(
       JSON.stringify({

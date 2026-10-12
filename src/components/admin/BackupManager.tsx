@@ -1,117 +1,36 @@
 import React, { useState } from 'react';
-import { Database, Download, ShieldCheck, CheckCircle2, FileText, Server, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Database, Download, ArrowUpRight } from 'lucide-react';
+import { apiFetch } from '../../lib/api-fetch';
 
 export const BackupManager: React.FC = () => {
   const [downloading, setDownloading] = useState(false);
-  const [lastBackupTime, setLastBackupTime] = useState('28 Agustus 2026, 21:55 WIB');
-
-  const handleDownloadBackup = async () => {
-    setDownloading(true);
+  const [lastExport, setLastExport] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const download = async () => {
+    if (downloading) return;
+    setDownloading(true); setError('');
     try {
-      window.location.href = '/api/backup/export';
-      setTimeout(() => {
-        setDownloading(false);
-        setLastBackupTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB (Hari ini)');
-      }, 1500);
-    } catch (err) {
-      console.error(err);
-      setDownloading(false);
-    }
+      const response = await apiFetch('/api/backup/export');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = `wargahub-snapshot-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setLastExport(new Date().toLocaleString('id-ID'));
+    } catch { setError('Ekspor belum berhasil. Coba lagi.'); }
+    finally { setDownloading(false); }
   };
 
-  return (
-    <div className="space-y-6 max-w-4xl">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink flex items-center gap-2">
-            <Database className="w-6 h-6 text-primary-600" />
-            Pencadangan & Serah Terima Pengurus
-          </h1>
-          <p className="text-sm text-ink-muted mt-1">
-            Ekspor arsip cadangan database komplek dan paket dokumen serah terima kepengurusan RT/RW (*Handover Package*).
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleDownloadBackup}
-          disabled={downloading}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-surface text-xs font-bold rounded-xl shadow-xs transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          {downloading ? 'Menyiapkan Arsip...' : 'Unduh Backup Lengkap (.JSON)'}
-        </button>
-      </div>
-
-      {/* Backup Status Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-1">
-          <span className="text-xs font-semibold text-ink-muted">Pencadangan Terakhir</span>
-          <p className="text-base font-bold text-ink">{lastBackupTime}</p>
-          <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Terverifikasi Aman
-          </span>
-        </div>
-
-        <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-1">
-          <span className="text-xs font-semibold text-ink-muted">Entitas Terproteksi</span>
-          <p className="text-base font-bold text-ink">34 Tabel Relasional</p>
-          <span className="text-[11px] text-ink-muted">120 Rumah, 240+ Invoice, Kas Paguyuban</span>
-        </div>
-
-        <div className="p-5 bg-surface rounded-2xl border border-border shadow-card space-y-1">
-          <span className="text-xs font-semibold text-ink-muted">Penyimpanan Cloud</span>
-          <p className="text-base font-bold text-primary-700">Neon PostgreSQL Cloud</p>
-          <span className="text-[11px] text-emerald-700 font-semibold">Tersinkronisasi Otomatis</span>
-        </div>
-      </div>
-
-      {/* Handover Protocol Checklist */}
-      <div className="p-6 bg-surface rounded-2xl border border-border shadow-card space-y-4 text-xs">
-        <div className="border-b border-border pb-3">
-          <h3 className="font-bold text-sm text-ink flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary-600" />
-            Checklist Serah Terima Kepengurusan RT/RW (*Handover Package*)
-          </h3>
-          <p className="text-ink-muted mt-0.5">Panduan penyerahan berkas dan akun sistem kepada kepengurusan periode baru.</p>
-        </div>
-
-        <div className="space-y-3">
-          {[
-            {
-              title: '1. Unduh Berkas Arsip Basis Data (JSON Dump)',
-              desc: 'Gunakan tombol unduh di atas untuk menyimpan salinan offline seluruh histori transaksi dan data warga.',
-              status: 'READY',
-            },
-            {
-              title: '2. Rekonsiliasi Saldo Kas Bank & Buku Kas',
-              desc: 'Pastikan saldo akhir buku kas sama persis dengan saldo rekening koran penampung resmi iuran (Bank Syariah / Bank Nasional / E-Wallet).',
-              status: 'VERIFIED',
-            },
-            {
-              title: '3. Pembaruan Akun & Kredensial Administrator',
-              desc: 'Serahkan hak akses ketua komplek & bendahara melalui menu Pengaturan Pengguna.',
-              status: 'READY',
-            },
-            {
-              title: '4. Ekspor Arsip Laporan Keuangan Semesteran (PDF)',
-              desc: 'Cetak dan tanda tangani LPJ Keuangan yang telah diaudit di menu Arsip & Dokumen.',
-              status: 'READY',
-            },
-          ].map((item, idx) => (
-            <div key={idx} className="p-3.5 bg-canvas rounded-xl flex items-start justify-between gap-3">
-              <div className="space-y-0.5">
-                <h4 className="font-bold text-ink text-xs">{item.title}</h4>
-                <p className="text-ink-muted leading-relaxed text-[11px]">{item.desc}</p>
-              </div>
-              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200 shrink-0">
-                {item.status}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  return <section className="space-y-6 max-w-4xl">
+    <div className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">Cadangan & ekspor data</h1><p className="text-sm text-ink-muted mt-2">Unduh snapshot operasional untuk pemeriksaan dan serah terima pengurus.</p></div><button disabled={downloading} onClick={download} className="flex items-center gap-2 px-4 py-3 rounded-xl bg-primary-600 text-white text-sm font-semibold disabled:opacity-60"><Download size={18} />{downloading ? 'Menyiapkan…' : 'Unduh snapshot'}</button></div>
+    {error && <p role="alert" className="text-red-800 bg-red-50 p-4 rounded-xl text-sm">{error}</p>}
+    <div className="bg-surface border border-border rounded-2xl p-6 space-y-4"><div className="flex items-center gap-3"><Database size={23} className="text-primary-700" /><h2 className="font-semibold">Apa yang diekspor?</h2></div><p className="text-sm text-ink-muted leading-relaxed">Data rumah, tagihan, buku kas, aduan, fasilitas, pengumuman, aktivitas, dan pengaturan. Snapshot dibatasi hingga 500 baris per tabel operasional, 100 aktivitas, dan 50 pengaturan.</p><p className="text-sm font-medium text-ink">Ini bukan backup penuh database dan belum bisa dipulihkan otomatis. Berkas lampiran serta akun pengguna tidak termasuk.</p><p role="status" className="text-sm text-ink-muted">{lastExport ? `Ekspor terakhir pada sesi ini: ${lastExport}` : 'Belum ada ekspor pada sesi ini.'}</p></div>
+    <div className="bg-surface border border-border rounded-2xl divide-y divide-border">{[
+      { label: 'Periksa saldo dan rekonsiliasi kas', href: '/admin/ledger?tab=bank_reconciliation' },
+      { label: 'Kelola akun warga', href: '/admin/passwords' },
+      { label: 'Periksa laporan keuangan', href: '/admin/analytics' },
+      { label: 'Buka arsip dokumen serah terima', href: '/admin/documents' },
+    ].map(item => <a key={item.href} href={item.href} className="p-5 flex items-center justify-between gap-3 text-sm font-medium hover:bg-primary-50"><span>{item.label}</span><ArrowUpRight size={18} className="text-primary-700 shrink-0" /></a>)}</div>
+  </section>;
 };

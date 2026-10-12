@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   PlusCircle,
   Send,
@@ -147,7 +149,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   allPeriods = [],
   initialBalance = 2865000,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'annual_matrix' | 'tariffs' | 'batch'>('invoices');
+  const [activeSubTab, setActiveSubTab] = useUrlTab(['invoices', 'annual_matrix', 'tariffs', 'batch'] as const, 'invoices');
   const [invoices, setInvoices] = useState<InvoiceItem[]>(initialInvoices || []);
   const [progress, setProgress] = useState<BillingProgress>(initialProgress);
   const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
@@ -1029,7 +1031,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     const newStatus = inv.status === 'PAID' ? 'UNPAID' : 'PAID';
     const newPaidAt = newStatus === 'PAID' ? new Date().toISOString().slice(0, 10) : null;
     try {
-      await fetch('/api/billing/invoices/update', {
+      await apiFetch('/api/billing/invoices/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

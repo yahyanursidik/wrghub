@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import {
   Sparkles,
   Truck,
@@ -235,7 +237,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   );
 
   // Navigation Subtabs
-  const [activeSubTab, setActiveSubTab] = useState<'staff_roster' | 'routes_schedule' | 'daily_checklist' | 'equipment_inventory' | 'citizen_tickets'>('staff_roster');
+  const [activeSubTab, setActiveSubTab] = useUrlTab(['staff_roster', 'routes_schedule', 'daily_checklist', 'equipment_inventory', 'citizen_tickets'] as const, 'staff_roster');
 
   // Filters & State for Staff Roster
   const [searchTerm, setSearchTerm] = useState('');
@@ -394,7 +396,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     setIsSaving(true);
     try {
       if (editingStaffId) {
-        await fetch('/api/cleaning/staff/update', {
+        await apiFetch('/api/cleaning/staff/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -408,7 +410,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
             status: formStatus,
             notes: formNotes,
           })
-        }).catch(() => {});
+        });
 
         const updated = staffList.map(s => {
           if (s.id === editingStaffId) {
@@ -434,7 +436,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
         showToast(`Profil staf ${formName} berhasil diperbarui.`);
         setShowAddStaffModal(false);
       } else {
-        await fetch('/api/cleaning/staff/create', {
+        await apiFetch('/api/cleaning/staff/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -446,7 +448,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
             employmentStatus: formEmpStatus,
             notes: formNotes,
           })
-        }).catch(() => {});
+        });
 
         const newId = `CLN-${Date.now().toString().slice(-4)}`;
         const newStaff: CleaningStaff = {
@@ -482,11 +484,11 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   const handleConfirmDeleteStaff = async () => {
     if (!staffToDelete) return;
     try {
-      await fetch('/api/cleaning/staff/delete', {
+      await apiFetch('/api/cleaning/staff/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: staffToDelete.id, name: staffToDelete.name })
-      }).catch(() => {});
+      });
 
       const updated = staffList.filter(s => s.id !== staffToDelete.id);
       setStaffList(updated);
@@ -504,11 +506,11 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     if (selectedStaffIds.length === 0) return;
     setBulkProcessing(true);
     try {
-      await fetch('/api/cleaning/staff/delete', {
+      await apiFetch('/api/cleaning/staff/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedStaffIds })
-      }).catch(() => {});
+      });
 
       const updated = staffList.filter(s => !selectedStaffIds.includes(s.id));
       setStaffList(updated);
@@ -562,7 +564,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     e.preventDefault();
     setIsSaving(true);
     try {
-      await fetch('/api/cleaning/routes/create', {
+      await apiFetch('/api/cleaning/routes/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -573,7 +575,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
           assignedStaffNames: [routeStaff],
           vehicleUsed: routeVehicle
         })
-      }).catch(() => {});
+      });
 
       const newRoute: WasteRouteSchedule = {
         id: `RTE-${(routes.length + 1).toString().padStart(2, '0')}`,
@@ -624,7 +626,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     e.preventDefault();
     setIsSaving(true);
     try {
-      await fetch('/api/cleaning/tasks/create', {
+      await apiFetch('/api/cleaning/tasks/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -634,7 +636,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
           assignedTo: taskAssignedTo,
           notes: taskNotes
         })
-      }).catch(() => {});
+      });
 
       const newTask: DailyCleaningTask = {
         id: `TSK-${(dailyTasks.length + 1).toString().padStart(2, '0')}`,
@@ -667,7 +669,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     e.preventDefault();
     setIsSaving(true);
     try {
-      await fetch('/api/cleaning/equipment/create', {
+      await apiFetch('/api/cleaning/equipment/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -679,7 +681,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
           picName: eqPicName,
           notes: eqNotes
         })
-      }).catch(() => {});
+      });
 
       const newEq: CleaningEquipment = {
         id: `EQ-${(equipmentList.length + 1).toString().padStart(2, '0')}`,
@@ -715,7 +717,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     e.preventDefault();
     setIsSaving(true);
     try {
-      await fetch('/api/cleaning/tickets/create', {
+      await apiFetch('/api/cleaning/tickets/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -725,7 +727,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
           description: ticketDesc,
           assignedStaffName: ticketStaff
         })
-      }).catch(() => {});
+      });
 
       const newTicket: CleaningTicket = {
         id: `TCK-${Date.now().toString().slice(-4)}`,
