@@ -1,7 +1,8 @@
 import { receiptNumber } from '../lib/receipt-number';
 import type { UserSession } from '../types/auth';
 import { getProperties, type PropertyListItem } from './property.service';
-import { getAllInvoices, getBillingPeriods } from './billing.service';
+import { getInvoices, getBillingPeriods } from './billing.service';
+import { invoiceCollected, invoiceRemaining, type TariffComponent } from '../lib/billing-data';
 import { getPayments } from './payment.service';
 import { getInitialResidents, getInitialVehicles, getInitialPermits } from './property-submodules.service';
 import { getComplaints, type ComplaintItem } from './complaint.service';
@@ -15,7 +16,10 @@ export interface ResidentInvoice {
   status: 'paid' | 'pending' | 'upcoming' | 'waived'; paidAt: string | null;
   inv: string; billingPeriodId: string; amount: number; remaining: number;
   dueDate: string; method: string; reference: string;
-  receipts?: {id:string; number:string; amount:number; paidAt:string; method:string; reference:string}[];
+  paidAmount?: number;
+  awaitingVerification?: boolean;
+  items?: TariffComponent[];
+  receipts?: {id:string; number:string; amount:number; paidAt:string; method:string; reference:string; accountName?:string}[];
 }
 export interface ResidentOverview {
   property: PropertyListItem | null;
@@ -33,26 +37,26 @@ export async function getResidentOverview(user: UserSession): Promise<ResidentOv
   const property = properties.find(property => user.propertyId ? property.id === user.propertyId : property.code.toLowerCase() === user.propertyCode?.toLowerCase());
   if (!property) return { ...emptyResidentOverview };
   const [invoices, periods, payments, occupants, vehicles, permits, complaints, facilities, profile, bookings] = await Promise.all([
-    getAllInvoices(), getBillingPeriods(), getPayments(undefined, 'VERIFIED', property.id),
+    getInvoices('ALL',{details:true,propertyId:property.id}), getBillingPeriods(), getPayments(undefined, 'VERIFIED', property.id),
     getInitialResidents(property.id), getInitialVehicles(property.id), getInitialPermits(property.id), getComplaints(property.id), getFacilities(), getCommunityProfile(),
     getFacilityBookings(property.id),
   ]);
   const scopedInvoices = invoices.filter(invoice => invoice.propertyId === property.id && !['VOID','CANCELLED'].includes(invoice.status)).map(invoice => {
     const period = periods.find(period => period.id === invoice.billingPeriodId);
-    const name = period?.name || ('billingPeriodName' in invoice ? String(invoice.billingPeriodName) : invoice.billingPeriodId);
+    const name = period?.name || invoice.billingPeriodName || invoice.billingPeriodId;
     const uniquePeriod = invoices.filter(item => item.propertyId === property.id && item.billingPeriodId === invoice.billingPeriodId).length === 1;
     const related = payments.filter(payment => payment.invoiceId === invoice.id || (!payment.invoiceId && uniquePeriod && payment.billingPeriodId === invoice.billingPeriodId));
     const payment = related[0];
     const receipts = related.map(item => ({ id:item.id, number:receiptNumber(name,property.code,item.id), amount:item.amount,
-      paidAt:new Date(item.paidAt).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), method:item.method, reference:item.reference || '-' }));
+      paidAt:item.paidAt,method:item.method,reference:item.reference || '-',accountName:item.accountName || undefined }));
     return {
       id: invoice.id, code: invoice.id, shortLabel: name,
       name, status: invoice.status === 'WAIVED' ? 'waived' as const : invoice.status === 'PAID' ? 'paid' as const : 'pending' as const,
-      paidAt: invoice.paidAt ? new Date(invoice.paidAt).toLocaleString('id-ID') : null,
+      paidAt: invoice.paidAt,
       inv: invoice.invoiceNumber, billingPeriodId: invoice.billingPeriodId,
-      amount: Number(invoice.total), remaining: invoice.status === 'WAIVED' ? 0 : Math.max(0, Number(invoice.total) - Number(invoice.paidAmount)),
-      dueDate: invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('id-ID') : '-',
-      method: payment?.method || '-', reference: payment?.reference || '-', receipts,
+      amount: invoice.total, remaining: invoiceRemaining(invoice),paidAmount:invoiceCollected(invoice),
+      awaitingVerification:Boolean(invoice.pendingPaymentId),items:invoice.items,
+      dueDate: invoice.dueDate, method: payment?.method || '-', reference: payment?.reference || '-', receipts,
     };
   }).reverse();
   return {

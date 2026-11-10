@@ -2,14 +2,41 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { LedgerManager } from '../../components/admin/LedgerManager';
 import { getLedgerEntries, getAccounts } from '../../services/finance.service';
+import { financeDate, financePath } from '../../lib/billing-data';
+import { formatRupiah } from '../../lib/format';
+import { canManageFinance } from '../../lib/access-policy';
+import type { UserSession } from '../../types/auth';
 
-const [entries, accounts] = await Promise.all([
-  getLedgerEntries(500).catch(() => []),
-  getAccounts().catch(() => []),
-]);
 const tab = Astro.url.searchParams.get('tab') || 'ledger_list';
+const payment = tab === 'ledger_list' ? Astro.url.searchParams.get('payment')?.slice(0,64) || '' : '';
+const actor = await Astro.session?.get('wargahub_user') as UserSession | undefined;
+if (!actor) return Astro.redirect('/login?portal=admin');
+const canViewPayments = canManageFinance(actor.role);
+const data = await Promise.all([getLedgerEntries(payment ? 25 : 500, payment || undefined),payment ? [] : getAccounts()])
+  .then(([entries,accounts])=>({entries,accounts})).catch(()=>null);
+if (!data) Astro.response.status = 503;
 ---
 
 <AdminLayout title="Buku Kas & Ledger - WargaHub" currentPath="/admin/ledger">
-  <LedgerManager accounts={accounts as any} entries={entries as any} initialTab={tab as any} client:load />
+  {!data ? <section class="workspace-panel" role="alert">
+    <h1 class="text-xl font-bold">Buku kas</h1><p class="mt-2 text-sm text-ink-muted">Data buku kas belum dapat dimuat.</p>
+    <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname + Astro.url.search} data-astro-reload>Coba lagi</a>
+  </section> : payment ? <section class="workspace" aria-label="Jurnal pembayaran">
+    <header class="workspace-heading"><div><h1>Jurnal pembayaran</h1><p class="[overflow-wrap:anywhere]">{payment}</p></div>
+      <div class="flex flex-wrap gap-2">
+        <a class="btn-secondary inline-flex min-h-11 items-center whitespace-nowrap" href="/admin/ledger?tab=ledger_list">Semua jurnal</a>
+        {canViewPayments && <a class="btn-primary inline-flex min-h-11 items-center whitespace-nowrap" href={financePath('/admin/payments',{tab:'history',payment})}>Lihat pembayaran</a>}
+      </div>
+    </header>
+    {data.entries.length ? <ul class="divide-y divide-border rounded-xl border border-border bg-surface">
+      {data.entries.map(entry=><li class="grid min-w-0 gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div class="min-w-0"><p class="font-semibold">{entry.sourceType==='PAYMENT_REVERSAL'?'Pembalikan iuran':'Penerimaan iuran'}</p>
+          <p class="text-sm text-ink-muted [overflow-wrap:anywhere]">{financeDate(entry.entryDate)} · {entry.accountName || 'Rekening tidak tersedia'}</p>
+          <p class="mt-1 text-xs text-ink-muted [overflow-wrap:anywhere]">{entry.id}</p></div>
+        <p class:list={['font-bold tabular-nums',entry.direction==='OUT'?'text-rose-800':'text-primary-800']}>
+          {entry.direction==='OUT'?'−':'+'}{formatRupiah(entry.amount)}
+        </p>
+      </li>)}
+    </ul> : <p class="workspace-panel text-sm text-ink-muted">Jurnal untuk pembayaran ini belum ditemukan.</p>}
+  </section> : <LedgerManager accounts={data.accounts} entries={data.entries} initialTab={tab as any} canViewPayments={canViewPayments} client:load />}
 </AdminLayout>

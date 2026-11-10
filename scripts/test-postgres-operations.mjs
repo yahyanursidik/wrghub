@@ -13,6 +13,7 @@ import { inspectAdmin, recoverAdmin } from './recover-admin.ts';
 
 const modulePath = process.env.WARGAHUB_PG_MODULE;
 const vercelEntry = process.env.WARGAHUB_TEST_VERCEL_ENTRY;
+const nodeEntry = process.env.WARGAHUB_TEST_NODE_ENTRY || 'dist/server/entry.mjs';
 const { default: EmbeddedPostgres } = modulePath
   ? await import(pathToFileURL(path.resolve(modulePath)).href) : await import('embedded-postgres');
 await mkdir('scratch', { recursive:true });
@@ -87,7 +88,7 @@ try {
     appFetch = (url, options) => handler.fetch(new Request(url,options));
     assert.equal((await call('/api/health')).database.status,'CONNECTED_HEALTHY');
   } else {
-    app=spawn(process.execPath,['dist/server/entry.mjs'],{env,stdio:['ignore','pipe','pipe']});
+    app=spawn(process.execPath,[nodeEntry],{env,stdio:['ignore','pipe','pipe']});
     app.stdout.on('data',chunk=>{logs+=chunk;}); app.stderr.on('data',chunk=>{logs+=chunk;});
     const deadline=Date.now()+20000;
     while (!(await fetch(base+'/api/health').then(res=>res.ok).catch(()=>false))) {
@@ -172,16 +173,34 @@ try {
   assert.ok(!(await overview(owner2)).facilities.some(item=>item.id===facility.id));
   console.log('PASS 5 modul: dua sesi independen, batas antar rumah, serta fasilitas dan reservasi.');
 
-  const batch={year:2026,month:11,name:'November 2026',dueDate:'2026-11-30',feeAmount:250000};
+  const tariff={components:[{name:'Keamanan uji',amount:150000},{name:'Kebersihan uji',amount:100000}],dueDay:19,note:'Tarif lintas sesi'};
+  await call('/api/billing/tariff',owner,tariff,403);
+  assert.equal((await call('/api/billing/tariff',treasurer,tariff)).total,250000);
+  const savedTariff=await call('/api/billing/tariff',treasurer2);
+  assert.deepEqual(savedTariff.components,tariff.components);
+  assert.equal(savedTariff.dueDay,19);
+  const batch={year:2026,month:11,name:'November 2026',dueDate:'2026-11-30',expectedTariffTotal:250000};
+  await call('/api/billing/generate-batch',treasurer,{...batch,expectedTariffTotal:260000},409);
   const published = await call('/api/billing/generate-batch',treasurer,batch,201);
   assert.equal(published.newlyGenerated,2);
   assert.equal((await call('/api/billing/generate-batch',treasurer2,batch,201)).newlyGenerated,0);
   const invoice=(await overview(owner2)).invoices.find(item=>item.billingPeriodId===published.periodId);
   const otherInvoice=(await overview(neighbor)).invoices.find(item=>item.billingPeriodId===published.periodId);
   assert.equal(invoice.remaining,250000);
-  const payment={propertyId:'fixture-house-1',billingPeriodId:published.periodId,invoiceId:invoice.id,amount:100000,method:'TRANSFER',reference:'FIXTURE-FIRST'};
+  assert.deepEqual(invoice.items.map(item=>[item.name,item.amount]).sort(),tariff.components.map(item=>[item.name,item.amount]).sort());
+  await call('/api/billing/tariff',treasurer,{...tariff,components:[{name:'Tarif baru',amount:275000}]});
+  assert.equal((await call('/api/settings/profile')).profile.monthlyRate,275000);
+  assert.equal((await overview(owner2)).invoices.find(item=>item.id===invoice.id).items.length,2);
+  const payment={propertyId:'fixture-house-1',billingPeriodId:published.periodId,invoiceId:invoice.id,amount:100000,method:'TRANSFER',reference:'FIXTURE-FIRST',proofFileUrl:'https://proof.example.invalid/fixture'};
   await call('/api/payments/submit',owner,{...payment,invoiceId:otherInvoice.id},400);
   const first=await call('/api/payments/submit',owner,payment,201);
+  assert.equal((await overview(owner2)).invoices.find(item=>item.id===invoice.id).awaitingVerification,true);
+  const billPage=await invoke('/admin/billing?period='+published.periodId+'&invoice='+invoice.id,treasurer2);
+  assert.equal(billPage.status,200);
+  assert.ok(billPage.payload.includes('payment='+first.id));
+  const publicBill=await invoke('/rekap-iuran?period='+published.periodId);
+  assert.equal(publicBill.status,200);
+  assert.ok(publicBill.payload.includes('U-01') && !publicBill.payload.includes('FIXTURE-FIRST') && !publicBill.payload.includes(payment.proofFileUrl));
   const receiptRoute=id=>'/api/receipts/verify?q='+encodeURIComponent('KW-'+id.toUpperCase());
   await call(receiptRoute(first.id),null,undefined,404);
   await call('/api/payments/verify',owner,{paymentId:first.id},403);
@@ -192,6 +211,7 @@ try {
   assert.equal(verified.find(res=>res.status===200).payload.data.invoiceStatus,'PARTIAL');
   const afterPartial=(await overview(owner2)).invoices.find(item=>item.id===invoice.id);
   assert.equal(afterPartial.remaining,150000);
+  assert.equal(afterPartial.awaitingVerification,false);
   assert.equal(afterPartial.receipts[0].amount,100000);
   assert.equal((await call(receiptRoute(first.id))).amount,100000);
   const second=await call('/api/payments/submit',owner2,{...payment,amount:150000,reference:'FIXTURE-SECOND'},201);
@@ -222,6 +242,7 @@ try {
     total:125000,dueDate:'2026-12-10',paidAt:'2026-12-01',status:'PAID',paymentMethod:'CASH'},201);
   assert.equal(cash.status,'PAID');
   assert.equal((await call(receiptRoute(cash.payment.id))).amount,125000);
+  assert.equal((await sql('SELECT entry_date FROM ledger_entries WHERE id=$1',[cash.payment.ledgerId]))[0].entry_date,'2026-12-01');
   assert.equal(Number((await sql("SELECT balance FROM accounts WHERE id='acc-main'"))[0].balance),1375000);
   const unpaid = await call('/api/billing/invoices/create',treasurer,{propertyCode:'U-01',periodName:'Desember 2026',total:30000,dueDate:'2026-12-10'},201);
   const edited = await call('/api/billing/invoices/update',treasurer,{invoiceId:unpaid.id,total:35000});
@@ -261,6 +282,36 @@ try {
   assert.ok(!(await call('/api/properties/utilities',chair2)).some(item=>item.id===utility.id));
   const adminHouse=await invoke('/admin/properties?tab=analytics&house=U-02',chair2);
   assert.equal(adminHouse.status,200); assert.ok(adminHouse.payload.includes('Desember 2026'));
+  await sql("INSERT INTO accounts (id,community_id,code,name,type,balance) VALUES ('acc-fixture-cash','comm-01','FIXTURE-CASH','Kas tunai uji','CASH',0)");
+  const manual={invoiceId:otherInvoice.id,amount:50000,paidAt:'2026-11-03',method:'CASH',reference:'FIXTURE-CASH-01',accountId:'acc-fixture-cash'};
+  await call('/api/payments/create',treasurer,{...manual,propertyCode:'U-01'},400);
+  const manualPaid=await call('/api/payments/create',treasurer,manual,201);
+  assert.equal(manualPaid.propertyCode,'U-02');
+  assert.equal(manualPaid.billingPeriodId,published.periodId);
+  assert.equal(manualPaid.accountBalance,50000);
+  await call('/api/payments/create',treasurer2,manual,409);
+  const linked=await invoke('/admin/ledger?tab=ledger_list&payment='+manualPaid.id,treasurer2);
+  assert.equal(linked.status,200);
+  assert.ok(linked.payload.includes(manualPaid.ledgerId) && linked.payload.includes('Kas tunai uji') && !linked.payload.includes(paid.ledgerId));
+  assert.ok(linked.payload.includes('/admin/payments?tab=history&amp;payment='+manualPaid.id));
+  await call('/api/settings/update',chair,{communityName:'Lingkungan uji',rtRw:'RT 01',address:'Alamat uji',securityPhone:'',rwHeadPhone:'',balance:42},409);
+
+  const reverse={paymentId:second.id,reason:'Koreksi transaksi ganda uji'};
+  await call('/api/payments/reverse',chair,reverse,403);
+  const reversals=await Promise.all([treasurer,treasurer2].map(cookie=>invoke('/api/payments/reverse',cookie,reverse)));
+  assert.deepEqual(reversals.map(item=>item.status).sort(),[200,409]);
+  const reversed=reversals.find(item=>item.status===200).payload.data;
+  assert.equal(reversed.accountBalance,1225000);
+  const restored=(await overview(owner2)).invoices.find(item=>item.id===invoice.id);
+  assert.equal(restored.remaining,150000);
+  assert.deepEqual(restored.receipts.map(item=>item.id),[first.id]);
+  await call(receiptRoute(second.id),null,undefined,404);
+  await call('/api/payments/delete',treasurer,{paymentId:second.id},409);
+  const correction=await invoke('/admin/ledger?payment='+second.id,treasurer);
+  assert.ok(correction.payload.includes(paid.ledgerId) && correction.payload.includes(reversed.reversalLedgerId));
+  assert.deepEqual((await sql('SELECT direction,source_type,amount FROM ledger_entries WHERE source_id=$1 ORDER BY source_type',[second.id]))
+    .map(item=>[item.direction,item.source_type,Number(item.amount)]),[['IN','PAYMENT',150000],['OUT','PAYMENT_REVERSAL',150000]]);
+  console.log('PASS tarif lintas sesi, bukti dan tautan tagihan, kas tunai sesuai rekening, tanggal jurnal, pembalikan atomik, dan kuitansi dibatalkan.');
   await call('/api/users/recovery-code',treasurer,{userId:'chair',identityVerified:true},403);
   await call('/api/users/recovery-code',chair,{userId:'treasurer',identityVerified:true},403);
   const superseded=await call('/api/users/recovery-code',superAdmin,{userId:'chair',identityVerified:true},201);
@@ -281,7 +332,7 @@ try {
   await call('/api/auth/login',null,{identifier:'chair',password:'Only the fixture operator phrase'});
   assert.equal((await sql("SELECT count(*) AS count FROM audit_logs WHERE action='user.operator_recovery' AND entity_id='chair'"))[0].count,'1');
   console.log('PASS Rumah & Warga dan pemulihan akun: pemilik/penghuni, utilitas terhubung iuran, izin peran, kode sekali pakai, pencabutan sesi, dan pemulihan operator.');
-  await sql("UPDATE accounts SET is_active=false WHERE id='acc-main'");
+  await sql('UPDATE accounts SET is_active=false');
 
   const noAccount = await invoke('/admin/payments',treasurer2);
   assert.equal(noAccount.status,200);

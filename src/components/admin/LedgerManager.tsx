@@ -47,6 +47,7 @@ import {
   Plus
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
+import { financePath } from '../../lib/billing-data';
 
 export type LedgerSubTab =
   | 'ledger_list'
@@ -81,18 +82,20 @@ export interface LedgerManagerProps {
   accounts: AccountItem[];
   entries: LedgerEntryItem[];
   initialTab?: LedgerSubTab;
+  canViewPayments?: boolean;
 }
 
 export const LedgerManager: React.FC<LedgerManagerProps> = ({
   accounts: initialAccounts,
   entries: initialEntries,
   initialTab = 'ledger_list',
+  canViewPayments = false,
 }) => {
   const normalizeAccounts = (list: any[]): AccountItem[] =>
     list.map((a: any) => ({
       ...a,
-      bankName: a.bank_name || a.bankName || (a.code === 'BCA_MAIN' || a.id === 'acc-main' ? 'Bank Mandiri' : 'Bank Kas'),
-      accountNumber: a.account_number || a.accountNumber || (a.code === 'BCA_MAIN' || a.id === 'acc-main' ? '1300024446419' : '-'),
+      bankName: a.bank_name || a.bankName || null,
+      accountNumber: a.account_number || a.accountNumber || null,
       balance: Number(a.balance) || 0,
     }));
 
@@ -124,7 +127,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
   const [entries, setEntries] = useState<LedgerEntryItem[]>(initialEntries);
 
   // Subtab State with URL synchronization
-  const [activeSubTab, setActiveSubTab] = useUrlTab<LedgerSubTab>(['ledger_list', 'accounts_manage', 'bank_reconciliation', 'financial_reports'], initialTab);
+  const [activeSubTab, setActiveSubTab] = useUrlTab<LedgerSubTab>(['ledger_list', 'accounts_manage', 'bank_reconciliation', 'financial_reports'], 'ledger_list', 'tab', {}, initialTab);
   const handleTabChange = setActiveSubTab;
 
   // State Filters
@@ -1192,7 +1195,7 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                             {accounts.find((a) => a.id === e.accountId)?.name || (e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel)}
                           </span>
                           <span className="text-[10px] text-ink-muted uppercase tracking-wider font-mono">
-                            {e.sourceType.replace(/_/g, ' ')}
+                            {e.sourceType==='PAYMENT_REVERSAL'?'Pembalikan pembayaran':e.sourceType.replace(/_/g, ' ')}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-medium text-ink max-w-xs">
@@ -1214,6 +1217,9 @@ export const LedgerManager: React.FC<LedgerManagerProps> = ({
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
+                            {canViewPayments && e.sourceId && ['PAYMENT','PAYMENT_REVERSAL'].includes(e.sourceType) && <a
+                              href={financePath('/admin/payments',{tab:'history',payment:e.sourceId})}
+                              className="inline-flex min-h-11 items-center whitespace-nowrap px-2 text-xs font-semibold text-primary-800 hover:underline">Pembayaran</a>}
                             <button
                               type="button"
                               onClick={() => setSelectedVoucher(e)}

@@ -209,6 +209,54 @@ try {
     assert.ok(await evaluate("Array.from(document.querySelectorAll('main a')).some(link=>link.href.endsWith('/login?portal=admin'))"));
     await viewport(1440);
     console.log('PASS house scope, linked accounts, browser Back, and recovery at 320/375/414/768px');
+    const financeScreens = [
+      ['billing-list','/admin/billing?period=period-test','Daftar tagihan'],
+      ['billing-year','/admin/billing?tab=annual_matrix','Rekap tahunan'],
+      ['billing-tariff','/admin/billing?tab=tariffs','Tarif iuran'],
+      ['billing-batch','/admin/billing?tab=batch','Penerbitan massal'],
+      ['payments-queue','/admin/payments?tab=verification','Verifikasi pembayaran'],
+      ['payments-receipts','/admin/payments?tab=history','Riwayat kuitansi'],
+      ['payments-record','/admin/payments?tab=manual_counter&invoice=invoice-a-02','Catat pembayaran'],
+      ['public-dues','/rekap-iuran?period=period-test','Halaman rekap'],
+    ];
+    for (const [name,route,section] of financeScreens) {
+      await navigate(route,'main');
+      const selector = `main [aria-label="${section}"]`;
+      await wait(`document.querySelector(${JSON.stringify(selector)})`);
+      for (const width of [320,375,414,768,1440]) {
+        await viewport(width);
+        await noOverflow(`${name} ${width}`);
+        const clipped=await evaluate(`Array.from(document.querySelectorAll('main a, main button')).filter(e=>{
+          const rect=e.getBoundingClientRect();return rect.width>0&&(rect.right>innerWidth+1||e.scrollWidth>e.clientWidth+1);
+        }).map(e=>e.textContent.trim())`);
+        assert.deepEqual(clipped,[],`${name} clipped controls at ${width}`);
+        await screenshot(`${name}-${width}`);
+      }
+    }
+    await navigate('/admin/billing?period=period-test','main [aria-label="Daftar tagihan"]');
+    await viewport(320);
+    await evaluate(`document.querySelector('[aria-controls="billing-filters"]').click()`);
+    await wait(`document.querySelector('[aria-controls="billing-filters"]').getAttribute('aria-expanded')==='true'`);
+    assert.ok(await evaluate(`document.querySelector('#billing-filters select').getClientRects().length>0`));
+    await noOverflow('Filter tagihan 320');
+    await viewport(1440);
+    const pendingLink=await evaluate(`Array.from(document.querySelectorAll('main a')).find(link=>link.textContent.trim()==='Cek bukti')?.getAttribute('href')`);
+    assert.ok(pendingLink?.includes('invoice=invoice-a-01') && pendingLink.includes('payment=payment-test'));
+    await navigate(pendingLink,'main [aria-label="Verifikasi pembayaran"]');
+    await evaluate(`Array.from(document.querySelectorAll('main button')).find(button=>button.textContent.trim()==='Cek bukti').click()`);
+    await wait(`document.querySelector('dialog[open]')?.innerText.includes('Belum ada bukti terlampir')`);
+    assert.ok(await evaluate(`Boolean(document.querySelector('dialog[open] a[href*="invoice=invoice-a-01"]'))`));
+    await navigate('/admin/billing?tab=annual_matrix','main [aria-label="Rekap tahunan"]');
+    assert.equal(await evaluate(`document.querySelectorAll('main [data-month-status="unissued"]').length`),22);
+    await navigate('/admin/payments?tab=manual_counter&invoice=invoice-a-02','main [aria-label="Catat pembayaran"]');
+    assert.equal(await evaluate(`document.querySelector('main [aria-label="Catat pembayaran"] select[required]').value`),'invoice-a-02');
+    assert.equal(await evaluate(`document.querySelector('main [aria-label="Catat pembayaran"] input[type="number"]').value`),'250000');
+    await navigate('/admin/payments?tab=history&payment=receipt-test','main [aria-label="Riwayat kuitansi"]');
+    await evaluate(`Array.from(document.querySelectorAll('main button')).filter(button=>button.textContent.trim()==='Kuitansi').at(-1).click()`);
+    await wait(`document.querySelector('dialog[open] img[alt="QR verifikasi kuitansi"]')`);
+    await viewport(320);await noOverflow('Kuitansi 320');await screenshot('payments-receipt-open-320');
+    await viewport(1440);
+    console.log('PASS finance tabs at 320/375/414/768/1440px; exact pending link, unissued months, prefilling, and verified receipt QR');
     const menus = {
       properties: ['units', 'residents', 'vehicles', 'permits', 'analytics'],
       billing: ['invoices', 'annual_matrix', 'tariffs', 'batch'],

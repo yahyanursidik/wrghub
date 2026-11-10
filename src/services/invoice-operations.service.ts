@@ -1,57 +1,69 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { writeTransaction, type Query } from '../db/operational-query';
+import { BILLING_MONTHS, billingMonthKey, billingMonthLabel } from '../lib/billing-data';
 import type { UserSession } from '../types/auth';
 import { dateField, idField, OperationalError, operationalAudit, textField } from './operational-mutation';
 import { recordInvoicePayment } from './payment.service';
+import { billingAmount, getBillingTariff, invoiceItemsForAmount } from './billing-tariff.service';
 
 const money=z.number().int().nonnegative().max(1e9);
-const amount=money.positive();
-const months=['januari','februari','maret','april','mei','juni','juli','agustus','september','oktober','november','desember'];
 export const invoiceCreate=z.object({
-  propertyCode:textField(64).min(1),periodName:textField(100).min(2),total:amount,dueDate:dateField,
+  propertyCode:textField(64).min(1),propertyId:idField.optional(),periodName:textField(100).min(2),periodId:idField.optional(),
+  total:billingAmount,dueDate:dateField,expectedTariffTotal:billingAmount.optional(),
   status:z.enum(['UNPAID','PAID']).default('UNPAID'),paymentMethod:textField(40).optional(),paidAt:dateField.optional(),
+  accountId:idField.optional(),
   securityFee:money.optional(),cleaningFee:money.optional(),sinkingFund:money.optional(),additionalFee:money.optional(),notes:textField(2000).optional(),
 });
-export const invoiceEdit=z.object({invoiceId:idField,status:z.literal('UNPAID').optional(),total:amount.optional(),dueDate:dateField.optional(),notes:textField(2000).optional()});
+export const invoiceEdit=z.object({invoiceId:idField,status:z.literal('UNPAID').optional(),total:billingAmount.optional(),dueDate:dateField.optional(),notes:textField(2000).optional()});
 export const invoiceCancel=z.object({invoiceId:idField,reason:textField(500).optional()});
 const timeNow=()=>new Date().toISOString();
 type Period={id:string;name:string;year:number;month:number;status:string};
 async function readInvoice(run:Query,id:string) {
-  const [row]=await run<{id:string;property_id:string;property_code:string;period_name:string;invoice_number:string;status:string;total:number|string;paid_amount:number|string;due_date:string;issued_at:string;paid_at:string|null;notes:string|null}>(`SELECT i.*,p.code AS property_code,b.name AS period_name FROM invoices i
+  const [row]=await run<{id:string;property_id:string;property_code:string;billing_period_id:string;period_name:string;invoice_number:string;status:string;total:number|string;paid_amount:number|string;due_date:string;issued_at:string;paid_at:string|null;notes:string|null}>(`SELECT i.*,p.code AS property_code,b.name AS period_name FROM invoices i
     JOIN properties p ON p.id=i.property_id JOIN billing_periods b ON b.id=i.billing_period_id WHERE i.id=?`,[id]);
-  return {id:row.id,propertyId:row.property_id,propertyCode:row.property_code,periodName:row.period_name,invoiceNumber:row.invoice_number,status:row.status,total:Number(row.total),
+  return {id:row.id,propertyId:row.property_id,propertyCode:row.property_code,billingPeriodId:row.billing_period_id,periodName:row.period_name,invoiceNumber:row.invoice_number,status:row.status,total:Number(row.total),
     paidAmount:Number(row.paid_amount),dueDate:row.due_date,issuedAt:row.issued_at,paidAt:row.paid_at,notes:row.notes};
 }
 export async function createInvoice(data:z.output<typeof invoiceCreate>,actor:UserSession) {
   return writeTransaction(async (run,lock)=>{
-    const [property]=await run<{id:string;community_id:string;code:string}>('SELECT id,community_id,code FROM properties WHERE lower(code)=lower(?) AND is_active=true',[data.propertyCode]);
-    if(!property?.community_id) throw new OperationalError('Rumah aktif tidak ditemukan.',404);
+    const properties=await run<{id:string;community_id:string;code:string}>(
+      'SELECT id,community_id,code FROM properties WHERE lower(code)=lower(?) AND is_active=true' + (data.propertyId ? ' AND id=?' : '') + ' LIMIT 2',
+      data.propertyId ? [data.propertyCode,data.propertyId] : [data.propertyCode]);
+    const [property]=properties;
+    if(properties.length!==1 || !property?.community_id) throw new OperationalError('Pilih satu rumah aktif yang sesuai.',404);
     await run('SELECT id FROM communities WHERE id=?'+lock,[property.community_id]);
-    const exact=await run<Period>('SELECT id,name,year,month,status FROM billing_periods WHERE community_id=? AND lower(name)=lower(?) LIMIT 2',[property.community_id,data.periodName]);
+    const exact=await run<Period>('SELECT id,name,year,month,status FROM billing_periods WHERE community_id=? AND ' +
+      (data.periodId ? 'id=?' : 'lower(name)=lower(?)') + ' LIMIT 2',[property.community_id,data.periodId || data.periodName]);
+    if(data.periodId && (!exact[0] || exact[0].name.toLowerCase()!==data.periodName.toLowerCase())) throw new OperationalError('Periode tagihan tidak sesuai.',400);
     const [namedMonth,namedYear]=data.periodName.toLowerCase().split(/\s+/);
-    const year=exact[0]?.year || Number(namedYear), month=exact[0]?.month || months.indexOf(namedMonth)+1;
-    if(exact.length>1 || !Number.isInteger(year) || year<2025 || year>2100 || !month) throw new OperationalError('Pilih periode yang valid, misalnya November 2026.',400);
-    const yearMonth=year+'-'+String(month).padStart(2,'0');
+    const year=exact[0]?.year || Number(namedYear), month=exact[0]?.month || BILLING_MONTHS.findIndex(value=>value.toLowerCase()===namedMonth)+1;
+    if(exact.length>1 || !Number.isInteger(year) || year<2025 || year>2100 || month<1 || month>12) throw new OperationalError('Pilih bulan dan tahun tagihan yang valid.',400);
+    const yearMonth=billingMonthKey(year,month);
     const start=yearMonth+'-01';
     if(data.dueDate<start) throw new OperationalError('Jatuh tempo mendahului awal periode.',400);
     const matching=await run<Period>('SELECT id,name,year,month,status FROM billing_periods WHERE community_id=? AND year=? AND month=? LIMIT 2',[property.community_id,year,month]);
     if(matching.length>1 || (matching[0] && matching[0].status!=='OPEN')) throw new OperationalError('Periode sudah ditutup atau ganda.');
     const periodId=matching[0]?.id || 'period-'+yearMonth;
     if(!matching[0]) await run("INSERT INTO billing_periods (id,community_id,year,month,name,due_date,status) VALUES (?,?,?,?,?,?,'OPEN')",
-      [periodId,property.community_id,year,month,data.periodName,data.dueDate]);
+      [periodId,property.community_id,year,month,billingMonthLabel(year,month),data.dueDate]);
     if((await run('SELECT id FROM invoices WHERE property_id=? AND billing_period_id=? LIMIT 1',[property.id,periodId])).length)
       throw new OperationalError('Rumah sudah memiliki tagihan periode ini. Buka Pembayaran untuk mencatat setoran.');
+    const tariff=await getBillingTariff(run);
+    if(data.expectedTariffTotal!==undefined && data.expectedTariffTotal!==tariff.total)
+      throw new OperationalError('Tarif aktif berubah. Muat ulang halaman sebelum menerbitkan tagihan.');
     const id='inv-'+randomUUID();
     const invoiceNumber='INV-'+yearMonth.replace('-','')+'-'+property.code.replace(/[^A-Za-z0-9]/g,'').toUpperCase()+'-'+id.slice(4,12).toUpperCase();
     await run("INSERT INTO invoices (id,property_id,billing_period_id,invoice_number,status,subtotal,total,paid_amount,due_date,issued_at,notes) VALUES (?,?,?,?,'UNPAID',?,?,0,?,?,?)",
       [id,property.id,periodId,invoiceNumber,data.total,data.total,data.dueDate,start,data.notes || null]);
     const parts: [string,number][] = [['Keamanan',data.securityFee || 0],['Kebersihan',data.cleaningFee || 0],['Kas lingkungan',data.sinkingFund || 0],['Tambahan',data.additionalFee || 0]];
-    const items = parts.reduce((sum,part)=>sum+part[1],0) === data.total ? parts.filter(part=>part[1]>0) : [['Iuran lingkungan',data.total] as [string,number]];
-    for(const [description,value] of items) await run('INSERT INTO invoice_items (id,invoice_id,description,amount) VALUES (?,?,?,?)',['item-'+randomUUID(),id,description,value]);
+    const items=parts.reduce((sum,part)=>sum+part[1],0)===data.total
+      ? parts.filter(part=>part[1]>0).map(([name,amount])=>({name,amount}))
+      : invoiceItemsForAmount(tariff,data.total);
+    for(const item of items) await run('INSERT INTO invoice_items (id,invoice_id,description,amount) VALUES (?,?,?,?)',['item-'+randomUUID(),id,item.name,item.amount]);
     await operationalAudit(run,actor,'billing.create_invoice','INVOICE',id,{periodId,total:data.total});
     const payment = data.status==='PAID' ? await recordInvoicePayment(run,lock,{id,property_id:property.id,billing_period_id:periodId,status:'UNPAID',total:data.total,paid_amount:0},
-      {amount:data.total,method:data.paymentMethod || 'CASH',notes:data.notes},actor,data.paidAt ? data.paidAt+'T12:00:00+07:00' : timeNow()) : null;
+      {amount:data.total,method:data.paymentMethod || 'CASH',notes:data.notes},actor,data.paidAt ? data.paidAt+'T12:00:00+07:00' : timeNow(),data.accountId) : null;
     return {...await readInvoice(run,id),payment,newBalance:payment?.accountBalance};
   });
 }
