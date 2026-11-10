@@ -1,6 +1,6 @@
 /* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, CreditCard, Receipt, Wallet, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, CreditCard, FileMinus, Receipt, Wallet, X, type LucideIcon } from 'lucide-react';
 import { apiFetch } from '../../lib/api-fetch';
 import { ModalDialog } from '../shared/ModalDialog';
 
@@ -19,11 +19,12 @@ export interface FinanceHouse {
 const areas = [
   { id:'billing', name:'Tagihan', icon:Receipt },
   { id:'payments', name:'Pembayaran', icon:CreditCard },
+  { id:'expenses', name:'Pengeluaran', icon:FileMinus },
   { id:'ledger', name:'Buku kas', icon:Wallet },
 ] as const;
 
 export function FinanceHeader({area, title, children, canViewPayments = true}: {
-  area:'billing'|'payments'; title:string; children?:ReactNode; canViewPayments?:boolean;
+  area:typeof areas[number]['id']; title:string; children?:ReactNode; canViewPayments?:boolean;
 }) {
   return <header className="grid min-w-0 gap-4">
     <nav aria-label="Alur keuangan" className="flex flex-wrap items-center gap-1.5">
@@ -52,6 +53,17 @@ export function FinanceTabs<T extends string>({tabs, active, change, label}: {
   </nav>;
 }
 
+export function FinanceTabLinks({tabs, active, label}: {
+  tabs:readonly {id:string;label:string;icon:LucideIcon;href:string}[];active:string;label:string;
+}) {
+  return <nav aria-label={label} className="grid grid-cols-2 gap-1.5 border-b border-border pb-2 sm:flex sm:flex-wrap">
+    {tabs.map(({id,label:tabLabel,icon:Icon,href})=><a key={id} href={href} aria-current={active===id?'page':undefined}
+      className={`inline-flex min-h-11 min-w-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold min-[400px]:text-sm sm:px-3 ${active===id?'bg-primary-700 text-white':'text-ink-muted hover:bg-surface hover:text-ink'}`}>
+      <Icon className="hidden size-4 shrink-0 min-[460px]:block" aria-hidden="true" />{tabLabel}
+    </a>)}
+  </nav>;
+}
+
 const tones = {
   mint:'bg-primary-50 text-primary-900', amber:'bg-amber-50 text-amber-900', sky:'bg-sky-50 text-sky-900',
   rose:'bg-rose-50 text-rose-900', slate:'bg-slate-100 text-slate-800',
@@ -63,6 +75,10 @@ const statuses: Record<string,{label:string;tone:keyof typeof tones}> = {
   PENDING:{label:'Menunggu',tone:'sky'}, PENDING_VERIFICATION:{label:'Menunggu cek',tone:'sky'},
   PARTIAL:{label:'Sebagian',tone:'sky'}, REJECTED:{label:'Ditolak',tone:'rose'}, REVERSED:{label:'Dibalik',tone:'rose'},
   CANCELLED:{label:'Dibatalkan',tone:'slate'}, VOID:{label:'Dibatalkan',tone:'slate'}, WAIVED:{label:'Dibebaskan',tone:'slate'},
+  APPROVED:{label:'Dibukukan',tone:'mint'}, DRAFT:{label:'Draf',tone:'sky'}, UNLINKED:{label:'Perlu cek jurnal',tone:'amber'},
+  PLANNED:{label:'Direncanakan',tone:'sky'}, IN_PROGRESS:{label:'Berjalan',tone:'amber'}, COMPLETED:{label:'Selesai',tone:'mint'},
+  READY:{label:'Siap dicatat',tone:'mint'}, BOOKED:{label:'Sudah tercatat',tone:'mint'}, NOT_DUE:{label:'Belum jatuh tempo',tone:'slate'}, UNAVAILABLE:{label:'Periksa konfigurasi',tone:'amber'},
+  MATCHED:{label:'Cocok',tone:'mint'}, DIFFERENT:{label:'Ada selisih',tone:'rose'}, STALE:{label:'Perlu cek ulang',tone:'amber'}, UNREVIEWED:{label:'Belum diperiksa',tone:'slate'},
 };
 
 export function FinanceStatus({value}: {value:string}) {
@@ -74,9 +90,9 @@ export function FinanceStatus({value}: {value:string}) {
 
 export function FinanceSummary({items}: {items:{label:string;value:ReactNode;detail?:ReactNode;tone:keyof typeof tones}[]}) {
   return <dl className="grid min-w-0 grid-cols-2 gap-2 [&>div:first-child]:col-span-2 sm:grid-cols-3 sm:gap-3 sm:[&>div:first-child]:col-span-1">
-    {items.map(item=><div key={item.label} className={`grid min-w-0 gap-1 rounded-xl px-4 py-3 ${tones[item.tone]}`}>
+    {items.map(item=><div key={item.label} className={`grid min-w-0 gap-1 rounded-xl px-3 py-3 sm:px-4 ${tones[item.tone]}`}>
       <dt className="text-sm font-semibold">{item.label}</dt>
-      <dd className="text-xl font-bold tracking-tight tabular-nums [overflow-wrap:anywhere] sm:text-2xl">{item.value}</dd>
+      <dd className="text-lg font-bold tracking-tight tabular-nums [overflow-wrap:anywhere] sm:text-2xl">{item.value}</dd>
       {item.detail!==undefined && <dd className="text-xs">{item.detail}</dd>}
     </div>)}
   </dl>;

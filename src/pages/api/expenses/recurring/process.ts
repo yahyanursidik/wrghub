@@ -1,114 +1,12 @@
 import type { APIRoute } from 'astro';
-import { z } from 'zod';
-import { recordExpense, getMainAccountBalance } from '../../../../services/finance.service';
-import { recordAuditLog } from '../../../../services/audit.service';
+import { monthField, recurringProcessInput } from '../../../../services/expense-input';
+import { postRecurringExpenses, previewRecurringExpenses } from '../../../../services/expense-operations.service';
+import { mutation } from '../../../../services/operational-mutation';
 
-const recurringItemSchema = z.object({
-  id: z.string(),
-  title: z.string().min(2),
-  amount: z.number().positive(),
-  categoryId: z.string().default('cat-operasional'),
-  categoryName: z.string().optional(),
-  accountId: z.string().default('acc-main'),
-  description: z.string().optional(),
-  executionDay: z.number().min(1).max(31).default(1),
-  frequency: z.enum(['MONTHLY', 'SPECIFIC_MONTH', 'YEARLY']).optional().default('MONTHLY'),
-  executionMonth: z.number().min(1).max(12).optional(),
-  vendor: z.string().optional(),
-});
-
-const processRecurringSchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/),
-  items: z.array(recurringItemSchema).min(1),
-});
-
-export const POST: APIRoute = async ({ request }) => {
-  try {
-    const body = await request.json();
-    const validated = processRecurringSchema.parse(body);
-
-    const processedItems = [];
-    let totalDeducted = 0;
-    const monthNum = parseInt(validated.month.slice(5, 7), 10);
-    const yearNum = parseInt(validated.month.slice(0, 4), 10);
-    const maxDaysInMonth = new Date(yearNum, monthNum, 0).getDate();
-
-    for (const item of validated.items) {
-      // If item is restricted to a specific month, check match
-      if (item.executionMonth && item.executionMonth !== monthNum) {
-        continue;
-      }
-      if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth && item.executionMonth !== monthNum) {
-        continue;
-      }
-
-      // Ensure valid day for the given month
-      const safeDay = Math.min(Math.max(item.executionDay, 1), maxDaysInMonth);
-      const expenseDate = `${validated.month}-${String(safeDay).padStart(2, '0')}`;
-      
-      const fullTitle = item.title.includes(validated.month) 
-        ? item.title 
-        : `${item.title} (Bulan ${validated.month})`;
-
-      const expenseId = await recordExpense({
-        categoryId: item.categoryId || 'cat-operasional',
-        accountId: item.accountId || 'acc-main',
-        title: fullTitle,
-        description: item.description || `Auto-Debit Pengeluaran Rutin Periode ${validated.month}${item.vendor ? ` - Vendor: ${item.vendor}` : ''}`,
-        amount: item.amount,
-        expenseDate,
-        recordedBy: 'Auto-Debit Rutin',
-      });
-
-      processedItems.push({
-        id: item.id,
-        expenseId,
-        title: fullTitle,
-        amount: item.amount,
-        expenseDate,
-      });
-
-      totalDeducted += item.amount;
-    }
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Sistem Auto-Debit',
-        action: 'finance.process_recurring_expenses',
-        entityType: 'EXPENSE',
-        entityId: `recurring-${validated.month}`,
-        newValue: {
-          month: validated.month,
-          totalItems: processedItems.length,
-          totalDeducted,
-        },
-      });
-    }
-
-    const currentBalance = await getMainAccountBalance();
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: {
-          month: validated.month,
-          processedCount: processedItems.length,
-          totalDeducted,
-          newBalance: currentBalance,
-          items: processedItems,
-        },
-        message: `Berhasil memproses ${processedItems.length} pos pengeluaran rutin bulan ${validated.month}. Total Rp ${totalDeducted.toLocaleString('id-ID')} telah dibukukan dan memotong saldo kas.`,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (error: any) {
-    console.error('Process recurring error:', error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof z.ZodError ? error.issues : (error?.message || 'Gagal memproses pengeluaran rutin'),
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
+export const GET: APIRoute = async ({url})=>{
+  const month = monthField.safeParse(url.searchParams.get('month'));
+  if (!month.success) return Response.json({error:{message:'Pilih periode yang valid.'}},{status:400});
+  try { return Response.json({data:await previewRecurringExpenses(month.data)}); }
+  catch { return Response.json({error:{message:'Pratinjau belum dapat dimuat.'}},{status:503}); }
 };
+export const POST = mutation(recurringProcessInput,(input,actor)=>postRecurringExpenses(input.month,input.itemIds,input.expectedVersion,actor),201);

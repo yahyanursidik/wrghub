@@ -1,1366 +1,173 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Repeat,
-  Plus,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Settings,
-  Calendar,
-  Wallet,
-  Play,
-  Pause,
-  Edit3,
-  Trash2,
-  ShieldCheck,
-  Check,
-  X,
-  Zap,
-  CreditCard,
-  RefreshCw,
-  Info,
-  Sliders,
-  CheckSquare,
-  Square,
-  ArrowRight,
-  TrendingDown
-} from 'lucide-react';
-import { formatRupiah } from '../../lib/format';
+/* Hallmark · shared finance controls */
+import { useState, type FormEvent } from 'react';
+import { ArrowUpRight, CalendarCheck2, Plus, Repeat } from 'lucide-react';
+import { apiFetch } from '../../lib/api-fetch';
+import { financeDate, financePath } from '../../lib/billing-data';
+import { cashRupiah, currentFinanceMonth, financeMonth, type ExpenseCategory, type RecurringExpenseConfigItem, type RecurringPreviewRow } from '../../lib/cash-data';
+import type { FinanceAccount } from '../../services/finance.service';
+import { FinanceDialog, FinanceEmpty, FinanceStatus, financeButton, financeField, financePost, financePrimary } from './FinanceWorkspace';
 
-export interface RecurringExpenseItem {
-  id: string;
-  title: string;
-  amount: number;
-  categoryId: string;
-  categoryName: string;
-  accountId: string;
-  accountName: string;
-  executionDay: number; // 1 - 31 (tanggal eksekusi rutin per bulan)
-  frequency?: 'MONTHLY' | 'SPECIFIC_MONTH' | 'YEARLY';
-  executionMonth?: number; // 1 - 12 (misal 8 untuk Agustus)
-  vendor: string;
-  description: string;
-  isActive: boolean;
-  lastProcessedMonth?: string; // Format 'YYYY-MM' e.g. '2026-08'
-}
+interface Config {items:RecurringExpenseConfigItem[];version:string}
+interface Preview {month:string;version:string;rows:RecurringPreviewRow[]}
+interface Props {config:Config;accounts:FinanceAccount[];categories:ExpenseCategory[];canWrite:boolean}
+const link = 'inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary-800 hover:underline';
+const str = (data:FormData,key:string)=>String(data.get(key) || '').trim();
 
-const DEFAULT_RECURRING_EXPENSES: RecurringExpenseItem[] = [
-  {
-    id: 'rec-01',
-    title: 'Gaji Satpam (Pa Adri Harry & Pak Slamet Radiyanto)',
-    amount: 2450000,
-    categoryId: 'cat-gaji',
-    categoryName: 'Gaji',
-    accountId: 'acc-main',
-    accountName: 'Kas Operasional Paguyuban',
-    executionDay: 25,
-    vendor: 'Pa Adri Harry (Rp 1.350.000) & Pak Slamet Radiyanto (Rp 1.100.000)',
-    description: 'Honor bulanan 2 personil satpam piket gerbang & patroli 24 jam Komplek Grand Sariwangi',
-    isActive: true,
-  },
-  {
-    id: 'rec-02',
-    title: 'Iuran RT (Sampah Dinas LH & Kebersihan Lingkungan RT)',
-    amount: 250000,
-    categoryId: 'cat-iuran-rt',
-    categoryName: 'Iuran RT',
-    accountId: 'acc-main',
-    accountName: 'Kas Operasional Paguyuban',
-    executionDay: 5,
-    vendor: 'Kas Bendahara RT 01',
-    description: 'Pengangkutan armada sampah dinas LH, pembersihan selokan got & operasional RT',
-    isActive: true,
-  },
-  {
-    id: 'rec-03',
-    title: 'Iuran RW (Retribusi Paguyuban Komplek RW 08 Sariwangi)',
-    amount: 100000,
-    categoryId: 'cat-iuran-rw',
-    categoryName: 'Iuran RW',
-    accountId: 'acc-main',
-    accountName: 'Kas Operasional Paguyuban',
-    executionDay: 10,
-    vendor: 'Pengurus RW 08 Sariwangi',
-    description: 'Retribusi paguyuban komplek, koordinasi wilayah RW 08 dan administrasi',
-    isActive: true,
-  },
-  {
-    id: 'rec-04',
-    title: 'Operasional Pos Satpam & Penerangan Jalan (PJU)',
-    amount: 75000,
-    categoryId: 'cat-operasional',
-    categoryName: 'Operasional',
-    accountId: 'acc-main',
-    accountName: 'Kas Operasional Paguyuban',
-    executionDay: 15,
-    vendor: 'PLN & Galon Air Minum Pos',
-    description: 'Token listrik PLN PJU komplek, pompa air otomatis fasum & air minum galon pos satpam',
-    isActive: true,
-  },
-  {
-    id: 'rec-05',
-    title: 'Dana Kesehatan / Bantuan Medis P3K Satpam',
-    amount: 100000,
-    categoryId: 'cat-dana-kesehatan',
-    categoryName: 'Dana Kesehatan / Bantuan Satpam',
-    accountId: 'acc-main',
-    accountName: 'Kas Operasional Paguyuban',
-    executionDay: 1,
-    vendor: 'Kas P3K / Satpam Piket',
-    description: 'Bantuan suplemen, obat-obatan P3K jaga malam dan santunan medis darurat satpam (pagu referensi Rp 100.000, realisasi fluktuatif ditalangi saldo kas berjalan)',
-    isActive: true,
-  },
-  {
-    id: 'rec-06',
-    title: 'Dana Tak Terduga (Sumbangan Agustusan & Acara Kelurahan/RW)',
-    amount: 200000,
-    categoryId: 'cat-dana-tak-terduga',
-    categoryName: 'Dana Tak Terduga',
-    accountId: 'acc-main',
-    accountName: 'Kas Operasional Paguyuban',
-    executionDay: 11,
-    vendor: 'Panitia Agustusan HUT RI RW 08 / Kas Darurat',
-    description: 'Dana sumbangan untuk agustusan, acara sekitar kelurahan/rw, santunan warga & darurat',
-    isActive: true,
-  },
-];
-
-const LOCAL_STORAGE_KEY = 'wargahub_recurring_expenses_config_v3';
-
-const MONTH_NAMES_ID = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-];
-
-const NOW = new Date();
-const CURRENT_YEAR = NOW.getFullYear();
-const CURRENT_MONTH = NOW.getMonth() + 1; // 1-12
-const CURRENT_MONTH_VALUE = `${CURRENT_YEAR}-${String(CURRENT_MONTH).padStart(2, '0')}`;
-const CURRENT_MONTH_LABEL = `${MONTH_NAMES_ID[CURRENT_MONTH - 1]} ${CURRENT_YEAR}`;
-
-// Seluruh bulan tahun berjalan (Jan s/d Des), agar bulan berjalan & bulan depan
-// ikut tersedia untuk auto-bukukan — bukan hanya Jan s/d Sep yang di-hardcode.
-const YEAR_MONTHS = MONTH_NAMES_ID.map((name, idx) => ({
-  value: `${CURRENT_YEAR}-${String(idx + 1).padStart(2, '0')}`,
-  label: `${name} ${CURRENT_YEAR}`,
-}));
-
-// Bulan yang sudah berjalan (Jan s/d bulan ini) — default seleksi auto-bukukan.
-const ELAPSED_MONTH_VALUES = YEAR_MONTHS.slice(0, CURRENT_MONTH).map((m) => m.value);
-
-// Kategori pos yang tersambung ke tabel expense_categories (tampil di halaman Transparency).
-const CATEGORY_OPTIONS = [
-  { id: 'cat-gaji', name: 'Gaji (Honor Petugas Jaga & Keamanan)' },
-  { id: 'cat-iuran-rt', name: 'Iuran RT (Sampah & Kebersihan)' },
-  { id: 'cat-iuran-rw', name: 'Iuran RW (Paguyuban RW 08)' },
-  { id: 'cat-operasional', name: 'Operasional (Listrik PJU, Air & Pemeliharaan)' },
-  { id: 'cat-dana-kesehatan', name: 'Dana Kesehatan / Bantuan Satpam' },
-  { id: 'cat-dana-tak-terduga', name: 'Dana Tak Terduga (Agustusan / Acara & Sosial)' },
-];
-
-const resolveCategoryIdByName = (name: string): string =>
-  CATEGORY_OPTIONS.find((o) => o.name === name)?.id || 'cat-operasional';
-
-// Cek apakah judul pos sudah pernah dibukukan pada suatu bulan — toleran terhadap
-// perbedaan kecil antara judul config dan judul yang tersimpan di buku kas
-// (mis. 'Honor Petugas Jaga dan Keaman' vs 'Honor Petugas Jaga & Keamanan (...)').
-const TITLE_STOPWORDS = new Set(['dan', 'di', 'ke', 'dari', 'untuk', 'dengan', 'pada', 'the', 'tg', 'bulan']);
-const titleTokens = (t: string) =>
-  String(t)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w && !TITLE_STOPWORDS.has(w));
-
-const isDuplicateBookedTitle = (configTitle: string, bookedTitles: string[]): boolean => {
-  const cfgTokens = titleTokens(configTitle);
-  if (cfgTokens.length === 0) return false;
-  for (const booked of bookedTitles) {
-    const bookedTokens = titleTokens(booked);
-    const matched = cfgTokens.filter((cw) =>
-      bookedTokens.some((ew) =>
-        cw.length <= 3 || ew.length <= 3 ? cw === ew : ew.startsWith(cw) || cw.startsWith(ew)
-      )
-    ).length;
-    if (matched >= 2 && matched / cfgTokens.length >= 0.6) return true;
+export function RecurringExpensesManager({config,accounts,categories,canWrite}:Props) {
+  const [stored,setStored] = useState(config);
+  const [month,setMonth] = useState(currentFinanceMonth);
+  const [preview,setPreview] = useState<Preview|null>(null);
+  const [selected,setSelected] = useState<string[]>([]);
+  const [editor,setEditor] = useState<RecurringExpenseConfigItem|'new'|null>(null);
+  const [remove,setRemove] = useState<RecurringExpenseConfigItem|null>(null);
+  const [confirm,setConfirm] = useState(false);
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState('');
+  const [notice,setNotice] = useState('');
+  const [posted,setPosted] = useState<string[]>([]);
+  const [annual,setAnnual] = useState(false);
+  const edit = typeof editor==='object' ? editor : null;
+  const canConfigure = canWrite && accounts.length>0 && categories.length>0;
+  const selectedRows = preview?.rows.filter(row=>selected.includes(row.itemId) && row.state==='READY') || [];
+  const selectedTotal = selectedRows.reduce((total,row)=>total+row.amount,0);
+  const failure = (error:unknown) => error instanceof Error ? error.message : 'Perubahan belum tersimpan.';
+  const open = (item:RecurringExpenseConfigItem|'new')=>{
+    setError('');setNotice('');setAnnual(item!=='new' && Boolean(item.frequency && item.frequency!=='MONTHLY'));setEditor(item);
+  };
+  async function store(next:RecurringExpenseConfigItem[]) {
+    setBusy(true);setError('');setNotice('');
+    try {
+      const saved = await financePost<Config>('/api/expenses/recurring/config',{items:next,expectedVersion:stored.version});
+      setStored(saved);setPreview(null);setSelected([]);setEditor(null);setRemove(null);setNotice('Rencana pengeluaran tersimpan.');
+    } catch (error) {setError(failure(error));}
+    finally {setBusy(false);}
   }
-  return false;
-};
-
-interface RecurringExpensesManagerProps {
-  accounts?: any[];
-  currentBalance: number;
-  initialConfig?: any[];
-  onExpensesProcessed: (newExpenses: any[], newBalance: number) => void;
-  existingExpenseTitles?: string[];
-}
-
-export const RecurringExpensesManager: React.FC<RecurringExpensesManagerProps> = ({
-  accounts = [],
-  currentBalance,
-  initialConfig,
-  onExpensesProcessed,
-  existingExpenseTitles = [],
-}) => {
-  // Master Recurring Items State
-  const [recurringItems, setRecurringItems] = useState<RecurringExpenseItem[]>(() => {
-    if (initialConfig && Array.isArray(initialConfig) && initialConfig.length > 0) {
-      return initialConfig.map((it: any) => ({
-        ...it,
-        accountName: it.accountName || 'Kas Operasional Paguyuban',
-      }));
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((it: any) =>
-              it.id === 'rec-05' && it.amount === 50000
-                ? {
-                    ...it,
-                    amount: 100000,
-                    description:
-                      'Bantuan suplemen, obat-obatan P3K jaga malam dan santunan medis darurat satpam (pagu referensi Rp 100.000, realisasi fluktuatif ditalangi saldo kas berjalan)',
-                  }
-                : it
-            );
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return DEFAULT_RECURRING_EXPENSES;
-  });
-
-  // Modals state
-  const [showItemModal, setShowItemModal] = useState(false);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<RecurringExpenseItem | null>(null);
-
-  // Multi-Month Auto-Generate Modal State (default: Jan s/d bulan berjalan saja)
-  const [showMultiMonthModal, setShowMultiMonthModal] = useState(false);
-  const [selectedMonthsForGen, setSelectedMonthsForGen] = useState<string[]>(ELAPSED_MONTH_VALUES);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // Toast State
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage({ text: msg, type });
-    setTimeout(() => setToastMessage(null), type === 'error' ? 6000 : 4000);
-  };
-
-  // Bukukan pos baru langsung ke bulan berjalan (default aktif)
-  const [formAutoBook, setFormAutoBook] = useState(true);
-
-  // Form State
-  const [formTitle, setFormTitle] = useState('');
-  const [formAmount, setFormAmount] = useState<number | string>(1000000);
-  const [formCategory, setFormCategory] = useState('Gaji');
-  const [formExecutionDay, setFormExecutionDay] = useState<number>(25);
-  const [formFrequency, setFormFrequency] = useState<'MONTHLY' | 'SPECIFIC_MONTH'>('MONTHLY');
-  const [formExecutionMonth, setFormExecutionMonth] = useState<number>(8);
-  const [formAccountId, setFormAccountId] = useState('acc-main');
-  const [formVendor, setFormVendor] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formIsActive, setFormIsActive] = useState(true);
-
-  // Persist to DB and localStorage. Throws when the server refuses the save so
-  // callers can show a real error instead of a false success toast.
-  const persistConfig = async (items: RecurringExpenseItem[]) => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
-      } catch (e) {}
-    }
-    const res = await fetch('/api/expenses/recurring/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items }),
-    });
-    const resJson = await res.json().catch(() => null);
-    if (!res.ok || !resJson?.success) {
-      const msg =
-        resJson?.error ||
-        `Gagal menyimpan konfigurasi ke server (HTTP ${res.status}). Perubahan hanya tersimpan di perangkat ini.`;
-      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
-    }
-    return resJson;
-  };
-
-  // Calculations
-  const activeItems = useMemo(() => recurringItems.filter((i) => i.isActive), [recurringItems]);
-  const monthlyRoutineTotal = useMemo(
-    () => activeItems.filter((i) => i.frequency !== 'SPECIFIC_MONTH').reduce((acc, curr) => acc + curr.amount, 0),
-    [activeItems]
-  );
-  const annualRoutineTotal = useMemo(
-    () => activeItems.filter((i) => i.frequency === 'SPECIFIC_MONTH').reduce((acc, curr) => acc + curr.amount, 0),
-    [activeItems]
-  );
-
-  // Check if item is already booked in a specific month
-  const isItemBookedInMonth = (item: RecurringExpenseItem, month: string) => {
-    const monthNum = parseInt(month.slice(5, 7), 10);
-    if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth && item.executionMonth !== monthNum) {
-      return true; // Tidak berlaku untuk bulan ini
-    }
-    return existingExpenseTitles.some(
-      (t) => t.includes(month) && isDuplicateBookedTitle(item.title, [t])
-    );
-  };
-
-  // Monthly breakdown: which months have how many items booked
-  const monthsStatus = useMemo(() => {
-    return YEAR_MONTHS.map((m) => {
-      const monthNum = parseInt(m.value.slice(5, 7), 10);
-      const isFuture = monthNum > CURRENT_MONTH;
-      const applicableItems = activeItems.filter((item) => {
-        if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth) {
-          return item.executionMonth === monthNum;
-        }
-        return true;
-      });
-      const bookedCount = applicableItems.filter((item) => {
-        return existingExpenseTitles.some(
-          (t) => t.includes(m.value) && isDuplicateBookedTitle(item.title, [t])
-        );
-      }).length;
-      const isComplete = !isFuture && bookedCount >= applicableItems.length && applicableItems.length > 0;
-      return {
-        ...m,
-        isFuture,
-        bookedCount,
-        totalItems: applicableItems.length,
-        isComplete,
-      };
-    });
-  }, [activeItems, existingExpenseTitles]);
-
-  // Count unbooked months (bulan depan belum wajib dibukukan)
-  const unbookedMonthsCount = useMemo(
-    () => monthsStatus.filter((m) => !m.isComplete && !m.isFuture).length,
-    [monthsStatus]
-  );
-
-  // Total amount to deduct in multi-month modal
-  const multiMonthTotalDeduction = useMemo(() => {
-    let sum = 0;
-    for (const m of selectedMonthsForGen) {
-      const monthNum = parseInt(m.slice(5, 7), 10);
-      for (const item of activeItems) {
-        if (item.frequency === 'SPECIFIC_MONTH' && item.executionMonth && item.executionMonth !== monthNum) {
-          continue;
-        }
-        if (!isItemBookedInMonth(item, m)) {
-          sum += item.amount;
-        }
-      }
-    }
-    return sum;
-  }, [selectedMonthsForGen, activeItems, existingExpenseTitles]);
-
-  const balanceAfterMultiGen = currentBalance - multiMonthTotalDeduction;
-
-  // Open Add Item Modal
-  const handleOpenAdd = () => {
-    setEditingItemId(null);
-    setFormTitle('');
-    setFormAmount(500000);
-    setFormCategory(CATEGORY_OPTIONS[0].name);
-    setFormExecutionDay(25);
-    setFormFrequency('MONTHLY');
-    setFormExecutionMonth(CURRENT_MONTH);
-    setFormAccountId('acc-main');
-    setFormVendor('');
-    setFormDescription('');
-    setFormIsActive(true);
-    setFormAutoBook(true);
-    setShowItemModal(true);
-  };
-
-  // Open Edit Item Modal
-  const handleOpenEdit = (item: RecurringExpenseItem) => {
-    setEditingItemId(item.id);
-    setFormTitle(item.title);
-    setFormAmount(item.amount);
-    setFormCategory(item.categoryName);
-    setFormExecutionDay(item.executionDay);
-    setFormFrequency(item.frequency === 'SPECIFIC_MONTH' ? 'SPECIFIC_MONTH' : 'MONTHLY');
-    setFormExecutionMonth(item.executionMonth || CURRENT_MONTH);
-    setFormAccountId(item.accountId);
-    setFormVendor(item.vendor);
-    setFormDescription(item.description);
-    setFormIsActive(item.isActive);
-    setFormAutoBook(false);
-    setShowItemModal(true);
-  };
-
-  // Save Item
-  const handleSaveItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formTitle.trim()) {
-      alert('Nama pos pengeluaran rutin wajib diisi.');
-      return;
-    }
-    const numAmount = Number(formAmount);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      alert('Nominal harus lebih dari 0.');
-      return;
-    }
-
-    const accountObj = accounts.find((a) => a.id === formAccountId);
-    const accountName = accountObj ? accountObj.name : 'Kas Operasional Paguyuban';
-    // Kategori dipetakan ke id kategori resmi agar terbaca di halaman Transparency.
-    const categoryId = resolveCategoryIdByName(formCategory);
-
-    let nextItems: RecurringExpenseItem[];
-    let newItem: RecurringExpenseItem | null = null;
-    if (editingItemId) {
-      nextItems = recurringItems.map((item) =>
-        item.id === editingItemId
-          ? {
-              ...item,
-              title: formTitle.trim(),
-              amount: numAmount,
-              categoryId,
-              categoryName: formCategory,
-              executionDay: Number(formExecutionDay),
-              frequency: formFrequency,
-              executionMonth: formFrequency === 'SPECIFIC_MONTH' ? Number(formExecutionMonth) : undefined,
-              accountId: formAccountId,
-              accountName,
-              vendor: formVendor.trim(),
-              description: formDescription.trim(),
-              isActive: formIsActive,
-            }
-          : item
-      );
-    } else {
-      newItem = {
-        id: `rec-${Date.now()}`,
-        title: formTitle.trim(),
-        amount: numAmount,
-        categoryId,
-        categoryName: formCategory,
-        accountId: formAccountId,
-        accountName,
-        executionDay: Number(formExecutionDay),
-        frequency: formFrequency,
-        executionMonth: formFrequency === 'SPECIFIC_MONTH' ? Number(formExecutionMonth) : undefined,
-        vendor: formVendor.trim(),
-        description: formDescription.trim(),
-        isActive: formIsActive,
-      };
-      nextItems = [...recurringItems, newItem];
-    }
-
+  function submit(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const categoryId = str(data,'category');
+    const next = {id:edit?.id || 'rec-'+crypto.randomUUID(),title:str(data,'title'),amount:Number(str(data,'amount')),accountId:str(data,'account'),
+      categoryId,categoryName:categories.find(item=>item.id===categoryId)?.name,executionDay:Number(str(data,'day')),frequency:annual?'YEARLY' as const:'MONTHLY' as const,
+      executionMonth:annual?Number(str(data,'annualMonth')):undefined,vendor:str(data,'vendor') || undefined,
+      description:edit?.description,isActive:data.has('active')};
+    void store(edit?stored.items.map(item=>item.id===edit.id?next:item):[...stored.items,next]);
+  }
+  async function loadPreview(target:string) {
+    const response = await apiFetch('/api/expenses/recurring/process?'+new URLSearchParams({month:target}));
+    return (await response.json()).data as Preview;
+  }
+  async function showPreview(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();setBusy(true);setError('');setNotice('');setPosted([]);setPreview(null);setSelected([]);
     try {
-      await persistConfig(nextItems);
-    } catch (err: any) {
-      showToast(err?.message || 'Gagal menyimpan pos rutin ke server.', 'error');
-      return;
-    }
-
-    setRecurringItems(nextItems);
-    setShowItemModal(false);
-
-    if (newItem && formAutoBook && formIsActive) {
-      // Langsung bukukan pos baru agar langsung tampil di halaman Transparency
-      // pada bulan berjalan (atau bulan pelaksanaannya untuk pos tahunan).
-      const targetMonthNum =
-        newItem.frequency === 'SPECIFIC_MONTH' && newItem.executionMonth
-          ? newItem.executionMonth
-          : CURRENT_MONTH;
-      const targetMonth = `${CURRENT_YEAR}-${String(targetMonthNum).padStart(2, '0')}`;
-      setIsGenerating(true);
-      try {
-        const response = await fetch('/api/expenses/recurring/auto-generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ months: [targetMonth] }),
-        });
-        const resJson = await response.json().catch(() => null);
-        if (response.ok && resJson?.success) {
-          const created = resJson.data?.createdExpenses || [];
-          if (resJson.data?.newBalance !== undefined) {
-            onExpensesProcessed(created, resJson.data.newBalance);
-          }
-          if (created.length > 0) {
-            showToast(
-              `Pos "${newItem.title}" tersimpan & langsung dibukukan untuk ${MONTH_NAMES_ID[targetMonthNum - 1]} ${CURRENT_YEAR}. Data sudah tampil di halaman Transparency.`
-            );
-          } else {
-            showToast(`Pos "${newItem.title}" berhasil disimpan.`);
-          }
-        } else {
-          showToast(
-            `Pos tersimpan, namun pembukuan ${MONTH_NAMES_ID[targetMonthNum - 1]} gagal: ${resJson?.error || 'coba gunakan tombol Bukukan Otomatis.'}`,
-            'error'
-          );
-        }
-      } catch (err) {
-        console.error(err);
-        showToast('Pos tersimpan, namun gagal menghubungi server untuk pembukuan otomatis.', 'error');
-      } finally {
-        setIsGenerating(false);
-      }
-    } else if (editingItemId) {
-      showToast(`Pos "${formTitle}" berhasil diperbarui.`);
-    } else {
-      showToast(`Pos rutin baru "${formTitle}" berhasil ditambahkan.`);
-    }
-  };
-
-  // Toggle Active
-  const handleToggleActive = async (id: string) => {
-    const nextItems = recurringItems.map((item) => {
-      if (item.id === id) {
-        const nextState = !item.isActive;
-        showToast(`Pos "${item.title}" sekarang ${nextState ? 'Aktif' : 'Dijeda'}.`);
-        return { ...item, isActive: nextState };
-      }
-      return item;
-    });
-    setRecurringItems(nextItems);
+      const next = await loadPreview(month);
+      setPreview(next);setSelected(next.rows.filter(row=>row.state==='READY').map(row=>row.itemId));
+    } catch(error) {setError(failure(error));}
+    finally {setBusy(false);}
+  }
+  async function post() {
+    if (!preview || busy || !selectedRows.length) return;
+    setBusy(true);setError('');
     try {
-      await persistConfig(nextItems);
-    } catch (err: any) {
-      showToast(err?.message || 'Gagal menyimpan status pos ke server.', 'error');
-    }
-  };
-
-  // Delete Item
-  const handleDeleteItem = async () => {
-    if (!itemToDelete) return;
-    const nextItems = recurringItems.filter((i) => i.id !== itemToDelete.id);
-    try {
-      await persistConfig(nextItems);
-    } catch (err: any) {
-      showToast(err?.message || 'Gagal menghapus pos di server.', 'error');
-      return;
-    }
-    setRecurringItems(nextItems);
-    showToast(`Pos "${itemToDelete.title}" telah dihapus.`);
-    setItemToDelete(null);
-  };
-
-  // Execute Multi-Month Auto-Generate
-  const handleExecuteMultiMonth = async () => {
-    if (selectedMonthsForGen.length === 0) {
-      alert('Pilih setidaknya 1 bulan untuk dibukukan.');
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const response = await fetch('/api/expenses/recurring/auto-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          months: selectedMonthsForGen,
-        }),
-      });
-
-      const resJson = await response.json();
-
-      if (response.ok && resJson.success) {
-        const newBal = resJson.data.newBalance ?? balanceAfterMultiGen;
-        const newExpenses = resJson.data.createdExpenses || [];
-
-        onExpensesProcessed(newExpenses, newBal);
-
-        showToast(
-          resJson.message ||
-            `Sukses! ${resJson.data.totalItemsCreated} pos pengeluaran rutin berhasil dibukukan.`
-        );
-
-        setShowMultiMonthModal(false);
-      } else {
-        alert(resJson.error || 'Gagal membukukan pengeluaran rutin otomatis.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Gagal menghubungi server untuk memproses otomatisasi.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Toast */}
-      {toastMessage && (
-        <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 text-white rounded-2xl shadow-xl font-bold text-xs animate-in slide-in-from-top-3 max-w-sm ${
-            toastMessage.type === 'error' ? 'bg-red-700' : 'bg-emerald-700'
-          }`}
-        >
-          {toastMessage.type === 'error' ? (
-            <AlertTriangle className="w-4 h-4 text-red-200 shrink-0" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
-          )}
-          <span>{toastMessage.text}</span>
-        </div>
-      )}
-
-      {/* Hero Automation Card: Anti Repot Input Berulang */}
-      <div className="p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-rose-950 text-white rounded-3xl border border-slate-700 shadow-xl space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1.5 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-black">
-              <Zap className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-              <span>OTOMASI BULANAN (ANTI REPOT INPUT BERULANG)</span>
-            </div>
-            <h3 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-              <span>Setting Pengeluaran Rutin & Otomasi Pemotongan Saldo</span>
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Anda <strong>cukup mengatur daftar pos rutin sekali saja</strong> di halaman ini (Honor Satpam, Iuran Sampah, Listrik PJU, dsb). 
-              Sistem akan <strong>otomatis mencatatkan seluruh pos pengeluaran ini ke setiap bulan berjalan</strong> dan <strong>langsung memotong saldo kas</strong> resmi, sehingga Anda tidak perlu mengetik ulang form pengeluaran setiap bulannya!
+      const result = await financePost<{ids:string[];count:number;total:number}>('/api/expenses/recurring/process',
+        {month:preview.month,expectedVersion:preview.version,itemIds:selectedRows.map(row=>row.itemId)});
+      setPosted(result.ids);setSelected([]);setConfirm(false);
+      setNotice(result.count+' pos dibukukan · '+cashRupiah(result.total));
+      try {setPreview(await loadPreview(preview.month));}
+      catch {setPreview(null);}
+    } catch (error) {setError(failure(error));}
+    finally {setBusy(false);}
+  }
+  const hasDialog = Boolean(editor || remove || confirm);
+  return <div className="grid min-w-0 gap-4">
+    {notice && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-primary-50 px-4 py-2 text-sm font-semibold text-primary-900">
+      <span>{notice}</span>{posted.length>0 && <a className={link} href={financePath('/admin/expenses',{month})}>Lihat pengeluaran <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
+    </div>}
+    {error && !hasDialog && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-900">{error}</p>}
+    <section className="workspace-panel grid min-w-0 gap-3" aria-label="Rencana rutin">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div><h2 className="!mb-0 flex items-center gap-2"><Repeat className="size-5 text-primary-700" aria-hidden="true" /> Rencana rutin</h2>
+          <p className="mt-1 text-sm text-ink-muted">{stored.items.filter(item=>item.isActive).length} pos aktif</p></div>
+        {canConfigure && <button type="button" className={financePrimary} onClick={()=>open('new')}><Plus className="size-4" aria-hidden="true" />Tambah pos</button>}
+      </header>
+      {!stored.items.length ? <FinanceEmpty>Belum ada rencana pengeluaran rutin.</FinanceEmpty> : <ul className="divide-y divide-border">
+        {stored.items.map(item=><li key={item.id} className="grid min-w-0 items-center gap-2 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <div className="min-w-0">
+            <p className="font-semibold [overflow-wrap:anywhere]">{item.title}</p>
+            <p className="mt-1 text-sm text-ink-muted [overflow-wrap:anywhere]">
+              Tanggal {item.executionDay} · {item.frequency && item.frequency!=='MONTHLY' && item.executionMonth?financeMonth('2000-'+String(item.executionMonth).padStart(2,'0')).replace(' 2000','')+' setiap tahun':'Setiap bulan'} · {accounts.find(account=>account.id===item.accountId)?.name || 'Rekening tidak aktif'}
             </p>
           </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowMultiMonthModal(true)}
-              className="px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-2xl shadow-lg active:scale-[0.98] transition-all inline-flex items-center justify-center gap-2"
-            >
-              <Zap className="w-4 h-4 text-yellow-300" />
-              <span>⚡ Bukukan Otomatis (Jan s/d {MONTH_NAMES_ID[CURRENT_MONTH - 1]} {CURRENT_YEAR})</span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2"><span className="font-bold tabular-nums">{cashRupiah(item.amount)}</span>
+            {!item.isActive && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-800">Nonaktif</span>}
           </div>
-        </div>
-
-        {/* 2026 Months Status Strip */}
-        <div className="pt-2 border-t border-slate-700/80">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-mono uppercase font-bold text-slate-400">
-              Status Pembukuan Pengeluaran Rutin per Bulan (Tahun {CURRENT_YEAR}):
-            </span>
-            <span className="text-[11px] font-mono font-bold text-rose-300">
-              {unbookedMonthsCount > 0
-                ? `${unbookedMonthsCount} Bulan Berjalan Belum Dibukukan`
-                : '✓ Semua Bulan Berjalan Sudah Lengkap Dibukukan'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1.5">
-            {monthsStatus.map((m) => (
-              <div
-                key={m.value}
-                className={`p-2 rounded-xl text-center border transition-all ${
-                  m.isComplete
-                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-                    : m.isFuture
-                    ? 'bg-slate-800/40 border-slate-700/60 text-slate-400'
-                    : 'bg-slate-800/60 border-slate-700 text-slate-300'
-                }`}
-              >
-                <span className="block text-[10px] font-mono font-bold uppercase truncate">
-                  {m.label.split(' ')[0]}
-                </span>
-                <span
-                  className={`inline-block mt-0.5 px-1.5 py-0.2 text-[9px] font-black rounded-md ${
-                    m.isComplete
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : m.isFuture
-                      ? 'bg-slate-600/30 text-slate-400'
-                      : 'bg-amber-500/20 text-amber-300'
-                  }`}
-                >
-                  {m.isComplete ? '✓ TERCATAT' : m.isFuture ? 'BELUM JALAN' : `${m.bookedCount}/${m.totalItems} POS`}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Analytics KPI Header */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* KPI 1: Beban Rutin Per Bulan */}
-        <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">
-              Total Beban Rutin / Bulan
-            </span>
-            <span className="p-1 rounded-lg bg-rose-50 text-rose-600">
-              <Repeat className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <p className="text-2xl font-black font-mono text-rose-700 mt-1 tabular-nums">
-            {formatRupiah(monthlyRoutineTotal)}
-          </p>
-          <span className="text-[10px] text-ink-muted font-bold font-mono mt-0.5 block">
-            {activeItems.length} POS AKTIF (DARI {recurringItems.length} POS TERKONFIGURASI)
-          </span>
-        </div>
-
-        {/* KPI 2: Saldo Kas Operasional Paguyuban */}
-        <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">
-              Saldo Kas Operasional Saat Ini
-            </span>
-            <span className="p-1 rounded-lg bg-blue-50 text-blue-600">
-              <Wallet className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <p className="text-2xl font-black font-mono text-blue-700 mt-1 tabular-nums">
-            {formatRupiah(currentBalance)}
-          </p>
-          <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">
-            ✓ REKENING UTAMA KAS OPERASIONAL
-          </span>
-        </div>
-
-        {/* KPI 3: Proyeksi Ketahanan Kas */}
-        <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">
-              Ketahanan Kas (Runway)
-            </span>
-            <span className="p-1 rounded-lg bg-amber-50 text-amber-600">
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <p className="text-2xl font-black font-mono text-amber-700 mt-1 tabular-nums">
-            ~{monthlyRoutineTotal > 0 ? (currentBalance / monthlyRoutineTotal).toFixed(1) : '99'} Bulan
-          </p>
-          <span className="text-[10px] text-ink-muted font-bold font-mono mt-0.5 block">
-            DAYA TAHAN OPERASIONAL TANPA IURAN BARU
-          </span>
-        </div>
-      </div>
-
-      {/* Master Recurring Table Card */}
-      <div className="bg-surface rounded-3xl border border-border shadow-card overflow-hidden">
-        <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Settings className="w-4 h-4 text-rose-600" />
-            <div>
-              <h3 className="font-black text-sm text-ink">
-                Master Konfigurasi Pos Pengeluaran Rutin
-              </h3>
-              <p className="text-[11px] text-ink-muted mt-0.5">
-                Atur nominal, jadwal eksekusi, dan rekening pembayar. Pos aktif akan otomatis dicatat setiap bulan.
-              </p>
+          {canWrite && <div className="flex gap-3 sm:pl-2">
+            {canConfigure && <button type="button" className={link} onClick={()=>open(item)}>Ubah</button>}
+            <button type="button" className={link+' !text-rose-800'} onClick={()=>{setError('');setRemove(item);}}>Hapus rencana</button>
+          </div>}
+        </li>)}
+      </ul>}
+    </section>
+    <section className="workspace-panel grid min-w-0 gap-3">
+      <div><h2 className="!mb-0 flex items-center gap-2"><CalendarCheck2 className="size-5 text-primary-700" aria-hidden="true" /> Pembukuan per bulan</h2>
+        <p className="mt-1 text-sm text-ink-muted">Pilih pos yang sudah dibayar.</p></div>
+      <form className="flex flex-wrap items-end gap-2" onSubmit={showPreview}>
+        <label className="min-w-0 text-sm font-semibold">Periode<input className={financeField} type="month" max={currentFinanceMonth()} required value={month}
+          onChange={event=>{setMonth(event.target.value);setPreview(null);setSelected([]);setPosted([]);setNotice('');}} /></label>
+        <button type="submit" className={financeButton} disabled={busy}>Tinjau pos</button>
+      </form>
+      {preview && (preview.rows.length ? <ul className="divide-y divide-border">
+        {preview.rows.map(row=><li className="grid min-w-0 items-center gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto]" key={row.id}>
+          <div className="flex min-w-0 items-center gap-3">
+            {canWrite && row.state==='READY' && <label className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-border">
+              <input type="checkbox" aria-label={'Pilih '+row.title} checked={selected.includes(row.itemId)} onChange={event=>setSelected(event.target.checked?[...selected,row.itemId]:selected.filter(id=>id!==row.itemId))} />
+            </label>}
+            <div className="min-w-0">
+              <p className="font-semibold [overflow-wrap:anywhere]">{row.title}</p>
+              <p className="text-sm text-ink-muted [overflow-wrap:anywhere]">{financeDate(row.date)} · {row.accountName}</p>
+              {row.expenseId && <a href={financePath('/admin/expenses',{expense:row.expenseId})} className={link}>Lihat catatan <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Pos Rutin Baru</span>
-            </button>
-          </div>
+          <div className="flex flex-wrap items-center gap-2"><span className="font-bold tabular-nums">{cashRupiah(row.amount)}</span><FinanceStatus value={row.state} /></div>
+        </li>)}
+      </ul> : <FinanceEmpty>Tidak ada pos untuk periode ini.</FinanceEmpty>)}
+      {canWrite && selectedRows.length>0 && <button type="button" disabled={busy} className={financePrimary+' justify-self-start'} onClick={()=>{setError('');setConfirm(true);}}>
+        Bukukan {selectedRows.length} pos · {cashRupiah(selectedTotal)}
+      </button>}
+    </section>
+    <FinanceDialog open={Boolean(editor)} title={edit?'Ubah rencana rutin':'Tambah rencana rutin'} close={()=>setEditor(null)} busy={busy} error={error}>
+      {editor && <form className="grid gap-3" onSubmit={submit} key={edit?.id || 'new'}>
+        <label className="text-sm font-semibold">Nama pengeluaran<input className={financeField} name="title" minLength={2} maxLength={200} required defaultValue={edit?.title} /></label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-semibold">Nominal (Rp)<input className={financeField} name="amount" type="number" min="0.01" step="0.01" required defaultValue={edit?.amount} /></label>
+          <label className="text-sm font-semibold">Tanggal setiap periode<input className={financeField} name="day" type="number" min="1" max="31" step="1" required defaultValue={edit?.executionDay || 1} /></label>
+          <label className="text-sm font-semibold">Kategori<select className={financeField} name="category" required defaultValue={edit?.categoryId || ''}>
+            <option value="" disabled>Pilih kategori</option>{categories.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+          </select></label>
+          <label className="text-sm font-semibold">Rekening<select className={financeField} name="account" required defaultValue={edit?.accountId || accounts[0]?.id}>
+            {accounts.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+          </select></label>
+          <label className="text-sm font-semibold">Frekuensi<select className={financeField} value={annual?'yearly':'monthly'} onChange={event=>setAnnual(event.target.value==='yearly')}>
+            <option value="monthly">Bulanan</option><option value="yearly">Tahunan</option>
+          </select></label>
+          {annual && <label className="text-sm font-semibold">Bulan<select className={financeField} name="annualMonth" defaultValue={edit?.executionMonth || 1}>
+            {Array.from({length:12},(_,index)=><option key={index} value={index+1}>{financeMonth('2000-'+String(index+1).padStart(2,'0')).replace(' 2000','')}</option>)}
+          </select></label>}
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-border bg-canvas/60 text-ink-muted font-mono uppercase text-[10px]">
-                <th className="py-3 px-4 w-12 text-center">Tgl</th>
-                <th className="py-3 px-4">Nama Pos Pengeluaran & Penerima</th>
-                <th className="py-3 px-4">Kategori Pos</th>
-                <th className="py-3 px-4">Rekening Sumber</th>
-                <th className="py-3 px-4 text-right">Nominal / Bulan</th>
-                <th className="py-3 px-4 text-center">Status Auto</th>
-                <th className="py-3 px-4 text-center w-28">Tindakan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {recurringItems.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-ink-muted">
-                    <Repeat className="w-8 h-8 mx-auto text-ink-muted/40 mb-2" />
-                    <p className="font-bold">Belum ada pos pengeluaran rutin yang dikonfigurasi.</p>
-                  </td>
-                </tr>
-              ) : (
-                recurringItems.map((item) => (
-                  <tr
-                    key={item.id}
-                    className={`hover:bg-canvas/50 transition-colors ${
-                      !item.isActive ? 'opacity-50 bg-slate-50/50' : ''
-                    }`}
-                  >
-                    {/* Tanggal Eksekusi */}
-                    <td className="py-3.5 px-4 text-center">
-                      <div className={`inline-flex flex-col items-center justify-center w-8.5 h-8.5 rounded-lg border shadow-2xs ${
-                        item.frequency === 'SPECIFIC_MONTH'
-                          ? 'bg-rose-50 border-rose-300 text-rose-800'
-                          : 'bg-surface border-border text-ink'
-                      }`}>
-                        <span className="text-[7.5px] font-mono uppercase font-bold leading-none text-ink-muted">
-                          {item.frequency === 'SPECIFIC_MONTH' && item.executionMonth === 8 ? 'AGS' : 'TGL'}
-                        </span>
-                        <span className={`font-mono font-black text-xs leading-none mt-0.5 ${
-                          item.frequency === 'SPECIFIC_MONTH' ? 'text-rose-700' : 'text-ink'
-                        }`}>
-                          {item.executionDay}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Nama & Penerima */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-black text-ink text-xs flex flex-wrap items-center gap-1.5">
-                        <span>{item.title}</span>
-                        {item.frequency === 'SPECIFIC_MONTH' && item.executionMonth === 8 && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] bg-rose-100 text-rose-800 font-extrabold border border-rose-300 inline-flex items-center gap-1 shadow-2xs">
-                            <span>🇮🇩 Khusus 11 Agustus (Tahunan)</span>
-                          </span>
-                        )}
-                        {!item.isActive && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] bg-slate-200 text-slate-700 font-bold">
-                            DIJEDA
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-ink-muted mt-0.5 flex items-center gap-2">
-                        <span>🏢 {item.vendor || 'Pengadaan Mandiri'}</span>
-                        {item.description && (
-                          <span className="text-ink-muted/70 truncate max-w-xs">
-                            • {item.description}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Kategori */}
-                    <td className="py-3.5 px-4">
-                      <span className="px-2 py-0.5 rounded-md bg-canvas border border-border font-bold text-[10px] text-ink">
-                        {item.categoryName}
-                      </span>
-                    </td>
-
-                    {/* Rekening */}
-                    <td className="py-3.5 px-4 font-mono text-[11px] text-ink-muted">
-                      <div className="flex items-center gap-1">
-                        <CreditCard className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <span className="truncate max-w-[130px]">{item.accountName}</span>
-                      </div>
-                    </td>
-
-                    {/* Nominal */}
-                    <td className="py-3.5 px-4 text-right">
-                      <span className="font-mono font-black text-rose-700 text-xs tabular-nums block">
-                        {formatRupiah(item.amount)}
-                      </span>
-                      <span className="text-[9px] font-mono text-ink-muted">
-                        {item.frequency === 'SPECIFIC_MONTH' ? '/ TAHUN (AGUSTUS)' : '/ BULAN'}
-                      </span>
-                    </td>
-
-                    {/* Status Toggle */}
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleActive(item.id)}
-                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                          item.isActive ? 'bg-rose-600' : 'bg-slate-300'
-                        }`}
-                        title={item.isActive ? 'Klik untuk menjeda pos ini' : 'Klik untuk mengaktifkan pos ini'}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                            item.isActive ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </td>
-
-                    {/* Tindakan */}
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(item)}
-                          title="Edit konfigurasi pos ini"
-                          className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas active:scale-[0.98] transition-all"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setItemToDelete(item)}
-                          title="Hapus pos rutin ini"
-                          className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 active:scale-[0.98] transition-all"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ================= MODAL 1: MULTI-MONTH AUTO-GENERATE ================= */}
-      {showMultiMonthModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
-                  <Zap className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-ink">
-                    Bukukan Otomatis Pengeluaran Rutin (Semua Bulan)
-                  </h3>
-                  <span className="text-[11px] text-ink-muted">
-                    Mencatat seluruh pos rutin ke Buku Pengeluaran & memotong saldo kas
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowMultiMonthModal(false)}
-                disabled={isGenerating}
-                className="text-ink-muted hover:text-ink"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Simulation Card */}
-            <div className="p-4 bg-canvas rounded-2xl border border-border space-y-3">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Simulasi Pemotongan Saldo Kas
-              </span>
-
-              <div className="space-y-1.5 font-mono text-xs">
-                <div className="flex justify-between items-center text-ink-muted">
-                  <span>Saldo Kas Operasional Saat Ini:</span>
-                  <span className="font-bold text-ink">{formatRupiah(currentBalance)}</span>
-                </div>
-
-                <div className="flex justify-between items-center text-rose-700 font-bold">
-                  <span>Total Pengeluaran Rutin yang Akan Dibukukan:</span>
-                  <span>- {formatRupiah(multiMonthTotalDeduction)}</span>
-                </div>
-
-                <div className="border-t border-border pt-1.5 flex justify-between items-center text-sm font-black">
-                  <span className="text-ink">Sisa Saldo Kas Baru:</span>
-                  <span
-                    className={`tabular-nums ${
-                      balanceAfterMultiGen >= 0 ? 'text-emerald-700' : 'text-red-700'
-                    }`}
-                  >
-                    {formatRupiah(balanceAfterMultiGen)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Month Checklist */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-ink text-[11px]">
-                  Pilih Bulan yang Ingin Dibukukan:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedMonthsForGen.length === YEAR_MONTHS.length) {
-                      setSelectedMonthsForGen([]);
-                    } else {
-                      setSelectedMonthsForGen(YEAR_MONTHS.map((m) => m.value));
-                    }
-                  }}
-                  className="text-[10px] text-rose-600 hover:underline font-bold"
-                >
-                  {selectedMonthsForGen.length === YEAR_MONTHS.length
-                    ? 'Batal Pilih Semua'
-                    : 'Pilih Semua Bulan'}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 border border-border rounded-2xl bg-canvas/40">
-                {YEAR_MONTHS.map((m) => {
-                  const isChecked = selectedMonthsForGen.includes(m.value);
-                  const statusObj = monthsStatus.find((x) => x.value === m.value);
-                  return (
-                    <label
-                      key={m.value}
-                      className={`p-2.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${
-                        isChecked
-                          ? 'bg-surface border-rose-300 shadow-2xs'
-                          : 'bg-canvas border-border opacity-70'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-[11px] text-ink">{m.label.split(' ')[0]}</span>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            setSelectedMonthsForGen((prev) =>
-                              prev.includes(m.value)
-                                ? prev.filter((x) => x !== m.value)
-                                : [...prev, m.value]
-                            );
-                          }}
-                          className="rounded border-border text-rose-600 focus:ring-rose-500 w-3.5 h-3.5"
-                        />
-                      </div>
-                      <span
-                        className={`text-[9px] font-mono mt-1 ${
-                          statusObj?.isComplete
-                            ? 'text-emerald-600 font-bold'
-                            : statusObj?.isFuture
-                            ? 'text-slate-400'
-                            : 'text-amber-600'
-                        }`}
-                      >
-                        {statusObj?.isComplete ? '✓ Sudah Lengkap' : statusObj?.isFuture ? 'Belum Jalan' : 'Siap Terbit'}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowMultiMonthModal(false)}
-                disabled={isGenerating}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteMultiMonth}
-                disabled={isGenerating || selectedMonthsForGen.length === 0}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Membukukan Semua Bulan...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 text-yellow-300" />
-                    <span>Konfirmasi & Bukukan Otomatis</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL 2: TAMBAH / EDIT POS PENGELUARAN RUTIN ================= */}
-      {showItemModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink flex items-center gap-2">
-                <Repeat className="w-4 h-4 text-rose-600" />
-                <span>{editingItemId ? 'Edit Pengeluaran Rutin' : 'Tambah Pos Pengeluaran Rutin'}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowItemModal(false)}
-                className="text-ink-muted hover:text-ink"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveItem} className="space-y-3">
-              <div>
-                <label className="font-bold text-ink block mb-1">Nama Pos Pengeluaran *</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Honor Petugas Jaga Gerbang"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="font-bold text-ink block mb-1">Kategori Pos</label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.name}>{opt.name}</option>
-                  ))}
-                  {/* Kategori warisan dari konfigurasi lama agar tidak hilang saat diedit */}
-                  {!CATEGORY_OPTIONS.some((o) => o.name === formCategory) && formCategory && (
-                    <option value={formCategory}>{formCategory}</option>
-                  )}
-                </select>
-              </div>
-
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nominal per Bulan (Rp) *</label>
-                  <input
-                    type="number"
-                    value={formAmount}
-                    onChange={(e) => setFormAmount(e.target.value)}
-                    required
-                    min={1000}
-                    step={1000}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                  />
-                </div>
-              </div>
-
-              {/* Siklus Pengeluaran Rutin */}
-              <div>
-                <label className="font-bold text-ink block mb-1">Siklus Pengeluaran Rutin</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormFrequency('MONTHLY')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
-                      formFrequency === 'MONTHLY'
-                        ? 'bg-rose-50 border-rose-400 text-rose-800 shadow-2xs'
-                        : 'bg-canvas border-border text-ink-muted hover:text-ink'
-                    }`}
-                  >
-                    Setiap Bulan (Bulanan)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormFrequency('SPECIFIC_MONTH');
-                      setFormExecutionMonth(8);
-                      setFormExecutionDay(11);
-                    }}
-                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
-                      formFrequency === 'SPECIFIC_MONTH'
-                        ? 'bg-rose-50 border-rose-400 text-rose-800 shadow-2xs'
-                        : 'bg-canvas border-border text-ink-muted hover:text-ink'
-                    }`}
-                  >
-                    Khusus Bulan Tertentu (Tahunan)
-                  </button>
-                </div>
-              </div>
-
-              {formFrequency === 'SPECIFIC_MONTH' ? (
-                <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-2xl space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
-                    <span>🇮🇩 Pengeluaran Khusus Musiman / Tahunan (cth. 17 Agustusan)</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1 text-[11px]">Bulan Pelaksanaan</label>
-                      <select
-                        value={formExecutionMonth}
-                        onChange={(e) => setFormExecutionMonth(Number(e.target.value))}
-                        className="w-full p-2 bg-white border border-rose-200 rounded-xl font-bold text-ink"
-                      >
-                        <option value={1}>Januari</option>
-                        <option value={2}>Februari</option>
-                        <option value={3}>Maret</option>
-                        <option value={4}>April</option>
-                        <option value={5}>Mei</option>
-                        <option value={6}>Juni</option>
-                        <option value={7}>Juli</option>
-                        <option value={8}>Agustus (HUT RI 17-an)</option>
-                        <option value={9}>September</option>
-                        <option value={10}>Oktober</option>
-                        <option value={11}>November</option>
-                        <option value={12}>Desember</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1 text-[11px]">Tanggal Eksekusi</label>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-ink-muted">Tgl</span>
-                        <input
-                          type="number"
-                          value={formExecutionDay}
-                          onChange={(e) => setFormExecutionDay(Math.min(31, Math.max(1, Number(e.target.value))))}
-                          min={1}
-                          max={31}
-                          required
-                          className="w-full p-2 bg-white border border-rose-200 rounded-xl font-mono font-bold text-ink text-center"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-rose-700 leading-tight">
-                    Pos ini hanya akan dibukukan pada tanggal {formExecutionDay} di bulan {['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][formExecutionMonth - 1]}.
-                  </p>
-                </div>
-              ) : null}
-
-              <div className="grid grid-cols-2 gap-2">
-                {formFrequency === 'MONTHLY' && (
-                  <div>
-                    <label className="font-bold text-ink block mb-1">Tgl Eksekusi / Jatuh Tempo</label>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-ink-muted">Tiap Tgl</span>
-                      <input
-                        type="number"
-                        value={formExecutionDay}
-                        onChange={(e) =>
-                          setFormExecutionDay(Math.min(31, Math.max(1, Number(e.target.value))))
-                        }
-                        min={1}
-                        max={31}
-                        required
-                        className="w-20 p-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-ink text-center"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className={formFrequency === 'SPECIFIC_MONTH' ? 'col-span-2' : ''}>
-                  <label className="font-bold text-ink block mb-1">Penerima Dana / Vendor</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Panitia 17 Agustusan / Pa Adri Harry"
-                    value={formVendor}
-                    onChange={(e) => setFormVendor(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Rekening Sumber Pembayaran</label>
-                <select
-                  value={formAccountId}
-                  onChange={(e) => setFormAccountId(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink font-bold"
-                >
-                  <option value="acc-main">Kas Operasional Paguyuban (acc-main)</option>
-                  <option value="acc-petty">Kas Tunai / Petty Cash (acc-petty)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Keterangan / Rincian Pos</label>
-                <input
-                  type="text"
-                  placeholder="Keterangan transaksi atau keperluan pos rutin ini"
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-between p-3 bg-canvas rounded-2xl border border-border">
-                <div>
-                  <span className="font-bold text-ink block">Status Pos Rutin</span>
-                  <span className="text-[11px] text-ink-muted">
-                    Aktifkan untuk disertakan dalam auto-debit bulanan
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormIsActive(!formIsActive)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                    formIsActive ? 'bg-rose-600' : 'bg-slate-300'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      formIsActive ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {!editingItemId && (
-                <label className="flex items-start gap-2.5 p-3 rounded-2xl border border-primary-200 bg-primary-50/60 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formAutoBook}
-                    onChange={(e) => setFormAutoBook(e.target.checked)}
-                    className="mt-0.5 rounded border-border text-primary-600 focus:ring-primary-500 w-4 h-4 shrink-0"
-                  />
-                  <span className="text-[11px] leading-relaxed">
-                    <strong className="text-ink block">Langsung bukukan sekarang</strong>
-                    <span className="text-ink-muted">
-                      Catatkan pos ini ke kas & buku pengeluaran untuk {formFrequency === 'SPECIFIC_MONTH' ? 'bulan pelaksanaannya' : `bulan berjalan (${CURRENT_MONTH_LABEL})`} — agar langsung tampil di halaman publik Transparency, bagian "Uang Iuran Warga Dipakai Kemana Saja?".
-                    </span>
-                  </span>
-                </label>
-              )}
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowItemModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-                >
-                  {editingItemId ? 'Simpan Perubahan' : 'Tambah Pos Rutin'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL 3: HAPUS POS RUTIN ================= */}
-      {itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-red-200 shadow-modal space-y-4 text-xs">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1">
-              <h3 className="font-black text-base text-ink">Hapus Pos Pengeluaran Rutin?</h3>
-              <p className="text-ink-muted">
-                Pos rutin <strong>"{itemToDelete.title}"</strong> ({formatRupiah(itemToDelete.amount)}/bln) akan dihapus dari daftar pengeluaran otomatis.
-              </p>
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setItemToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteItem}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-              >
-                Ya, Hapus
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+        <label className="text-sm font-semibold">Vendor (opsional)<input className={financeField} name="vendor" maxLength={160} defaultValue={edit?.vendor} /></label>
+        <label className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold"><input type="checkbox" name="active" defaultChecked={edit?.isActive ?? true} />Aktif</label>
+        <div className="flex flex-wrap justify-end gap-2"><button type="button" disabled={busy} className={financeButton} onClick={()=>setEditor(null)}>Tutup</button>
+          <button type="submit" disabled={busy} className={financePrimary}>{busy?'Menyimpan…':'Simpan rencana'}</button></div>
+      </form>}
+    </FinanceDialog>
+    <FinanceDialog open={Boolean(remove)} title="Hapus rencana rutin" close={()=>setRemove(null)} busy={busy} error={error}>
+      <p className="text-sm">{remove?.title}. Riwayat yang sudah dibukukan tetap tersedia.</p>
+      <div className="flex flex-wrap justify-end gap-2"><button type="button" className={financeButton} onClick={()=>setRemove(null)} disabled={busy}>Tutup</button>
+        <button type="button" className={financePrimary} disabled={busy} onClick={()=>void store(stored.items.filter(item=>item.id!==remove?.id))}>Hapus rencana</button></div>
+    </FinanceDialog>
+    <FinanceDialog open={confirm} title="Bukukan pengeluaran rutin" close={()=>setConfirm(false)} busy={busy} error={error}>
+      <p className="text-sm">{selectedRows.length} pembayaran senilai <strong>{cashRupiah(selectedTotal)}</strong> akan dicatat ke Buku Kas.</p>
+      <div className="flex flex-wrap justify-end gap-2"><button type="button" className={financeButton} onClick={()=>setConfirm(false)} disabled={busy}>Tutup</button>
+        <button type="button" className={financePrimary} disabled={busy} onClick={()=>void post()}>{busy?'Membukukan…':'Bukukan pembayaran'}</button></div>
+    </FinanceDialog>
+  </div>;
+}

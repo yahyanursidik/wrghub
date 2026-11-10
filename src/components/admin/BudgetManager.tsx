@@ -69,7 +69,8 @@ export interface SinkingFundItem {
 export interface BudgetManagerProps {
   initialProperties?: any[];
   initialInvoices?: any[];
-  initialExpenses?: any[];
+  initialExpenses?: {categoryName:string|null;amount:number}[];
+  initialPeriod?: string;
   initialBalance?: number;
 }
 
@@ -197,9 +198,10 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
   initialProperties = [],
   initialInvoices = [],
   initialExpenses = [],
+  initialPeriod = 'September 2026',
   initialBalance = 0,
 }) => {
-  const [period, setPeriod] = useState('September 2026');
+  const period = initialPeriod;
   const [activeSubTab, setActiveSubTab] = useUrlTab(['budget_matrix', 'sinking_fund', 'public_transparency', 'manual_form'] as const, 'budget_matrix');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
@@ -311,54 +313,32 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
   const totalSinkingBalance = sinkingFunds.reduce((sum, s) => sum + s.currentBalance, 0);
   const totalSinkingTarget = sinkingFunds.reduce((sum, s) => sum + s.targetAmount, 0);
 
-  // Sync with Real Expenses from Database
+  // Realisasi dari jurnal dihitung per kategori dan periode; satu kategori hanya masuk satu pos.
   const handleSyncWithExpenses = () => {
-    if (!initialExpenses || initialExpenses.length === 0) {
-      showToast('Buku kas dan pengeluaran saat ini masih Rp 0. Tidak ada beban riil untuk disinkronkan.');
+    const byCategory = new Map<string,number>();
+    for (const expense of initialExpenses) {
+      const category = String(expense.categoryName || '').trim().toLowerCase();
+      if (category) byCategory.set(category,(byCategory.get(category) || 0)+Number(expense.amount));
+    }
+    let matched = 0;
+    const used = new Set<string>();
+    const newItems = budgetItems.map((item)=>{
+      if (item.period!==period) return item;
+      const key = item.category.trim().toLowerCase();
+      if (!byCategory.has(key) || used.has(key)) return item;
+      used.add(key);
+      matched++;
+      const actualAmount = byCategory.get(key) || 0;
+      const percentage = item.budgetAmount>0 ? 100*actualAmount/item.budgetAmount : 0;
+      const status:'SAFE'|'WARNING'|'EXCEEDED' = percentage>100?'EXCEEDED':percentage>=85?'WARNING':'SAFE';
+      return {...item,actualAmount,percentage:Number(percentage.toFixed(1)),variance:item.budgetAmount-actualAmount,status};
+    });
+    if (!matched) {
+      showToast('Belum ada pos lokal dengan nama kategori dan periode yang sama. Lihat Realisasi Buku Kas untuk angka resmi.');
       return;
     }
-
-    let updatedCount = 0;
-    const newItems = budgetItems.map((b) => {
-      const catLower = b.category.toLowerCase();
-      let matchedTotal = 0;
-
-      for (const exp of initialExpenses) {
-        const titleLower = (exp.title || '').toLowerCase();
-        const descLower = (exp.description || '').toLowerCase();
-        const expCatLower = (exp.categoryName || '').toLowerCase();
-        const amt = Number(exp.amount) || 0;
-
-        const isMatch =
-          ((catLower.includes('gaji') || catLower.includes('satpam')) && (titleLower.includes('gaji') || titleLower.includes('satpam') || titleLower.includes('adri') || titleLower.includes('slamet') || expCatLower.includes('gaji') || expCatLower.includes('keamanan'))) ||
-          (catLower.includes('iuran rt') && (titleLower.includes('rt') || titleLower.includes('sampah') || titleLower.includes('kebersihan') || expCatLower.includes('rt') || expCatLower.includes('kebersihan'))) ||
-          (catLower.includes('iuran rw') && (titleLower.includes('rw') || titleLower.includes('paguyuban') || expCatLower.includes('rw'))) ||
-          (catLower.includes('operasional') && (titleLower.includes('operasional') || titleLower.includes('listrik') || titleLower.includes('pju') || titleLower.includes('pos') || titleLower.includes('galon') || expCatLower.includes('operasional') || expCatLower.includes('listrik'))) ||
-          (catLower.includes('kesehatan') && (titleLower.includes('kesehatan') || titleLower.includes('obat') || titleLower.includes('p3k') || titleLower.includes('medis') || expCatLower.includes('kesehatan') || expCatLower.includes('sosial'))) ||
-          (catLower.includes('tak terduga') && (titleLower.includes('terduga') || titleLower.includes('agustus') || titleLower.includes('sumbangan') || titleLower.includes('kelurahan') || expCatLower.includes('terduga') || expCatLower.includes('sosial')));
-
-        if (isMatch) {
-          matchedTotal += amt;
-        }
-      }
-
-      if (matchedTotal !== b.actualAmount) {
-        updatedCount++;
-        const pct = b.budgetAmount > 0 ? (matchedTotal / b.budgetAmount) * 100 : 0;
-        const statusVal: 'SAFE' | 'WARNING' | 'EXCEEDED' = pct > 100 ? 'EXCEEDED' : pct >= 85 ? 'WARNING' : 'SAFE';
-        return {
-          ...b,
-          actualAmount: matchedTotal,
-          percentage: Number(pct.toFixed(1)),
-          variance: b.budgetAmount - matchedTotal,
-          status: statusVal,
-        };
-      }
-      return b;
-    });
-
     setBudgetItems(newItems);
-    showToast(`Sinkronisasi selesai! ${updatedCount} pos pagu disesuaikan dengan realisasi beban riil.`);
+    showToast(matched+' pos rencana lokal diperbarui dari Buku Kas.');
   };
 
   // Open Create Modal
@@ -705,7 +685,7 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
             </span>
           </div>
           <p className="text-xs text-ink-muted mt-1 leading-relaxed max-w-3xl">
-            Monitoring penyerapan pagu operasional RT/RW, akumulasi <strong>Dana Cadangan Sinking Fund</strong>, evaluasi efisiensi kas, dan pencetakan surat pengesahan anggaran resmi.
+            Rencana anggaran di perangkat ini. Angka dari jurnal tersedia di Realisasi Buku Kas.
           </p>
         </div>
 
@@ -714,10 +694,10 @@ export const BudgetManager: React.FC<BudgetManagerProps> = ({
             type="button"
             onClick={handleSyncWithExpenses}
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-surface hover:bg-canvas active:scale-[0.98] border border-border text-ink text-xs font-bold rounded-xl shadow-2xs transition-all"
-            title="Sinkronisasi otomatis dengan catatan beban di Buku Kas"
+            title="Cocokkan nama kategori dan periode dengan Buku Kas"
           >
             <RefreshCw className="w-4 h-4 text-primary-600" />
-            Sinkron Beban
+            Sinkronkan pos lokal
           </button>
           <button
             type="button"

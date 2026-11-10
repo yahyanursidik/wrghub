@@ -1,86 +1,10 @@
 import type { APIRoute } from 'astro';
-import { z } from 'zod';
-import {
-  getRecurringExpensesConfig,
-  saveRecurringExpensesConfig,
-} from '../../../../services/finance.service';
-import { recordAuditLog } from '../../../../services/audit.service';
+import { getRecurringExpensesConfig, saveRecurringExpensesConfig } from '../../../../services/expense-operations.service';
+import { recurringConfigInput } from '../../../../services/expense-input';
+import { mutation } from '../../../../services/operational-mutation';
 
-export const GET: APIRoute = async () => {
-  try {
-    const config = await getRecurringExpensesConfig();
-    return new Response(JSON.stringify({ success: true, data: config }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (error: any) {
-    return new Response(
-      JSON.stringify({ success: false, error: error?.message || 'Gagal memuat konfigurasi' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
+export const GET: APIRoute = async ()=>{
+  try { return Response.json({data:await getRecurringExpensesConfig()}); }
+  catch { return Response.json({error:{message:'Rencana belum dapat dimuat.'}},{status:503}); }
 };
-
-const itemSchema = z.object({
-  id: z.string(),
-  title: z.string().min(2),
-  amount: z.number().positive(),
-  categoryId: z.string().default('cat-operasional'),
-  categoryName: z.string().default('Operasional'),
-  accountId: z.string().default('acc-main'),
-  accountName: z.string().optional(),
-  executionDay: z.number().min(1).max(31).default(1),
-  frequency: z.enum(['MONTHLY', 'SPECIFIC_MONTH', 'YEARLY']).optional().default('MONTHLY'),
-  executionMonth: z.number().min(1).max(12).optional(),
-  vendor: z.string().optional(),
-  description: z.string().optional(),
-  isActive: z.boolean().default(true),
-});
-
-// Array boleh kosong: menghapus pos terakhir juga harus bisa tersimpan.
-const saveConfigSchema = z.object({
-  items: z.array(itemSchema),
-});
-
-export const POST: APIRoute = async ({ request }) => {
-  try {
-    const body = await request.json();
-    const validated = saveConfigSchema.parse(body);
-
-    const saved = await saveRecurringExpensesConfig(validated.items);
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Bendahara / Pengurus Komplek',
-        action: 'finance.update_recurring_config',
-        entityType: 'RECURRING_EXPENSE',
-        entityId: 'recurring-config',
-        newValue: {
-          totalItems: saved.length,
-          totalMonthlyBudget: saved.filter((i) => i.isActive).reduce((a, b) => a + b.amount, 0),
-        },
-      });
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: saved,
-        message: 'Pengaturan pos pengeluaran rutin bulanan berhasil disimpan ke database.',
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (error: any) {
-    const isZod = error instanceof z.ZodError;
-    const message = isZod
-      ? `Data pos tidak valid: ${error.issues.map((i) => `${i.path.join('.') || 'item'} — ${i.message}`).join('; ')}`
-      : (error?.message || 'Gagal menyimpan pengaturan');
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: message,
-      }),
-      { status: isZod ? 400 : 500, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-};
+export const POST = mutation(recurringConfigInput,(input,actor)=>saveRecurringExpensesConfig(input.items,input.expectedVersion,actor));

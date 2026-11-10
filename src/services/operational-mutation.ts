@@ -21,13 +21,13 @@ export async function operationalAudit(run: Query, actor: UserSession, action: s
     VALUES (?, ?, ?, ?, ?, ?, ?)`, [`aud-${randomUUID()}`, actor.id, actor.fullName, action, entityType, entityId, JSON.stringify(details)]);
 }
 
-export function mutation<S extends z.ZodTypeAny>(input: S, action: (data: z.output<S>, actor: UserSession) => Promise<unknown>, status = 200) {
+export function mutation<S extends z.ZodTypeAny>(input: S, action: (data: z.output<S>, actor: UserSession) => Promise<unknown>, status: number | ((data: z.output<S>)=>number) = 200) {
   return async ({ request, session }: APIContext) => {
     const actor = await session?.get('wargahub_user') as UserSession | undefined;
     if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
     const parsed = input.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return Response.json({ error: { message: parsed.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message).join('; ') } }, { status: 400 });
-    try { return Response.json({ data: await action(parsed.data, actor), error: null }, { status }); }
+    try { return Response.json({ data: await action(parsed.data, actor), error: null }, { status: typeof status==='number' ? status : status(parsed.data) }); }
     catch (error) {
       if (error instanceof OperationalError) return Response.json({ error: { message: error.message } }, { status: error.status });
       // Database exceptions can contain personal input. Keep raw parameters out of application logs.

@@ -61,7 +61,7 @@ export function selectReceivingBank<T extends {type:string;code:string;accountNu
     !['BCA_MAIN','-'].includes(account.accountNumber.trim()));
 }
 
-export function financePath(path: '/admin/billing' | '/admin/payments' | '/admin/ledger' | '/kuitansi' | '/rekap-iuran', params: Record<string, string | null | undefined> = {}) {
+export function financePath(path: '/admin/billing' | '/admin/payments' | '/admin/expenses' | '/admin/ledger' | '/admin/budget' | '/kuitansi' | '/rekap-iuran', params: Record<string, string | null | undefined> = {}) {
   const search = new URLSearchParams();
   for (const [key,value] of Object.entries(params)) if (value) search.set(key,value);
   return search.size ? `${path}?${search}` : path;
@@ -97,12 +97,15 @@ export function proofLink(value?: string | null) {
   } catch { return ''; }
 }
 
-export function downloadFinanceCsv(filename: string, rows: (string | number)[][]) {
-  const csv = rows.map(row => row.map(value => {
+export function financeCsv(rows: (string | number)[][]) {
+  return '\uFEFF' + rows.map(row => row.map(value => {
     const text = typeof value === 'string' && /^[\s\uFEFF]*[=+\-@]/.test(value) ? "'" + value : String(value);
     return `"${text.replaceAll('"', '""')}"`;
   }).join(',')).join('\r\n');
-  const url = URL.createObjectURL(new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8'}));
+}
+
+export function downloadFinanceCsv(filename: string, rows: (string | number)[][]) {
+  const url = URL.createObjectURL(new Blob([financeCsv(rows)],{type:'text/csv;charset=utf-8'}));
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;

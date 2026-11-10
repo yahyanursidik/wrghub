@@ -1,2209 +1,294 @@
-import React, { useState, useMemo } from 'react';
-import { useUrlTab } from '../../lib/use-url-tab';
-import {
-  FileMinus,
-  Plus,
-  ShieldCheck,
-  Sparkles,
-  Zap,
-  Wrench,
-  Wallet,
-  Calendar,
-  PlusCircle,
-  Search,
-  Filter,
-  Check,
-  Eye,
-  X,
-  Upload,
-  Download,
-  Share2,
-  Copy,
-  ExternalLink,
-  Edit3,
-  Trash2,
-  Printer,
-  Building,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ArrowUpDown,
-  DollarSign,
-  AlertTriangle,
-  Receipt,
-  CheckCircle2,
-  Clock,
-  TrendingDown,
-  FileText,
-  PieChart,
-  ShoppingBag,
-  Send,
-  HeartHandshake,
-  Paintbrush,
-  Users,
-  Activity,
-  Heart,
-  CreditCard,
-  Layers,
-  Banknote,
-  Repeat,
-  AlertCircle,
-  Info,
-  CheckSquare,
-  Square,
-  MinusSquare
-} from 'lucide-react';
-import { formatRupiah } from '../../lib/format';
-import { StaffLoansManager } from './StaffLoansManager';
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowDownToLine, ArrowUpRight, ClipboardList, FileMinus, Hammer, HeartHandshake, Plus, Repeat, Search, Wallet } from 'lucide-react';
+import { downloadFinanceCsv, financeDate, financePath, jakartaDate } from '../../lib/billing-data';
+import { aidTypes, cashRupiah, financeMonthPattern, projectStatuses, projectTypes, proofMaxBytes, proofMimes, type ExpenseCategory, type ExpenseRow, type ExpenseTab, type FacilityProject, type RecurringExpenseConfigItem } from '../../lib/cash-data';
+import type { FinanceAccount } from '../../services/finance.service';
+import { FinanceDialog, FinanceEmpty, FinanceHeader, FinancePager, FinanceStatus, FinanceSummary, FinanceTabLinks, financeButton, financeField, financePost, financePrimary } from './FinanceWorkspace';
 import { RecurringExpensesManager } from './RecurringExpensesManager';
 
-interface ExpenseItem {
-  id: string;
-  title: string;
-  description: string | null;
-  amount: number;
-  expenseDate: string;
-  categoryName: string | null;
-  vendor?: string;
-  voucherNo?: string;
-  proofUrl?: string;
-  status: string; // 'APPROVED' | 'PENDING' | 'REJECTED'
+const expenseHref = (params:Record<string,string|undefined>={}) => financePath('/admin/expenses',params);
+const ledgerHref = (params:Record<string,string|undefined>={}) => financePath('/admin/ledger',params);
+const tabs = [
+  {id:'expenses_list',label:'Daftar pengeluaran',icon:ClipboardList},
+  {id:'recurring_expenses',label:'Pengeluaran rutin',icon:Repeat},
+  {id:'social_aid',label:'Bantuan sosial',icon:HeartHandshake},
+  {id:'fasum_projects',label:'Proyek fasum',icon:Hammer},
+] as const;
+const pageSize = 12;
+const noticeLabels:Record<string,string> = {expense:'Pengeluaran tersimpan.',project:'Proyek tersimpan.',book:'Pengeluaran dibukukan.',cancel:'Pengeluaran dibatalkan.',category:'Kategori tersimpan.'};
+const cellLink = 'inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary-800 hover:underline';
+const get = (data:FormData,key:string) => String(data.get(key) || '').trim();
+const money = (data:FormData,key:string) => Number(get(data,key));
+type Form = {type:'expense'|'social';record?:ExpenseRow;project?:FacilityProject} |
+  {type:'project';project?:FacilityProject} | {type:'book'|'cancel';record:ExpenseRow} | {type:'category'};
+type Facility = {id:string;name:string};
+interface Props {
+  expenses:ExpenseRow[]; accounts:FinanceAccount[]; categories:ExpenseCategory[]; projects:FacilityProject[]; facilities:Facility[];
+  recurring:{items:RecurringExpenseConfigItem[];version:string}|null; initialTab:ExpenseTab; initialExpense:string; initialMonth:string;
+  initialCategory:string; initialProject:string; initialNotice:string; canWrite:boolean; canViewFacilities:boolean;
+}
+function Field({label,children}:{label:string;children:ReactNode}) {
+  return <label className="block min-w-0 text-sm font-semibold">{label}{children}</label>;
+}
+async function proofInput(value:FormDataEntryValue|null,remove:boolean) {
+  if (!(value instanceof File) || !value.size) return remove ? null : undefined;
+  if (!Object.hasOwn(proofMimes,value.type) || value.size>proofMaxBytes) throw new Error('Pilih JPG, PNG, WebP, atau PDF maksimal 1,5 MB.');
+  return await new Promise<string>((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('File bukti belum bisa dibaca.'));
+    reader.readAsDataURL(value);
+  });
 }
 
-interface StaffLoanItem {
-  id: string;
-  staffName: string;
-  staffRole: string;
-  staffPhone: string;
-  totalLoanAmount: number;
-  remainingBalance: number;
-  paidAmount: number;
-  monthlyDeduction: number;
-  tenorMonths: number;
-  loanDate: string;
-  purpose: string;
-  approvedBy: string;
-  status: 'ACTIVE_INSTALLMENT' | 'OVERDUE' | 'PAID_OFF';
-}
+export function ExpensesManager({expenses,accounts,categories,projects,facilities,recurring,initialTab:tab,initialExpense,
+  initialMonth,initialCategory,initialProject,initialNotice,canWrite,canViewFacilities}:Props) {
+  const [query,setQuery] = useState('');
+  const [month,setMonth] = useState(financeMonthPattern.test(initialMonth)?initialMonth:'');
+  const [category,setCategory] = useState(categories.some(item=>item.id===initialCategory)?initialCategory:'');
+  const [status,setStatus] = useState('');
+  const [page,setPage] = useState(1);
+  const [form,setForm] = useState<Form|null>(null);
+  const [error,setError] = useState('');
+  const [busy,setBusy] = useState(false);
+  const [saved,setSaved] = useState(Object.hasOwn(noticeLabels,initialNotice)?noticeLabels[initialNotice]:'');
+  const exact = Boolean(initialExpense);
+  const project = projects.find(item=>item.id===initialProject);
+  const social = tab==='social_aid';
+  const base = expenses.filter(item=>(!social || item.details.aidType) && (!initialProject || item.details.projectId===initialProject));
+  const rows = base.filter(item=>(!month || item.expenseDate.startsWith(month)) && (!category || item.categoryId===category) &&
+    (!status || item.status===status) && (!query.trim() || [item.title,item.categoryName,item.accountName,item.details.vendor,item.details.recipientName,item.id]
+      .some(value=>value?.toLowerCase().includes(query.trim().toLowerCase()))));
+  const booked = rows.filter(item=>item.status==='APPROVED' && item.journalMatches);
+  const drafts = rows.filter(item=>item.status==='PENDING');
+  const unlinked = rows.filter(item=>item.status==='APPROVED' && !item.journalMatches);
+  const activeBalance = accounts.reduce((sum,item)=>sum+item.balance,0);
+  const open = (value:Form)=>{setError('');setForm(value);};
+  const canRecord = canWrite && accounts.length>0 && categories.length>0;
+  const filtered = Boolean(month || category || status || query);
+  const reset = ()=>{setMonth('');setCategory('');setStatus('');setQuery('');setPage(1);};
+  const record = form && 'record' in form ? form.record : undefined;
+  const projectForm = form?.type==='project' ? form.project : undefined;
+  const projectExpense = form?.type==='expense' ? form.project : undefined;
+  const title = form?.type==='category' ? 'Kategori pengeluaran' : form?.type==='project' ? (projectForm?'Ubah proyek':'Proyek baru') :
+    form?.type==='cancel' ? 'Batalkan pengeluaran' : form?.type==='book' ? 'Bukukan pembayaran' :
+    form?.type==='social' ? (record?'Ubah bantuan sosial':'Catat bantuan sosial') : record?'Ubah pengeluaran':'Catat pengeluaran';
 
-interface SocialAidItem {
-  id: string;
-  recipientName: string;
-  recipientRole: string;
-  aidType: string;
-  amount: number;
-  aidDate: string;
-  description: string;
-  hospitalOrDetails?: string;
-  voucherNo: string;
-}
-
-interface MaintenanceProjectItem {
-  id: string;
-  projectName: string;
-  projectType: string;
-  budgetAmount: number;
-  actualSpent: number;
-  vendorOrContractor: string;
-  startDate: string;
-  targetCompletionDate: string;
-  status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
-  description: string;
-  location: string;
-}
-
-interface ExpensesManagerProps {
-  initialExpenses: ExpenseItem[];
-  initialAccounts?: any[];
-  initialBalance?: number;
-  initialRecurringConfig?: any[];
-}
-
-export const ExpensesManager: React.FC<ExpensesManagerProps> = ({ 
-  initialExpenses,
-  initialAccounts = [],
-  initialBalance = 28065000,
-  initialRecurringConfig = [],
-}) => {
-  const [expenses, setExpenses] = useState<ExpenseItem[]>(initialExpenses);
-  const [currentBalance, setCurrentBalance] = useState<number>(initialBalance);
-  const [activeSubTab, setActiveSubTab] = useUrlTab(['expenses_list', 'recurring_expenses', 'staff_loans', 'social_aid', 'fasum_projects'] as const, 'expenses_list');
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'title' | 'amount' | 'category'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  // Modals & Drawers
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [viewingProof, setViewingProof] = useState<ExpenseItem | null>(null);
-  const [selectedVoucher, setSelectedVoucher] = useState<ExpenseItem | null>(null);
-  const [expenseToDelete, setExpenseToDelete] = useState<ExpenseItem | null>(null);
-  const [deleteReason, setDeleteReason] = useState('Koreksi Input / Pembelian Dibatalkan');
-  
-  // Bulk selection & deletion state
-  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
-  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState<boolean>(false);
-  const [bulkDeleteReason, setBulkDeleteReason] = useState<string>('Koreksi Input Massal / Pembatalan Belanja');
-  const [isDeletingBulk, setIsDeletingBulk] = useState<boolean>(false);
-
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // ================= 1. KASBON & PINJAMAN PETUGAS STATE =================
-  const [staffLoans, setStaffLoans] = useState<StaffLoanItem[]>([]);
-
-  const [showLoanModal, setShowLoanModal] = useState(false);
-  const [loanStaffName, setLoanStaffName] = useState('');
-  const [loanStaffRole, setLoanStaffRole] = useState<'SATPAM' | 'PETUGAS_KEBERSIHAN' | 'PETUGAS_TAMAN' | 'TEKNISI'>('SATPAM');
-  const [loanAmount, setLoanAmount] = useState(500000);
-  const [loanMonthlyDeduction, setLoanMonthlyDeduction] = useState(250000);
-  const [loanTenor, setLoanTenor] = useState(2);
-  const [loanPurpose, setLoanPurpose] = useState('');
-  const [selectedLoanForInstallment, setSelectedLoanForInstallment] = useState<StaffLoanItem | null>(null);
-  const [installmentAmountInput, setInstallmentAmountInput] = useState(250000);
-
-  // ================= 2. DANA SOSIAL & KESEHATAN SATPAM STATE =================
-  const [socialAids, setSocialAids] = useState<SocialAidItem[]>([]);
-
-  const [showSocialModal, setShowSocialModal] = useState(false);
-  const [socRecipient, setSocRecipient] = useState('');
-  const [socType, setSocType] = useState<'SANTUNAN_KESEHATAN' | 'SANTUNAN_DUKA_CITA' | 'SANTUNAN_MUSIBAH_BENCANA' | 'BINGKISAN_THR' | 'BEASISWA_ANAK'>('SANTUNAN_KESEHATAN');
-  const [socAmount, setSocAmount] = useState(100000);
-  const [socDesc, setSocDesc] = useState('');
-  const [socDetails, setSocDetails] = useState('');
-
-  // ================= 3. DANA PEMELIHARAAN FASUM (CAT & PERALATAN) STATE =================
-  const [maintenanceProjects, setMaintenanceProjects] = useState<MaintenanceProjectItem[]>([]);
-
-  const [showProjectModal, setShowProjectModal] = useState(false);
-  const [prjName, setPrjName] = useState('');
-  const [prjType, setPrjType] = useState<'PENGECATAN_KOMPLEK' | 'PERBAIKAN_PERALATAN' | 'LAMPU_PJU' | 'BARRIER_GATE_RFID' | 'CCTV_KEAMANAN' | 'TAMAN_RESAPAN'>('PENGECATAN_KOMPLEK');
-  const [prjBudget, setPrjBudget] = useState(1000000);
-  const [prjVendor, setPrjVendor] = useState('');
-  const [prjLocation, setPrjLocation] = useState('');
-  const [prjDesc, setPrjDesc] = useState('');
-
-  // Form State for General Expense
-  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
-  const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState('Gaji');
-  const [formAmount, setFormAmount] = useState('');
-  const [formVendor, setFormVendor] = useState('');
-  const [formExpenseDate, setFormExpenseDate] = useState(new Date().toISOString().substring(0, 10));
-  const [formDescription, setFormDescription] = useState('');
-  const [formFundingSource, setFormFundingSource] = useState<'KAS_OPERASIONAL' | 'SALDO_BERJALAN'>('KAS_OPERASIONAL');
-  const [savingExpense, setSavingExpense] = useState(false);
-
-  // Show Toast
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  // Metrics Calculation
-  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const totalActiveLoans = staffLoans.filter((l) => l.status === 'ACTIVE_INSTALLMENT').reduce((sum, l) => sum + l.remainingBalance, 0);
-  const totalSocialGranted = socialAids.reduce((sum, s) => sum + s.amount, 0);
-  const totalProjectsBudget = maintenanceProjects.reduce((sum, p) => sum + p.actualSpent, 0);
-
-  // Export Expenses CSV
-  const handleExportExpensesCSV = () => {
-    const headers = ['ID Pengeluaran', 'No. Voucher', 'Tanggal', 'Kategori', 'Uraian Pengeluaran', 'Vendor', 'Nominal (Rp)', 'Status'];
-    const rows = expenses.map((e) => [
-      e.id,
-      `"${e.voucherNo || `BKK-${e.id.slice(-4)}`}"`,
-      `"${e.expenseDate}"`,
-      `"${e.categoryName || 'Operasional'}"`,
-      `"${e.title.replace(/"/g, '""')}"`,
-      `"${(e.vendor || '-').replace(/"/g, '""')}"`,
-      e.amount,
-      `"${e.status}"`,
+  async function submit(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!form || busy) return;
+    setError('');setBusy(true);
+    const data = new FormData(event.currentTarget);
+    try {
+      if (form.type==='category') {
+        await financePost('/api/expenses/categories',{name:get(data,'name')});
+        window.location.assign(expenseHref({tab,saved:'category'}));
+      } else if (form.type==='project') {
+        await financePost('/api/expenses/projects/create',{id:form.project?.id,projectName:get(data,'projectName'),projectType:get(data,'projectType'),
+          budgetAmount:money(data,'budgetAmount'),vendorOrContractor:get(data,'vendorOrContractor'),startDate:get(data,'startDate'),
+          targetCompletionDate:get(data,'targetCompletionDate') || undefined,status:get(data,'projectStatus'),facilityId:get(data,'facilityId') || undefined});
+        window.location.assign(expenseHref({tab:'fasum_projects',saved:'project'}));
+      } else if (form.type==='book' || form.type==='cancel') {
+        await financePost('/api/expenses/'+(form.type==='book'?'book':'delete'),{id:form.record.id,reason:get(data,'reason') || undefined});
+        window.location.assign(expenseHref({tab:social?'social_aid':undefined,expense:form.record.id,saved:form.type}));
+      } else {
+        const isSocial = form.type==='social';
+        const receiptFile = await proofInput(data.get('receiptFile'),data.has('removeProof'));
+        const date = get(data,'expenseDate');
+        const description = get(data,'description');
+        const fields = {amount:money(data,'amount'),categoryId:get(data,'categoryId'),accountId:get(data,'accountId'),receiptFile};
+        const formRecord = 'record' in form ? form.record : undefined;
+        const id = formRecord?.id;
+        const bookNow = get(data,'bookNow')!=='draft';
+        const payload = id ? {...fields,id,expenseDate:date,...(isSocial ? {
+          recipientName:get(data,'recipientName'),aidType:get(data,'aidType'),memo:description,
+        } : {title:get(data,'title'),description,vendor:get(data,'vendor')})} :
+        isSocial ? {...fields,aidDate:date,recipientName:get(data,'recipientName'),aidType:get(data,'aidType'),description,bookNow} :
+        {...fields,expenseDate:date,title:get(data,'title'),description,vendor:get(data,'vendor'),projectId:projectExpense?.id,bookNow};
+        const result = await financePost<{id:string;status:string}>(id?'/api/expenses/update':isSocial?'/api/expenses/social/create':'/api/expenses/create',payload);
+        window.location.assign(expenseHref({tab:isSocial?'social_aid':undefined,expense:result.id,saved:'expense'}));
+      }
+    } catch (failure) {setError(failure instanceof Error?failure.message:'Perubahan belum tersimpan.');setBusy(false);}
+  }
+  function exportRows() {
+    downloadFinanceCsv('pengeluaran-wargahub.csv',[
+      ['Tanggal','Pengeluaran','Kategori','Rekening','Nominal','Status','ID'],
+      ...rows.map(row=>[row.expenseDate,row.title,row.categoryName || '',row.accountName || '',row.amount,
+        row.status==='PENDING'?'Draf':row.status==='APPROVED'?(row.journalMatches?'Dibukukan':'Perlu cek jurnal'):row.status==='CANCELLED'?'Dibatalkan':row.status,row.id]),
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `REKAPITULASI_PENGELUARAN_KAS_WARGA_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Daftar pengeluaran kas berhasil diekspor ke CSV.');
-  };
+    setSaved('CSV diunduh.');
+  }
 
-  const handleOpenAddExpense = () => {
-    setEditingExpenseId(null);
-    setFormTitle('');
-    setFormCategory('Gaji');
-    setFormAmount('');
-    setFormVendor('');
-    setFormExpenseDate(new Date().toISOString().substring(0, 10));
-    setFormDescription('');
-    setFormFundingSource('KAS_OPERASIONAL');
-    setShowAddModal(true);
-  };
+  const summary = <FinanceSummary items={[
+    {label:social?'Bantuan dibukukan':'Dibukukan',value:cashRupiah(booked.reduce((sum,item)=>sum+item.amount,0)),detail:booked.length+' transaksi',tone:'rose'},
+    {label:'Draf',value:drafts.length,detail:unlinked.length?unlinked.length+' perlu cek jurnal':undefined,tone:'amber'},
+    {label:'Saldo kas aktif',value:cashRupiah(activeBalance),detail:<a href={ledgerHref({tab:'accounts_manage'})} className="inline-flex min-h-8 items-center gap-1 font-semibold hover:underline">Lihat rekening <ArrowUpRight className="size-3" aria-hidden="true" /></a>,tone:'mint'},
+  ]} />;
+  const filterBar = <div className="grid gap-2 border-b border-border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,1.6fr)_repeat(3,minmax(8rem,1fr))] sm:p-4">
+    <Field label={social?'Cari bantuan':'Cari pengeluaran'}><span className="relative block">
+      <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-ink-muted" aria-hidden="true" />
+      <input className={financeField+' pl-9'} value={query} onChange={event=>{setQuery(event.target.value);setPage(1);}} placeholder={social?'Nama penerima atau jenis':'Nama, kategori, atau rekening'} />
+    </span></Field>
+    <Field label="Periode"><input className={financeField+' min-w-0'} type="month" value={month} onChange={event=>{setMonth(event.target.value);setPage(1);}} /></Field>
+    <Field label="Kategori"><select className={financeField} value={category} onChange={event=>{setCategory(event.target.value);setPage(1);}}>
+      <option value="">Semua kategori</option>{categories.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+    </select></Field>
+    <Field label="Status"><select className={financeField} value={status} onChange={event=>{setStatus(event.target.value);setPage(1);}}>
+      <option value="">Semua status</option><option value="APPROVED">Dibukukan</option><option value="PENDING">Draf</option><option value="CANCELLED">Dibatalkan</option>
+    </select></Field>
+    {filtered && <button type="button" className={cellLink+' justify-self-start'} onClick={reset}>Reset filter</button>}
+  </div>;
 
-  const handleOpenQuickHealthAid = () => {
-    setEditingExpenseId(null);
-    setFormTitle('Bantuan Dana Kesehatan / Obat P3K Satpam');
-    setFormCategory('Dana Kesehatan / Bantuan Satpam');
-    setFormAmount('100000');
-    setFormVendor('Pa Adri Harry / Apotek Sehat');
-    setFormExpenseDate(new Date().toISOString().substring(0, 10));
-    setFormFundingSource('SALDO_BERJALAN');
-    setFormDescription('[Ditalangi Saldo Kas Berjalan] Pengadaan obat P3K, vitamin & santunan kesehatan satpam (pagu referensi Rp 100.000, realisasi fluktuatif)');
-    setShowAddModal(true);
-  };
-
-  const handleOpenQuickUnexpectedAid = () => {
-    setEditingExpenseId(null);
-    setFormTitle('Dana Dadakan: Partisipasi / Tanggap Kebutuhan Komplek');
-    setFormCategory('Dana Tak Terduga');
-    setFormAmount('150000');
-    setFormVendor('Panitia Wilayah RW / Kelurahan / Kas Darurat');
-    setFormExpenseDate(new Date().toISOString().substring(0, 10));
-    setFormFundingSource('SALDO_BERJALAN');
-    setFormDescription('[Ditalangi Saldo Kas Berjalan] Kebutuhan mendadak komplek / sumbangan acara ditalangi dari akumulasi saldo kas berjalan');
-    setShowAddModal(true);
-  };
-
-  const handleOpenEditExpense = (exp: ExpenseItem) => {
-    setEditingExpenseId(exp.id);
-    setFormTitle(exp.title);
-    setFormCategory(exp.categoryName || 'Operasional');
-    setFormAmount(String(exp.amount));
-    setFormVendor(exp.vendor || '');
-    setFormExpenseDate(exp.expenseDate);
-    const desc = exp.description || '';
-    setFormDescription(desc);
-    if (desc.toLowerCase().includes('saldo kas berjalan') || desc.toLowerCase().includes('ditalangi saldo')) {
-      setFormFundingSource('SALDO_BERJALAN');
-    } else {
-      setFormFundingSource('KAS_OPERASIONAL');
-    }
-    setShowAddModal(true);
-  };
-
-  const handleSaveGeneralExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingExpense(true);
-
-    let finalDescription = formDescription.trim();
-    if (formFundingSource === 'SALDO_BERJALAN') {
-      if (!finalDescription.toLowerCase().includes('saldo kas berjalan') && !finalDescription.toLowerCase().includes('ditalangi saldo')) {
-        finalDescription = finalDescription ? `[Ditalangi Saldo Kas Berjalan] ${finalDescription}` : '[Ditalangi Saldo Kas Berjalan] Ditalangi dari saldo kas cadangan komplek';
-      }
-    }
-
-    try {
-      if (editingExpenseId) {
-        const res = await fetch('/api/expenses/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: editingExpenseId,
-            title: formTitle,
-            categoryName: formCategory,
-            amount: Number(formAmount),
-            vendor: formVendor,
-            expenseDate: formExpenseDate,
-            description: finalDescription,
-          }),
-        });
-        if (res.ok) {
-          setExpenses(
-            expenses.map((exp) =>
-              exp.id === editingExpenseId
-                ? {
-                    ...exp,
-                    title: formTitle,
-                    categoryName: formCategory,
-                    amount: Number(formAmount),
-                    vendor: formVendor,
-                    expenseDate: formExpenseDate,
-                    description: finalDescription,
-                  }
-                : exp
-            )
-          );
-          showToast(`Pengeluaran "${formTitle}" berhasil diperbarui.`);
-          setShowAddModal(false);
-        }
-      } else {
-        const res = await fetch('/api/expenses/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: formTitle,
-            categoryName: formCategory,
-            amount: Number(formAmount),
-            vendor: formVendor,
-            expenseDate: formExpenseDate,
-            description: finalDescription,
-          }),
-        });
-        if (res.ok) {
-          const newExp: ExpenseItem = {
-            id: `exp-${Date.now()}`,
-            title: formTitle,
-            description: finalDescription,
-            amount: Number(formAmount),
-            expenseDate: formExpenseDate,
-            categoryName: formCategory,
-            vendor: formVendor,
-            voucherNo: `BKK-${Date.now().toString().slice(-4)}`,
-            status: 'APPROVED',
-          };
-          setExpenses([newExp, ...expenses]);
-          setCurrentBalance((prev) => prev - Number(formAmount));
-          showToast(`Pengeluaran baru "${formTitle}" berhasil dicatat.`);
-          setShowAddModal(false);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menyimpan pengeluaran.');
-    } finally {
-      setSavingExpense(false);
-    }
-  };
-
-  const handleConfirmDeleteExpense = async () => {
-    if (!expenseToDelete) return;
-    try {
-      const res = await fetch('/api/expenses/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: expenseToDelete.id,
-          expenseId: expenseToDelete.id,
-          title: expenseToDelete.title,
-          amount: expenseToDelete.amount,
-          reason: deleteReason,
-        }),
-      });
-      if (res.ok) {
-        setExpenses(expenses.filter((e) => e.id !== expenseToDelete.id));
-        setCurrentBalance((prev) => prev + expenseToDelete.amount);
-        showToast(`Pengeluaran "${expenseToDelete.title}" berhasil dihapus.`);
-        setExpenseToDelete(null);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menghapus pengeluaran.');
-    }
-  };
-
-  // Handle Save Staff Loan
-  const handleSaveLoan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/expenses/loans/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          staffName: loanStaffName,
-          staffRole: loanStaffRole,
-          totalLoanAmount: Number(loanAmount),
-          monthlyDeduction: Number(loanMonthlyDeduction),
-          tenorMonths: Number(loanTenor),
-          purpose: loanPurpose,
-        }),
-      });
-
-      if (res.ok) {
-        const newLoan: StaffLoanItem = {
-          id: `LOAN-${Date.now().toString().slice(-3)}`,
-          staffName: loanStaffName,
-          staffRole: loanStaffRole === 'SATPAM' ? 'Petugas Keamanan' : 'Petugas Kebersihan',
-          staffPhone: '0812-9988-7766',
-          totalLoanAmount: Number(loanAmount),
-          remainingBalance: Number(loanAmount),
-          paidAmount: 0,
-          monthlyDeduction: Number(loanMonthlyDeduction),
-          tenorMonths: Number(loanTenor),
-          loanDate: new Date().toISOString().slice(0, 10),
-          purpose: loanPurpose,
-          approvedBy: 'Ketua RW 05 & Bendahara',
-          status: 'ACTIVE_INSTALLMENT',
-        };
-        setStaffLoans([newLoan, ...staffLoans]);
-        showToast(`Kasbon sebesar ${formatRupiah(loanAmount)} untuk ${loanStaffName} berhasil disetujui & dicatat.`);
-        setShowLoanModal(false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal mencatat kasbon.');
-    }
-  };
-
-  // Handle Pay Installment
-  const handlePayInstallment = async () => {
-    if (!selectedLoanForInstallment) return;
-    try {
-      const res = await fetch('/api/expenses/loans/installment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loanId: selectedLoanForInstallment.id,
-          staffName: selectedLoanForInstallment.staffName,
-          installmentAmount: Number(installmentAmountInput),
-          paymentMethod: 'POTONG_GAJI',
-        }),
-      });
-
-      if (res.ok) {
-        setStaffLoans(
-          staffLoans.map((l) => {
-            if (l.id === selectedLoanForInstallment.id) {
-              const newPaid = l.paidAmount + Number(installmentAmountInput);
-              const newRemaining = Math.max(0, l.totalLoanAmount - newPaid);
-              return {
-                ...l,
-                paidAmount: newPaid,
-                remainingBalance: newRemaining,
-                status: newRemaining === 0 ? 'PAID_OFF' : 'ACTIVE_INSTALLMENT',
-              };
-            }
-            return l;
-          })
-        );
-        showToast(`Pembayaran cicilan potong gaji ${selectedLoanForInstallment.staffName} sebesar ${formatRupiah(installmentAmountInput)} berhasil.`);
-        setSelectedLoanForInstallment(null);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal memproses cicilan.');
-    }
-  };
-
-  // Handle Save Social Aid
-  const handleSaveSocialAid = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/expenses/social/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipientName: socRecipient,
-          recipientRole: 'SATPAM',
-          aidType: socType,
-          amount: Number(socAmount),
-          description: socDesc,
-          hospitalOrDetails: socDetails,
-        }),
-      });
-
-      if (res.ok) {
-        const newAid: SocialAidItem = {
-          id: `AID-${Date.now().toString().slice(-3)}`,
-          recipientName: socRecipient,
-          recipientRole: 'SATPAM',
-          aidType: socType,
-          amount: Number(socAmount),
-          aidDate: new Date().toISOString().slice(0, 10),
-          description: socDesc,
-          hospitalOrDetails: socDetails,
-          voucherNo: `BSOS-${Date.now().toString().slice(-4)}`,
-        };
-        setSocialAids([newAid, ...socialAids]);
-        showToast(`Dana santunan sebesar ${formatRupiah(socAmount)} berhasil dicairkan.`);
-        setShowSocialModal(false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal mencatat dana sosial.');
-    }
-  };
-
-  // Handle Save Maintenance Project
-  const handleSaveProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/expenses/projects/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectName: prjName,
-          projectType: prjType,
-          budgetAmount: Number(prjBudget),
-          vendorOrContractor: prjVendor,
-          location: prjLocation,
-          description: prjDesc,
-        }),
-      });
-
-      if (res.ok) {
-        const newPrj: MaintenanceProjectItem = {
-          id: `PRJ-${Date.now().toString().slice(-3)}`,
-          projectName: prjName,
-          projectType: prjType,
-          budgetAmount: Number(prjBudget),
-          actualSpent: Number(prjBudget),
-          vendorOrContractor: prjVendor,
-          startDate: new Date().toISOString().slice(0, 10),
-          targetCompletionDate: '2026-09-30',
-          status: 'IN_PROGRESS',
-          description: prjDesc,
-          location: prjLocation,
-        };
-        setMaintenanceProjects([newPrj, ...maintenanceProjects]);
-        showToast(`Proyek pemeliharaan "${prjName}" berhasil dicatat.`);
-        setShowProjectModal(false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal mencatat proyek pemeliharaan.');
-    }
-  };
-
-  // Filter & Sort General Expenses
-  const filteredAndSortedExpenses = useMemo(() => {
-    const list = expenses.filter((e) => {
-      const matchCat = selectedCategory === 'ALL' || (e.categoryName && e.categoryName.toLowerCase().includes(selectedCategory.toLowerCase()));
-      const matchSearch =
-        e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (e.vendor && e.vendor.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (e.description && e.description.toLowerCase().includes(searchTerm.toLowerCase()));
-      return matchCat && matchSearch;
-    });
-
-    list.sort((a, b) => {
-      let comparison = 0;
-      if (sortBy === 'date') comparison = a.expenseDate.localeCompare(b.expenseDate);
-      else if (sortBy === 'title') comparison = a.title.localeCompare(b.title);
-      else if (sortBy === 'amount') comparison = a.amount - b.amount;
-      else if (sortBy === 'category') comparison = (a.categoryName || '').localeCompare(b.categoryName || '');
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-
-    return list;
-  }, [expenses, selectedCategory, searchTerm, sortBy, sortOrder]);
-
-  const totalFiltered = filteredAndSortedExpenses.length;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
-  const startIndex = (safeCurrentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalFiltered);
-  const paginatedExpenses = filteredAndSortedExpenses.slice(startIndex, endIndex);
-
-  // Bulk Selection Computations & Handlers
-  const selectedExpenses = useMemo(() => {
-    return expenses.filter((e) => selectedExpenseIds.includes(e.id));
-  }, [expenses, selectedExpenseIds]);
-
-  const totalSelectedAmount = useMemo(() => {
-    return selectedExpenses.reduce((sum, e) => sum + e.amount, 0);
-  }, [selectedExpenses]);
-
-  const isAllPageSelected = useMemo(() => {
-    if (paginatedExpenses.length === 0) return false;
-    return paginatedExpenses.every((e) => selectedExpenseIds.includes(e.id));
-  }, [paginatedExpenses, selectedExpenseIds]);
-
-  const isSomePageSelected = useMemo(() => {
-    return paginatedExpenses.some((e) => selectedExpenseIds.includes(e.id)) && !isAllPageSelected;
-  }, [paginatedExpenses, selectedExpenseIds, isAllPageSelected]);
-
-  const toggleSelectAllPage = () => {
-    if (isAllPageSelected) {
-      const pageIds = new Set(paginatedExpenses.map((e) => e.id));
-      setSelectedExpenseIds((prev) => prev.filter((id) => !pageIds.has(id)));
-    } else {
-      const newSelected = new Set(selectedExpenseIds);
-      paginatedExpenses.forEach((e) => newSelected.add(e.id));
-      setSelectedExpenseIds(Array.from(newSelected));
-    }
-  };
-
-  const selectAllFiltered = () => {
-    const allFilteredIds = filteredAndSortedExpenses.map((e) => e.id);
-    setSelectedExpenseIds(allFilteredIds);
-    showToast(`Seluruh ${allFilteredIds.length} pengeluaran berhasil dipilih.`);
-  };
-
-  const toggleSelectOne = (id: string) => {
-    setSelectedExpenseIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const clearSelection = () => {
-    setSelectedExpenseIds([]);
-  };
-
-  const handleConfirmBulkDelete = async () => {
-    if (selectedExpenseIds.length === 0) return;
-    setIsDeletingBulk(true);
-    try {
-      const res = await fetch('/api/expenses/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ids: selectedExpenseIds,
-          totalAmount: totalSelectedAmount,
-          reason: bulkDeleteReason,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data?.data?.success) {
-        const deletedCount = data.data.count || selectedExpenseIds.length;
-        const deletedIdsSet = new Set(selectedExpenseIds);
-        setExpenses((prev) => prev.filter((e) => !deletedIdsSet.has(e.id)));
-        setCurrentBalance((prev) => prev + totalSelectedAmount);
-        showToast(`Berhasil menghapus ${deletedCount} catatan pengeluaran (${formatRupiah(totalSelectedAmount)} dikembalikan ke saldo kas).`);
-        setSelectedExpenseIds([]);
-        setShowBulkDeleteModal(false);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('wargahub_expenses_updated', {
-            detail: { deletedCount, totalRefunded: totalSelectedAmount }
-          }));
-        }
-      } else {
-        showToast(data?.error?.message || 'Gagal menghapus pengeluaran terpilih.');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Terjadi kesalahan jaringan saat menghapus pengeluaran massal.');
-    } finally {
-      setIsDeletingBulk(false);
-    }
-  };
-
-  // Copy Public Link
-  const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'https://wrghub.vercel.app/transparency';
-  const handleCopyPublicLink = () => {
-    navigator.clipboard.writeText(publicTransparencyUrl);
-    setCopiedLink(true);
-    showToast('Tautan publik transparansi keuangan berhasil disalin!');
-    setTimeout(() => setCopiedLink(false), 3000);
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Toast Alert */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 bg-emerald-700 text-white rounded-2xl shadow-xl font-bold text-xs animate-in slide-in-from-top-3">
-          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-semibold tracking-tight text-ink">
-              Pengeluaran
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-xs font-black border border-rose-200 tabular-nums">
-              Saldo kas: {formatRupiah(currentBalance)}
-            </span>
-          </div>
-          <p className="text-xs text-ink-muted mt-1">
-            Catat belanja, kelola pengeluaran rutin, dan simpan bukti transaksi.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExportExpensesCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-          >
-            <Download className="w-4 h-4 text-rose-600" />
-            <span>Ekspor CSV</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenAddExpense}
-            className="inline-flex items-center gap-1.5 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-all"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Catat pengeluaran</span>
-          </button>
-          {activeSubTab === 'staff_loans' && (
-            <button
-              type="button"
-              onClick={() => setShowLoanModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Tambah Kasbon</span>
-            </button>
-          )}
-          {activeSubTab === 'social_aid' && (
-            <button
-              type="button"
-              onClick={() => setShowSocialModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-            >
-              <HeartHandshake className="w-4 h-4" />
-              <span>Cairkan Santunan</span>
-            </button>
-          )}
-          {activeSubTab === 'fasum_projects' && (
-            <button
-              type="button"
-              onClick={() => setShowProjectModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-            >
-              <Paintbrush className="w-4 h-4" />
-              <span>Catat Proyek Cat & Alat</span>
-            </button>
-          )}
-        </div>
+  return <section className="workspace">
+    <FinanceHeader area="expenses" title="Pengeluaran" canViewPayments={canWrite}>
+      {canRecord && (tab==='expenses_list' || social) && <button type="button" onClick={()=>open(social?{type:'social'}:{type:'expense',project})} className={financePrimary}>
+        <Plus className="size-4" aria-hidden="true" />{social?'Catat bantuan':'Catat pengeluaran'}
+      </button>}
+      {canWrite && tab==='fasum_projects' && <button className={financePrimary} type="button" onClick={()=>open({type:'project'})}><Plus className="size-4" aria-hidden="true" />Proyek baru</button>}
+      {canWrite && tab==='expenses_list' && <button className={financeButton} type="button" onClick={()=>open({type:'category'})}>Kategori</button>}
+    </FinanceHeader>
+    <FinanceTabLinks tabs={tabs.map(item=>({...item,href:expenseHref({tab:item.id})}))} active={tab} label="Menu pengeluaran" />
+    <p role="status" className={saved?'rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-900':'sr-only'}>{saved}</p>
+    {canWrite && !canRecord && tab!=='fasum_projects' && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+      <span>{accounts.length?'Kategori pengeluaran belum tersedia.':'Siapkan rekening kas sebelum mencatat pengeluaran.'}</span>
+      {!accounts.length ? <a href={ledgerHref({tab:'accounts_manage'})} className={cellLink}>Kelola rekening <ArrowUpRight className="size-4" aria-hidden="true" /></a> :
+        <button type="button" className={cellLink} onClick={()=>open({type:'category'})}>Tambah kategori</button>}
+    </div>}
+    {tab==='recurring_expenses' && recurring && <RecurringExpensesManager config={recurring} accounts={accounts} categories={categories} canWrite={canWrite} />}
+    {tab==='fasum_projects' && <section className="grid gap-3" aria-label="Proyek fasum">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold">Anggaran dan realisasi proyek</h2>
+        {canViewFacilities && <a href="/admin/facilities?tab=facilities" className={cellLink}>Katalog fasilitas <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
       </div>
-
-      {/* Public Transparency Share Callout Banner */}
-      <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-            <Share2 className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="font-bold text-emerald-950 text-sm">Tautan Publik Laporan Transparansi Kas & Iuran Warga</h4>
-            <p className="text-emerald-800 text-[11px] mt-0.5">
-              Warga dapat melihat laporan kas masuk-keluar, nota belanja, serta daftar unit yang sudah lunas secara terbuka di portal transparansi.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end shrink-0">
-          <button
-            type="button"
-            onClick={handleCopyPublicLink}
-            className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-xl border border-emerald-300 shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-          >
-            {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-emerald-700" />}
-            <span>Salin tautan</span>
-          </button>
-          <a
-            href={publicTransparencyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow-2xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>Lihat laporan</span>
-          </a>
-        </div>
-      </div>
-
-      {/* 6 Sub-Tabs Navigation Bar */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border shadow-2xs overflow-x-auto no-scrollbar">
-        {[
-          { id: 'expenses_list', label: 'Transaksi', icon: FileText, count: `${expenses.length}` },
-          { id: 'recurring_expenses', label: 'Pengeluaran rutin', icon: Repeat },
-          { id: 'staff_loans', label: 'Kasbon', icon: Banknote, count: `${staffLoans.length}` },
-          { id: 'social_aid', label: 'Santunan', icon: HeartHandshake, count: `${socialAids.length}` },
-          { id: 'fasum_projects', label: 'Pemeliharaan', icon: Paintbrush, count: `${maintenanceProjects.length}` },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-               onClick={() => tab.id === 'staff_loans' ? window.location.assign('/admin/staff-loans') : setActiveSubTab(tab.id as any)}
-               aria-pressed={isActive}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-[0.98] ${
-                isActive
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-canvas'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-rose-400' : 'text-ink-muted'}`} />
-              <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-canvas text-ink-muted border border-border/60'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
+      {!projects.length && <FinanceEmpty>Belum ada proyek fasum.</FinanceEmpty>}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {projects.map(item=>{
+          const facility = facilities.find(row=>row.id===item.facilityId);
+          const percentage = item.budgetAmount>0 ? Math.round(100*item.actualSpent/item.budgetAmount) : 0;
+          return <article key={item.id} className="workspace-panel grid min-w-0 gap-3">
+            <header className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0"><p className="text-xs font-semibold text-primary-800">{projectTypes[item.projectType]}</p>
+                <h3 className="mt-1 text-lg font-bold [overflow-wrap:anywhere]">{item.projectName}</h3></div><FinanceStatus value={item.status} />
+            </header>
+            <p className="text-sm text-ink-muted [overflow-wrap:anywhere]">{[facility?.name,item.vendorOrContractor,financeDate(item.startDate)+(item.targetCompletionDate?' – '+financeDate(item.targetCompletionDate):'')].filter(Boolean).join(' · ')}</p>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div><dt className="text-ink-muted">Anggaran</dt><dd className="font-bold tabular-nums">{cashRupiah(item.budgetAmount)}</dd></div>
+              <div><dt className="text-ink-muted">Dibukukan</dt><dd className={'font-bold tabular-nums '+(percentage>100?'text-rose-800':'text-primary-800')}>{cashRupiah(item.actualSpent)}</dd></div>
+            </dl>
+            <div className="h-2 overflow-hidden rounded-full bg-primary-100" role="meter" aria-label="Pemakaian anggaran" aria-valuenow={Math.min(100,percentage)} aria-valuetext={percentage+' persen'}>
+              <div className={'h-full rounded-full '+(percentage>100?'bg-rose-600':'bg-primary-600')} style={{width:Math.min(100,percentage)+'%'}} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <a href={expenseHref({tab:'expenses_list',project:item.id})} className={financeButton}>Lihat biaya</a>
+              {canRecord && <button type="button" className={financeButton} onClick={()=>open({type:'expense',project:item})}><Plus className="size-4" aria-hidden="true" />Catat biaya</button>}
+              {canWrite && <button type="button" className={cellLink+' px-2'} onClick={()=>open({type:'project',project:item})}>Ubah proyek</button>}
+            </div>
+          </article>;
         })}
       </div>
-
-      {/* ================= SUBTAB 1: BUKU PENGELUARAN & NOTA BELANJA ================= */}
-      {activeSubTab === 'expenses_list' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          {/* Smart Automation Banner: Bebas Input Berulang */}
-          <div className="p-4 bg-gradient-to-r from-rose-50 via-amber-50 to-emerald-50 rounded-2xl border border-rose-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-                <Repeat className="w-5 h-5 animate-pulse" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-950 text-sm flex items-center gap-2">
-                  <span>Otomasi Pengeluaran Rutin Bebas Repot</span>
-                  <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-black tracking-wide uppercase border border-rose-200">
-                    Bebas Input Berulang
-                  </span>
-                </h4>
-                <p className="text-slate-600 text-[11px] mt-0.5">
-                  Pos bulanan (Honor Pa Adri Harry, Sampah, PJU, Got, Pos) otomatis dibukukan dan langsung memotong saldo kas tanpa perlu diketik berulang kali setiap bulan.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('recurring_expenses')}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 shrink-0 active:scale-[0.98] transition-all"
-            >
-              <Repeat className="w-3.5 h-3.5 text-rose-400" />
-              <span>⚙️ Setting & Auto-Debit Rutin</span>
-            </button>
+    </section>}
+    {(tab==='expenses_list' || social) && <div className="grid gap-4">
+      {(exact || initialProject) && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-sky-50 px-4 py-2 text-sm text-sky-900">
+        <span className="font-semibold [overflow-wrap:anywhere]">{project?'Biaya proyek: '+project.projectName:'Detail pengeluaran'}</span>
+        <a href={expenseHref({tab:project?'fasum_projects':tab})} className={cellLink}>{project?'Kembali ke proyek':'Lihat semua'}</a>
+      </div>}
+      {!exact && summary}
+      <section className="min-w-0 rounded-2xl border border-border bg-surface" aria-label={social?'Riwayat bantuan sosial':'Transaksi pengeluaran'}>
+        {!exact && filterBar}
+        <header className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
+          <h2 className="text-base font-bold">{social?'Riwayat bantuan':exact?'Rincian transaksi':'Transaksi'}</h2>
+          {rows.length>0 && <button className={cellLink} type="button" onClick={exportRows}><ArrowDownToLine className="size-4" aria-hidden="true" />CSV</button>}
+        </header>
+        {!rows.length ? <div className="p-4"><FinanceEmpty>{exact?'Pengeluaran tidak ditemukan.':filtered?'Tidak ada pengeluaran yang cocok.':project?'Belum ada biaya yang dicatat untuk proyek ini.':social?'Belum ada bantuan sosial.':'Belum ada transaksi pengeluaran.'}</FinanceEmpty></div>
+          : <ul className="divide-y divide-border px-4">
+            {rows.slice((page-1)*pageSize,page*pageSize).map(item=>{
+              const linkedProject = projects.find(row=>row.id===item.details.projectId);
+              const editable = canWrite && (item.status==='PENDING' || (item.status==='APPROVED' && item.journalCount===1));
+              return <li key={item.id} data-expense-id={item.id} className="grid min-w-0 gap-x-4 gap-y-2 py-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.85fr)_minmax(0,1fr)] md:items-start">
+                <div className="min-w-0">
+                  <p className="font-semibold [overflow-wrap:anywhere]">{item.title}</p>
+                  <p className="mt-0.5 text-sm text-ink-muted [overflow-wrap:anywhere]">{[financeDate(item.expenseDate),item.categoryName,item.accountName].filter(Boolean).join(' · ')}</p>
+                  {item.details.recipientName && <p className="mt-1 text-sm font-medium [overflow-wrap:anywhere]">{item.details.recipientName}</p>}
+                  {(item.description || item.details.memo || item.details.vendor) && <p className="mt-1 text-sm text-ink-muted [overflow-wrap:anywhere]">{[item.details.vendor,item.details.memo || item.description].filter(Boolean).join(' · ')}</p>}
+                  {linkedProject && <a className={cellLink} href={expenseHref({tab:'expenses_list',project:linkedProject.id})}>Biaya proyek <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-2 md:flex-col md:items-start">
+                  <p className="font-bold tabular-nums [overflow-wrap:anywhere]">{cashRupiah(item.amount)}</p>
+                  <FinanceStatus value={item.status==='PENDING'?'DRAFT':item.status==='APPROVED' && !item.journalMatches?'UNLINKED':item.status} />
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 md:justify-end">
+                  {item.journalCount>0 && <a className={cellLink} href={ledgerHref({expense:item.id})}>Buku kas <ArrowUpRight className="size-3" aria-hidden="true" /></a>}
+                  {item.hasProof && <a className={cellLink} href={'/api/expenses/proof?'+new URLSearchParams({expense:item.id})} download rel="noreferrer" data-astro-reload>Bukti <ArrowDownToLine className="size-3" aria-hidden="true" /></a>}
+                  {editable && <button className={cellLink} type="button" onClick={()=>open({type:item.details.aidType?'social':'expense',record:item})}>Ubah</button>}
+                  {editable && item.status==='PENDING' && <button className={cellLink} type="button" onClick={()=>open({type:'book',record:item})}>Bukukan</button>}
+                  {editable && <button className={cellLink+' !text-rose-800'} type="button" onClick={()=>open({type:'cancel',record:item})}>Batalkan</button>}
+                </div>
+              </li>;
+            })}
+          </ul>}
+        {!exact && <FinancePager total={rows.length} page={page} pageSize={pageSize} onChange={setPage} label="pengeluaran" />}
+      </section>
+      {canWrite && <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+        <a className={cellLink} href={financePath('/admin/budget',{tab:'budget_matrix',month,category})}><Wallet className="size-4" aria-hidden="true" />Lihat anggaran dan realisasi <ArrowUpRight className="size-3" aria-hidden="true" /></a>
+        <a className={cellLink} href="/admin/staff-loans">Kasbon petugas <ArrowUpRight className="size-3" aria-hidden="true" /></a>
+      </div>}
+    </div>}
+    <FinanceDialog open={Boolean(form)} title={title} close={()=>setForm(null)} busy={busy} error={error}>
+      {form && <form className="grid gap-3" onSubmit={submit} key={form.type+(record?.id || projectForm?.id || '')}>
+        {(form.type==='cancel' || form.type==='book') ? <>
+          <p className="text-sm text-ink-muted">{form.record.title} · <strong>{cashRupiah(form.record.amount)}</strong></p>
+          {form.type==='book' ? <p className="text-sm">Pastikan pembayaran sudah terjadi. Nominal akan dicatat sebagai kas keluar.</p> :
+            <><p className="text-sm">{form.record.status==='APPROVED'?'Buku kas akan mencatat pembalikan. Riwayat transaksi tetap tersedia.':'Draf dibatalkan tanpa mengubah saldo.'}</p>
+              <Field label="Alasan pembatalan"><textarea className={financeField} name="reason" required minLength={5} maxLength={500} /></Field></>}
+        </> : form.type==='category' ? <>
+          {categories.length>0 && <ul className="flex flex-wrap gap-1.5" aria-label="Kategori yang tersedia">{categories.map(item=><li key={item.id} className="rounded-full bg-primary-50 px-2.5 py-1 text-sm text-primary-900 [overflow-wrap:anywhere]">{item.name}</li>)}</ul>}
+          <Field label="Nama kategori baru"><input className={financeField} name="name" minLength={2} maxLength={100} required /></Field>
+        </> : form.type==='project' ? <>
+          <Field label="Nama proyek"><input className={financeField} name="projectName" required maxLength={200} defaultValue={projectForm?.projectName} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Jenis proyek"><select className={financeField} name="projectType" defaultValue={projectForm?.projectType}>{Object.entries(projectTypes).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></Field>
+            <Field label="Status"><select className={financeField} name="projectStatus" defaultValue={projectForm?.status}>{Object.entries(projectStatuses).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></Field>
+            <Field label="Anggaran (Rp)"><input className={financeField} name="budgetAmount" type="number" inputMode="decimal" min="0.01" step="0.01" required defaultValue={projectForm?.budgetAmount} /></Field>
+            <Field label="Fasilitas (opsional)"><select className={financeField} name="facilityId" defaultValue={projectForm?.facilityId || ''}>
+              <option value="">Pilih dari katalog</option>{facilities.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+            </select></Field>
+            <Field label="Tanggal mulai"><input className={financeField+' min-w-0'} type="date" name="startDate" required defaultValue={projectForm?.startDate || jakartaDate()} /></Field>
+            <Field label="Target selesai (opsional)"><input className={financeField+' min-w-0'} type="date" name="targetCompletionDate" defaultValue={projectForm?.targetCompletionDate} /></Field>
           </div>
-
-          {/* Talangan Saldo Kas Berjalan Banner & Quick Presets */}
-          <div className="p-4 bg-gradient-to-r from-amber-50/90 via-orange-50/50 to-canvas rounded-2xl border border-amber-200/90 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs">
-            <div className="flex items-start sm:items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-                <Zap className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-amber-950 text-sm">
-                    Pencatatan Alokasi Saldo Kas Berjalan (Dana Dadakan & Dana Kesehatan)
-                  </h4>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300">
-                    Kas Cadangan
-                  </span>
-                </div>
-                <p className="text-amber-900 text-[11px] mt-0.5 leading-relaxed">
-                  Gunakan saldo kas akhir berjalan saat ada kebutuhan medis satpam yang fluktuatif (pagu referensi Rp 100.000 ±) atau pengeluaran dadakan darurat/sumbangan warga.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0 justify-end">
-              <button
-                type="button"
-                onClick={handleOpenQuickHealthAid}
-                className="px-3 py-2 bg-white hover:bg-rose-50 text-rose-800 hover:text-rose-900 border border-rose-200 hover:border-rose-300 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all shadow-2xs"
-                title="Catat pengeluaran obat/kesehatan satpam ditalangi saldo kas berjalan"
-              >
-                <Heart className="w-3.5 h-3.5 text-rose-600" />
-                <span>⚡ Talangi Dana Kesehatan (Rp 100rb ±)</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenQuickUnexpectedAid}
-                className="px-3 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all shadow-2xs"
-                title="Catat pengeluaran tak terduga dadakan ditalangi saldo kas berjalan"
-              >
-                <AlertCircle className="w-3.5 h-3.5 text-amber-700" />
-                <span>⚡ Talangi Dana Dadakan</span>
-              </button>
-            </div>
+          <Field label="Pelaksana (opsional)"><input className={financeField} name="vendorOrContractor" maxLength={160} defaultValue={projectForm?.vendorOrContractor} /></Field>
+        </> : <>
+          {projectExpense && <p className="text-sm font-semibold text-primary-800">{projectExpense.projectName}</p>}
+          {form.type==='social' ? <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nama penerima (internal)"><input className={financeField} name="recipientName" required maxLength={200} defaultValue={record?.details.recipientName} /></Field>
+            <Field label="Jenis bantuan"><select className={financeField} name="aidType" defaultValue={record?.details.aidType}>{Object.entries(aidTypes).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></Field>
+          </div> : <Field label="Nama pengeluaran (tampil di laporan warga)"><input className={financeField} name="title" required minLength={2} maxLength={200} defaultValue={record?.title} placeholder={projectExpense?'Contoh: Termin pertama':'Contoh: Servis pompa air'} /></Field>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nominal (Rp)"><input className={financeField} name="amount" type="number" inputMode="decimal" min="0.01" step="0.01" required defaultValue={record?.amount} /></Field>
+            <Field label="Tanggal transaksi"><input className={financeField+' min-w-0'} name="expenseDate" type="date" required defaultValue={record?.expenseDate || jakartaDate()} /></Field>
+            <Field label="Kategori"><select className={financeField} name="categoryId" required defaultValue={record?.categoryId || (form.type==='social'?categories.find(item=>/sosial|kesehatan/i.test(item.name))?.id:projectExpense?categories.find(item=>/pemeliharaan/i.test(item.name))?.id:undefined) || ''}>
+              <option value="" disabled>Pilih kategori</option>{categories.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+            </select></Field>
+            <Field label="Rekening"><select className={financeField} name="accountId" required defaultValue={record?.accountId || accounts[0]?.id || ''}>
+              <option value="" disabled>Pilih rekening</option>{accounts.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+            </select></Field>
           </div>
-
-          {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Pengeluaran Rutin</span>
-              <p className="text-2xl font-black font-mono text-rose-700 mt-0.5 tabular-nums">{formatRupiah(totalExpense)}</p>
-              <span className="text-[10px] text-rose-600 font-bold font-mono mt-0.5 block">{expenses.length} POS PEMBELANJAAN</span>
-            </div>
-
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Piutang Kasbon Petugas</span>
-              <p className="text-2xl font-black font-mono text-indigo-700 mt-0.5 tabular-nums">{formatRupiah(totalActiveLoans)}</p>
-              <span className="text-[10px] text-indigo-600 font-bold font-mono mt-0.5 block">DICICIL POTONG GAJI</span>
-            </div>
-
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Realisasi Dana Santunan</span>
-              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">{formatRupiah(totalSocialGranted)}</p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">KESEHATAN & MUSIBAH</span>
-            </div>
-
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Proyek Cat & Alat Fasum</span>
-              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">{formatRupiah(totalProjectsBudget)}</p>
-              <span className="text-[10px] text-amber-600 font-bold font-mono mt-0.5 block">TEMBOK, GATE & PJU</span>
-            </div>
-          </div>
-
-          {/* Search, Filter & Sort Bar */}
-          <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="w-full sm:w-72 relative">
-              <Search className="w-4 h-4 text-ink-muted absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Cari uraian, vendor, voucher..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-              <select
-                value={selectedCategory}
-                onChange={(e) => {
-                  setSelectedCategory(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="ALL">Semua Kategori</option>
-                <option value="Gaji">Gaji Satpam</option>
-                <option value="Iuran RT">Iuran RT (Sampah & Kebersihan)</option>
-                <option value="Iuran RW">Iuran RW (Paguyuban Komplek)</option>
-                <option value="Operasional">Operasional (PJU & Pos Jaga)</option>
-                <option value="Dana Kesehatan">Dana Kesehatan / Bantuan Satpam</option>
-                <option value="Dana Tak Terduga">Dana Tak Terduga (Sumbangan Agustusan / Warga)</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="date">Urut Tanggal</option>
-                <option value="title">Urut Uraian</option>
-                <option value="amount">Urut Nominal</option>
-                <option value="category">Urut Kategori</option>
-              </select>
-
-              <button
-                type="button"
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink active:scale-[0.98] transition-all"
-                title={`Urutan: ${sortOrder === 'asc' ? 'Menaik' : 'Menurun'}`}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Bulk Selection Floating / Action Bar */}
-          {selectedExpenseIds.length > 0 && (
-            <div className="p-3 sm:p-4 bg-slate-950 text-white rounded-2xl shadow-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-150">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-                  <CheckSquare className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-black text-sm text-white">
-                      {selectedExpenseIds.length} Pengeluaran Dipilih
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-mono font-bold tabular-nums">
-                      Total: {formatRupiah(totalSelectedAmount)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Hapus serentak catatan pengeluaran terpilih dan pulihkan saldo kas otomatis.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                {totalFiltered > paginatedExpenses.length && selectedExpenseIds.length < totalFiltered && (
-                  <button
-                    type="button"
-                    onClick={selectAllFiltered}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-700 active:scale-[0.98]"
-                  >
-                    Pilih Semua Filter ({totalFiltered})
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={clearSelection}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-[0.98]"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Batal</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowBulkDeleteModal(true)}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-[0.98]"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Hapus Massal ({selectedExpenseIds.length})</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Table List of Expenses */}
-          <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-canvas border-b border-border text-ink-muted font-bold">
-                  <tr>
-                    <th className="py-3.5 px-3 w-10 text-center">
-                      <button
-                        type="button"
-                        onClick={toggleSelectAllPage}
-                        title={isAllPageSelected ? "Batalkan pilihan di halaman ini" : "Pilih semua di halaman ini"}
-                        className="p-1 rounded-lg hover:bg-surface text-ink transition-colors inline-flex items-center justify-center active:scale-95"
-                      >
-                        {isAllPageSelected ? (
-                          <CheckSquare className="w-4 h-4 text-rose-600" />
-                        ) : isSomePageSelected ? (
-                          <MinusSquare className="w-4 h-4 text-rose-600" />
-                        ) : (
-                          <Square className="w-4 h-4 text-ink-muted/50 hover:text-ink" />
-                        )}
-                      </button>
-                    </th>
-                    <th className="py-3.5 px-4">Tanggal & No. Voucher</th>
-                    <th className="py-3.5 px-4">Kategori Pos</th>
-                    <th className="py-3.5 px-4">Uraian Pengeluaran & Vendor</th>
-                    <th className="py-3.5 px-4 text-right">Nominal Realisasi</th>
-                    <th className="py-3.5 px-4 text-center">Status</th>
-                    <th className="py-3.5 px-4 text-right">Aksi & Dokumen</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {paginatedExpenses.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-ink-muted font-medium">
-                        Tidak ada catatan pengeluaran kas yang sesuai dengan filter.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedExpenses.map((exp) => (
-                      <tr
-                        key={exp.id}
-                        className={`transition-colors text-ink ${
-                          selectedExpenseIds.includes(exp.id)
-                            ? 'bg-rose-50/70 dark:bg-rose-950/20 font-medium'
-                            : 'hover:bg-canvas/60'
-                        }`}
-                      >
-                        <td className="py-3.5 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => toggleSelectOne(exp.id)}
-                            title={selectedExpenseIds.includes(exp.id) ? "Batalkan pilihan pengeluaran ini" : "Pilih pengeluaran ini"}
-                            className="p-1 rounded-lg hover:bg-surface text-ink transition-colors inline-flex items-center justify-center active:scale-95"
-                          >
-                            {selectedExpenseIds.includes(exp.id) ? (
-                              <CheckSquare className="w-4 h-4 text-rose-600" />
-                            ) : (
-                              <Square className="w-4 h-4 text-ink-muted/40 hover:text-ink" />
-                            )}
-                          </button>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="font-mono text-ink font-bold block">{exp.expenseDate}</span>
-                          <span className="text-[10px] text-ink-muted font-mono bg-canvas px-1.5 py-0.5 rounded border border-border/80 inline-block mt-0.5">
-                            {exp.voucherNo || `BKK-${exp.id.slice(-4)}`}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2.5 py-1 rounded-lg bg-canvas border border-border font-bold text-[11px] text-ink">
-                            {exp.categoryName || 'Operasional'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-black text-ink block text-xs">{exp.title}</span>
-                            {(exp.description?.toLowerCase().includes('saldo kas berjalan') ||
-                              exp.description?.toLowerCase().includes('ditalangi saldo')) && (
-                              <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[9px] font-mono font-bold inline-flex items-center gap-1 shadow-2xs">
-                                ⚡ Ditalangi Saldo Berjalan
-                              </span>
-                            )}
-                            {(exp.categoryName?.toLowerCase().includes('kesehatan') ||
-                              exp.title?.toLowerCase().includes('kesehatan satpam')) && (
-                              <span className="px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-bold">
-                                Pagu Ref: Rp 100.000 (Fluktuatif)
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <span className="text-[10px] text-primary-700 font-semibold">{exp.vendor || 'Pengadaan Mandiri'}</span>
-                            {exp.description && (
-                              <span className="text-[10px] text-ink-muted truncate max-w-sm" title={exp.description}>
-                                • {exp.description}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-mono font-black text-rose-700 text-sm tabular-nums">
-                          - {formatRupiah(exp.amount)}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-mono font-black text-[10px] border border-emerald-300 shadow-2xs">
-                            ✓ {exp.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedVoucher(exp)}
-                              className="px-2.5 py-1.5 bg-primary-50 hover:bg-primary-100 text-primary-800 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all shadow-2xs"
-                              title="Lihat / Cetak Voucher Kas Keluar (BKK)"
-                            >
-                              <Receipt className="w-3.5 h-3.5" />
-                              <span>Voucher BKK</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditExpense(exp)}
-                              className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg font-bold active:scale-[0.98] transition-all"
-                              title="Edit Pengeluaran"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setExpenseToDelete(exp)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg font-bold active:scale-[0.98] transition-all"
-                              title="Hapus Pengeluaran"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* PAGINATION CONTROLS */}
-            <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <span className="text-ink-muted">
-                  Menampilkan <strong className="text-ink">{totalFiltered === 0 ? 0 : startIndex + 1}</strong> - <strong className="text-ink">{endIndex}</strong> dari <strong className="text-ink">{totalFiltered}</strong> pengeluaran
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-ink-muted">Tampilkan:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="px-2 py-1 bg-surface border border-border rounded-lg font-bold text-ink"
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(1)}
-                  disabled={safeCurrentPage === 1}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Pertama"
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
-                  disabled={safeCurrentPage === 1}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Sebelumnya"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="px-3 py-1 font-mono font-bold text-ink bg-surface border border-border rounded-lg">
-                  {safeCurrentPage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
-                  disabled={safeCurrentPage === totalPages}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Berikutnya"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(totalPages)}
-                  disabled={safeCurrentPage === totalPages}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Terakhir"
-                >
-                  <ChevronsRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB: SETTING PENGELUARAN RUTIN & AUTO-DEBIT ================= */}
-      {activeSubTab === 'recurring_expenses' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <RecurringExpensesManager
-            accounts={initialAccounts}
-            currentBalance={currentBalance}
-            initialConfig={initialRecurringConfig}
-            existingExpenseTitles={expenses.map((e) => `${e.expenseDate.slice(0, 7)} - ${e.title}`)}
-            onExpensesProcessed={(newItems, newBal) => {
-              setExpenses((prev) => [...newItems, ...prev]);
-              setCurrentBalance(newBal);
-            }}
-          />
-        </div>
-      )}
-
-      {/* ================= SUBTAB 2: KASBON & PINJAMAN PETUGAS SATPAM ================= */}
-      {activeSubTab === 'staff_loans' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <a className="btn-secondary" href="/admin/staff-loans">Buka buku kasbon</a>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 3: DANA SANTUNAN & KESEHATAN ================= */}
-      {activeSubTab === 'social_aid' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-              <div>
-                <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <HeartHandshake className="w-5 h-5 text-emerald-600" />
-                  Dana Kesehatan, Santunan Musibah & Tali Asih Petugas
-                </h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Alokasi kas sosial paguyuban untuk bantuan biaya berobat, rawat inap, santunan duka cita keluarga satpam, dan THR.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowSocialModal(true)}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                Cairkan Santunan Baru
-              </button>
-            </div>
-
-            {socialAids.length === 0 ? (
-              <div className="py-12 px-4 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-2">
-                <HeartHandshake className="w-10 h-10 text-ink-muted/40 mx-auto" />
-                <p className="text-sm font-bold text-ink">Belum Ada Catatan Dana Santunan Riil</p>
-                <p className="text-xs text-ink-muted max-w-md mx-auto">
-                  Catatan bantuan santunan kesehatan, musibah, atau tali asih petugas akan tampil di sini saat bendahara mencairkan dana.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {socialAids.map((aid) => (
-                  <div key={aid.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded text-[10px] font-black">
-                        {aid.aidType.replace(/_/g, ' ')}
-                      </span>
-                      <span className="font-mono text-xs text-ink-muted">{aid.aidDate}</span>
-                    </div>
-
-                    <div>
-                      <h4 className="font-black text-ink text-sm">{aid.recipientName}</h4>
-                      <p className="text-xs text-ink-muted mt-0.5">{aid.description}</p>
-                      {aid.hospitalOrDetails && (
-                        <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
-                          📍 {aid.hospitalOrDetails}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="p-2.5 bg-surface rounded-xl border border-border flex justify-between items-center text-xs">
-                      <span className="text-ink-muted font-medium">Nominal Santunan:</span>
-                      <span className="font-black text-emerald-700 font-mono text-sm">{formatRupiah(aid.amount)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 4: DANA CAT KOMPLEK & PERALATAN FASUM ================= */}
-      {activeSubTab === 'fasum_projects' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-              <div>
-                <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <Paintbrush className="w-5 h-5 text-amber-600" />
-                  Dana Umum Cat Komplek & Perbaikan Peralatan Lingkungan
-                </h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Proyek pengecatan tembok komplek, servis mesin potong rumput, motor barrier gate RFID, dan pengadaan lampu PJU.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowProjectModal(true)}
-                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                Catat Proyek / Pengadaan
-              </button>
-            </div>
-
-            {maintenanceProjects.length === 0 ? (
-              <div className="py-12 px-4 text-center bg-canvas rounded-2xl border border-dashed border-border space-y-2">
-                <Paintbrush className="w-10 h-10 text-ink-muted/40 mx-auto" />
-                <p className="text-sm font-bold text-ink">Belum Ada Proyek Pemeliharaan Fasum</p>
-                <p className="text-xs text-ink-muted max-w-md mx-auto">
-                  Catatan proyek pengecatan lingkungan, servis peralatan fasum, dan pengadaan lampu akan tampil di sini saat didaftarkan.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {maintenanceProjects.map((prj) => (
-                  <div key={prj.id} className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-black">
-                        {prj.projectType.replace(/_/g, ' ')}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                        prj.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800'
-                      }`}>
-                        {prj.status === 'COMPLETED' ? '✓ SELESAI' : 'SEDANG BERJALAN'}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h4 className="font-black text-ink text-sm">{prj.projectName}</h4>
-                      <p className="text-xs text-ink-muted mt-1 leading-relaxed">{prj.description}</p>
-                      <p className="text-[11px] text-primary-700 font-semibold mt-1">
-                        Pelaksana: {prj.vendorOrContractor} • Lokasi: {prj.location}
-                      </p>
-                    </div>
-
-                    <div className="p-2.5 bg-surface rounded-xl border border-border flex justify-between items-center text-xs">
-                      <span className="text-ink-muted font-medium">Realisasi Anggaran:</span>
-                      <span className="font-black text-rose-700 font-mono text-sm">{formatRupiah(prj.actualSpent)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: CATAT / EDIT PENGELUARAN KAS BARU ================= */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink">
-                {editingExpenseId ? 'Edit Catatan Pengeluaran Kas' : 'Catat Pengeluaran Kas Baru'}
-              </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-ink-muted hover:text-ink">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveGeneralExpense} className="space-y-3.5">
-              {/* Sumber Alokasi Kas */}
-              <div className="p-3 bg-canvas rounded-2xl border border-border space-y-2">
-                <label className="font-bold text-ink block text-[11px]">
-                  Sumber Alokasi Kas *
-                </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setFormFundingSource('KAS_OPERASIONAL')}
-                    className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
-                      formFundingSource === 'KAS_OPERASIONAL'
-                        ? 'bg-primary-600 text-white shadow-xs'
-                        : 'bg-surface hover:bg-canvas border border-border text-ink-muted hover:text-ink'
-                    }`}
-                  >
-                    <Banknote className="w-3.5 h-3.5" />
-                    <span>Kas Rutin Bulanan</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormFundingSource('SALDO_BERJALAN')}
-                    className={`py-2 px-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
-                      formFundingSource === 'SALDO_BERJALAN'
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'bg-surface hover:bg-canvas border border-border text-amber-800'
-                    }`}
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>⚡ Ditalangi Saldo Kas</span>
-                  </button>
-                </div>
-
-                {formFundingSource === 'SALDO_BERJALAN' && (
-                  <div className="p-2 bg-amber-50 rounded-xl border border-amber-200 text-[10px] text-amber-950 flex items-start gap-1.5 leading-snug">
-                    <Info className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                    <span>
-                      Ditalangi langsung dari akumulasi <strong>Saldo Kas Akhir Berjalan</strong> komplek (Kas Cadangan Warga). Sangat cocok untuk pengeluaran medis satpam yang fluktuatif atau dana dadakan darurat/kegiatan.
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Uraian Pengeluaran *</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Bantuan Pengobatan Medis Satpam / Santunan Acara"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  required
-                  className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Kategori Pos</label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="Gaji">Gaji (Satpam Pa Adri Harry & Pak Slamet)</option>
-                    <option value="Iuran RT">Iuran RT (Sampah & Kebersihan Saluran)</option>
-                    <option value="Iuran RW">Iuran RW (Paguyuban Komplek RW 08)</option>
-                    <option value="Operasional">Operasional (Listrik PJU & Air Pos Jaga)</option>
-                    <option value="Dana Kesehatan / Bantuan Satpam">Dana Kesehatan / Bantuan Satpam</option>
-                    <option value="Dana Tak Terduga">Dana Tak Terduga (Sumbangan Agustusan / Acara Kelurahan/RW)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nominal (Rp) *</label>
-                  <input
-                    type="number"
-                    value={formAmount}
-                    onChange={(e) => setFormAmount(e.target.value)}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                  />
-                </div>
-              </div>
-
-              {/* Dynamic Helper Chips for Dana Kesehatan & Dana Tak Terduga */}
-              {(formCategory.includes('Kesehatan') || formCategory.includes('Bantuan Satpam')) && (
-                <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-rose-900">Pagu Referensi: Rp 100.000 / bln</span>
-                    <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold border border-rose-200">
-                      Fluktuatif Sesuai Riil
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-rose-800 leading-tight">
-                    Pengeluaran medis/obat satpam bersifat fleksibel (kadang kurang atau lebih dari Rp 100rb). Preset cepat:
-                  </p>
-                  <div className="flex flex-wrap gap-1 pt-0.5">
-                    {[50000, 75000, 100000, 150000, 200000].map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => {
-                          setFormAmount(String(amt));
-                          setFormFundingSource('SALDO_BERJALAN');
-                        }}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
-                          formAmount === String(amt)
-                            ? 'bg-rose-600 text-white shadow-2xs'
-                            : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-50'
-                        }`}
-                      >
-                        {formatRupiah(amt)}{amt === 100000 ? ' (Pagu Ref)' : ''}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {formCategory.includes('Terduga') && (
-                <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-amber-900">Dana Dadakan / Sumbangan Acara</span>
-                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold border border-amber-300">
-                      Ditalangi Saldo Kas
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-amber-800 leading-tight">
-                    Kebutuhan mendadak warga, sumbangan agustusan / acara kelurahan ditalangi dari saldo kas:
-                  </p>
-                  <div className="flex flex-wrap gap-1 pt-0.5">
-                    {[50000, 100000, 150000, 200000, 300000].map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => {
-                          setFormAmount(String(amt));
-                          setFormFundingSource('SALDO_BERJALAN');
-                        }}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
-                          formAmount === String(amt)
-                            ? 'bg-amber-600 text-white shadow-2xs'
-                            : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-50'
-                        }`}
-                      >
-                        {formatRupiah(amt)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Penerima Dana / Vendor</label>
-                  <input
-                    type="text"
-                    placeholder="PT Guard / Toko Bangunan"
-                    value={formVendor}
-                    onChange={(e) => setFormVendor(e.target.value)}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Tanggal Pengeluaran *</label>
-                  <input
-                    type="date"
-                    value={formExpenseDate}
-                    onChange={(e) => setFormExpenseDate(e.target.value)}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Catatan Tambahan</label>
-                <input
-                  type="text"
-                  placeholder="Keterangan transaksi atau no nota toko"
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingExpense}
-                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {savingExpense ? 'Menyimpan...' : 'Simpan Pengeluaran'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: KONFIRMASI HAPUS PENGELUARAN ================= */}
-      {expenseToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4 text-xs">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1">
-              <h3 className="font-black text-base text-ink">Hapus Pengeluaran "{expenseToDelete.title}"?</h3>
-              <p className="text-ink-muted">
-                Catatan kas keluar sebesar <strong>{formatRupiah(expenseToDelete.amount)}</strong> akan dihapus permanen dari buku kas paguyuban.
-              </p>
-            </div>
-
-            <div>
-              <label className="font-bold text-ink block mb-1">Alasan Pembatalan / Penghapusan:</label>
-              <select
-                value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
-                className="w-full p-2 bg-canvas border border-border rounded-xl text-ink font-semibold"
-              >
-                <option value="Koreksi Input / Pembelian Dibatalkan">Koreksi Input / Pembelian Dibatalkan</option>
-                <option value="Duplikasi Catatan Kas Keluar">Duplikasi Catatan Kas Keluar</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setExpenseToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteExpense}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-              >
-                Ya, Hapus Pengeluaran
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: KONFIRMASI HAPUS MASSAL PENGELUARAN ================= */}
-      {showBulkDeleteModal && selectedExpenseIds.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-rose-300 shadow-modal space-y-4 text-xs animate-in zoom-in-95 duration-150">
-            <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 shadow-xs">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-black text-base text-ink">
-                  Hapus Massal {selectedExpenseIds.length} Pengeluaran?
-                </h3>
-                <p className="text-ink-muted text-xs mt-0.5">
-                  Tindakan ini akan menghapus seluruh data terpilih secara permanen dan memulihkan saldo kas paguyuban otomatis.
-                </p>
-              </div>
-            </div>
-
-            {/* Summary Box */}
-            <div className="p-3.5 bg-rose-50 rounded-2xl border border-rose-200 space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-rose-900 font-medium">Jumlah Data Pengeluaran:</span>
-                <strong className="text-rose-950 font-mono font-bold">{selectedExpenseIds.length} Catatan</strong>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-rose-900 font-medium">Total Nominal Dikembalikan:</span>
-                <strong className="text-rose-700 font-mono font-black text-sm tabular-nums">
-                  + {formatRupiah(totalSelectedAmount)}
-                </strong>
-              </div>
-            </div>
-
-            {/* Preview List of Selected Expenses */}
-            <div>
-              <label className="font-bold text-ink block mb-1">Daftar Pengeluaran yang Akan Dihapus:</label>
-              <div className="max-h-44 overflow-y-auto divide-y divide-border/60 bg-canvas rounded-xl border border-border p-2 space-y-1">
-                {selectedExpenses.slice(0, 10).map((exp) => (
-                  <div key={exp.id} className="py-1.5 flex items-center justify-between text-[11px] gap-2">
-                    <div className="truncate">
-                      <span className="font-bold text-ink">{exp.title}</span>
-                      <span className="text-ink-muted ml-1.5 text-[10px]">({exp.expenseDate} • {exp.vendor || 'Mandiri'})</span>
-                    </div>
-                    <span className="font-mono font-bold text-rose-700 shrink-0 tabular-nums">
-                      - {formatRupiah(exp.amount)}
-                    </span>
-                  </div>
-                ))}
-                {selectedExpenses.length > 10 && (
-                  <div className="pt-1.5 text-center text-ink-muted text-[10px] font-bold">
-                    ... dan {selectedExpenses.length - 10} pengeluaran lainnya
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Reason selection */}
-            <div>
-              <label className="font-bold text-ink block mb-1">Alasan Penghapusan Massal:</label>
-              <select
-                value={bulkDeleteReason}
-                onChange={(e) => setBulkDeleteReason(e.target.value)}
-                className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink font-semibold"
-              >
-                <option value="Koreksi Input Massal / Pembatalan Belanja">Koreksi Input Massal / Pembatalan Belanja</option>
-                <option value="Pembersihan Data Duplikasi Transaksi">Pembersihan Data Duplikasi Transaksi</option>
-                <option value="Pembatalan Estimasi Pengadaan Paguyuban">Pembatalan Estimasi Pengadaan Paguyuban</option>
-                <option value="Koreksi Pembukuan Kas Bulanan">Koreksi Pembukuan Kas Bulanan</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                disabled={isDeletingBulk}
-                onClick={() => setShowBulkDeleteModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all disabled:opacity-50"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={isDeletingBulk}
-                onClick={handleConfirmBulkDelete}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-              >
-                {isDeletingBulk ? (
-                  <span>Menghapus...</span>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    <span>Ya, Hapus {selectedExpenseIds.length} Pengeluaran</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: TAMBAH KASBON PETUGAS ================= */}
-      {showLoanModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink">Catat Kasbon / Pinjaman Petugas</h3>
-              <button onClick={() => setShowLoanModal(false)} className="text-ink-muted hover:text-ink">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveLoan} className="space-y-3">
-              <div>
-                <label className="font-bold text-ink block mb-1">Nama Petugas *</label>
-                <input
-                  type="text"
-                  placeholder="Pak Joko Sutrisno"
-                  value={loanStaffName}
-                  onChange={(e) => setLoanStaffName(e.target.value)}
-                  required
-                  className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Jabatan / Peran</label>
-                  <select
-                    value={loanStaffRole}
-                    onChange={(e) => setLoanStaffRole(e.target.value as any)}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="SATPAM">Petugas Satpam</option>
-                    <option value="PETUGAS_KEBERSIHAN">Petugas Kebersihan</option>
-                    <option value="PETUGAS_TAMAN">Petugas Taman</option>
-                    <option value="TEKNISI">Teknisi Sarana</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nominal Pinjaman (Rp) *</label>
-                  <input
-                    type="number"
-                    value={loanAmount}
-                    onChange={(e) => setLoanAmount(Number(e.target.value))}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Cicilan / Bulan (Rp) *</label>
-                  <input
-                    type="number"
-                    value={loanMonthlyDeduction}
-                    onChange={(e) => setLoanMonthlyDeduction(Number(e.target.value))}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Tenor (Bulan)</label>
-                  <input
-                    type="number"
-                    value={loanTenor}
-                    onChange={(e) => setLoanTenor(Number(e.target.value))}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Keperluan / Alasan Pinjaman *</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Biaya berobat anak / Masuk sekolah"
-                  value={loanPurpose}
-                  onChange={(e) => setLoanPurpose(e.target.value)}
-                  required
-                  className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowLoanModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-                >
-                  Setujui Kasbon
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: BAYAR CICILAN KASBON ================= */}
-      {selectedLoanForInstallment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink">
-                Bayar Cicilan Kasbon: {selectedLoanForInstallment.staffName}
-              </h3>
-              <button onClick={() => setSelectedLoanForInstallment(null)} className="text-ink-muted hover:text-ink">✕</button>
-            </div>
-
-            <div className="p-3 bg-canvas rounded-2xl border border-border space-y-1">
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Sisa Hutang:</span>
-                <span className="font-bold text-rose-700">{formatRupiah(selectedLoanForInstallment.remainingBalance)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Skema Potong Gaji:</span>
-                <span className="font-bold text-ink">{formatRupiah(selectedLoanForInstallment.monthlyDeduction)} / bulan</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold text-ink block mb-1">Nominal Cicilan yang Dibayar (Rp):</label>
-              <input
-                type="number"
-                value={installmentAmountInput}
-                onChange={(e) => setInstallmentAmountInput(Number(e.target.value))}
-                className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-              />
-            </div>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedLoanForInstallment(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handlePayInstallment}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-              >
-                Konfirmasi Potong Gaji
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: CAIRKAN DANA SOSIAL ================= */}
-      {showSocialModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink">Pencairan Dana Santunan & Kesehatan</h3>
-              <button onClick={() => setShowSocialModal(false)} className="text-ink-muted hover:text-ink">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveSocialAid} className="space-y-3">
-              <div>
-                <label className="font-bold text-ink block mb-1">Nama Penerima / Petugas *</label>
-                <input
-                  type="text"
-                  placeholder="Pa Adri Harry (Petugas Satpam)"
-                  value={socRecipient}
-                  onChange={(e) => setSocRecipient(e.target.value)}
-                  required
-                  className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Jenis Bantuan</label>
-                  <select
-                    value={socType}
-                    onChange={(e) => {
-                      const val = e.target.value as any;
-                      setSocType(val);
-                      if (val === 'SANTUNAN_KESEHATAN') setSocAmount(100000);
-                    }}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="SANTUNAN_KESEHATAN">Santunan Kesehatan / RS</option>
-                    <option value="SANTUNAN_DUKA_CITA">Santunan Duka Cita</option>
-                    <option value="SANTUNAN_MUSIBAH_BENCANA">Santunan Musibah</option>
-                    <option value="BINGKISAN_THR">Bingkisan Hari Raya (THR)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nominal Santunan (Rp) *</label>
-                  <input
-                    type="number"
-                    value={socAmount}
-                    onChange={(e) => setSocAmount(Number(e.target.value))}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                  />
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {[100000, 150000, 250000, 500000].map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => setSocAmount(preset)}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all ${
-                          socAmount === preset
-                            ? 'bg-emerald-600 text-white shadow-2xs'
-                            : 'bg-surface hover:bg-canvas border border-border text-ink-muted'
-                        }`}
-                      >
-                        {formatRupiah(preset)}{preset === 100000 ? ' (Pagu Ref)' : ''}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Keterangan / Uraian *</label>
-                <input
-                  type="text"
-                  placeholder="Bantuan pengobatan dan rawat jalan"
-                  value={socDesc}
-                  onChange={(e) => setSocDesc(e.target.value)}
-                  required
-                  className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Detail RS / Dokumen</label>
-                <input
-                  type="text"
-                  placeholder="RSUD Al-Ihsan / Kwitansi Dokter"
-                  value={socDetails}
-                  onChange={(e) => setSocDetails(e.target.value)}
-                  className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSocialModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-                >
-                  Cairkan Dana Santunan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: TAMBAH PROYEK CAT & FASUM ================= */}
-      {showProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink">Catat Proyek Cat Komplek & Perbaikan Alat</h3>
-              <button onClick={() => setShowProjectModal(false)} className="text-ink-muted hover:text-ink">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveProject} className="space-y-3">
-              <div>
-                <label className="font-bold text-ink block mb-1">Nama Proyek / Pengadaan *</label>
-                <input
-                  type="text"
-                  placeholder="Pengecatan Gapura Utama & Pagar Pembatas"
-                  value={prjName}
-                  onChange={(e) => setPrjName(e.target.value)}
-                  required
-                  className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Jenis Proyek</label>
-                  <select
-                    value={prjType}
-                    onChange={(e) => setPrjType(e.target.value as any)}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="PENGECATAN_KOMPLEK">Pengecatan Tembok/Pagar</option>
-                    <option value="PERBAIKAN_PERALATAN">Servis Mesin Rumput/Genset</option>
-                    <option value="BARRIER_GATE_RFID">Palang Barrier Gate</option>
-                    <option value="LAMPU_PJU">Lampu PJU Tenaga Surya</option>
-                    <option value="CCTV_KEAMANAN">Kamera CCTV Keamanan</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Alokasi Biaya (Rp) *</label>
-                  <input
-                    type="number"
-                    value={prjBudget}
-                    onChange={(e) => setPrjBudget(Number(e.target.value))}
-                    required
-                    className="w-full p-2 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Vendor / Mandor</label>
-                  <input
-                    type="text"
-                    value={prjVendor}
-                    onChange={(e) => setPrjVendor(e.target.value)}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Lokasi Fasum</label>
-                  <input
-                    type="text"
-                    value={prjLocation}
-                    onChange={(e) => setPrjLocation(e.target.value)}
-                    className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Deskripsi Pekerjaan *</label>
-                <input
-                  type="text"
-                  placeholder="Pengecatan ulang tembok keliling dan perbaikan sarana"
-                  value={prjDesc}
-                  onChange={(e) => setPrjDesc(e.target.value)}
-                  required
-                  className="w-full p-2 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowProjectModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-                >
-                  Simpan Proyek Fasum
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: VOUCHER BUKTI KAS KELUAR (BKK) ================= */}
-      {selectedVoucher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h3 className="font-black text-sm text-ink">Bukti Kas Keluar (BKK Resmi)</h3>
-                <p className="text-[11px] text-ink-muted">Nomor: {selectedVoucher.voucherNo || `BKK-202608-${selectedVoucher.id.slice(-4)}`}</p>
-              </div>
-              <button onClick={() => setSelectedVoucher(null)} className="text-ink-muted hover:text-ink">✕</button>
-            </div>
-
-            <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5">
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Uraian Pembayaran:</span>
-                <span className="font-black text-ink">{selectedVoucher.title}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Kategori Anggaran:</span>
-                <span className="font-bold text-ink">{selectedVoucher.categoryName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Penerima Dana / Vendor:</span>
-                <span className="font-bold text-primary-700">{selectedVoucher.vendor || 'Pengadaan Mandiri'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Tanggal Pencairan:</span>
-                <span className="font-mono text-ink">{selectedVoucher.expenseDate}</span>
-              </div>
-              <div className="pt-2 border-t border-border flex justify-between items-center">
-                <span className="font-bold text-ink">Jumlah Dibayarkan:</span>
-                <span className="font-black text-base text-rose-700 font-mono">{formatRupiah(selectedVoucher.amount)}</span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2.5">
-              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-              <div>
-                <p className="font-bold text-emerald-950 text-[11px]">Telah Diverifikasi & Disetujui</p>
-                <p className="text-emerald-800 text-[10px]">Oleh: Hendra Wijaya (Bendahara) & Ketua RW 05</p>
-              </div>
-            </div>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Cetak PDF</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedVoucher(null)}
-                className="flex-1 py-2.5 border border-border text-ink font-bold rounded-xl hover:bg-canvas active:scale-[0.98] transition-all"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+          {form.type==='expense' && <Field label="Penerima / vendor (opsional)"><input className={financeField} name="vendor" maxLength={160} defaultValue={record?.details.vendor} /></Field>}
+          <Field label="Catatan internal (opsional)"><textarea className={financeField} name="description" maxLength={1500} defaultValue={record?.details.memo || record?.description || ''} /></Field>
+          <Field label={record?.hasProof?'Ganti bukti (opsional)':'Bukti belanja (opsional)'}>
+            <input className={financeField+' file:mr-2 file:rounded file:border-0 file:bg-primary-50 file:px-2 file:py-1 file:font-semibold file:text-primary-800'} type="file" name="receiptFile" accept={Object.keys(proofMimes).join(',')} />
+            <span className="mt-1 block text-xs font-normal text-ink-muted">JPG, PNG, WebP, atau PDF · maks. 1,5 MB</span>
+          </Field>
+          {record?.hasProof && <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input name="removeProof" type="checkbox" />Hapus bukti lama</label>}
+          {!record && <Field label="Status pembayaran"><select className={financeField} name="bookNow" defaultValue="book"><option value="book">Sudah dibayar · bukukan</option><option value="draft">Belum dibayar · simpan draf</option></select></Field>}
+        </>}
+        <footer className="flex flex-wrap justify-end gap-2 pt-1">
+          <button className={financeButton} disabled={busy} type="button" onClick={()=>setForm(null)}>Tutup</button>
+          <button className={form.type==='cancel'?'inline-flex min-h-11 items-center rounded-lg bg-rose-700 px-4 font-semibold text-white hover:bg-rose-800':financePrimary} disabled={busy} type="submit">
+            {busy?'Menyimpan…':form.type==='cancel'?'Batalkan transaksi':form.type==='book'?'Bukukan':'Simpan'}
+          </button>
+        </footer>
+      </form>}
+    </FinanceDialog>
+  </section>;
+}

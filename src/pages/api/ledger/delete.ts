@@ -1,69 +1,7 @@
-import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { deleteManualLedgerEntry } from '../../../services/manual-ledger.service';
-import { recordAuditLog } from '../../../services/audit.service';
-import { authorizeApi, financeEditors } from '../../../lib/api-authorization';
+import { idField, mutation, textField } from '../../../services/operational-mutation';
 
-const deleteLedgerSchema = z.object({
-  id: z.string().optional(),
-  ledgerId: z.string().optional(),
-  description: z.string().optional(),
-  amount: z.number().optional(),
-  reason: z.string().optional(),
-});
-
-export const POST: APIRoute = async (context) => {
-  const authorization = await authorizeApi(context, financeEditors);
-  if (authorization.response) return authorization.response;
-  const { request } = context;
-  try {
-    const body = await request.json();
-    const validated = deleteLedgerSchema.parse(body);
-    const targetId = validated.ledgerId || validated.id || '';
-
-    if (!targetId) {
-      throw new Error('ID entri jurnal wajib disertakan.');
-    }
-
-    // Delete from Neon / SQLite database and reverse balance
-    const result = await deleteManualLedgerEntry(targetId);
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Bendahara Komplek',
-        action: 'finance.delete_ledger',
-        entityType: 'LEDGER_ENTRY',
-        entityId: targetId,
-        newValue: {
-          ledgerId: targetId,
-          description: validated.description,
-          amount: validated.amount,
-          reason: validated.reason || 'Dibatalkan / Dihapus dari jurnal kas',
-          deletedAt: new Date().toISOString(),
-        },
-      });
-    }
-
-    return new Response(
-      JSON.stringify({
-        data: {
-          success: true,
-          id: targetId,
-          ids: result.ids,
-          message: `Entri jurnal ${targetId} berhasil dibatalkan / dihapus.`
-        },
-        meta: {},
-        error: null,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'LEDGER_DELETE_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-};
+const input = z.object({ledgerId:idField.optional(),id:idField.optional(),reason:textField(500).pipe(z.string().min(5))})
+  .refine(value=>Boolean(value.ledgerId || value.id),'Pilih jurnal yang akan dibatalkan.');
+export const POST = mutation(input,({ledgerId,id,reason},actor)=>deleteManualLedgerEntry((ledgerId || id)!,actor,reason));

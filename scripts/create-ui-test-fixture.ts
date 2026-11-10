@@ -20,6 +20,9 @@ try {
     INSERT INTO users (id,username,email,full_name,role,is_active) VALUES ('ui-security','ui_security','security@example.test','Petugas uji','SECURITY',1),('ui-treasurer','ui_treasurer','treasurer@example.test','Bendahara uji','TREASURER',1);
     INSERT INTO user_property_access (id,user_id,property_id,relationship,started_at) VALUES ('access-test','ui-resident','prop-a-01','OWNER','2026-01-01');
     INSERT INTO accounts (id,community_id,code,name,type,balance) VALUES ('acc-main','comm-01','TEST-BANK','Rekening uji','BANK',1000000),('acc-cash','comm-01','TEST-CASH','Kas uji','CASH',200000);
+    INSERT INTO expense_categories (id,community_id,name,code) VALUES ('cat-pemeliharaan','comm-01','Pemeliharaan','PEMELIHARAAN');
+    INSERT INTO expenses (id,community_id,category_id,account_id,title,amount,expense_date,status) VALUES ('expense-test','comm-01','cat-pemeliharaan','acc-main','Perbaikan lampu uji',50000,'2026-10-12','APPROVED');
+    INSERT INTO ledger_entries (id,account_id,entry_date,direction,amount,source_type,source_id,description) VALUES ('expense-ledger-test','acc-main','2026-10-12','OUT',50000,'EXPENSE','expense-test','Perbaikan lampu uji');
     INSERT INTO facilities (id,community_id,code,name,category,location,condition) VALUES ('fac-test','comm-01','TEST-FAC','Balai uji','FASUM','Area uji','GOOD');
     INSERT INTO maintenance_requests (id,facility_id,title,description,status) VALUES ('repair-test','fac-test','Perawatan uji','Fixture perawatan','PLANNED');
     INSERT INTO billing_periods (id,community_id,year,month,name,due_date,status) VALUES ('period-test','comm-01',2026,10,'Oktober 2026','2026-10-31','OPEN');

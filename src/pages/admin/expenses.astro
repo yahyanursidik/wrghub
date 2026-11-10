@@ -1,28 +1,36 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { ExpensesManager } from '../../components/admin/ExpensesManager';
-import { 
-  getExpenses, 
-  getAccounts, 
-  getMainAccountBalance,
-  getRecurringExpensesConfig 
-} from '../../services/finance.service';
-if (Astro.url.searchParams.get('tab') === 'staff_loans') return Astro.redirect('/admin/staff-loans', 302);
+import { getAccounts } from '../../services/finance.service';
+import { getExpenseCategories, getExpenses, getFacilityProjects, getRecurringExpensesConfig } from '../../services/expense-operations.service';
+import { getFacilities } from '../../services/facility.service';
+import { EXPENSE_TABS, type ExpenseTab } from '../../lib/cash-data';
+import { canAccessAdminPage, canManageFinance } from '../../lib/access-policy';
+import type { UserSession } from '../../types/auth';
 
-const [expenses, accounts, mainBalance, recurringConfig] = await Promise.all([
-  getExpenses().catch(() => []),
-  getAccounts().catch(() => []),
-  getMainAccountBalance().catch(() => 0),
-  getRecurringExpensesConfig().catch(() => []),
-]);
+const params = Astro.url.searchParams;
+const requestedTab = params.get('tab');
+if (requestedTab === 'staff_loans') return Astro.redirect('/admin/staff-loans',302);
+const tab = EXPENSE_TABS.includes(requestedTab as ExpenseTab) ? requestedTab as ExpenseTab : 'expenses_list';
+const actor = await Astro.session?.get('wargahub_user') as UserSession | undefined;
+if (!actor) return Astro.redirect('/login?portal=admin');
+const readFacility = canAccessAdminPage(actor.role,'/admin/facilities');
+const canWrite = canManageFinance(actor.role);
+const expense = params.get('expense')?.slice(0,64) || '';
+const data = await Promise.all([getExpenses(expense || undefined),getAccounts(),getExpenseCategories(),
+  tab==='recurring_expenses' ? getRecurringExpensesConfig() : null,
+  tab==='fasum_projects' || (tab==='expenses_list' && params.get('project')) ? getFacilities() : []])
+  .then(async ([expenses,accounts,categories,recurring,facilities])=>({expenses,accounts,categories,recurring,facilities,
+    projects:tab==='fasum_projects' || tab==='expenses_list' ? await getFacilityProjects(expenses) : []})).catch(()=>null);
+if (!data) Astro.response.status=503;
 ---
 
-<AdminLayout title="Pengeluaran & Kas - WargaHub" currentPath="/admin/expenses">
-  <ExpensesManager 
-    initialExpenses={expenses} 
-    initialAccounts={accounts}
-    initialBalance={mainBalance}
-    initialRecurringConfig={recurringConfig}
-    client:load 
-  />
+<AdminLayout title="Pengeluaran - WargaHub" currentPath="/admin/expenses">
+  {data ? <ExpensesManager {...data} initialTab={tab} initialExpense={expense}
+    initialMonth={params.get('month') || ''} initialCategory={params.get('category') || ''} initialProject={params.get('project')?.slice(0,64) || ''}
+    canWrite={canWrite} canViewFacilities={readFacility} initialNotice={params.get('saved') || ''} client:load />
+  : <section class="workspace-panel" role="alert">
+    <h1 class="text-xl font-bold">Pengeluaran</h1><p class="mt-2 text-sm text-ink-muted">Data pengeluaran belum dapat dimuat.</p>
+    <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname + Astro.url.search} data-astro-reload>Coba lagi</a>
+  </section>}
 </AdminLayout>
