@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useUrlTab } from '../../lib/use-url-tab';
+import { currentFinanceMonth } from '../../lib/cash-data';
+import { apiFetch } from '../../lib/api-fetch';
 import { normalizeVehiclePlate } from '../../lib/vehicle-plate';
 import {
   ShieldCheck,
@@ -214,12 +216,16 @@ export interface SecurityGateManagerProps {
   initialTab?: string;
   initialProperties?: any[];
   initialVehicles?: any[];
+  initialPatrols:PatrolLog[]|null;
+  patrolMonth:string;
+  canOpenAnalytics:boolean;
 }
 
 export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   initialTab,
   initialProperties = [],
   initialVehicles = [],
+  initialPatrols,patrolMonth,canOpenAnalytics,
 }) => {
   // Main Subtab State
   const [activeTab, setActiveTab] = useUrlTab(['guards', 'roster', 'patrol', 'gate', 'inventory', 'emergency'] as const, 'guards', 'tab', {}, initialTab);
@@ -416,9 +422,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
   };
 
   // ================= 3. PATROL LOGS STATE =================
-  const [patrolLogs, setPatrolLogs] = useState<PatrolLog[]>(() =>
-    getPersisted('wargahub_patrol_logs', [])
-  );
+  const [patrolLogs, setPatrolLogs] = useState<PatrolLog[]>(initialPatrols || []);
 
   // Patrol Form Modal
   const [showAddPatrolModal, setShowAddPatrolModal] = useState(false);
@@ -848,21 +852,6 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     setDailyDuties(updatedDuties);
     savePersisted('wargahub_security_duties', updatedDuties);
 
-    const handoverLog: PatrolLog = {
-      id: `PATROL-HANDOVER-${Date.now()}`,
-      checkpointCode: 'CP-01',
-      checkpointName: 'Pos Gerbang Utama (Main Gate)',
-      guardName: `${incomingGuard.fullName} (Terima dari ${currentGuard.fullName})`,
-      guardId: incomingGuard.id,
-      condition: 'AMAN_KONDUSIF',
-      notes: `Serah terima piket 24 jam (Pagi s/d Pagi). Kondisi pos, portal, kunci gerbang, dan HT dalam keadaan baik dan lengkap.`,
-      displayTime: nowStr,
-      displayDate: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    };
-    const nextLogs = [handoverLog, ...patrolLogs];
-    setPatrolLogs(nextLogs);
-    savePersisted('wargahub_patrol_logs', nextLogs);
-
     showToast(`🔄 Serah terima piket 24 jam berhasil! ${incomingGuard.fullName} kini bertugas aktif hingga esok pagi.`);
   };
 
@@ -1122,10 +1111,10 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
         checkpointName: checkpointsMap[patCheckpoint] || 'Titik Checkpoint Komplek',
         guardName: patGuard,
         condition: patCondition,
-        notes: patNotes || 'Situasi aman terkendali.',
+        notes: patNotes,
       };
 
-      const res = await fetch('/api/security/patrol/create', {
+      const res = await apiFetch('/api/security/patrol/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1133,16 +1122,14 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
 
       if (res.ok) {
         const json = await res.json();
-        const nextLogs = [json.data, ...patrolLogs];
-        setPatrolLogs(nextLogs);
-        savePersisted('wargahub_patrol_logs', nextLogs);
+        if(!patrolMonth || patrolMonth===currentFinanceMonth()) setPatrolLogs(items=>[json.data,...items].slice(0,120));
         showToast(`Catatan patroli di ${payload.checkpointName} berhasil direkam.`);
         setShowAddPatrolModal(false);
         setPatNotes('');
       }
     } catch (err) {
       console.error(err);
-      showToast('Gagal merekam log patroli.');
+      showToast(err instanceof Error?err.message:'Gagal merekam log patroli.');
     } finally {
       setPatrolSaving(false);
     }
@@ -2717,7 +2704,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                 Catatan Log Patroli Keliling & QR Checkpoint
               </h3>
               <p className="text-xs text-ink-muted mt-0.5">
-                Monitoring keaktifan satpam memindai barcode QR di 6 titik checkpoint rawan komplek.
+                Catatan pemeriksaan yang tersimpan lintas perangkat.
               </p>
             </div>
 
@@ -2731,20 +2718,28 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
             </button>
           </div>
 
+          <form action="/admin/security-gate" className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="tab" value="patrol" />
+            <label className="text-sm font-semibold">Periode<input type="month" name="month" defaultValue={patrolMonth} className="mt-1 block min-h-11 rounded-lg border border-border bg-surface px-3" /></label>
+            <button type="submit" className="btn-secondary min-h-11">Tampilkan</button>
+            {canOpenAnalytics && <a className="btn-secondary inline-flex min-h-11 items-center" href={'/admin/analytics?'+new URLSearchParams({tab:'security_sla',month:patrolMonth})}>Laporan keamanan</a>}
+          </form>
+          {initialPatrols===null && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Riwayat patroli belum dapat dimuat. Muat ulang untuk mencoba lagi.</p>}
+
           {/* 6 Checkpoint Cards Preview */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
             {[
-              { code: 'CP-01', name: 'Pos Gerbang Utama', count: 18, color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-              { code: 'CP-02', name: 'Taman Blok A', count: 14, color: 'bg-blue-50 text-blue-800 border-blue-200' },
-              { code: 'CP-03', name: 'Clubhouse Blok B', count: 12, color: 'bg-purple-50 text-purple-800 border-purple-200' },
-              { code: 'CP-04', name: 'Gerbang Timur Blok C', count: 15, color: 'bg-amber-50 text-amber-800 border-amber-200' },
-              { code: 'CP-05', name: 'Lapangan Blok D', count: 11, color: 'bg-teal-50 text-teal-800 border-teal-200' },
-              { code: 'CP-06', name: 'Gardu PLN & PAM', count: 16, color: 'bg-rose-50 text-rose-800 border-rose-200' },
+              { code: 'CP-01', name: 'Pos Gerbang Utama', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+              { code: 'CP-02', name: 'Taman Blok A', color: 'bg-blue-50 text-blue-800 border-blue-200' },
+              { code: 'CP-03', name: 'Clubhouse Blok B', color: 'bg-purple-50 text-purple-800 border-purple-200' },
+              { code: 'CP-04', name: 'Gerbang Timur Blok C', color: 'bg-amber-50 text-amber-800 border-amber-200' },
+              { code: 'CP-05', name: 'Lapangan Blok D', color: 'bg-teal-50 text-teal-800 border-teal-200' },
+              { code: 'CP-06', name: 'Gardu PLN & PAM', color: 'bg-rose-50 text-rose-800 border-rose-200' },
             ].map(cp => (
               <div key={cp.code} className={`p-3 rounded-2xl border ${cp.color} text-center space-y-1 shadow-xs`}>
                 <span className="font-mono font-black text-xs block">{cp.code}</span>
                 <p className="text-[11px] font-bold truncate">{cp.name}</p>
-                <span className="text-[10px] font-semibold opacity-80 block">{cp.count}x Diperiksa</span>
+                <span className="text-[10px] font-semibold opacity-80 block">{initialPatrols===null?'—':patrolLogs.filter(log=>log.checkpointCode===cp.code).length} di riwayat</span>
               </div>
             ))}
           </div>
@@ -2753,7 +2748,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
           <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden text-xs">
             <div className="p-4 border-b border-border bg-canvas/40 flex items-center justify-between">
               <h4 className="font-bold text-ink">Riwayat Laporan Pemeriksaan Patroli</h4>
-              <span className="text-[11px] text-ink-muted">Terurut dari yang paling terkini</span>
+              <span className="text-[11px] text-ink-muted">Maksimal 120 catatan terbaru</span>
             </div>
 
             <div className="overflow-x-auto">
@@ -2772,7 +2767,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-ink-muted">
                         <Shield className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
-                        Belum ada catatan patroli pos satpam yang terekam.
+                        {initialPatrols===null?'Riwayat patroli belum dapat dimuat.':'Belum ada catatan patroli pada pilihan ini.'}
                       </td>
                     </tr>
                   ) : (

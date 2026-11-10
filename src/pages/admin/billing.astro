@@ -38,6 +38,7 @@ const unknownPeriod = Boolean(requested && !invoicePeriod && !data?.periods.some
     canManage={canManage}
     initialTab={Astro.url.searchParams.get('tab') || undefined}
     initialHouse={Astro.url.searchParams.get('house')?.slice(0,64) || ''}
+    initialBlock={Astro.url.searchParams.get('block')?.slice(0,100) || ''}
     initialPeriodId={current?.id || ''}
     initialInvoiceId={invoiceId}
     unknownPeriod={unknownPeriod}

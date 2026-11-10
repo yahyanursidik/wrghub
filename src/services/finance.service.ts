@@ -1,4 +1,5 @@
 import { query, type Query } from '../db/operational-query';
+import { RESERVE_ACCOUNT } from '../lib/planning-data';
 
 export interface FinanceAccount {
   id: string;
@@ -12,13 +13,19 @@ export interface FinanceAccount {
   isActive: boolean;
 }
 
-export async function getAccounts(run: Query = query): Promise<FinanceAccount[]> {
-  const rows = await run<{id:string;community_id:string|null;name:string;code:string;type:string;
-    bank_name:string|null;account_number:string|null;balance:number|string}>(
-    "SELECT id,community_id,name,code,type,bank_name,account_number,balance FROM accounts WHERE is_active=true "+
-    "ORDER BY CASE WHEN id='acc-main' THEN 0 WHEN code IN ('BCA_MAIN','BCA-UTAMA') THEN 1 ELSE 2 END,name,id");
-  return rows.map(row => ({id:row.id,communityId:row.community_id,name:row.name,code:row.code,type:row.type,
-    bankName:row.bank_name,accountNumber:row.account_number,balance:Number(row.balance),isActive:true}));
+type AccountRow={id:string;community_id:string|null;name:string;code:string;type:string;is_active:boolean|number;
+  bank_name:string|null;account_number:string|null;balance:number|string};
+const accountSelect='SELECT id,community_id,name,code,type,bank_name,account_number,balance,is_active FROM accounts';
+const mapAccount=(row:AccountRow):FinanceAccount=>({id:row.id,communityId:row.community_id,name:row.name,code:row.code,type:row.type,
+  bankName:row.bank_name,accountNumber:row.account_number,balance:Number(row.balance),isActive:Boolean(row.is_active)});
+export async function getAccounts(run: Query = query,includeReserves=false): Promise<FinanceAccount[]> {
+  const rows = await run<AccountRow>(accountSelect+' WHERE is_active=true '+(includeReserves?'':'AND type<>? ')+
+    "ORDER BY CASE WHEN id='acc-main' THEN 0 WHEN code IN ('BCA_MAIN','BCA-UTAMA') THEN 1 ELSE 2 END,name,id",includeReserves?[]:[RESERVE_ACCOUNT]);
+  return rows.map(mapAccount);
+}
+export async function getArchivedReserveAccount(id:string,run:Query=query) {
+  const [row]=await run<AccountRow>(accountSelect+' WHERE id=? AND type=? AND is_active=false',[id,RESERVE_ACCOUNT]);
+  return row ? mapAccount(row) : undefined;
 }
 
 export async function getMainAccountBalance() {

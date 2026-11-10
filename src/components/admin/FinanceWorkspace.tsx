@@ -1,6 +1,6 @@
 /* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, CreditCard, FileMinus, Receipt, Wallet, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ChartNoAxesCombined, ChevronLeft, ChevronRight, CreditCard, FileMinus, PieChart, Receipt, Wallet, X, type LucideIcon } from 'lucide-react';
 import { apiFetch } from '../../lib/api-fetch';
 import { ModalDialog } from '../shared/ModalDialog';
 
@@ -21,14 +21,18 @@ const areas = [
   { id:'payments', name:'Pembayaran', icon:CreditCard },
   { id:'expenses', name:'Pengeluaran', icon:FileMinus },
   { id:'ledger', name:'Buku kas', icon:Wallet },
+  { id:'budget', name:'Anggaran', icon:PieChart },
+  { id:'analytics', name:'Laporan', icon:ChartNoAxesCombined },
 ] as const;
 
-export function FinanceHeader({area, title, children, canViewPayments = true}: {
-  area:typeof areas[number]['id']; title:string; children?:ReactNode; canViewPayments?:boolean;
+export function FinanceHeader({area, title, children, canViewPayments = true, month}: {
+  area:typeof areas[number]['id']; title:string; children?:ReactNode; canViewPayments?:boolean;month?:string;
 }) {
+  const planning=area==='budget' || area==='analytics';
   return <header className="grid min-w-0 gap-4">
     <nav aria-label="Alur keuangan" className="flex flex-wrap items-center gap-1.5">
-      {areas.filter(item=>item.id!=='payments' || canViewPayments).map(({id,name,icon:Icon})=><a key={id} href={`/admin/${id}`}
+      {areas.filter(item=>planning?['ledger','budget','analytics'].includes(item.id):!['budget','analytics'].includes(item.id) && (item.id!=='payments' || canViewPayments)).map(({id,name,icon:Icon})=><a key={id}
+        href={`/admin/${id}`+(month?'?'+new URLSearchParams({month,...(id==='ledger'?{tab:'financial_reports'}:{})}):'')}
         aria-current={id===area?'page':undefined}
         className={`inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm font-semibold sm:px-3 ${id===area?'bg-primary-100 text-primary-800':'text-ink-muted hover:bg-surface hover:text-ink'}`}>
         <Icon className="hidden size-4 sm:block" aria-hidden="true" />{name}

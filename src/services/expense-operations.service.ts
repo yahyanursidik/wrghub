@@ -62,9 +62,9 @@ export async function getExpenses(id?: string): Promise<ExpenseRow[]> {
     details:row.details_json ? JSON.parse(row.details_json) as ExpenseDetails : {}}));
 }
 
-export async function getExpenseCashTotals(month:string) {
+export async function getExpenseCashTotals(month:string,run:Query=query) {
   const [start,end] = monthBounds(month);
-  const rows = await query<{id:string|null;name:string|null;amount:number|string;count:number|string}>(`SELECT c.id,c.name,
+  const rows = await run<{id:string|null;name:string|null;amount:number|string;count:number|string}>(`SELECT c.id,c.name,
     SUM(CASE WHEN l.source_type='EXPENSE_REVERSAL' THEN -l.amount ELSE l.amount END) AS amount,COUNT(*) AS count
     FROM ledger_entries l LEFT JOIN expenses e ON e.id=l.source_id LEFT JOIN expense_categories c ON c.id=e.category_id
     WHERE l.source_type IN ('EXPENSE','EXPENSE_REVERSAL') AND l.entry_date>=? AND l.entry_date<?
@@ -105,13 +105,13 @@ function receiptValue(input: Pick<ExpenseInput, 'receiptFile' | 'proofUrl'>) {
   return undefined;
 }
 
-type BalanceRow = {id:string;balance:string|number;is_active:boolean|number};
+type BalanceRow = {id:string;balance:string|number;is_active:boolean|number;type:string};
 async function lockBalances(run: Query, lock: string, ids: (string|null|undefined)[]) {
   const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))].sort();
-  return unique.length ? run<BalanceRow>(`SELECT id,balance,is_active FROM accounts WHERE id IN (${unique.map(()=>'?').join(',')}) ORDER BY id${lock}`,unique) : [];
+  return unique.length ? run<BalanceRow>(`SELECT id,balance,is_active,type FROM accounts WHERE id IN (${unique.map(()=>'?').join(',')}) ORDER BY id${lock}`,unique) : [];
 }
 function activeAccount(accounts: BalanceRow[], id: string) {
-  const found = accounts.find(row=>row.id===id && row.is_active);
+  const found = accounts.find(row=>row.id===id && row.is_active && row.type!=='RESERVE');
   if (!found) throw new OperationalError('Pilih rekening kas yang aktif.');
   return Number(found.balance);
 }

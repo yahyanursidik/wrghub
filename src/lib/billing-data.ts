@@ -61,7 +61,7 @@ export function selectReceivingBank<T extends {type:string;code:string;accountNu
     !['BCA_MAIN','-'].includes(account.accountNumber.trim()));
 }
 
-export function financePath(path: '/admin/billing' | '/admin/payments' | '/admin/expenses' | '/admin/ledger' | '/admin/budget' | '/kuitansi' | '/rekap-iuran', params: Record<string, string | null | undefined> = {}) {
+export function financePath(path: '/admin/billing' | '/admin/payments' | '/admin/expenses' | '/admin/ledger' | '/admin/budget' | '/admin/analytics' | '/kuitansi' | '/rekap-iuran', params: Record<string, string | null | undefined> = {}) {
   const search = new URLSearchParams();
   for (const [key,value] of Object.entries(params)) if (value) search.set(key,value);
   return search.size ? `${path}?${search}` : path;

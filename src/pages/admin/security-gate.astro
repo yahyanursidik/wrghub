@@ -3,10 +3,19 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { SecurityGateManager } from '../../components/admin/SecurityGateManager';
 import { getProperties } from '../../services/property.service';
 import { getRegisteredVehicles } from '../../services/vehicle.service';
+import { getRecordedPatrols } from '../../services/security-patrol.service';
+import { isReportMonth } from '../../lib/planning-data';
+import { canAccessAdminPage } from '../../lib/access-policy';
+import type { UserSession } from '../../types/auth';
 
-const [properties, vehicles] = await Promise.all([
+const actor=await Astro.session?.get('wargahub_user') as UserSession|undefined;
+if(!actor) return Astro.redirect('/login?portal=admin');
+const rawMonth=Astro.url.searchParams.get('month') || '';
+const month=isReportMonth(rawMonth)?rawMonth:'';
+const [properties, vehicles, patrols] = await Promise.all([
   getProperties().catch(() => []),
-  getRegisteredVehicles().catch(() => [])
+  getRegisteredVehicles().catch(() => []),
+  getRecordedPatrols(month || undefined).catch(()=>null),
 ]);
 ---
 
@@ -15,6 +24,7 @@ const [properties, vehicles] = await Promise.all([
     initialTab={Astro.url.searchParams.get('tab') || undefined}
     initialProperties={properties as any}
     initialVehicles={vehicles.map(vehicle => ({ ...vehicle, propertyCode: vehicle.houseCode }))}
+    initialPatrols={patrols} patrolMonth={month} canOpenAnalytics={canAccessAdminPage(actor.role,'/admin/analytics')}
     client:load
   />
 </AdminLayout>

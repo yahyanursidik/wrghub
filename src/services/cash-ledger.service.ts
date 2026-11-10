@@ -2,19 +2,27 @@ import { createHash, randomUUID } from 'node:crypto';
 import { query, writeTransaction, type Query } from '../db/operational-query';
 import { jakartaDate } from '../lib/billing-data';
 import { currentFinanceMonth, monthBounds, type CashJournalRow, type CashPeriodSummary, type CashReconciliation, type LedgerScope } from '../lib/cash-data';
+import { monthWindow, RESERVE_ACCOUNT, UNCATEGORIZED, type CashTrend } from '../lib/planning-data';
 import type { UserSession } from '../types/auth';
 import { putCashSetting, readCashSetting } from './expense-operations.service';
 import { OperationalError, operationalAudit } from './operational-mutation';
 
-const transfers = "'INTERNAL_TRANSFER','MUTASI_KAS_INTERNAL'";
+const transfers = "'INTERNAL_TRANSFER','MUTASI_KAS_INTERNAL','RESERVE_TRANSFER'";
 const expenseSources = "'EXPENSE','EXPENSE_REVERSAL'";
 const paymentSources = "'PAYMENT','PAYMENT_REVERSAL'";
+const incomeSql=`CASE WHEN source_type='PAYMENT_REVERSAL' THEN -amount
+  WHEN direction='IN' AND source_type NOT IN (${transfers},'OPENING_BALANCE','EXPENSE_REVERSAL') THEN amount ELSE 0 END`;
+const outgoingSql=`CASE WHEN source_type='EXPENSE_REVERSAL' THEN -amount
+  WHEN direction='OUT' AND source_type NOT IN (${transfers},'OPENING_BALANCE','PAYMENT_REVERSAL') THEN amount ELSE 0 END`;
+const periodSummarySql=`COALESCE(SUM(${incomeSql}),0) AS income,COALESCE(SUM(${outgoingSql}),0) AS outgoing,
+  COALESCE(SUM(CASE WHEN source_type IN (${transfers}) THEN delta ELSE 0 END),0) AS transfers,
+  COALESCE(SUM(CASE WHEN source_type='OPENING_BALANCE' THEN delta ELSE 0 END),0) AS opening_entries,COUNT(*) AS journal_count`;
 export const CASH_PAGE_SIZE = 20;
 export const CASH_CSV_LIMIT = 10_000;
 const round = (value:number) => Math.round(value*100)/100;
 
 interface LedgerQuery {
-  month?: string; accountId?: string; search?: string; source?: string; page?: number; scope?: LedgerScope; export?: boolean; pageSize?: number;
+  month?: string; accountId?: string; search?: string; source?: string; category?:string; page?: number; scope?: LedgerScope; export?: boolean; pageSize?: number;
 }
 type RawJournal = {
   id:string|null; account_id:string|null; account_name:string|null; entry_date:string|null; direction:string|null; amount:string|number|null;
@@ -43,6 +51,12 @@ export async function getCashLedger(input: LedgerQuery, run: Query = query) {
     if (input.source==='payment') predicates.push(`source_type IN (${paymentSources})`);
     if (input.source==='transfer') predicates.push(`source_type IN (${transfers})`);
     if (input.source==='manual') predicates.push(`source_type NOT IN (${expenseSources},${paymentSources},${transfers},'OPENING_BALANCE')`);
+    if (input.category) {
+      predicates.push(`source_type IN (${expenseSources})`);
+      const categoryJoin='SELECT 1 FROM expenses e JOIN expense_categories c ON c.id=e.category_id WHERE e.id=with_balances.source_id';
+      predicates.push(input.category===UNCATEGORIZED ? `NOT EXISTS (${categoryJoin})` : `EXISTS (${categoryJoin} AND c.id=?)`);
+      if (input.category!==UNCATEGORIZED) filterValues.push(input.category);
+    }
   }
   const page = Math.min(Math.max(1,input.page || 1),100_000);
   const limit = input.export ? CASH_CSV_LIMIT : Math.max(1,Math.min(250,input.pageSize || CASH_PAGE_SIZE));
@@ -63,13 +77,7 @@ export async function getCashLedger(input: LedgerQuery, run: Query = query) {
   ), period_rows AS (
     SELECT * FROM journal WHERE entry_date>=? AND entry_date<?
   ), period_summary AS (
-    SELECT COALESCE(SUM(CASE WHEN source_type='PAYMENT_REVERSAL' THEN -amount
-      WHEN direction='IN' AND source_type NOT IN (${transfers},'OPENING_BALANCE','EXPENSE_REVERSAL') THEN amount ELSE 0 END),0) AS income,
-      COALESCE(SUM(CASE WHEN source_type='EXPENSE_REVERSAL' THEN -amount
-      WHEN direction='OUT' AND source_type NOT IN (${transfers},'OPENING_BALANCE','PAYMENT_REVERSAL') THEN amount ELSE 0 END),0) AS outgoing,
-      COALESCE(SUM(CASE WHEN source_type IN (${transfers}) THEN delta ELSE 0 END),0) AS transfers,
-      COALESCE(SUM(CASE WHEN source_type='OPENING_BALANCE' THEN delta ELSE 0 END),0) AS opening_entries, COUNT(*) AS journal_count
-    FROM period_rows
+    SELECT ${periodSummarySql} FROM period_rows
   ), with_balances AS (
     SELECT period_rows.*,prior.opening+SUM(delta) OVER (ORDER BY ${order} ROWS UNBOUNDED PRECEDING) AS running_balance
     FROM period_rows CROSS JOIN prior
@@ -91,6 +99,31 @@ export async function getCashLedger(input: LedgerQuery, run: Query = query) {
   return {summary,entries,total:Number(first.total_count),page};
 }
 
+export async function getCashMonthlySummaries(endMonth:string,range:number,run:Query=query):Promise<CashTrend[]> {
+  const months=monthWindow(endMonth,range);
+  const [start]=monthBounds(months[0]);
+  const [,end]=monthBounds(endMonth);
+  const rows=await run<{month:string|null;balance:number|string;tail:number|string;delta:number|string;income:number|string;
+    outgoing:number|string;transfers:number|string;opening_entries:number|string;journal_count:number|string}>(`WITH journal AS (
+      SELECT entry_date,source_type,direction,amount,CASE WHEN direction='IN' THEN amount ELSE -amount END AS delta
+      FROM ledger_entries WHERE entry_date>=?
+    ), tail AS (SELECT COALESCE(SUM(delta),0) AS delta FROM journal WHERE entry_date>=?),
+    total AS (SELECT COALESCE(SUM(balance),0) AS balance FROM accounts),
+    monthly AS (SELECT SUBSTR(entry_date,1,7) AS month,SUM(delta) AS delta,${periodSummarySql}
+      FROM journal WHERE entry_date<? GROUP BY SUBSTR(entry_date,1,7))
+    SELECT monthly.*,tail.delta AS tail,total.balance FROM total CROSS JOIN tail LEFT JOIN monthly ON true`,[start,end,end]);
+  const indexed=new Map(rows.map(row=>[row.month,row]));
+  let closing=round(Number(rows[0].balance)-Number(rows[0].tail));
+  return months.slice().reverse().map(month=>{
+    const row=indexed.get(month);
+    const opening=round(closing-Number(row?.delta || 0));
+    const summary={month,opening,closing,income:round(Number(row?.income || 0)),outgoing:round(Number(row?.outgoing || 0)),
+      transfers:round(Number(row?.transfers || 0)),openingEntries:round(Number(row?.opening_entries || 0)),count:Number(row?.journal_count || 0)};
+    closing=opening;
+    return summary;
+  }).reverse();
+}
+
 type SavedReconciliation = NonNullable<CashReconciliation['saved']>;
 const reconKey = (accountId:string,month:string) => 'cash-recon:'+createHash('sha256').update(`${accountId}|${month}`).digest('hex');
 
@@ -109,7 +142,7 @@ export async function getCashReconciliation(accountId:string,month:string,run:Qu
 export async function saveCashReconciliation(input:{accountId:string;month:string;expectedVersion:string;statementBalance:number;note:string},actor:UserSession) {
   if (input.month>currentFinanceMonth()) throw new OperationalError('Rekonsiliasi hanya untuk bulan berjalan atau sebelumnya.',400);
   return writeTransaction(async (run,lock)=>{
-    const [account] = await run('SELECT id FROM accounts WHERE id=? AND is_active=true'+lock,[input.accountId]);
+    const [account] = await run('SELECT id FROM accounts WHERE id=? AND is_active=true AND type<>?'+lock,[input.accountId,RESERVE_ACCOUNT]);
     if (!account) throw new OperationalError('Rekening tidak aktif atau tidak ditemukan.',404);
     const current = await getCashReconciliation(input.accountId,input.month,run);
     if (current.fingerprint!==input.expectedVersion) throw new OperationalError('Jurnal berubah di perangkat lain. Muat ulang sebelum menyimpan.');
@@ -133,7 +166,7 @@ export async function saveCashAccount(input:{id?:string;name:string;code:string;
     const accountNumber = bank ? input.accountNumber || null : null;
     let balance = input.balance;
     if (input.id) {
-      const [current] = await run<{balance:number|string}>('SELECT balance FROM accounts WHERE id=? AND is_active=true'+lock,[id]);
+      const [current] = await run<{balance:number|string}>('SELECT balance FROM accounts WHERE id=? AND is_active=true AND type<>?'+lock,[id,RESERVE_ACCOUNT]);
       if (!current) throw new OperationalError('Rekening tidak ditemukan.',404);
       balance = Number(current.balance);
       await run('UPDATE accounts SET name=?,code=?,type=?,bank_name=?,account_number=? WHERE id=?',[input.name,code,input.type,bankName,accountNumber,id]);

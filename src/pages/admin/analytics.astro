@@ -1,25 +1,25 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { AnalyticsManager } from '../../components/admin/AnalyticsManager';
-import { getProperties } from '../../services/property.service';
-import { getLedgerEntries } from '../../services/finance.service';
-import { getComplaints } from '../../services/complaint.service';
-import { getInvoices } from '../../services/billing.service';
+import { analyticsFilters } from '../../lib/planning-data';
+import { currentFinanceMonth } from '../../lib/cash-data';
+import { canAccessAdminPage, canManageFinance } from '../../lib/access-policy';
+import { getAnalyticsWorkspace } from '../../services/analytics-report.service';
+import type { UserSession } from '../../types/auth';
 
-const [properties, ledgerEntries, complaints, invoices] = await Promise.all([
-  getProperties().catch(() => []),
-  getLedgerEntries(200).catch(() => []),
-  getComplaints().catch(() => []),
-  getInvoices().catch(() => []),
-]);
+const actor=await Astro.session?.get('wargahub_user') as UserSession|undefined;
+if(!actor) return Astro.redirect('/login?portal=admin');
+const filters=analyticsFilters(Astro.url.searchParams);
+const data=await getAnalyticsWorkspace(filters).catch(error=>{console.error('Analytics workspace could not load',error instanceof Error?error.name:typeof error);return null;});
+if(!data) Astro.response.status=503;
 ---
 
-<AdminLayout title="Analitik & Tren Finansial - WargaHub" currentPath="/admin/analytics">
-  <AnalyticsManager
-    properties={properties as any}
-    ledgerEntries={ledgerEntries as any}
-    complaints={complaints as any}
-    invoices={invoices as any}
-    client:load
-  />
+<AdminLayout title="Laporan & Tren · WargaHub" currentPath="/admin/analytics">
+  {data ? <AnalyticsManager data={data} canWrite={canManageFinance(actor.role)} todayMonth={currentFinanceMonth()}
+    canOpenUtilities={canAccessAdminPage(actor.role,'/admin/properties')} canOpenComplaints={canAccessAdminPage(actor.role,'/admin/complaints')}
+    canOpenPatrol={canAccessAdminPage(actor.role,'/admin/security-gate')} client:load />
+  : <section class="workspace-panel" role="alert"><h1 class="text-xl font-bold">Laporan & tren</h1>
+    <p class="mt-2 text-sm text-ink-muted">Data laporan belum dapat dimuat.</p>
+    <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname+Astro.url.search} data-astro-reload>Coba lagi</a>
+  </section>}
 </AdminLayout>
