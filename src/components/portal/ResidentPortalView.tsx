@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
 import { financeDate, paymentMethodLabel } from '../../lib/billing-data';
+import { financeMonth, financeMonthPattern } from '../../lib/cash-data';
 import type { UserSession } from '../../types/auth';
 import { ReceiptModal } from '../shared/ReceiptModal';
 import { WargaAIChatWidget } from '../shared/WargaAIChatWidget';
@@ -87,7 +88,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   announcementUnavailable = false,
 }) => {
   const { activeTab, setActiveTab, rumahSubTab, setRumahSubTab, infoSubTab, setInfoSubTab, navigateTo } = useResidentNavigation(initialSearch);
-  const [selectedMonth, setSelectedMonth] = useState('Sep');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const requestedDuesMonth=new URLSearchParams(initialSearch || '').get('month') || '';
+  const duesMonth=financeMonthPattern.test(requestedDuesMonth)?requestedDuesMonth:'';
 
   // Modals state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -310,8 +313,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
 
   // 12 Months Billing Record
   const monthsBilling = overview?.invoices || [];
-  const currentSelectedMonthData: ResidentInvoice = monthsBilling.find(invoice => invoice.code === selectedMonth) || monthsBilling[0] || {
-    id: '', code: '', shortLabel: '-', name: 'Belum ada tagihan', status: 'upcoming', paidAt: null, inv: '-', billingPeriodId: '', amount: 0, remaining: 0, dueDate: '-', method: '-', reference: '-',
+  const currentSelectedMonthData: ResidentInvoice = (selectedMonth ? monthsBilling.find(invoice=>invoice.code===selectedMonth) :
+    duesMonth ? monthsBilling.find(invoice=>invoice.monthKey===duesMonth) : monthsBilling[0]) || {
+    id: '', code: '', shortLabel: '-', name: duesMonth?financeMonth(duesMonth):'Belum ada tagihan', status: 'upcoming', paidAt: null, inv: '-', billingPeriodId: '', amount: 0, remaining: 0, dueDate: '-', method: '-', reference: '-',
   };
   const propertyId = overview?.property?.id || currentUser?.propertyId;
   const requirePropertyId = () => { if (!propertyId) throw new Error('Akun belum terhubung ke rumah. Hubungi pengurus.'); return propertyId; };
@@ -751,10 +755,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   </div>
                 </div>
 
-                {!monthsBilling.length && <p className="text-sm text-ink-muted py-3">Belum ada tagihan untuk rumah Anda.</p>}
+                {!currentSelectedMonthData.id && <p className="text-sm text-ink-muted py-3">{duesMonth?`Belum ada tagihan untuk rumah Anda pada ${financeMonth(duesMonth)}.`:'Belum ada tagihan untuk rumah Anda.'}</p>}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {monthsBilling.map((m) => {
-                    const isCurrent = m.code === selectedMonth;
+                    const isCurrent = m.code === currentSelectedMonthData.code;
                     const isPaid = m.status === 'paid';
                     const isPending = m.status === 'pending';
                     return (

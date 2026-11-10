@@ -1,44 +1,11 @@
 ---
-import PublicLayout from '../layouts/PublicLayout.astro';
-import { PublicDuesLedger } from '../components/public/PublicDuesLedger';
-import { getBillableProperties, getBillingPeriods, getInvoices, selectBillingPeriod } from '../services/billing.service';
-import { getMasterBankAccount } from '../services/settings.service';
-import { invoiceCollected, invoiceIsClosed, invoiceRemaining, invoiceState, jakartaDate } from '../lib/billing-data';
+import { financeMonthPattern } from '../lib/cash-data';
+import { publicReportPath, publicReportPeriod } from '../lib/transparency-data';
+import { getBillingPeriods } from '../services/billing.service';
 
-const period = Astro.url.searchParams.get('period')?.slice(0,100);
-const today = jakartaDate();
-const data = await Promise.all([
-  getBillingPeriods(),getBillableProperties(),getMasterBankAccount().catch(()=>null),
-]).then(async ([periods,properties,bank])=>{
-  const selected = selectBillingPeriod(periods,period,today);
-  const invoices = selected ? await getInvoices(selected.id) : [];
-  const homes = new Map(properties.map(item=>[item.id,{code:item.code,invoices:[] as typeof invoices}]));
-  for (const invoice of invoices) {
-    if (!invoice.propertyId) continue;
-    const home = homes.get(invoice.propertyId) || {code:invoice.propertyCode,invoices:[]};
-    home.invoices.push(invoice);
-    homes.set(invoice.propertyId,home);
-  }
-  const rows = [...homes.values()].map(home=>{
-    const valid = home.invoices.filter(item=>!['CANCELLED','VOID','WAIVED'].includes(item.status));
-    const states = valid.map(item=>invoiceState(item,today));
-    const total = valid.reduce((sum,item)=>sum+item.total,0);
-    const collected = valid.reduce((sum,item)=>sum+invoiceCollected(item),0);
-    const remaining = valid.reduce((sum,item)=>sum+invoiceRemaining(item),0);
-    const status = valid.length
-      ? (valid.every(item=>invoiceIsClosed(item.status)) ? 'PAID' : states.includes('OVERDUE') ? 'OVERDUE' : collected>0 ? 'PARTIAL' : 'UNPAID')
-      : home.invoices.some(item=>item.status==='WAIVED') ? 'WAIVED' : home.invoices.length ? 'CANCELLED' : 'UNBILLED';
-    return {code:home.code,total,collected,remaining,status};
-  }).sort((a,b)=>a.code.localeCompare(b.code,'id',{numeric:true}));
-  return {periods:periods.map(({id,name})=>({id,name})),selected,rows,bank};
-}).catch(()=>null);
-if (!data) Astro.response.status = 503;
+const value=Astro.url.searchParams.get('period')?.slice(0,100) || '';
+const selected=value && !financeMonthPattern.test(value) ?
+  (await getBillingPeriods().catch(()=>[])).find(item=>item.id===value || item.name===value) : undefined;
+const period=selected?publicReportPeriod(String(selected.year),String(selected.month)):publicReportPeriod(null,null,value);
+return Astro.redirect(publicReportPath(period,'dues_breakdown'),302);
 ---
-
-<PublicLayout title="Rekap iuran · WargaHub" currentPath="/rekap-iuran">
-  {data ? <PublicDuesLedger periods={data.periods} selectedId={data.selected?.id || ''} rows={data.rows} bank={data.bank} client:load />
-    : <section class="mx-auto max-w-5xl p-5" role="alert"><h1 class="text-2xl font-bold">Rekap iuran</h1>
-      <p class="mt-2 text-sm text-ink-muted">Data rekap belum bisa dimuat.</p>
-      <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname + Astro.url.search} data-astro-reload>Coba lagi</a>
-    </section>}
-</PublicLayout>

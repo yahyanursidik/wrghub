@@ -2,7 +2,7 @@ import { receiptNumber } from '../lib/receipt-number';
 import type { UserSession } from '../types/auth';
 import { getProperties, type PropertyListItem } from './property.service';
 import { getInvoices, getBillingPeriods } from './billing.service';
-import { invoiceCollected, invoiceRemaining, type TariffComponent } from '../lib/billing-data';
+import { billingMonthKey, invoiceCollected, invoiceRemaining, type TariffComponent } from '../lib/billing-data';
 import { getPayments } from './payment.service';
 import { getInitialResidents, getInitialVehicles, getInitialPermits } from './property-submodules.service';
 import { getComplaints, type ComplaintItem } from './complaint.service';
@@ -12,7 +12,7 @@ import type { ReservationStatus } from '../lib/reservation';
 import { getCommunityProfile, type CommunityProfileSettings } from './settings.service';
 
 export interface ResidentInvoice {
-  id: string; code: string; shortLabel: string; name: string;
+  id: string; code: string; shortLabel: string; name: string; monthKey?:string;
   status: 'paid' | 'pending' | 'upcoming' | 'waived'; paidAt: string | null;
   inv: string; billingPeriodId: string; amount: number; remaining: number;
   dueDate: string; method: string; reference: string;
@@ -50,7 +50,7 @@ export async function getResidentOverview(user: UserSession): Promise<ResidentOv
     const receipts = related.map(item => ({ id:item.id, number:receiptNumber(name,property.code,item.id), amount:item.amount,
       paidAt:item.paidAt,method:item.method,reference:item.reference || '-',accountName:item.accountName || undefined }));
     return {
-      id: invoice.id, code: invoice.id, shortLabel: name,
+      id: invoice.id, code: invoice.id, shortLabel: name, monthKey:period?billingMonthKey(period.year,period.month):undefined,
       name, status: invoice.status === 'WAIVED' ? 'waived' as const : invoice.status === 'PAID' ? 'paid' as const : 'pending' as const,
       paidAt: invoice.paidAt,
       inv: invoice.invoiceNumber, billingPeriodId: invoice.billingPeriodId,

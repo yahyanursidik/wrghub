@@ -3,6 +3,7 @@ import type { UserSession } from './types/auth';
 import { allowedApiRoles, canAccessAdminPage, isResidentRole, residentWriteMatches, residentPropertyUpdateMatches } from './lib/access-policy';
 import { isSessionCurrent } from './lib/session-policy';
 import { allowLoginAttempt } from './lib/login-rate-limit';
+import { financeMonthPattern } from './lib/cash-data';
 import { resolveSessionPrincipal } from './services/session-principal.service';
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -37,6 +38,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
   if (!user?.id) {
     if (api) return Response.json({ error: { message: 'Silakan masuk untuk melanjutkan.' } }, { status: 401 });
+    const month=context.url.searchParams.get('month') || '';
+    if (path==='/warga' && context.url.searchParams.get('tab')==='iuran' && financeMonthPattern.test(month))
+      return context.redirect('/login?'+new URLSearchParams({portal:'resident',tujuan:'iuran',month}),302);
+    if (path==='/warga' && context.url.searchParams.get('tab')==='info' && context.url.searchParams.get('info')==='complaints')
+      return context.redirect('/login?portal=resident&tujuan=aduan',302);
     return context.redirect(`/login?portal=${path.startsWith('/admin') ? 'admin' : 'resident'}`, 302);
   }
   if (privatePage && path.startsWith('/admin') && !canAccessAdminPage(user.role, path)) {

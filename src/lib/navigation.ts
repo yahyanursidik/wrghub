@@ -40,7 +40,7 @@ export const adminNavigation: NavigationGroup[] = [
     { label: 'Buku kas', href: '/admin/ledger', icon: Wallet, description: 'Saldo, mutasi dan rekonsiliasi kas', keywords: 'ledger buku besar bank', roles: finance },
     { label: 'Anggaran', href: '/admin/budget', icon: Calendar, description: 'Rencana dan realisasi anggaran', keywords: 'apb budget cadangan', roles: finance },
     { label: 'Laporan & tren', href: '/admin/analytics', icon: BarChart3, description: 'Analisis iuran dan keuangan', keywords: 'analitik grafik statistik', roles: finance },
-    { label: 'Kasbon petugas', href: '/admin/staff-loans', icon: Banknote, description: 'Pinjaman dan cicilan petugas', roles: financeWrite },
+    { label: 'Kasbon petugas', href: '/admin/staff-loans', icon: Banknote, description: 'Pengajuan, pencairan, dan angsuran petugas', roles: finance },
   ] },
   { label: 'Operasional', items: [
     { label: 'Aduan warga', href: '/admin/complaints', icon: MessageCircle, description: 'Tindak lanjuti laporan warga', keywords: 'keluhan rusak', roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECURITY', 'MAINTENANCE', 'SECRETARY'] },

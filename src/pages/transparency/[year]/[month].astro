@@ -1,18 +1,29 @@
 ---
 import PublicLayout from '../../../layouts/PublicLayout.astro';
-import { TransparencyView, type TransparencySubTab } from '../../../components/transparency/TransparencyView';
-import { getPublicMonthlyReport, publicReportPeriod } from '../../../services/transparency.service';
+import { TransparencyView } from '../../../components/transparency/TransparencyView';
+import { billingMonthKey, financeCsv } from '../../../lib/billing-data';
+import { PUBLIC_CSV_LIMIT, publicCashCategories, publicReportFilters, publicReportPeriod } from '../../../lib/transparency-data';
+import { getPublicJournalExport, getPublicMonthlyReport } from '../../../services/transparency.service';
 
 const query = Astro.url.searchParams;
-const requestedTab = query.get('tab') as TransparencySubTab | null;
-const tab = requestedTab && ['cashflow_summary','public_ledger','dues_breakdown','citizen_confirm','audit_faq'].includes(requestedTab) ? requestedTab : 'cashflow_summary';
+const filters = publicReportFilters(query);
 const period = publicReportPeriod(Astro.params.year,Astro.params.month);
-const data = await getPublicMonthlyReport(period.year,period.month,Astro.url.origin).catch(()=>null);
+if (filters.tab==='public_ledger' && query.get('download')==='csv') {
+  const journal=await getPublicJournalExport(period,filters).catch(()=>null);
+  if(!journal) return new Response('Jurnal publik belum dapat dimuat.',{status:503});
+  if(journal.total>PUBLIC_CSV_LIMIT) return new Response('Persempit filter sebelum mengunduh.',{status:422});
+  return new Response(financeCsv([['Tanggal','Nomor jurnal publik','Uraian','Kategori','Arah','Nominal (Rp)','Saldo (Rp)'],
+    ...journal.rows.map(row=>[row.date,row.reference,row.label,publicCashCategories[row.category],row.direction==='IN'?'Masuk':'Keluar',row.amount,row.balance])]),
+    {headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="jurnal-warga-'+billingMonthKey(period.year,period.month)+'.csv"',
+      'X-Content-Type-Options':'nosniff','Cache-Control':'no-store'}});
+}
+Astro.response.headers.set('Cache-Control','no-store');
+const data = await getPublicMonthlyReport(period,filters,Astro.url.origin).catch(()=>null);
 if (!data) Astro.response.status=503;
 ---
 
-<PublicLayout title={data ? 'Laporan Transparansi Warga - '+data.periodName+' - WargaHub' : 'Laporan Transparansi Warga - WargaHub'} currentPath="/transparency">
-  {data ? <TransparencyView initialData={data} initialTab={tab} client:load /> :
+<PublicLayout title={data ? 'Laporan Transparansi Warga - '+data.periodLabel+' - WargaHub' : 'Laporan Transparansi Warga - WargaHub'} currentPath={filters.tab==='dues_breakdown'?'/rekap-iuran':'/transparency'}>
+  {data ? <TransparencyView data={data} filters={filters} client:load /> :
     <section class="mx-auto max-w-5xl p-5" role="alert"><h1 class="text-2xl font-bold">Laporan warga</h1>
       <p class="mt-2 text-sm text-ink-muted">Data laporan belum bisa dimuat.</p>
       <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname+Astro.url.search} data-astro-reload>Coba lagi</a>

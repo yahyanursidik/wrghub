@@ -16,6 +16,18 @@ export const query: Query = async <T extends object>(statement: string, values: 
   return rows as unknown as T[];
 };
 
+export async function readSnapshot<T>(operation:(run:Query)=>Promise<T>):Promise<T> {
+  if (pg()) return await neonSql.begin('ISOLATION LEVEL REPEATABLE READ READ ONLY',async tx=>operation(async <R extends object>(statement:string,values:Value[]=[]) =>
+    await tx.unsafe(postgresText(statement),values) as unknown as R[])) as T;
+  const tx=await client.transaction('read');
+  try {
+    return await operation(async <R extends object>(statement:string,values:Value[]=[])=>{
+      const {rows}=await tx.execute({sql:statement,args:values.map(value=>typeof value==='boolean'?Number(value):value)});
+      return rows as unknown as R[];
+    });
+  } finally { tx.close(); }
+}
+
 export async function writeTransaction<T>(operation: (run: Query, lock: string) => Promise<T>): Promise<T> {
   if (pg()) return await neonSql.begin(async tx => operation(async <R extends object>(statement: string, values: Value[] = []) =>
     await tx.unsafe(postgresText(statement), values) as unknown as R[], ' FOR UPDATE')) as T;

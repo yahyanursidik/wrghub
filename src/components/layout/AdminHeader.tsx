@@ -62,7 +62,8 @@ export const AdminHeader: React.FC<Props> = ({ currentUser, currentPath = '/admi
           <span className="hidden xl:inline text-ink-muted">{context.group}</span>
           <ChevronRight size={14} className="hidden xl:block text-ink-muted" />
         </>}
-        <span aria-current="page" className="font-semibold truncate">{context.label}</span>
+        <span aria-current="page" className="font-semibold truncate">{currentPath==='/admin/staff-loans'?
+          <><span className="sm:hidden">Kasbon</span><span className="hidden sm:inline">{context.label}</span></>:context.label}</span>
       </nav>
     </div>
     <div className="flex items-center gap-1 sm:gap-3 shrink-0">

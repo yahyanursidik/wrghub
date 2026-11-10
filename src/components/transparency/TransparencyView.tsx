@@ -1,2019 +1,239 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Home,
-  CheckCircle2,
-  Hourglass,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  Wallet,
-  ShieldCheck,
-  Sparkles,
-  Zap,
-  Wrench,
-  Info,
-  Calendar,
-  Clock,
-  QrCode,
-  FileText,
-  ChevronDown,
-  Share2,
-  Copy,
-  Check,
-  Send,
-  ExternalLink,
-  Search,
-  Filter,
-  ArrowRight,
-  Building2,
-  Download,
-  AlertCircle,
-  CreditCard,
-  UploadCloud,
-  MessageSquare,
-  Lock,
-  Layers,
-  ChevronRight,
-  TrendingUp,
-  FileCheck,
-  X,
-  AlertTriangle,
-  Heart,
-  Users,
-  MapPin,
-  Smartphone
-} from 'lucide-react';
-import { formatRupiah } from '../../lib/format';
-import { billingMonthLabel, downloadFinanceCsv } from '../../lib/billing-data';
-import type { PublicTransparencyData } from '../../services/transparency.service';
-import { ExpenseDetailModal } from '../shared/ExpenseDetailModal';
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
+import { useState } from 'react';
+import { ArrowDownLeft, ArrowDownToLine, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronLeft, ChevronRight, CircleHelp, Copy, Receipt, Share2, Wallet } from 'lucide-react';
+import { billingMonthKey, billingMonthLabel, financeDate } from '../../lib/billing-data';
+import { cashRupiah } from '../../lib/cash-data';
+import { PUBLIC_CSV_LIMIT, PUBLIC_JOURNAL_PAGE_SIZE, publicCashCategories, publicReportPath,
+  type PublicReportFilters, type PublicTransparencyData, type TransparencySubTab } from '../../lib/transparency-data';
+import { ModalDialog } from '../shared/ModalDialog';
 
-export type TransparencySubTab = 
-  | 'cashflow_summary' 
-  | 'public_ledger' 
-  | 'dues_breakdown' 
-  | 'citizen_confirm' 
-  | 'audit_faq';
+const tabs = [
+  {id:'cashflow_summary',label:'Ringkasan kas',icon:Wallet},{id:'public_ledger',label:'Jurnal publik',icon:BookOpen},
+  {id:'dues_breakdown',label:'Rekap iuran',icon:Receipt},{id:'citizen_confirm',label:'Cek iuran saya',icon:Check},
+  {id:'audit_faq',label:'Bantuan',icon:CircleHelp},
+] as const;
+const button='btn-secondary inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap';
+const primary='btn-primary inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap';
+const field='min-h-11 min-w-0 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink';
+const link='inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-primary-800 hover:underline';
+const panel='min-w-0 rounded-2xl border border-border bg-surface p-4 sm:p-5';
+const number='tabular-nums [overflow-wrap:anywhere]';
 
-interface TransparencyViewProps {
-  initialData: PublicTransparencyData;
-  initialTab?: TransparencySubTab;
+function CashLine({label,amount,tone='text-ink'}:{label:string;amount:number;tone?:string}) {
+  return <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border py-2.5 last:border-0">
+    <dt className="text-sm font-medium text-ink-muted">{label}</dt><dd className={'text-sm font-bold '+tone+' '+number}>{cashRupiah(amount)}</dd>
+  </div>;
 }
+export function TransparencyView({data,filters}:{data:PublicTransparencyData;filters:PublicReportFilters}) {
+  const [share,setShare]=useState(false);
+  const [copied,setCopied]=useState('');
+  const [feedback,setFeedback]=useState('');
+  const {tab}=filters;
+  const key=billingMonthKey(data.period.year,data.period.month);
+  const path=(section:TransparencySubTab=tab,params:Record<string,string|number|undefined>={})=>publicReportPath(data.period,section,params);
+  const journalParams={direction:filters.direction,category:filters.category};
+  const dues=data.dues.at(-1)!;
+  const notPaid=dues.billed-dues.paid;
+  const unbilled=Math.max(0,data.homes-dues.billed);
+  const ratio=dues.billed?Math.round(100*dues.paid/dues.billed):null;
+  const outgoingPositive=data.outgoing.reduce((sum,item)=>sum+Math.max(0,item.amount),0);
+  const canDownload=data.journal.total>0 && data.journal.total<=PUBLIC_CSV_LIMIT;
+  const wargaDues='/warga?'+new URLSearchParams({tab:'iuran',month:key});
+  const help='/warga?tab=info&info=complaints';
+  const shareWa='https://wa.me/?'+new URLSearchParams({text:'Laporan warga · '+data.periodLabel+'\n'+data.shareUrl});
+  async function copy(value:string,which:string) {
+    try { await navigator.clipboard.writeText(value); setCopied(which); setFeedback('Disalin.'); }
+    catch { setFeedback('Tidak bisa menyalin otomatis. Salin teks yang ditampilkan.'); }
+  }
+  return <div className="grid min-w-0 gap-5 sm:gap-6">
+    <header className="grid min-w-0 gap-4">
+      <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-primary-800 [overflow-wrap:anywhere]">{data.communityName}</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-ink [overflow-wrap:anywhere] sm:text-4xl">Transparansi warga</h1>
+        </div>
+        <button type="button" className={button} onClick={()=>{setFeedback('');setCopied('');setShare(true);}}><Share2 className="size-4" aria-hidden="true" />Bagikan</button>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-end justify-between gap-3 rounded-xl border border-border bg-surface p-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-1">
+          {data.previousMonth && <a className="icon-button" aria-label="Bulan sebelumnya" href={publicReportPath(data.previousMonth,tab)}><ChevronLeft className="size-5" aria-hidden="true" /></a>}
+          <div className="min-w-0 px-1"><p className="text-xs font-medium text-ink-muted">Periode laporan</p><p className="text-base font-bold">{data.periodLabel}</p></div>
+          {data.nextMonth && <a className="icon-button" aria-label="Bulan berikutnya" href={publicReportPath(data.nextMonth,tab)}><ChevronRight className="size-5" aria-hidden="true" /></a>}
+        </div>
+        <form action="/transparency" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 max-sm:w-full">
+          <input type="hidden" name="tab" value={tab} />
+          <label className="block min-w-0 text-xs font-semibold">Pilih bulan
+            <input aria-label="Pilih bulan" type="month" name="period" min="1900-01" max={data.currentMonth} defaultValue={key} required className={field+' mt-1'} />
+          </label>
+          <button type="submit" className={button}>Tampilkan</button>
+        </form>
+      </div>
+    </header>
 
-interface LedgerEntry {
-  id: string;
-  date: string;
-  voucherRef: string;
-  category: string;
-  description: string;
-  type: 'INCOME' | 'EXPENSE';
-  amount: number;
-  balance: number;
-  reconciled: boolean;
-  notes?: string;
+    <nav aria-label="Menu transparansi" className="grid grid-cols-2 gap-1 border-b border-border pb-2 sm:flex sm:flex-wrap">
+      {tabs.map(({id,label,icon:Icon})=><a key={id} href={path(id)} aria-current={tab===id?'page':undefined}
+        className={'inline-flex min-h-11 min-w-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-sm font-semibold sm:px-3 '+(tab===id?'bg-primary-700 text-white':'text-ink-muted hover:bg-surface hover:text-ink')}>
+        <Icon className="hidden size-4 shrink-0 min-[375px]:block" aria-hidden="true" />{label}
+      </a>)}
+    </nav>
+
+    {tab==='cashflow_summary' && <section className="grid min-w-0 gap-4" aria-label="Ringkasan arus kas">
+      <div className="grid min-w-0 overflow-hidden rounded-2xl border border-border bg-surface md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 content-center gap-2 bg-primary-900 px-5 py-6 text-white sm:px-7 sm:py-8">
+          <p className="flex items-center gap-2 text-sm font-semibold text-primary-100"><Wallet className="size-4" aria-hidden="true" />Saldo akhir</p>
+          <p className={'text-3xl font-bold tracking-tight sm:text-4xl '+number} data-cash-value="closing">{cashRupiah(data.cash.closing)}</p>
+          <p className="text-sm text-primary-100">{data.cash.count} jurnal · {data.periodLabel}</p>
+          <a href={path('public_ledger')} className="mt-1 inline-flex min-h-11 w-fit items-center gap-2 whitespace-nowrap text-sm font-semibold hover:underline">Buka jurnal <ArrowRight className="size-4" aria-hidden="true" /></a>
+        </div>
+        <dl className="min-w-0 px-5 py-3 sm:px-6 sm:py-4">
+          <CashLine label="Saldo awal" amount={data.cash.opening} />
+          <CashLine label="Kas masuk bersih" amount={data.cash.income} tone="text-primary-800" />
+          <CashLine label="Kas keluar bersih" amount={data.cash.outgoing} tone="text-rose-800" />
+          {data.cash.openingEntries!==0 && <CashLine label="Saldo awal rekening baru" amount={data.cash.openingEntries} />}
+          {data.cash.transfers!==0 && <CashLine label="Mutasi internal bersih" amount={data.cash.transfers} />}
+        </dl>
+      </div>
+      {!data.cash.count && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">Belum ada jurnal pada periode ini.</p>}
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+        <article className={panel+' grid content-start gap-3'}>
+          <h2 className="text-xl font-bold tracking-tight">Iuran warga</h2>
+          <dl className="grid gap-1 rounded-xl bg-primary-50 p-4 text-primary-900"><dt className="text-sm font-semibold">Iuran masuk bulan ini</dt>
+            <dd className={'text-2xl font-bold '+number}>{cashRupiah(data.duesCash)}</dd></dl>
+          <div>
+            <p className="text-sm font-medium">{dues.billed?dues.paid+' dari '+dues.billed+' rumah yang ditagih sudah lunas':'Belum ada tagihan terbit'}</p>
+            {ratio!==null && <progress className="public-report-progress mt-2 h-2 w-full" value={dues.paid} max={dues.billed} aria-label="Rumah lunas" />}
+          </div>
+          <div className="flex flex-wrap gap-x-4">
+            <a href={path('dues_breakdown')} className={link}>Rekap iuran <ArrowRight className="size-4" aria-hidden="true" /></a>
+            <a href={path('citizen_confirm')} className={link}>Cek iuran saya <ArrowRight className="size-4" aria-hidden="true" /></a>
+          </div>
+        </article>
+        <article className={panel}>
+          <h2 className="text-xl font-bold tracking-tight">Kas keluar per kategori</h2>
+          {data.outgoing.length===0?<p className="mt-3 text-sm text-ink-muted">Belum ada kas keluar pada periode ini.</p>:
+            <ul className="mt-2 divide-y divide-border">
+              {data.outgoing.map(item=><li key={item.category} className="grid min-w-0 gap-1.5 py-2.5">
+                <a href={path('public_ledger',{category:item.category})} className="flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-x-2 rounded-lg text-sm font-semibold hover:text-primary-800">
+                  <span className="inline-flex min-w-0 items-center gap-1.5">{publicCashCategories[item.category]}<ArrowUpRight className="size-3 shrink-0 text-primary-700" aria-hidden="true" /></span>
+                  <span className={number}>{cashRupiah(item.amount)}</span>
+                </a>
+                {item.amount>0 && <progress className="public-report-progress h-1.5 w-full" value={item.amount} max={outgoingPositive} aria-label={'Porsi '+publicCashCategories[item.category]} />}
+              </li>)}
+            </ul>}
+          {(data.loanCashIn!==0 || data.loanCashOut!==0) && <p className="mt-3 text-xs text-ink-muted">Pokok kasbon: {cashRupiah(data.loanCashOut)} dicairkan, {cashRupiah(data.loanCashIn)} kembali ke kas, setelah pembalikan.</p>}
+        </article>
+      </div>
+    </section>}
+
+    {tab==='public_ledger' && <section className={panel+' grid gap-3'} aria-label="Jurnal publik">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div><h2 className="text-xl font-bold tracking-tight">Jurnal publik</h2><p className="text-sm text-ink-muted">Uraian pribadi tidak ditampilkan.</p></div>
+        {canDownload && <a className={button} href={path('public_ledger',{...journalParams,download:'csv'})} download data-astro-reload><ArrowDownToLine className="size-4" aria-hidden="true" />Unduh CSV</a>}
+      </div>
+      <form action={path('public_ledger').split('?')[0]} className="grid min-w-0 gap-2 rounded-xl bg-canvas p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-end">
+        <input type="hidden" name="tab" value="public_ledger" />
+        <label className="grid min-w-0 gap-1 text-sm font-semibold">Arah
+          <select name="direction" defaultValue={filters.direction} className={field}><option value="">Semua arah</option><option value="IN">Kas masuk</option><option value="OUT">Kas keluar</option></select>
+        </label>
+        <label className="grid min-w-0 gap-1 text-sm font-semibold">Kategori
+          <select name="category" defaultValue={filters.category} className={field}><option value="">Semua kategori</option>{Object.entries(publicCashCategories).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
+        </label>
+        <button type="submit" className={button}>Terapkan</button>
+      </form>
+      {data.journal.total>PUBLIC_CSV_LIMIT && <p className="text-sm text-ink-muted">Persempit filter untuk mengunduh CSV.</p>}
+      {!data.journal.total?<p className="rounded-lg border border-dashed border-border p-4 text-sm text-ink-muted">Tidak ada jurnal untuk pilihan ini.</p>:
+        <ul className="divide-y divide-border" aria-label="Entri jurnal">
+          {data.journal.rows.map(row=><li key={row.reference} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2 py-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(8rem,auto)] sm:gap-3">
+            <span className={'grid size-9 place-items-center rounded-lg '+(row.direction==='IN'?'bg-primary-50 text-primary-800':'bg-rose-50 text-rose-800')}>
+              {row.direction==='IN'?<ArrowDownLeft className="size-4" aria-hidden="true" />:<ArrowUpRight className="size-4" aria-hidden="true" />}
+            </span>
+            <div className="min-w-0"><p className="text-sm font-semibold [overflow-wrap:anywhere]">{row.label}</p>
+              <p className="text-xs text-ink-muted [overflow-wrap:anywhere]">{financeDate(row.date)} · {publicCashCategories[row.category]} · {row.reference}</p></div>
+            <div className="col-start-2 min-w-0 sm:col-start-3 sm:text-right"><p className={'text-sm font-bold '+number}>{row.direction==='IN'?'+':'−'}{cashRupiah(row.amount)}</p>
+              <p className={'text-xs text-ink-muted '+number}>Saldo {cashRupiah(row.balance)}</p></div>
+          </li>)}
+        </ul>}
+      {data.journal.total>PUBLIC_JOURNAL_PAGE_SIZE && <nav aria-label="Halaman jurnal publik" className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted">
+        <span>{(data.journal.page-1)*PUBLIC_JOURNAL_PAGE_SIZE+1}–{Math.min(data.journal.page*PUBLIC_JOURNAL_PAGE_SIZE,data.journal.total)} dari {data.journal.total}</span>
+        <div className="flex items-center gap-1">
+          {data.journal.page>1 && <a className="icon-button" aria-label="Halaman sebelumnya" href={path('public_ledger',{...journalParams,page:data.journal.page-1})}><ChevronLeft className="size-5" aria-hidden="true" /></a>}
+          {data.journal.page*PUBLIC_JOURNAL_PAGE_SIZE<data.journal.total && <a className="icon-button" aria-label="Halaman berikutnya" href={path('public_ledger',{...journalParams,page:data.journal.page+1})}><ChevronRight className="size-5" aria-hidden="true" /></a>}
+        </div>
+      </nav>}
+    </section>}
+
+    {tab==='dues_breakdown' && <section className="grid min-w-0 gap-4" aria-label="Rekap iuran">
+      <div className={panel+' grid gap-3'}>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <div><h2 className="text-xl font-bold tracking-tight">Rekap iuran</h2><p className="text-sm text-ink-muted">Status tagihan {data.periodLabel} saat laporan dibuka.</p></div>
+          <a href={path('citizen_confirm')} className={primary}>Cek iuran saya <ArrowRight className="size-4" aria-hidden="true" /></a>
+        </div>
+        <dl className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            ['Ditagih',dues.billed,'bg-sky-50 text-sky-900'],['Lunas',dues.paid,'bg-primary-50 text-primary-900'],
+            ['Belum lunas',notPaid,'bg-amber-50 text-amber-900'],['Belum terbit',unbilled,'bg-slate-100 text-slate-800'],
+          ].map(([label,value,tone])=><div key={label} className={'rounded-xl p-3 '+tone}><dt className="text-xs font-semibold">{label}</dt><dd className="text-xl font-bold tabular-nums">{value}</dd></div>)}
+        </dl>
+      </div>
+      <div className={panel}>
+        <h3 className="text-lg font-bold">Tagihan per bulan</h3>
+        <ul className="mt-2 divide-y divide-border">
+          {[...data.dues].reverse().map(item=><li key={item.month} className="grid min-w-0 gap-1.5 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+            <a className={link} href={publicReportPath({year:data.period.year,month:item.month},'dues_breakdown')}>{billingMonthLabel(data.period.year,item.month)}</a>
+            <p className="text-ink-muted">{item.billed?item.paid+' dari '+item.billed+' rumah lunas':'Belum terbit'}</p>
+            <p className={'font-semibold '+number}>{item.billed?'Sisa '+cashRupiah(item.remaining):'—'}</p>
+          </li>)}
+        </ul>
+      </div>
+    </section>}
+
+    {tab==='citizen_confirm' && <section className="grid min-w-0 gap-4 lg:grid-cols-2" aria-label="Cek iuran saya">
+      <div className={panel+' grid content-start gap-3'}>
+        <h2 className="text-xl font-bold tracking-tight">Cek iuran saya</h2>
+        <p className="text-sm text-ink-muted">Masuk untuk melihat tagihan {data.periodLabel}, konfirmasi transfer, atau membuka kuitansi rumah Anda.</p>
+        <a href={wargaDues} className={primary+' w-fit'}>Buka portal warga <ArrowRight className="size-4" aria-hidden="true" /></a>
+      </div>
+      <div className={panel+' grid content-start gap-3'}>
+        <h2 className="text-xl font-bold tracking-tight">Rekening iuran</h2>
+        {data.bank?<><p className="text-sm font-semibold [overflow-wrap:anywhere]">{data.bank.name}{data.bank.holder?' · '+data.bank.holder:''}</p>
+          <p className={'text-lg font-bold '+number}>{data.bank.number}</p>
+          <button className={button+' w-fit'} type="button" onClick={()=>void copy(data.bank!.number,'account')}><Copy className="size-4" aria-hidden="true" />{copied==='account'?'Disalin':'Salin rekening'}</button>
+          {!share && feedback && <p role="status" className="text-sm text-ink-muted">{feedback}</p>}</>:<p className="text-sm text-ink-muted">Rekening iuran belum ditampilkan. Periksa petunjuk pada tagihan Anda.</p>}
+      </div>
+    </section>}
+
+    {tab==='audit_faq' && <section className={panel} aria-label="Bantuan laporan">
+      <h2 className="text-xl font-bold tracking-tight">Bantuan laporan</h2>
+      <div className="mt-2 divide-y divide-border">
+        <details className="py-2"><summary className="min-h-11 cursor-pointer py-2.5 font-semibold">Dari mana angka saldo berasal?</summary>
+          <p className="pb-2 text-sm text-ink-muted">Saldo mengikuti Buku Kas. Kas masuk dan keluar memperhitungkan pembalikan. Mutasi antar rekening tidak menambah kas lingkungan.</p>
+          <a href={path('public_ledger')} className={link}>Buka jurnal publik <ArrowRight className="size-4" aria-hidden="true" /></a></details>
+        <details className="py-2"><summary className="min-h-11 cursor-pointer py-2.5 font-semibold">Mengapa iuran berbeda dari kas masuk?</summary>
+          <p className="pb-2 text-sm text-ink-muted">Kas masuk mencakup iuran dan penerimaan lain. Rekap iuran mengikuti bulan tagihan, sedangkan arus kas mengikuti tanggal transaksi.</p></details>
+        <details className="py-2"><summary className="min-h-11 cursor-pointer py-2.5 font-semibold">Bagaimana bila pembayaran belum tercatat?</summary>
+          <p className="text-sm text-ink-muted">Lihat status verifikasi di akun rumah Anda. Jika sudah diverifikasi dan masih ada selisih, hubungi pengurus lewat aduan warga.</p>
+          <div className="flex flex-wrap gap-x-4"><a href={wargaDues} className={link}>Cek iuran saya <ArrowRight className="size-4" aria-hidden="true" /></a><a href={help} className={link}>Buka aduan <ArrowRight className="size-4" aria-hidden="true" /></a></div></details>
+        <details id="jadwal-jaga" className="py-2"><summary className="min-h-11 cursor-pointer py-2.5 font-semibold">Jadwal jaga</summary>
+          {data.duty?<><p className="text-sm text-ink-muted">Giliran {data.duty.current} sedang bertugas · serah terima {data.duty.handover} WIB.</p>
+            <ul className="my-2 grid gap-1 text-sm">{data.duty.upcoming.map(item=><li key={item.date}>{financeDate(item.date)} · Giliran {item.turn}</li>)}</ul></>:
+            <p className="text-sm text-ink-muted">Jadwal jaga belum tersedia di laporan publik.</p>}
+          <a href={help} className={link}>Layanan warga <ArrowRight className="size-4" aria-hidden="true" /></a></details>
+      </div>
+    </section>}
+
+    <ModalDialog open={share} onClose={()=>setShare(false)} label="Bagikan laporan" className="w-[min(28rem,calc(100vw-1.5rem))]">
+      <div className="grid gap-3 p-4 sm:p-5">
+        <h2 className="text-xl font-bold">Bagikan laporan</h2>
+        <p className="text-sm text-ink-muted">{data.periodLabel}</p>
+        {data.qrCode && <img src={data.qrCode} width={180} height={180} alt={'Kode QR laporan '+data.periodLabel} className="max-w-full rounded-lg" />}
+        <label className="grid min-w-0 gap-1 text-sm font-semibold">Tautan laporan<input className={field} value={data.shareUrl} readOnly onFocus={e=>e.currentTarget.select()} /></label>
+        <div className="flex flex-wrap gap-2">
+          <button className={button} type="button" onClick={()=>void copy(data.shareUrl,'share')}><Copy className="size-4" aria-hidden="true" />{copied==='share'?'Disalin':'Salin tautan'}</button>
+          <a className={primary} href={shareWa} target="_blank" rel="noopener noreferrer">WhatsApp <ArrowUpRight className="size-4" aria-hidden="true" /></a>
+          <button className={button} type="button" onClick={()=>setShare(false)}>Tutup</button>
+        </div>
+        {feedback && <p role="status" className="text-sm text-ink-muted">{feedback}</p>}
+      </div>
+    </ModalDialog>
+  </div>;
 }
-
-export const TransparencyView: React.FC<TransparencyViewProps> = ({
-  initialData,
-  initialTab = 'cashflow_summary'
-}) => {
-  // Navigation State with URL synchronization
-  const [activeTab, setActiveTab] = useState<TransparencySubTab>(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab') as TransparencySubTab;
-      if (['cashflow_summary', 'public_ledger', 'dues_breakdown', 'citizen_confirm', 'audit_faq'].includes(tabParam)) {
-        return tabParam;
-      }
-    }
-    return initialTab;
-  });
-
-  const handleTabChange = (tab: TransparencySubTab) => {
-    setActiveTab(tab);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
-      window.history.replaceState({}, '', url.toString());
-    }
-  };
-
-  const data = initialData;
-  const [selectedMonth, setSelectedMonth] = useState(initialData.periodName || 'Oktober 2026');
-  const [periodDropdown, setPeriodDropdown] = useState(false);
-  const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<any>(null);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [copiedAccount, setCopiedAccount] = useState(false);
-
-  const bankInfo = initialData.bankInfo || {bankName:'',accountNumber:'',accountHolder:''};
-  // Digital Clock
-  const [currentTime, setCurrentTime] = useState('');
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          timeZoneName: 'short'
-        })
-      );
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Ledger Filter State
-  const [ledgerSearch, setLedgerSearch] = useState('');
-  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
-  const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState<string>('ALL');
-
-  // Dues Breakdown Filter & Search States
-  const [duesFilter, setDuesFilter] = useState<'ALL' | 'UNPAID' | 'PAID'>('ALL');
-  const [duesSearch, setDuesSearch] = useState('');
-
-  const handleQuickConfirm = (..._args:unknown[]) => {
-    handleTabChange('citizen_confirm');
-    if (typeof window !== 'undefined') window.scrollTo({top:0,behavior:'smooth'});
-  };
-  const resolvedUnpaidList = data.unpaidDetailedList;
-  const resolvedCurrentMonthUnpaid = data.currentMonthUnpaidList || [];
-  const resolvedPastArrears = data.pastArrearsList || [];
-  const resolvedHouseholdDues = data.householdDuesList;
-  const filteredHouseholdDues = useMemo(() => {
-    return resolvedHouseholdDues.filter((item) => {
-      const matchSearch =
-        item.propertyCode.toLowerCase().includes(duesSearch.toLowerCase()) ||
-        item.residentName.toLowerCase().includes(duesSearch.toLowerCase());
-
-      if (!matchSearch) return false;
-      if (duesFilter === 'UNPAID') return !item.isFullyPaid;
-      if (duesFilter === 'PAID') return item.isFullyPaid;
-      return true;
-    });
-  }, [resolvedHouseholdDues, duesFilter, duesSearch]);
-
-  // Citizen Quick Checker State (Default: Kav E / Pak Budi)
-  const [checkedKavling, setCheckedKavling] = useState<string>('');
-  const checkedKavlingData = useMemo(() => {
-    return (
-      resolvedHouseholdDues.find((h) => h.propertyCode === checkedKavling) ||
-
-      resolvedHouseholdDues[0]
-    );
-  }, [resolvedHouseholdDues, checkedKavling]);
-
-  // Share Link Handler
-  const handleCopyLink = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleCopyAccount = (text: string) => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(text);
-      setCopiedAccount(true);
-      setTimeout(() => setCopiedAccount(false), 2000);
-    }
-  };
-
-  const newest = new Date(data.year,data.month-1,1);
-  const periodsList = Array.from({length:12},(_,index)=>{
-    const date = new Date(newest.getFullYear(),newest.getMonth()-index,1);
-    return {year:date.getFullYear(),month:date.getMonth()+1,name:billingMonthLabel(date.getFullYear(),date.getMonth()+1)};
-  });
-  const getCategoryIcon = (name: string) => {
-    const n = name.toLowerCase();
-    if (n.includes('gaji') || n.includes('satpam') || n.includes('keamanan') || n.includes('honor')) {
-      return <ShieldCheck className="w-4 h-4 text-emerald-700" />;
-    }
-    if (n.includes('rt') || n.includes('kebersihan') || n.includes('sampah')) {
-      return <Sparkles className="w-4 h-4 text-teal-700" />;
-    }
-    if (n.includes('rw') || n.includes('paguyuban')) {
-      return <Building2 className="w-4 h-4 text-indigo-700" />;
-    }
-    if (n.includes('operasional') || n.includes('listrik') || n.includes('pju')) {
-      return <Zap className="w-4 h-4 text-amber-600" />;
-    }
-    if (n.includes('kesehatan') || n.includes('bantuan') || n.includes('medis')) {
-      return <Heart className="w-4 h-4 text-rose-600" />;
-    }
-    if (n.includes('terduga') || n.includes('sumbangan') || n.includes('agustus') || n.includes('acara') || n.includes('kelurahan')) {
-      return <AlertCircle className="w-4 h-4 text-purple-600" />;
-    }
-    return <Wrench className="w-4 h-4 text-sky-600" />;
-  };
-
-  // Realistic Public Ledger Mutasi Kas
-  const sampleLedgerEntries: LedgerEntry[] = useMemo(() => (initialData.ledgerEntries || []), [initialData.ledgerEntries]);
-
-  const handleExportLedgerCSV = () => downloadFinanceCsv('Buku-Kas-'+selectedMonth.replace(/\s+/g,'-')+'.csv',[
-    ['Tanggal','No. Jurnal','Uraian','Kategori','Arus Kas','Nominal (Rp)'],
-    ...filteredLedger.map(row=>[row.date,row.voucherRef,row.description,row.category,row.type==='INCOME'?'MASUK':'KELUAR',row.amount]),
-  ]);
-  // Filtered Ledger
-  const filteredLedger = useMemo(() => {
-    return sampleLedgerEntries.filter(entry => {
-      const matchSearch =
-        entry.description.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
-        entry.voucherRef.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
-        entry.category.toLowerCase().includes(ledgerSearch.toLowerCase());
-
-      const matchType =
-        ledgerTypeFilter === 'ALL' || entry.type === ledgerTypeFilter;
-
-      const matchCategory =
-        ledgerCategoryFilter === 'ALL' || entry.category === ledgerCategoryFilter;
-
-      return matchSearch && matchType && matchCategory;
-    });
-  }, [sampleLedgerEntries, ledgerSearch, ledgerTypeFilter, ledgerCategoryFilter]);
-
-  return (
-    <div className="space-y-6 pb-16 font-sans">
-      
-      {/* ========================================================================= */}
-      {/* HEADER: TITLE, ACTIONS & PERIOD SELECTOR                                   */}
-      {/* ========================================================================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider border border-emerald-200">
-              Periode Pembukuan: {selectedMonth}
-            </span>
-            <span className="text-[11px] text-ink-muted">
-              Diperbarui: {data.lastUpdatedAt}
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink mt-1">
-            Laporan Transparansi Keuangan
-          </h1>
-          <p className="text-xs sm:text-sm text-ink-muted mt-1 max-w-2xl leading-relaxed">
-            Pembukuan arus kas, mutasi pengeluaran riil, dan tingkat partisipasi iuran komplek yang terbuka untuk warga.
-          </p>
-        </div>
-
-        {/* Right Action Buttons */}
-        <div className="flex items-center gap-2.5 self-start md:self-auto">
-          {/* Print / Cetak PDF Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window !== 'undefined') window.print();
-            }}
-            title="Cetak atau simpan laporan sebagai PDF"
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas active:scale-[0.98] border border-border rounded-2xl text-xs font-bold text-ink shadow-2xs transition-all"
-          >
-            <Download className="w-3.5 h-3.5 text-primary-700" />
-            <span className="hidden sm:inline">Cetak / PDF</span>
-          </button>
-
-          {/* Share Button */}
-          <button
-            type="button"
-            onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas active:scale-[0.98] border border-border rounded-2xl text-xs font-bold text-ink shadow-2xs transition-all"
-          >
-            <Share2 className="w-3.5 h-3.5 text-primary-700" />
-            <span>Bagikan</span>
-          </button>
-
-          {/* Period Selector Dropdown */}
-          <div className="relative inline-block">
-            <button
-              type="button"
-              onClick={() => setPeriodDropdown(!periodDropdown)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-surface hover:bg-canvas active:scale-[0.98] border border-border rounded-2xl text-xs font-bold text-ink shadow-2xs transition-all"
-            >
-              <Calendar className="w-4 h-4 text-ink-muted" />
-              <span>{selectedMonth}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-ink-muted" />
-            </button>
-
-            {periodDropdown && (
-              <div className="absolute right-0 mt-2 w-52 bg-surface rounded-2xl shadow-modal border border-border py-1.5 z-40 animate-in fade-in">
-                {periodsList.map((p) => (
-                  <button
-                    key={p.name}
-                    onClick={() => {
-                      setSelectedMonth(p.name);
-                      setPeriodDropdown(false);
-                      const targetPath = `/transparency/${p.year}/${p.month.toString().padStart(2, '0')}`;
-                      const currentTabParam = activeTab !== 'cashflow_summary' ? `?tab=${activeTab}` : '';
-                      window.location.href = `${targetPath}${currentTabParam}`;
-                    }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold flex items-center justify-between ${
-                      selectedMonth === p.name ? 'bg-primary-50 text-primary-700 font-black' : 'text-ink hover:bg-canvas'
-                    }`}
-                  >
-                    <span>{p.name}</span>
-                    {selectedMonth === p.name && <Check className="w-3.5 h-3.5 text-primary-600" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 3. 5 SUBTABS NAVIGATION PILL BAR                                          */}
-      {/* ========================================================================= */}
-      <div className="bg-surface p-1.5 rounded-2xl border border-border shadow-2xs flex flex-wrap gap-1">
-        <button
-          type="button"
-          onClick={() => handleTabChange('cashflow_summary')}
-          className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'cashflow_summary'
-              ? 'bg-primary-600 text-white shadow-xs'
-              : 'text-ink-muted hover:text-ink hover:bg-canvas'
-          }`}
-        >
-          <Home className="w-3.5 h-3.5" />
-          <span>Ringkasan Warga</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('dues_breakdown')}
-          className={`flex-1 min-w-[135px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'dues_breakdown'
-              ? 'bg-primary-600 text-white shadow-xs'
-              : 'text-ink-muted hover:text-ink hover:bg-canvas'
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5" />
-          <span>Status 14 Kavling</span>
-          {resolvedUnpaidList.length > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-              activeTab === 'dues_breakdown' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-700'
-            }`}>
-              {resolvedUnpaidList.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('public_ledger')}
-          className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'public_ledger'
-              ? 'bg-primary-600 text-white shadow-xs'
-              : 'text-ink-muted hover:text-ink hover:bg-canvas'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Buku Mutasi Kas</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('citizen_confirm')}
-          className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'citizen_confirm'
-              ? 'bg-primary-600 text-white shadow-xs'
-              : 'text-ink-muted hover:text-ink hover:bg-canvas'
-          }`}
-        >
-          <FileCheck className="w-3.5 h-3.5" />
-          <span>Konfirmasi Bayar</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('audit_faq')}
-          className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === 'audit_faq'
-              ? 'bg-primary-600 text-white shadow-xs'
-              : 'text-ink-muted hover:text-ink hover:bg-canvas'
-          }`}
-        >
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>Rekening & SOP Kas</span>
-        </button>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* SUBTAB 1: CITIZEN-FIRST FAST GLANCE VIEW (RINGKASAN WARGA)                */}
-      {/* ========================================================================= */}
-      {activeTab === 'cashflow_summary' && (
-        <div className="space-y-6 animate-in fade-in">
-          {/* 1. HERO 3 ANGKA KAS UTAMA WARGA */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Partisipasi / Kepatuhan Iuran Warga */}
-            <div className="bg-surface rounded-3xl p-6 border-2 border-primary-200/90 shadow-card flex flex-col justify-between space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-primary-900 font-mono">
-                  Kepatuhan Iuran Warga
-                </span>
-                <div className="w-10 h-10 rounded-2xl bg-primary-50 border border-primary-200 text-primary-700 flex items-center justify-center">
-                  <Users className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-ink tracking-tight tabular-nums">
-                  {data.paidProperties} <span className="text-xl font-bold text-ink-muted">/ {data.totalProperties} Kavling</span>
-                </p>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 mt-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{data.paidPercentage.toFixed(0)}% Kavling Telah Lunas Terverifikasi</span>
-                </div>
-              </div>
-              <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
-                Data real-time kepatuhan setoran iuran kebersihan & keamanan warga Grand Sariwangi periode {selectedMonth}.
-              </p>
-            </div>
-
-            {/* Card 2: Iuran Masuk Periode Ini */}
-            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 font-mono">
-                  Iuran Masuk ({selectedMonth})
-                </span>
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center">
-                  <ArrowDownCircle className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-ink tracking-tight tabular-nums">
-                  {formatRupiah(data.income)}
-                </p>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-primary-700 mt-2">
-                  <Home className="w-4 h-4 shrink-0" />
-                  <span>{data.paidProperties} dari {data.totalProperties} Kavling Telah Masuk ({data.paidPercentage.toFixed(0)}%)</span>
-                </div>
-              </div>
-              <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
-                Iuran yang sudah dibukukan pada periode ini, termasuk pembayaran tunai dan koreksi.
-              </p>
-            </div>
-
-            {/* Card 3: Biaya Operasional Berjalan */}
-            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-rose-800 font-mono">
-                  Belanja Kas Berjalan
-                </span>
-                <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-center">
-                  <ArrowUpCircle className="w-5 h-5" />
-                </div>
-              </div>
-              <div>
-                <p className="text-3xl font-black text-ink tracking-tight tabular-nums">
-                  {formatRupiah(data.expense)}
-                </p>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-ink-muted mt-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Honor Satpam 24 Jam, Sampah & Fasum</span>
-                </div>
-              </div>
-              <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
-                Kas keluar yang dibukukan, setelah pembatalan dan tanpa mutasi antar rekening.
-              </p>
-            </div>
-          </div>
-
-          {/* 2. FITUR UNGGULAN: 🔍 CEK STATUS IURAN KAVLING SAYA */}
-          <div className="bg-surface rounded-3xl p-6 sm:p-7 border-2 border-primary-200 shadow-card space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-md bg-primary-100 text-primary-900 text-[10px] font-mono font-black uppercase tracking-wider border border-primary-200">
-                    Fitur Cepat Warga
-                  </span>
-                  <span className="text-xs text-ink-muted">Pilih Kavling Anda</span>
-                </div>
-                <h2 className="text-xl font-black text-ink mt-1">
-                  🔍 Cek Status Iuran Kavling Saya ({selectedMonth})
-                </h2>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Klik nomor kavling rumah Anda di bawah ini untuk melihat konfirmasi pelunasan, nomor rekening, atau bukti pembayaran.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('citizen_confirm')}
-                  className="px-3.5 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
-                >
-                  <FileCheck className="w-3.5 h-3.5" />
-                  <span>Form Konfirmasi Mandiri</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Kavling Selection Pills */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-ink-muted uppercase tracking-wider block">
-                Pilih No. Kavling Hunian (Kav A s/d Kav M):
-              </span>
-              <div className="grid grid-cols-4 sm:grid-cols-7 lg:grid-cols-13 gap-1.5">
-                {resolvedHouseholdDues.map((item) => {
-                  const isSelected = checkedKavling === item.propertyCode;
-                  const isCurrentPaid = item.isCurrentMonthPaid;
-                  const isBilled = item.months[data.month-1]?.isBilled;
-
-                  return (
-                    <button
-                      key={item.propertyCode}
-                      type="button"
-                      onClick={() => setCheckedKavling(item.propertyCode)}
-                      className={`p-2.5 rounded-2xl text-center transition-all flex flex-col items-center gap-1 active:scale-[0.96] border ${
-                        isSelected
-                          ? 'bg-primary-600 text-white border-primary-700 shadow-md ring-2 ring-primary-300'
-                          : isCurrentPaid
-                          ? 'bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900 border-emerald-200'
-                          : 'bg-canvas hover:bg-amber-50 text-ink border-border'
-                      }`}
-                    >
-                      <span className="text-xs font-black tracking-tight">
-                        {item.propertyCode.replace('Kav ', '')}
-                      </span>
-                      <span className={`text-[9px] font-bold px-1 rounded-sm ${
-                        isSelected
-                          ? 'bg-white/20 text-white'
-                          : isCurrentPaid
-                          ? 'text-emerald-700'
-                          : 'text-amber-800'
-                      }`}>
-                        {isCurrentPaid ? '✓ Lunas' : isBilled ? 'Menunggu' : 'Belum terbit'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Dynamic Status Card for Selected Kavling */}
-            {checkedKavlingData && (
-              <div className="animate-in fade-in zoom-in-95 duration-150">
-                {!checkedKavlingData.months[data.month-1]?.isBilled ? (
-                  <p className="rounded-xl bg-surface p-4 text-sm text-ink-muted">Belum ada tagihan untuk {checkedKavlingData.propertyCode} pada periode ini.</p>
-                ) : checkedKavlingData.isCurrentMonthPaid ? (
-                  /* KAVLING LUNAS CARD */
-                  <div className="p-5 sm:p-6 rounded-3xl bg-emerald-50/70 border-2 border-emerald-300 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-300">
-                        <CheckCircle2 className="w-8 h-8" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-black uppercase tracking-wider border border-emerald-300">
-                            ✓ LUNAS TERVERIFIKASI
-                          </span>
-                          <span className="text-xs font-bold text-emerald-800">
-                            Periode: {selectedMonth}
-                          </span>
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-black text-ink">
-                          {checkedKavlingData.residentName} ({checkedKavlingData.propertyCode})
-                        </h3>
-                        <p className="text-xs text-emerald-950 leading-relaxed max-w-xl">
-                          Alhamdulillah, iuran pemeliharaan lingkungan (IPL) sebesar <strong>{formatRupiah(checkedKavlingData.months[data.month-1]?.amount || 0)}</strong> telah diterima dan dicatat lunas di kas paguyuban. Terima kasih atas partisipasi Bapak/Ibu dalam menjaga keamanan 24 jam dan kebersihan komplek kita!
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLedgerSearch('');
-                          handleTabChange('public_ledger');
-                        }}
-                        className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-100/50 text-emerald-900 border border-emerald-300 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] flex items-center justify-center gap-1.5"
-                      >
-                        <Layers className="w-3.5 h-3.5 text-emerald-700" />
-                        <span>Lihat di Buku Kas</span>
-                      </button>
-
-                      <a href="/warga" className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5">
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Kuitansi di portal warga</span>
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  /* KAVLING BELUM BAYAR CARD */
-                  <div className="p-5 sm:p-6 rounded-3xl bg-amber-50/80 border-2 border-amber-300 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
-                        <Hourglass className="w-8 h-8" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider border border-amber-300">
-                            ⏳ MENUNGGU PEMBAYARAN
-                          </span>
-                          <span className="text-xs font-bold text-amber-900">
-                            Periode: {selectedMonth}
-                          </span>
-                        </div>
-                        <h3 className="text-lg sm:text-xl font-black text-ink">
-                          {checkedKavlingData.residentName} ({checkedKavlingData.propertyCode})
-                        </h3>
-                        <p className="text-xs text-amber-950 leading-relaxed max-w-xl">
-                          Iuran pemeliharaan lingkungan ({selectedMonth}) sebesar <strong>{formatRupiah(checkedKavlingData.months[data.month-1]?.amount || 0)}</strong> belum lunas. Jika sudah membayar, kirim bukti melalui portal warga.
-                        </p>
-                        {checkedKavlingData.unpaidMonths && checkedKavlingData.unpaidMonths.length > 1 && (
-                          <p className="text-[11px] text-rose-800 font-bold mt-1">
-                            Catatan tunggakan sebelumnya: {checkedKavlingData.unpaidMonths.join(', ')} (Total: {formatRupiah(checkedKavlingData.totalArrearsAmount)})
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        disabled={!bankInfo.accountNumber} onClick={() => handleCopyAccount(bankInfo.accountNumber)}
-                        className="px-4 py-2.5 rounded-xl bg-white hover:bg-amber-100/50 text-amber-950 border border-amber-300 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] flex items-center justify-center gap-1.5"
-                      >
-                        {copiedAccount ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-amber-700" />}
-                        <span>{copiedAccount ? 'Tersalin!' : 'Salin No. Rekening'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleQuickConfirm(
-                            checkedKavlingData.propertyCode,
-                            checkedKavlingData.residentName,
-                            checkedKavlingData.totalArrearsAmount || 250000,
-                            selectedMonth
-                          )
-                        }
-                        className="px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-all shadow-xs active:scale-[0.98] flex items-center justify-center gap-1.5"
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>Konfirmasi Bayar</span>
-                      </button>
-
-                      <a
-                        href={`https://api.whatsapp.com/send?phone=6281234567802&text=${encodeURIComponent(
-                          `Halo Bendahara Komplek Grand Sariwangi, konfirmasi iuran ${checkedKavlingData.propertyCode} (${checkedKavlingData.residentName}) periode ${selectedMonth}. Mohon info rekening kas untuk transfer.`
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs active:scale-[0.98] flex items-center justify-center gap-1.5"
-                        title="Chat Bendahara via WhatsApp"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">WhatsApp</span>
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 3. ALOKASI PENGELUARAN RIIL & KOTAK REKENING RESMI PAGUYUBAN */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-            {/* Kolom 1: Alokasi Pengeluaran Riil Warga */}
-            <div className="bg-surface rounded-3xl p-6 border border-border shadow-card flex flex-col justify-between space-y-4">
-              <div>
-                <div className="flex items-center justify-between border-b border-border/80 pb-3">
-                  <div>
-                    <h3 className="text-base font-black text-ink">
-                      Uang Iuran Warga Dipakai Kemana Saja?
-                    </h3>
-                    <p className="text-xs text-ink-muted mt-0.5">
-                      Rincian alokasi belanja kas komplek pada periode {selectedMonth}.
-                    </p>
-                  </div>
-                  {data.expenseBreakdown.length > 0 && (
-                    <span className="text-[11px] font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-200">
-                      Transparan 100%
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {data.expenseBreakdown.length === 0 ? (
-                    <div className="p-4 text-center bg-canvas rounded-2xl border border-dashed border-border text-xs text-ink-muted">
-                      Belum ada pos pengeluaran yang dibukukan untuk periode ini.
-                    </div>
-                  ) : (
-                    data.expenseBreakdown.map((item) => (
-                      <div
-                        key={item.name}
-                        onClick={() => setSelectedExpenseCategory(item)}
-                        className="p-3 rounded-2xl bg-canvas hover:bg-primary-50/70 border border-border hover:border-primary-300 transition-all cursor-pointer group active:scale-[0.98]"
-                        title="Lihat rincian pengeluaran yang dibukukan"
-                      >
-                        <div className="flex items-center justify-between text-xs font-bold text-ink">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-surface border border-border flex items-center justify-center">
-                              {getCategoryIcon(item.name)}
-                            </div>
-                            <div>
-                              <span className="group-hover:text-primary-700 block">{item.name}</span>
-                              <span className="text-[10px] text-ink-muted font-normal">
-                                {item.percentage}% dari total belanja kas
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-ink font-black block tabular-nums">{formatRupiah(item.amount)}</span>
-                            <span className="text-[10px] text-primary-700 font-bold group-hover:underline">
-                              Lihat Nota →
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-2.5 bg-border/40 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-primary-600 h-full rounded-full transition-all duration-300"
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Tombol "Buka Kuitansi & Nota Belanja" dihilangkan: setiap baris kategori
-                  sudah bisa membuka rincian nota melalui aksi "Lihat Nota" pada barisnya. */}
-            </div>
-
-            {/* Kolom 2: Rekening Resmi Paguyuban & Neraca Kas */}
-            <div className="space-y-6 flex flex-col justify-between">
-              {/* Kotak Rekening Resmi Tunggal */}
-              <div className="p-6 rounded-3xl bg-primary-50/80 border-2 border-primary-300 shadow-card space-y-4">
-                <div className="flex items-center justify-between border-b border-primary-200/80 pb-3">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-primary-700" />
-                    <span className="text-xs font-black uppercase tracking-wider text-primary-950">
-                      Rekening Resmi Kas Paguyuban
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300">
-                    Akun Resmi Tunggal
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-surface border border-primary-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <span className="text-[11px] text-ink-muted">{bankInfo.bankName}</span>
-                    <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber || 'Belum dikonfigurasi'}</p>
-                    <p className="text-xs font-bold text-primary-900">{bankInfo.accountHolder ? 'a.n '+bankInfo.accountHolder : ''}</p>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={!bankInfo.accountNumber} onClick={() => handleCopyAccount(bankInfo.accountNumber)}
-                    className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
-                  >
-                    {copiedAccount ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedAccount ? 'Tersalin!' : 'Salin Rekening'}</span>
-                  </button>
-                </div>
-
-                <p className="text-[11px] text-primary-950 leading-relaxed">
-                  ⚠️ <strong>Pemberitahuan Warga:</strong> Seluruh pembayaran iuran warga hanya disetorkan ke rekening kas resmi di atas. Pengurus tidak pernah menerima transfer melalui rekening pribadi pengurus ataupun rekening satpam.
-                </p>
-              </div>
-
-              {/* Transparansi Publik & Akses Mobile QR */}
-              <div className="p-5 rounded-3xl bg-surface border border-border shadow-card flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center gap-1.5 text-primary-900 font-black">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="text-xs uppercase tracking-wide">Portal Transparansi Terbuka</span>
-                  </div>
-                  <p className="text-[11px] text-ink-muted leading-relaxed">
-                    Seluruh catatan mutasi dan kepatuhan iuran disajikan terbuka secara berkala bagi seluruh warga paguyuban.
-                  </p>
-                  <div className="pt-1 flex items-center gap-2 text-[11px]">
-                    <span className="font-bold text-ink">Periode Laporan:</span>
-                    <span className="font-mono px-2 py-0.5 rounded bg-primary-50 text-primary-800 font-bold border border-primary-200">
-                      {selectedMonth}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-canvas border border-border flex items-center gap-3 shrink-0">
-                  <div className="space-y-0.5 text-right">
-                    <p className="text-xs font-black text-ink">Buka di HP</p>
-                    <p className="text-[10px] text-ink-muted">Pindai QR ini</p>
-                  </div>
-                  {data.qrCodeDataUrl ? (
-                    <img
-                      src={data.qrCodeDataUrl}
-                      alt="QR Code Laporan Transparansi"
-                      className="w-14 h-14 rounded-xl border border-border p-1 bg-white shrink-0 shadow-2xs"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-xl bg-surface border border-border flex items-center justify-center shrink-0">
-                      <QrCode className="w-6 h-6 text-ink-muted" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 3B. ROSTER JADWAL SHIFT & PENUGASAN AREA JAGA (DINAS ESTAFET 24 JAM) */}
-          {(data.securityRoster?.shifts?.length ?? 0) > 0 && data.securityRosterView && (() => {
-            const roster = data.securityRoster!;
-            const view = data.securityRosterView!;
-            const officers = roster.shifts;
-            const onDuty = officers[view.onDutyIndex] || officers[0];
-            const offDuty = officers.length > 1 ? officers[(view.onDutyIndex + 1) % officers.length] : null;
-            const waLink = (phone: string) =>
-              `https://wa.me/62${String(phone || '').replace(/[^0-9]/g, '').replace(/^0+/, '')}`;
-
-            return (
-              <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-bold border border-primary-200">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-black text-ink">
-                        Roster Jadwal Shift &amp; Penugasan Area Jaga
-                      </h3>
-                      <p className="text-xs text-ink-muted mt-0.5">
-                        Personil petugas jaga resmi yang ditugaskan menjaga keamanan komplek, ditetapkan oleh Pengurus Paguyuban.
-                      </p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 self-start sm:self-auto">
-                    OPERASIONAL 24 JAM
-                  </span>
-                </div>
-
-                {/* Kartu Petugas: Yang Sedang Dinas & Mitra Estafet */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Petugas Hari Ini (Sedang Dinas) */}
-                  <div className="p-5 rounded-3xl bg-emerald-50/60 border-2 border-emerald-300 space-y-3.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="px-3 py-1 rounded-xl bg-emerald-600 text-white text-[11px] font-black shadow-xs">
-                        PETUGAS HARI INI (SEDANG DINAS)
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface border border-emerald-200 text-[11px] font-bold text-ink font-mono">
-                        <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                        {view.handoverTime} - {view.handoverTime} WIB
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-surface border border-emerald-200 flex items-center justify-center shrink-0">
-                        <Users className="w-4.5 h-4.5 text-emerald-700" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-ink leading-tight">{onDuty.staffName}</p>
-                        <p className="text-[11px] text-ink-muted font-bold">
-                          {onDuty.badgeNo ? `${onDuty.badgeNo} • ` : ''}{onDuty.role}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-[11px]">
-                      {onDuty.post && (
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
-                          <span className="text-ink font-semibold">Titik Jaga: {onDuty.post}</span>
-                        </div>
-                      )}
-                      {onDuty.specialDuties && (
-                        <div className="flex items-start gap-2">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
-                          <span className="text-ink-muted">
-                            <strong className="text-ink font-bold">Tugas Khusus:</strong> {onDuty.specialDuties}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {onDuty.phone && (
-                      <div className="pt-2.5 border-t border-emerald-200/80 flex items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold text-ink">
-                          <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
-                          {onDuty.phone}
-                        </span>
-                        <a
-                          href={waLink(onDuty.phone)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-xs inline-flex items-center gap-1.5 active:scale-95 transition-all"
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>Hubungi WhatsApp</span>
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Petugas Mitra (Lepas Piket / Dinas Besok) */}
-                  {offDuty && (
-                    <div className="p-5 rounded-3xl bg-canvas border-2 border-border space-y-3.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="px-3 py-1 rounded-xl bg-slate-600 text-white text-[11px] font-black shadow-xs">
-                          PETUGAS MITRA (LEPAS PIKET / DINAS BESOK)
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center shrink-0">
-                          <Users className="w-4.5 h-4.5 text-ink-muted" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-ink leading-tight">{offDuty.staffName}</p>
-                          <p className="text-[11px] text-ink-muted font-bold">
-                            {offDuty.badgeNo ? `${offDuty.badgeNo} • ` : ''}{offDuty.role}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 text-[11px]">
-                        <div className="flex items-start gap-2">
-                          <Clock className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
-                          <span className="text-ink-muted">
-                            <strong className="text-ink font-bold">Jadwal Masuk Dinas:</strong> Besok Pukul {view.handoverTime} WIB (24 Jam)
-                          </span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Info className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
-                          <span className="text-ink-muted">
-                            <strong className="text-ink font-bold">Status Hari Ini:</strong> Istirahat Lepas Piket (Off) / Siaga Panggilan Darurat
-                          </span>
-                        </div>
-                      </div>
-
-                      {offDuty.phone && (
-                        <div className="pt-2.5 border-t border-border flex items-center gap-1.5 font-mono text-[11px] font-bold text-ink">
-                          <Smartphone className="w-3.5 h-3.5 text-ink-muted" />
-                          {offDuty.phone}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Timeline Siklus Piket 24 Jam */}
-                {(roster.timeline?.length ?? 0) > 0 && (
-                  <div className="p-5 bg-canvas rounded-3xl border border-border space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-primary-600" />
-                        <h4 className="text-sm font-black text-ink">
-                          Timeline Siklus Piket 24 Jam Pagi s/d Pagi
-                        </h4>
-                      </div>
-                      <span className="text-[10px] font-mono font-bold text-primary-700">
-                        Rotasi Estafet Bergantian Setiap {view.handoverTime} WIB
-                      </span>
-                    </div>
-
-                    <div className="space-y-0">
-                      {(roster.timeline || []).map((item, i, arr) => (
-                        <div key={i} className="flex gap-3.5">
-                          <div className="flex flex-col items-center shrink-0 w-24">
-                            <span className="font-mono text-[10px] font-black text-primary-700 bg-primary-50 border border-primary-200 rounded-lg px-1.5 py-0.5 text-center leading-tight">
-                              {item.time}
-                            </span>
-                            <span className={`flex-1 w-0.5 ${i === arr.length - 1 ? 'bg-transparent' : 'bg-border'}`} />
-                          </div>
-                          <div className={`pb-4 ${i === arr.length - 1 ? 'pb-1' : ''} space-y-1`}>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {item.label && (
-                                <span className="px-2 py-0.2 rounded-md text-[9px] font-black uppercase bg-surface border border-border text-ink-muted">
-                                  {item.label}
-                                </span>
-                              )}
-                              <h5 className="text-xs font-black text-ink">{item.title}</h5>
-                            </div>
-                            <p className="text-[11px] text-ink-muted leading-relaxed pr-2">{item.description}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Jadwal Rotasi Estafet 7 Hari */}
-                <div className="p-5 bg-canvas rounded-3xl border border-border space-y-3.5">
-                  <div className="flex items-center gap-2 border-b border-border pb-3">
-                    <Calendar className="w-4 h-4 text-primary-600" />
-                    <h4 className="text-sm font-black text-ink">
-                      Jadwal Rotasi Estafet {officers.length} Satpam
-                      <span className="font-bold text-ink-muted"> (7 Hari ke Depan — Selang-Seling Otomatis)</span>
-                    </h4>
-                  </div>
-
-                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                    {view.weekSchedule.map((day) => {
-                      const officer = officers[day.officerIndex] || officers[0];
-                      const isOnDutyToday = day.isToday && day.officerIndex === view.onDutyIndex;
-                      return (
-                        <div
-                          key={day.iso}
-                          className={`p-2.5 rounded-2xl border text-center space-y-1 transition-all ${
-                            isOnDutyToday
-                              ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-200'
-                              : day.isToday
-                              ? 'bg-surface border-primary-300'
-                              : 'bg-surface border-border'
-                          }`}
-                        >
-                          <span className="block text-[9px] font-mono font-black uppercase text-ink-muted">
-                            {day.dayShort}
-                          </span>
-                          <span className="block text-sm font-black text-ink leading-none">
-                            {day.dayNum} <span className="text-[9px] text-ink-muted font-bold">{day.monthShort}</span>
-                          </span>
-                          <span
-                            className={`block text-[10px] font-bold leading-tight break-words ${
-                              isOnDutyToday ? 'text-emerald-800' : 'text-ink'
-                            }`}
-                          >
-                            {officer?.staffName || '-'}
-                          </span>
-                          {day.isToday && (
-                            <span className={`inline-block px-1.5 rounded text-[8px] font-black ${
-                              isOnDutyToday ? 'bg-emerald-200 text-emerald-900' : 'bg-primary-100 text-primary-800'
-                            }`}>
-                              {isOnDutyToday ? 'DINAS' : 'OFF'}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {roster.notes && (
-                  <div className="p-3.5 bg-canvas rounded-2xl border border-dashed border-border flex items-start gap-2.5">
-                    <Info className="w-4 h-4 text-ink-muted shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-ink-muted leading-relaxed">{roster.notes}</p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* 4. FOOTER TAUTAN CEPAT AUDIT & DETAIL */}
-          <div className="p-4 bg-canvas rounded-2xl border border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary-600 shrink-0" />
-              <span className="text-ink-muted">
-                Ingin melihat rincian akuntansi kasir lebih dalam atau status seluruh kavling?
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleTabChange('public_ledger')}
-                className="px-3 py-1.5 rounded-xl bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs transition-colors flex items-center gap-1"
-              >
-                <span>Buku Mutasi Kas</span>
-                <ArrowRight className="w-3 h-3 text-primary-600" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTabChange('dues_breakdown')}
-                className="px-3 py-1.5 rounded-xl bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs transition-colors flex items-center gap-1"
-              >
-                <span>Status 14 Kavling</span>
-                <ArrowRight className="w-3 h-3 text-primary-600" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUBTAB 2: PUBLIC LEDGER & MUTATION TABLE                                  */}
-      {/* ========================================================================= */}
-      {activeTab === 'public_ledger' && (
-        <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-6 animate-in fade-in">
-          <div className="border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary-800 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-200">
-                Buku Mutasi Kas Digital
-              </span>
-              <h2 className="text-xl font-black text-ink mt-1">
-                Catatan Transaksi Masuk & Keluar Lengkap
-              </h2>
-              <p className="text-xs text-ink-muted mt-0.5">
-                Jurnal yang sudah dibukukan. Rincian pribadi dan bukti transaksi tersedia melalui akun yang berwenang.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold bg-canvas px-3 py-1.5 rounded-xl border border-border text-ink">
-                {filteredLedger.length} Transaksi Terdata
-              </span>
-            </div>
-          </div>
-
-          {/* Search & Filter Toolbar */}
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-ink-muted absolute left-3.5 top-3" />
-              <input
-                type="text"
-                placeholder="Cari uraian atau nomor jurnal"
-                value={ledgerSearch}
-                onChange={(e) => setLedgerSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-canvas border border-border rounded-xl text-xs font-medium text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              <select
-                value={ledgerCategoryFilter}
-                onChange={(e) => setLedgerCategoryFilter(e.target.value)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500 shrink-0"
-              >
-                <option value="ALL">Semua Pos Kategori</option>
-                <option value="Pemasukan IPL">Pemasukan IPL</option>
-                <option value="Gaji">Gaji Petugas Jaga</option>
-                <option value="Iuran RT">Iuran RT & Kebersihan</option>
-                <option value="Iuran RW">Iuran RW</option>
-                <option value="Operasional">Operasional Pos</option>
-                <option value="Dana Kesehatan">Dana Kesehatan / Medis</option>
-                <option value="Dana Tak Terduga">Dana Tak Terduga</option>
-              </select>
-
-              <button
-                type="button"
-                onClick={() => setLedgerTypeFilter('ALL')}
-                className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                  ledgerTypeFilter === 'ALL'
-                    ? 'bg-primary-600 text-white shadow-xs'
-                    : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-                }`}
-              >
-                Semua Arus
-              </button>
-              <button
-                type="button"
-                onClick={() => setLedgerTypeFilter('INCOME')}
-                className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                  ledgerTypeFilter === 'INCOME'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-                }`}
-              >
-                + Masuk (CR)
-              </button>
-              <button
-                type="button"
-                onClick={() => setLedgerTypeFilter('EXPENSE')}
-                className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                  ledgerTypeFilter === 'EXPENSE'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-                }`}
-              >
-                - Keluar (DB)
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportLedgerCSV}
-                title="Unduh data mutasi kas format CSV"
-                className="px-3 py-2 bg-canvas hover:bg-surface border border-border text-ink rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0"
-              >
-                <Download className="w-3.5 h-3.5 text-primary-700" />
-                <span className="hidden sm:inline">Ekspor CSV</span>
-              </button>
-            </div>
-          </div>
-
-          {data.journalCount > sampleLedgerEntries.length && <p className="text-sm text-ink-muted">Menampilkan {sampleLedgerEntries.length} jurnal terbaru dari {data.journalCount} transaksi.</p>}
-          {/* Ledger Table */}
-          <div className="border border-border rounded-2xl overflow-hidden overflow-x-auto text-xs shadow-2xs">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-border bg-canvas text-ink-muted font-bold text-[11px]">
-                  <th className="py-3.5 px-4">Tanggal & Ref</th>
-                  <th className="py-3.5 px-4">Uraian Transaksi</th>
-                  <th className="py-3.5 px-4">Kategori Pos</th>
-                  <th className="py-3.5 px-4 text-right">Nominal (Rp)</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {filteredLedger.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-14 text-center text-ink-muted">
-                      <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                        <FileText className="w-8 h-8 text-ink-muted/40 mx-auto" />
-                        <span className="font-bold text-ink text-sm">Belum Ada Transaksi Kas Tercatat</span>
-                        <span className="text-[11px] text-ink-muted">
-                          Buku mutasi kas publik akan otomatis memuat transaksi masuk dan keluar setelah dibukukan oleh bendahara paguyuban.
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredLedger.map((row) => (
-                    <tr key={row.id} className="hover:bg-canvas/60 transition-colors">
-                      <td className="py-3.5 px-4">
-                        <span className="font-bold text-ink block">{row.date}</span>
-                        <span className="text-[10px] font-mono text-primary-700 bg-primary-50 px-1.5 py-0.2 rounded border border-primary-200 inline-block mt-0.5">
-                          {row.voucherRef}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 max-w-sm">
-                        <span className="font-bold text-ink block leading-tight">{row.description}</span>
-                        {row.notes && <span className="text-[10px] text-ink-muted mt-0.5 block">{row.notes}</span>}
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-canvas border border-border text-ink-muted">
-                          {row.category}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right tabular-nums font-black">
-                        <span className={row.type === 'INCOME' ? 'text-emerald-700' : 'text-rose-700'}>
-                          {row.type === 'INCOME' ? '+' : '-'} {formatRupiah(row.amount)}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          Dibukukan
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Ledger Summary Stats */}
-          <div className="p-4 bg-canvas rounded-2xl border border-border grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-            <div>
-              <span className="text-ink-muted block">Total Mutasi Kredit (+):</span>
-              <span className="text-sm font-black text-emerald-700 tabular-nums">
-                + {formatRupiah(filteredLedger.filter((e) => e.type === 'INCOME').reduce((sum, e) => sum + e.amount, 0))}
-              </span>
-            </div>
-            <div>
-              <span className="text-ink-muted block">Total Mutasi Debit (-):</span>
-              <span className="text-sm font-black text-rose-700 tabular-nums">
-                - {formatRupiah(filteredLedger.filter((e) => e.type === 'EXPENSE').reduce((sum, e) => sum + e.amount, 0))}
-              </span>
-            </div>
-            <div>
-              <span className="text-ink-muted block">Arus Bersih yang Ditampilkan:</span>
-              <span className={`text-sm font-black tabular-nums ${(filteredLedger.filter((e) => e.type === 'INCOME').reduce((sum, e) => sum + e.amount, 0) - filteredLedger.filter((e) => e.type === 'EXPENSE').reduce((sum, e) => sum + e.amount, 0)) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {formatRupiah(filteredLedger.filter((e) => e.type === 'INCOME').reduce((sum, e) => sum + e.amount, 0) - filteredLedger.filter((e) => e.type === 'EXPENSE').reduce((sum, e) => sum + e.amount, 0))}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUBTAB 3: DUES BREAKDOWN BY REGION & BLOCKS                               */}
-      {/* ========================================================================= */}
-      {activeTab === 'dues_breakdown' && (
-        <div className="space-y-6 animate-in fade-in">
-          {/* Header & KPI Summary Banner */}
-          <div className="bg-surface rounded-3xl p-6 sm:p-7 border border-border shadow-card space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary-800 bg-primary-50 px-2.5 py-0.5 rounded-md border border-primary-200">
-                    Transparansi Iuran Warga 2026
-                  </span>
-                  <span className="text-xs text-ink-muted">
-                    Periode: Januari – {data.periodName}
-                  </span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black text-ink mt-1">
-                  Status Iuran & Tunggakan Kavling Warga
-                </h2>
-                <p className="text-xs sm:text-sm text-ink-muted mt-0.5 max-w-2xl leading-relaxed">
-                  Pemantauan terbuka atas kewajiban iuran pemeliharaan lingkungan (*IPL*). Menyorot kavling yang masih menunggak dan memperlihatkan bulan-bulan yang telah terbayar oleh setiap warga.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('citizen_confirm')}
-                  className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>Konfirmasi Pembayaran</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 4 Summary Stat Chips */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-              <div className="p-4 rounded-2xl bg-canvas border border-border flex flex-col">
-                <span className="text-xs font-bold text-ink-muted">Total Kavling Komplek</span>
-                <span className="text-2xl font-black text-ink mt-0.5 tabular-nums">
-                  {resolvedHouseholdDues.length} Unit
-                </span>
-                <span className="text-[10px] text-ink-muted mt-0.5">Kav A s/d Kav M</span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col">
-                <span className="text-xs font-bold text-emerald-800">Lunas Penuh</span>
-                <span className="text-2xl font-black text-emerald-700 mt-0.5 tabular-nums">
-                  {resolvedHouseholdDues.filter((h) => h.isFullyPaid).length} Unit
-                </span>
-                <span className="text-[10px] text-emerald-800/80 font-bold mt-0.5">
-                  {((resolvedHouseholdDues.filter((h) => h.isFullyPaid).length / (resolvedHouseholdDues.length || 1)) * 100).toFixed(1)}% Tertib Iuran
-                </span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 flex flex-col">
-                <span className="text-xs font-bold text-rose-800">Masih Menunggak</span>
-                <span className="text-2xl font-black text-rose-700 mt-0.5 tabular-nums">
-                  {resolvedUnpaidList.length} Unit
-                </span>
-                <span className="text-[10px] text-rose-800/80 font-bold mt-0.5">
-                  Memerlukan Tindak Lanjut
-                </span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col">
-                <span className="text-xs font-bold text-amber-800">Total Piutang Tertunda</span>
-                <span className="text-xl font-black text-amber-900 mt-0.5 tabular-nums truncate">
-                  {formatRupiah(resolvedUnpaidList.reduce((acc, curr) => acc + curr.arrearsAmount, 0))}
-                </span>
-                <span className="text-[10px] text-amber-800 font-bold mt-0.5">
-                  Total {resolvedUnpaidList.reduce((acc, curr) => acc + curr.unpaidMonths.length, 0)} Bulan Tagihan
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* SECTION 1: FOKUS PENGAWASAN - UNIT RUMAH YANG MASIH MENUNGGAK             */}
-          {/* ========================================================================= */}
-          <div className="p-6 sm:p-7 rounded-3xl bg-rose-50/40 border-2 border-rose-300/80 shadow-card space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200/80 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center border border-rose-300 shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-ink">
-                    Fokus Pengawasan: Rumah / Kavling yang Masih Menunggak
-                  </h3>
-                  <p className="text-xs text-ink-muted">
-                    Unit hunian di bawah ini tercatat belum melunasi kewajiban iuran IPL hingga periode {data.periodName}.
-                  </p>
-                </div>
-              </div>
-
-              <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-black text-xs border border-rose-300 self-start sm:self-auto">
-                ⚠️ {resolvedUnpaidList.length} Unit Menunggak
-              </span>
-            </div>
-
-            {resolvedUnpaidList.length === 0 ? (
-              <div className="py-10 text-center bg-surface rounded-2xl border border-dashed border-emerald-200 p-6 space-y-2">
-                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
-                <h4 className="text-sm font-black text-ink">Luar Biasa! Tidak Ada Tunggakan Aktif</h4>
-                <p className="text-xs text-ink-muted max-w-md mx-auto">
-                  Seluruh 13 unit rumah telah melunasi kewajiban iuran IPL komplek hingga periode {data.periodName}.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {resolvedUnpaidList.map((house) => (
-                  <div
-                    key={house.propertyCode}
-                    className="p-5 rounded-2xl bg-surface border-2 border-rose-200/90 shadow-2xs hover:border-rose-300 transition-all flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      {/* House Header */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-800 flex items-center justify-center font-black text-base border border-rose-200 shrink-0">
-                            {house.propertyCode.replace('Kav ', '')}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-base font-black text-ink">{house.propertyCode}</h4>
-                              {house.isCurrentMonthPaid ? (
-                                <>
-                                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-black text-[10px] border border-emerald-300">
-                                    ✓ {data.periodName} Lunas
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[10px] border border-amber-300">
-                                    {house.unpaidMonths.length} Bln Riwayat Lalu
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold text-[10px] border border-rose-200">
-                                  {house.unpaidMonths.length} Bln Menunggak
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs font-bold text-ink-muted mt-0.5">
-                              Penghuni: <span className="text-ink font-black">{house.residentName}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider">Total Tunggakan</span>
-                          <span className="text-lg font-black text-rose-700 tabular-nums">
-                            {formatRupiah(house.arrearsAmount)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Detail Unpaid Months Chips */}
-                      <div className="mt-4 p-3.5 bg-rose-50/60 rounded-xl border border-rose-200/60 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-rose-900">
-                            Bulan Yang Belum Terbayar:
-                          </span>
-                          <span className="text-[11px] font-mono font-bold text-rose-700">
-                            {house.paidMonthsCount} dari {data.month || 9} Bulan Lunas
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
-                          {house.unpaidMonths.map((m) => (
-                            <span
-                              key={m}
-                              className="px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-rose-800 text-xs font-black shadow-2xs flex items-center gap-1.5"
-                            >
-                              <X className="w-3 h-3 text-rose-600 shrink-0" />
-                              <span>{m}</span>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="mt-3.5 space-y-1">
-                        <div className="flex justify-between text-[11px] text-ink-muted">
-                          <span>Kepatuhan Pembayaran</span>
-                          <span className="font-bold text-ink">
-                            {((house.paidMonthsCount / (data.month || 9)) * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                        <div className="h-2 rounded-full bg-border/50 overflow-hidden">
-                          <div
-                            className="h-full bg-rose-500 rounded-full"
-                            style={{ width: `${(house.paidMonthsCount / (data.month || 9)) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-border/70">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleQuickConfirm(
-                            house.propertyCode,
-                            house.residentName,
-                            house.arrearsAmount,
-                            house.unpaidMonths.join(', ')
-                          )
-                        }
-                        className="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>Konfirmasi Pelunasan</span>
-                      </button>
-
-                      <a
-                        href={`https://api.whatsapp.com/send?phone=6281234567802&text=${encodeURIComponent(
-                          `Halo Pengurus Komplek, konfirmasi perihal iuran ${house.propertyCode} (${house.residentName}):\n- Periode tertunda: ${house.unpaidMonths.join(', ')}\n- Total tunggakan: ${formatRupiah(house.arrearsAmount)}\nMohon info nomor rekening / QRIS untuk pelunasan.`
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="py-2.5 px-3 bg-canvas hover:bg-surface border border-border text-ink font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                        title="Hubungi bendahara via WhatsApp"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="hidden sm:inline">WhatsApp</span>
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ========================================================================= */}
-          {/* SECTION 2: MATRIKS TRANSPARANSI BULAN-DEMI-BULAN (RUMAH BERBAYAR)        */}
-          {/* ========================================================================= */}
-          <div className="bg-surface rounded-3xl p-6 sm:p-7 border border-border shadow-card space-y-5">
-            <div className="border-b border-border pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Matriks Transparansi Pembayaran
-                </span>
-                <h3 className="text-xl font-black text-ink mt-1">
-                  Rincian Bulan Terbayar Seluruh Kavling (Jan – {selectedMonth || data.periodName})
-                </h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Setiap tanda centang hijau (<span className="text-emerald-700 font-bold">✓ Jan - {(selectedMonth || data.periodName).split(' ')[0]}</span>) menunjukkan iuran pada bulan bersangkutan telah lunas dan tercatat di kas resmi.
-                </p>
-              </div>
-
-              {/* Legend Badges */}
-              <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
-                  <Check className="w-3 h-3 text-emerald-600" />
-                  <span>Bulan Lunas</span>
-                </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 font-bold text-[11px]">
-                  <X className="w-3 h-3 text-rose-600" />
-                  <span>Menunggak</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Filter & Search Toolbar */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-ink-muted absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  placeholder="Cari kavling (cth: Kav A, Kav J) atau nama warga..."
-                  value={duesSearch}
-                  onChange={(e) => setDuesSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-canvas border border-border rounded-xl text-xs font-medium text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-                <button
-                  type="button"
-                  onClick={() => setDuesFilter('ALL')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                    duesFilter === 'ALL'
-                      ? 'bg-primary-600 text-white shadow-xs'
-                      : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-                  }`}
-                >
-                  Semua Unit ({resolvedHouseholdDues.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDuesFilter('UNPAID')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                    duesFilter === 'UNPAID'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-                  }`}
-                >
-                  <span>🔴 Menunggak</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                    duesFilter === 'UNPAID' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
-                  }`}>
-                    {resolvedUnpaidList.length}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDuesFilter('PAID')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                    duesFilter === 'PAID'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-                  }`}
-                >
-                  <span>🟢 Lunas Penuh</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                    duesFilter === 'PAID' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {resolvedHouseholdDues.filter((h) => h.isFullyPaid).length}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden md:block border border-border rounded-2xl overflow-hidden overflow-x-auto text-xs shadow-2xs">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-border bg-canvas text-ink-muted font-bold text-[11px]">
-                    <th className="py-3.5 px-4 w-44">Kavling & Penghuni</th>
-                    <th className="py-3.5 px-3 text-center w-36">Status</th>
-                    <th className="py-3.5 px-4 text-center">Rincian Bulan Terbayar (Jan – {selectedMonth || data.periodName})</th>
-                    <th className="py-3.5 px-4 text-right w-32">Total Masuk</th>
-                    <th className="py-3.5 px-4 text-right w-28">Tunggakan</th>
-                    <th className="py-3.5 px-3 text-center w-28">Tindakan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {filteredHouseholdDues.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-ink-muted">
-                        <div className="flex flex-col items-center justify-center gap-1 max-w-sm mx-auto">
-                          <Search className="w-6 h-6 text-ink-muted/50" />
-                          <span className="font-bold text-ink text-xs">Unit Tidak Ditemukan</span>
-                          <span className="text-[11px] text-ink-muted">
-                            Tidak ada kavling yang cocok dengan kata kunci "{duesSearch}".
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredHouseholdDues.map((item) => (
-                      <tr
-                        key={item.propertyCode}
-                        className={`hover:bg-canvas/60 transition-colors ${
-                          !item.isFullyPaid ? 'bg-rose-50/25' : ''
-                        }`}
-                      >
-                        {/* Kavling & Penghuni */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 border ${
-                              item.isFullyPaid
-                                ? 'bg-primary-50 text-primary-800 border-primary-200'
-                                : 'bg-rose-100 text-rose-800 border-rose-300'
-                            }`}>
-                              {item.propertyCode.replace('Kav ', '')}
-                            </span>
-                            <div>
-                              <span className="font-black text-ink block leading-tight">
-                                {item.propertyCode}
-                              </span>
-                              <span className="text-[11px] text-ink-muted">
-                                {item.residentName}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Status Badge */}
-                        <td className="py-3.5 px-3 text-center">
-                          {item.isFullyPaid ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              Lunas Penuh ({item.totalMonthsCount || data.month || 9} Bln)
-                            </span>
-                          ) : item.isCurrentMonthPaid ? (
-                            <span
-                              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-300"
-                              title={`Iuran ${selectedMonth} sudah lunas. Menunggak bulan: ${item.unpaidMonths.join(', ')}`}
-                            >
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              ✓ {(selectedMonth || data.periodName).split(' ')[0]} Lunas ({item.unpaidMonths.length} Bln Lalu)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                              <AlertCircle className="w-3 h-3 text-rose-600" />
-                              {item.unpaidMonths.length} Bln Tertunda
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Month Pills Matrix */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                            {item.months.map((m) => (
-                              <span
-                                key={m.monthCode}
-                                title={`${m.fullName}: ${m.isPaid ? 'Lunas ' + formatRupiah(m.amount) : 'Belum Dibayar'}`}
-                                className={`px-2 py-0.8 rounded-md text-[10px] font-bold inline-flex items-center gap-1 border transition-all cursor-default ${
-                                  m.isPaid
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                                    : 'bg-rose-100 text-rose-800 border-rose-300 font-black animate-pulse'
-                                }`}
-                              >
-                                {m.isPaid ? (
-                                  <Check className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
-                                ) : (
-                                  <X className="w-2.5 h-2.5 text-rose-600 shrink-0" />
-                                )}
-                                <span>{m.monthName}</span>
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-
-                        {/* Total Masuk */}
-                        <td className="py-3.5 px-4 text-right font-black tabular-nums text-emerald-700">
-                          {formatRupiah(item.totalPaidAmount)}
-                        </td>
-
-                        {/* Tunggakan */}
-                        <td className="py-3.5 px-4 text-right font-black tabular-nums">
-                          {item.totalArrearsAmount > 0 ? (
-                            <span className="text-rose-700">
-                              {formatRupiah(item.totalArrearsAmount)}
-                            </span>
-                          ) : (
-                            <span className="text-ink-muted/60 font-normal">Rp 0</span>
-                          )}
-                        </td>
-
-                        {/* Tindakan */}
-                        <td className="py-3.5 px-3 text-center">
-                          {item.isFullyPaid ? (
-                            <span className="text-[11px] font-bold text-emerald-700">
-                              Tertib ✓
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleQuickConfirm(
-                                  item.propertyCode,
-                                  item.residentName,
-                                  item.totalArrearsAmount,
-                                  item.unpaidMonths.join(', ')
-                                )
-                              }
-                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-lg shadow-2xs active:scale-[0.98] transition-colors"
-                            >
-                              Bayar
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Cards View (< md) */}
-            <div className="md:hidden space-y-3">
-              {filteredHouseholdDues.length === 0 ? (
-                <div className="py-8 text-center text-ink-muted text-xs">
-                  Tidak ada kavling yang cocok dengan pencarian.
-                </div>
-              ) : (
-                filteredHouseholdDues.map((item) => (
-                  <div
-                    key={item.propertyCode}
-                    className={`p-4 rounded-2xl border space-y-3 ${
-                      !item.isFullyPaid
-                        ? 'bg-rose-50/40 border-rose-200 shadow-xs'
-                        : 'bg-canvas border-border'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs border ${
-                          item.isFullyPaid
-                            ? 'bg-primary-50 text-primary-800 border-primary-200'
-                            : 'bg-rose-100 text-rose-800 border-rose-300'
-                        }`}>
-                          {item.propertyCode.replace('Kav ', '')}
-                        </span>
-                        <div>
-                          <h4 className="text-xs font-black text-ink">{item.propertyCode}</h4>
-                          <span className="text-[11px] text-ink-muted">{item.residentName}</span>
-                        </div>
-                      </div>
-
-                      {item.isFullyPaid ? (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
-                          ✓ Lunas Penuh
-                        </span>
-                      ) : item.isCurrentMonthPaid ? (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300">
-                          ✓ {(selectedMonth || data.periodName).split(' ')[0]} Lunas ({item.unpaidMonths.length} Bln Lalu)
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200">
-                          ⚠️ {item.unpaidMonths.length} Bln Tertunda
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Months Matrix */}
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-ink-muted block uppercase tracking-wider">
-                        Bulan Terbayar:
-                      </span>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {item.months.map((m) => (
-                          <div
-                            key={m.monthCode}
-                            className={`p-1.5 rounded-lg border text-center text-[10px] font-bold flex items-center justify-center gap-1 ${
-                              m.isPaid
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-rose-100 text-rose-800 border-rose-300 font-black'
-                            }`}
-                          >
-                            {m.isPaid ? <Check className="w-2.5 h-2.5" /> : <X className="w-2.5 h-2.5" />}
-                            <span>{m.monthName}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Bottom Summary */}
-                    <div className="flex items-center justify-between pt-2 border-t border-border/70 text-xs">
-                      <div>
-                        <span className="text-[10px] text-ink-muted block">Total Masuk</span>
-                        <span className="font-black text-emerald-700 tabular-nums">
-                          {formatRupiah(item.totalPaidAmount)}
-                        </span>
-                      </div>
-
-                      {item.totalArrearsAmount > 0 ? (
-                        <div className="text-right">
-                          <span className="text-[10px] text-rose-700 block font-bold">Tunggakan</span>
-                          <span className="font-black text-rose-700 tabular-nums">
-                            {formatRupiah(item.totalArrearsAmount)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] font-bold text-emerald-700">Lunas Bebas Piutang</span>
-                      )}
-                    </div>
-
-                    {!item.isFullyPaid && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleQuickConfirm(
-                            item.propertyCode,
-                            item.residentName,
-                            item.totalArrearsAmount,
-                            item.unpaidMonths.join(', ')
-                          )
-                        }
-                        className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>Konfirmasi Pelunasan Sekarang</span>
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Matrix Summary Stats Footer */}
-            <div className="p-4 bg-canvas rounded-2xl border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-primary-700 shrink-0" />
-                <span className="text-ink-muted">
-                  Data ini disinkronkan langsung dengan pembukuan rekening koran kas bank paguyuban per <strong>{data.lastUpdatedAt}</strong>.
-                </span>
-              </div>
-              <div className="flex items-center gap-4 text-[11px] font-bold shrink-0">
-                <span className="text-emerald-700">
-                  Total Terkumpul: {formatRupiah(resolvedHouseholdDues.reduce((s, h) => s + h.totalPaidAmount, 0))}
-                </span>
-                <span className="text-rose-700">
-                  Sisa Piutang: {formatRupiah(resolvedUnpaidList.reduce((s, u) => s + u.arrearsAmount, 0))}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUBTAB 4: CITIZEN SELF-PAYMENT CONFIRMATION FORM                          */}
-      {/* ========================================================================= */}
-      {activeTab === 'citizen_confirm' && (
-        <section className="workspace-panel grid gap-3">
-          <h2>Konfirmasi pembayaran iuran</h2>
-          <p className="text-sm text-ink-muted">Masuk ke portal warga untuk memilih tagihan, mengunggah bukti, dan melihat hasil verifikasi.</p>
-          <a href="/warga" className="btn-primary inline-flex min-h-11 w-fit items-center gap-2">Buka portal warga <ArrowRight className="size-4" aria-hidden="true" /></a>
-        </section>
-      )}
-      {activeTab === 'audit_faq' && (
-        <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-6 animate-in fade-in">
-          <div className="border-b border-border pb-4 flex items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary-800 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-200">
-                Tata Kelola & Akuntabilitas Finansial
-              </span>
-              <h2 className="text-xl font-black text-ink mt-1">
-                SOP Pengelolaan Rekening & Audit Kas Paguyuban
-              </h2>
-              <p className="text-xs text-ink-muted mt-0.5">
-                Prinsip kepengurusan kas yang bersih, transparan, dan dapat diverifikasi independen.
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-canvas border border-border flex items-center justify-center text-primary-700 shrink-0">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-          </div>
-
-          {/* Official Bank Account Box */}
-          <div className="p-5 rounded-3xl bg-primary-50/80 border border-primary-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-primary-900">
-                Rekening Resmi Operasional Paguyuban:
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-900">
-                Single Official Account
-              </span>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-surface border border-primary-200/80">
-              <div className="space-y-1">
-                <span className="text-[11px] text-ink-muted">{bankInfo.bankName}</span>
-                <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber || 'Belum dikonfigurasi'}</p>
-                <p className="text-xs font-bold text-primary-900">{bankInfo.accountHolder ? 'a.n '+bankInfo.accountHolder : ''}</p>
-              </div>
-
-              <button
-                type="button"
-                disabled={!bankInfo.accountNumber} onClick={() => handleCopyAccount(bankInfo.accountNumber)}
-                className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
-              >
-                {copiedAccount ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                <span>{copiedAccount ? 'Tersalin!' : 'Salin No. Rekening'}</span>
-              </button>
-            </div>
-            <p className="text-[11px] text-primary-900/80 leading-relaxed">
-              ⚠️ <strong>Peringatan Penting:</strong> Pengurus komplek tidak pernah menerima pembayaran iuran melalui rekening pribadi individu selain rekening paguyuban di atas.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. EXPENSE DETAIL MODAL (RAW INVOICES / RECEIPTS VIEWER)                   */}
-      {/* ========================================================================= */}
-      {selectedExpenseCategory && (
-        <ExpenseDetailModal
-          isOpen={!!selectedExpenseCategory}
-          onClose={() => setSelectedExpenseCategory(null)}
-          categoryName={selectedExpenseCategory.name}
-          percentage={selectedExpenseCategory.percentage}
-          totalAmount={selectedExpenseCategory.amount}
-          realItems={data.expenseItems || []}
-          periodLabel={selectedMonth}
-        />
-      )}
-
-      {/* ========================================================================= */}
-      {/* 5. SHARE MODAL                                                            */}
-      {/* ========================================================================= */}
-      {showShareModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base font-black text-ink">Bagikan Laporan Kas Warga</h3>
-              <button
-                type="button"
-                onClick={() => setShowShareModal(false)}
-                className="p-1 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-xs text-ink-muted">
-              Sebarkan tautan transparansi kas komplek ini ke grup WhatsApp RT/RW atau warga:
-            </p>
-
-            <div className="p-3 bg-canvas rounded-xl border border-border flex items-center justify-between gap-2">
-              <span className="text-xs font-mono text-ink truncate">
-                {typeof window !== 'undefined' ? window.location.href : 'https://wargahub.id/transparency'}
-              </span>
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-lg shrink-0 transition-colors"
-              >
-                {copied ? 'Tersalin!' : 'Salin'}
-              </button>
-            </div>
-
-            <a
-              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                `Halo Bapak/Ibu Warga Komplek, berikut laporan transparansi keuangan paguyuban periode ${data.periodName}: https://wargahub.id/transparency`
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>Kirim ke WhatsApp Grup Warga</span>
-            </a>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-    </div>
-  );
-};

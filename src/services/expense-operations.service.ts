@@ -5,6 +5,7 @@ import { aidTypes, currentFinanceMonth, monthBounds, proofMaxBytes, proofMimes, 
 import type { UserSession } from '../types/auth';
 import { getAccounts } from './finance.service';
 import { OperationalError, operationalAudit } from './operational-mutation';
+import { payrollInstallments, staffPayrollKey } from './staff-loan-links';
 
 const community = 'comm-01';
 const configKey = 'recurring_expenses_config';
@@ -44,7 +45,7 @@ type JournalRecord = { id:string; account_id:string|null; amount:number|string; 
 type ExpenseRead = ExpenseRecord & { category_name:string|null;account_name:string|null;has_proof:number;journal_count:number|string;matching_journal_count:number|string;details_json:string|null };
 
 export async function getExpenses(id?: string): Promise<ExpenseRow[]> {
-  const rows = await query<ExpenseRead>(`WITH expense_journals AS (
+  const [rows,payroll] = await Promise.all([query<ExpenseRead>(`WITH expense_journals AS (
       SELECT source_id,COUNT(*) AS journal_count, MIN(account_id) AS account_id, MIN(entry_date) AS entry_date,
         MIN(amount) AS amount, MIN(direction) AS direction
       FROM ledger_entries WHERE source_type='EXPENSE' ${id ? 'AND source_id=?' : ''} GROUP BY source_id
@@ -55,11 +56,13 @@ export async function getExpenses(id?: string): Promise<ExpenseRow[]> {
       s.value AS details_json
     FROM expenses e LEFT JOIN expense_categories c ON c.id=e.category_id LEFT JOIN accounts a ON a.id=e.account_id
     LEFT JOIN expense_journals j ON j.source_id=e.id LEFT JOIN settings s ON s.key=('cash-expense:' || e.id)
-    ${id ? 'WHERE e.id=?' : ''} ORDER BY e.expense_date DESC,e.created_at DESC,e.id DESC`, id ? [id, id] : []);
+    ${id ? 'WHERE e.id=?' : ''} ORDER BY e.expense_date DESC,e.created_at DESC,e.id DESC`, id ? [id, id] : []),
+    query<{key:string;value:string}>(id?'SELECT key,value FROM settings WHERE key=?':"SELECT key,value FROM settings WHERE key LIKE 'sl-p-%'",id?[staffPayrollKey(id)]:[])]);
+  const payrollKeys=new Set(payroll.filter(row=>(JSON.parse(row.value) as string[]).length).map(row=>row.key));
   return rows.map(row=>({id:row.id,title:row.title,description:row.description,amount:Number(row.amount),expenseDate:row.expense_date,
     status:row.status,categoryId:row.category_id,categoryName:row.category_name,accountId:row.account_id,accountName:row.account_name,
     hasProof:Number(row.has_proof)===1,journalCount:Number(row.journal_count),journalMatches:Number(row.matching_journal_count)===1,
-    details:row.details_json ? JSON.parse(row.details_json) as ExpenseDetails : {}}));
+    payrollLinked:payrollKeys.size>0 && payrollKeys.has(staffPayrollKey(row.id)),details:row.details_json ? JSON.parse(row.details_json) as ExpenseDetails : {}}));
 }
 
 export async function getExpenseCashTotals(month:string,run:Query=query) {
@@ -177,6 +180,7 @@ export async function updateExpense(id: string, patch: Partial<ExpenseInput> & {
   return writeTransaction(async (run,lock)=>{
     const before = await getLockedExpense(run,lock,id);
     if (!['APPROVED','PENDING'].includes(before.status)) throw new OperationalError('Pengeluaran ini tidak dapat diubah.');
+    if ((await payrollInstallments(run,id)).length) throw new OperationalError('Balik potongan terkait dari Kasbon Petugas sebelum mengubah jurnal gaji.');
     const existingDetails = await readCashSetting<ExpenseDetails>(run,detailsKey(id)) || {};
     if (!existingDetails.aidType && (patch.aidType || patch.recipientName!==undefined || patch.memo!==undefined)) throw new OperationalError('Rincian bantuan hanya berlaku untuk bantuan sosial.',400);
     const details = {...existingDetails, ...Object.fromEntries(Object.entries({vendor:patch.vendor,recipientName:patch.recipientName,aidType:patch.aidType,memo:patch.memo}).filter(([,value])=>value!==undefined))};
@@ -234,6 +238,7 @@ export async function cancelExpenses(ids: string[], reason: string, actor: UserS
     for (const id of unique) {
       const row = await getLockedExpense(run,lock,id);
       if (!['APPROVED','PENDING'].includes(row.status)) throw new OperationalError('Pengeluaran sudah dibatalkan atau tidak dapat dibatalkan.');
+      if ((await payrollInstallments(run,id)).length) throw new OperationalError('Balik potongan terkait dari Kasbon Petugas sebelum membatalkan jurnal gaji.');
       const links = await expenseJournal(run,lock,id);
       if (row.status==='PENDING' && links.length) throw new OperationalError('Draf sudah memiliki jurnal. Periksa Buku Kas.');
       records.push({row,posted:row.status==='APPROVED' ? singleExpenseJournal(links) : null});
