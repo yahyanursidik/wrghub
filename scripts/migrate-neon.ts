@@ -1,11 +1,13 @@
 import postgres from 'postgres';
 import 'dotenv/config';
+import { postgresSsl } from '../src/db/postgres-connection';
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_O4jVKCzUWex8@ep-damp-queen-azh98l8v-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+const connectionString = process.env.DATABASE_URL;
 
 async function migrateNeon() {
   console.log('Connecting to Neon PostgreSQL database...');
-  const sql = postgres(connectionString, { ssl: 'require', max: 5 });
+  if (!connectionString) throw new Error('DATABASE_URL wajib untuk membuat skema PostgreSQL.');
+  const sql = postgres(connectionString, { ssl: postgresSsl(connectionString), max: 5 });
 
   console.log('Creating database schema on Neon PostgreSQL...');
 
@@ -133,6 +135,9 @@ async function migrateNeon() {
       full_name VARCHAR(255) NOT NULL,
       role VARCHAR(50) NOT NULL,
       avatar_url TEXT,
+      password_hash TEXT,
+      property_id VARCHAR(64) REFERENCES properties(id),
+      property_code VARCHAR(30),
       person_id VARCHAR(64) REFERENCES persons(id),
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ DEFAULT NOW(),

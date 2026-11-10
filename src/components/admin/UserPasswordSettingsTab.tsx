@@ -1,1302 +1,152 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { apiErrorMessage } from '../../lib/api-error';
-import {
-  KeyRound,
-  Search,
-  Filter,
-  UserPlus,
-  RefreshCw,
-  Eye,
-  EyeOff,
-  Check,
-  Copy,
-  MessageCircle,
-  ShieldCheck,
-  AlertCircle,
-  CheckCircle2,
-  Users,
-  Building2,
-  Lock,
-  Sparkles,
-  ExternalLink,
-  Shield,
-  Smartphone,
-  Info,
-  Sliders,
-  Send,
-  X,
-  RotateCcw,
-  Zap,
-  Phone
-} from 'lucide-react';
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { ArrowLeft, Copy, KeyRound, Plus, X } from 'lucide-react';
+import { apiFetch } from '../../lib/api-fetch';
+import { isResidentRole } from '../../lib/access-policy';
+import { mayManageCredential, minimumNewPassword } from '../../lib/account-recovery';
+import { roleLabels } from '../../lib/navigation';
+import type { UserRole } from '../../types/auth';
+import { ModalDialog } from '../shared/ModalDialog';
 
-interface UserItem {
-  id: string;
-  username: string;
-  fullName: string;
-  email: string;
-  role: string;
-  propertyId?: string | null;
-  propertyCode?: string | null;
-  passwordHash?: string;
-  isActive: boolean;
-  phone?: string;
-  propertyAddress?: string;
-  occupancyStatus?: string;
-  createdAt?: string;
-}
+type UserItem={id:string;username:string;fullName:string;role:UserRole;propertyCode?:string|null;isActive:boolean};
+type Props={actor:{id:string;role:UserRole};initialHouse?:string;houses:{id:string;code:string}[]};
+type Issued={code:string;expiresAt:string;username:string};
+const field='mt-1 block min-h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm';
+const choices = Object.keys(roleLabels) as UserRole[];
 
-export const UserPasswordSettingsTab: React.FC = () => {
-  // Main state
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+export function UserPasswordSettingsTab({actor,initialHouse='',houses}:Props) {
+  const [users,setUsers]=useState<UserItem[]>([]);
+  const [search,setSearch]=useState(initialHouse);
+  const [onlyHouse,setOnlyHouse]=useState(Boolean(initialHouse));
+  const [group,setGroup]=useState('all');
+  const [pending,setPending]=useState(true);
+  const [loadError,setLoadError]=useState('');
+  const [target,setTarget]=useState<UserItem|null>(null);
+  const [issued,setIssued]=useState<Issued|null>(null);
+  const [pinMode,setPinMode]=useState(false);
+  const [creating,setCreating]=useState(false);
+  const [newRole,setNewRole]=useState<UserRole>('HOUSEHOLD_HEAD');
+  const [busy,setBusy]=useState(false);
+  const [modalError,setModalError]=useState('');
+  const [notice,setNotice]=useState('');
+  const canEdit=actor.role==='SUPER_ADMIN' || actor.role==='CHAIRMAN';
 
-  // Quick Table Actions State
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-  const [copiedCredentialId, setCopiedCredentialId] = useState<string | null>(null);
-  const [resettingId, setResettingId] = useState<string | null>(null);
-
-  // Edit Password Modal State
-  const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [showPasswordText, setShowPasswordText] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [copiedWa, setCopiedWa] = useState(false);
-
-  // Grand Sariwangi Official Kavling Catalog
-  const KAVLING_CATALOG = [
-    { code: 'Kav A', name: 'Pak Verial', phone: '082316485044' },
-    { code: 'Kav B', name: 'Mahasiswa Polban', phone: '081234567802' },
-    { code: 'Kav C', name: 'Bu Rina', phone: '081234567803' },
-    { code: 'Kav D', name: 'Pak Rieva', phone: '081234567804' },
-    { code: 'Kav E', name: 'Pak Budi', phone: '0811238689' },
-    { code: 'Kav F', name: 'Pa Anggia', phone: '081234567806' },
-    { code: 'Kav G', name: 'Pak Misael', phone: '081234567807' },
-    { code: 'Kav H', name: 'Pak Fahmi Rizal', phone: '081234567808' },
-    { code: 'Kav I', name: 'Pak Yahya', phone: '085722003303' },
-    { code: 'Kav J', name: 'Bu Sofia P', phone: '081234567810' },
-    { code: 'Kav K', name: 'Pak Eky', phone: '081234567811' },
-    { code: 'Kav L', name: 'Pak Haji Ano', phone: '081234567812' },
-    { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', phone: '081234567813' },
-  ];
-
-  // Create User Modal State
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createRole, setCreateRole] = useState('HOUSEHOLD_HEAD');
-  const [createFullName, setCreateFullName] = useState('');
-  const [createUsername, setCreateUsername] = useState('');
-  const [createPropCode, setCreatePropCode] = useState('');
-  const [createPhone, setCreatePhone] = useState('');
-  const [createEmail, setCreateEmail] = useState('');
-  const [createPassword, setCreatePassword] = useState('warga123');
-  const [showCreatePasswordText, setShowCreatePasswordText] = useState(false);
-  const [savingNewUser, setSavingNewUser] = useState(false);
-
-  // Bulk Reset Modal State
-  const [showBulkResetModal, setShowBulkResetModal] = useState(false);
-  const [bulkScope, setBulkScope] = useState<'KAVLING_ONLY' | 'ALL_RESIDENTS' | 'ALL_STAFF'>('KAVLING_ONLY');
-  const [bulkPassword, setBulkPassword] = useState('warga123');
-  const [bulkResetting, setBulkResetting] = useState(false);
-
-  // Password Policy State (persisted)
-  const [policyMinLength, setPolicyMinLength] = useState(() => {
-    if (typeof window === 'undefined') return 6;
-    return Number(localStorage.getItem('wargahub_policy_min_len') || 6);
+  const load=useCallback(async()=>{
+    setPending(true); setLoadError('');
+    try { const response=await apiFetch('/api/users'); setUsers((await response.json()).data); }
+    catch(error) { setLoadError(error instanceof Error ? error.message : 'Daftar akun belum dapat dimuat.'); }
+    finally { setPending(false); }
+  },[]);
+  useEffect(()=>{void load();},[load]);
+  const visible=users.filter(item=>{
+    if(onlyHouse && item.propertyCode?.toLowerCase()!==initialHouse.toLowerCase()) return false;
+    if(group==='residents' && !isResidentRole(item.role)) return false;
+    if(group==='staff' && isResidentRole(item.role)) return false;
+    return [item.fullName,item.username,item.propertyCode].some(value=>value?.toLowerCase().includes(search.trim().toLowerCase()));
   });
-  const [policyAllowWaLogin, setPolicyAllowWaLogin] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('wargahub_policy_wa_login') !== 'false';
-  });
-  const [policyAllowHouseLogin, setPolicyAllowHouseLogin] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('wargahub_policy_house_login') !== 'false';
-  });
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  // Toggle visible password per row
-  const toggleShowPassword = (id: string) => {
-    setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  // 1-Click Copy Credential
-  const handleCopyCredential = (u: UserItem) => {
-    const pwd = u.passwordHash;
-    if (!pwd) { showToast('Kata sandi lama tidak dapat dibaca. Tetapkan kata sandi baru untuk membagikan akses.'); return; }
-    const text = `Username: ${u.username} | Password: ${pwd} (Unit: ${u.propertyCode || '-'}, Nama: ${u.fullName})`;
-    navigator.clipboard.writeText(text);
-    setCopiedCredentialId(u.id);
-    showToast(`✓ Kredensial ${u.fullName} (${u.propertyCode || u.username}) disalin!`);
-    setTimeout(() => setCopiedCredentialId(null), 2500);
-  };
-
-  // 1-Click Quick Reset to Default warga123
-  const handleQuickResetDefault = async (u: UserItem) => {
-    const targetName = u.fullName || u.username;
-    const confirmed = window.confirm(`Reset password ${targetName} (${u.propertyCode || u.username}) ke default "warga123"?`);
-    if (!confirmed) return;
-
-    setResettingId(u.id);
+  function close() { if(busy) return; setTarget(null); setIssued(null); setModalError(''); setNotice(''); setCreating(false); setPinMode(false); }
+  async function issue(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if(!target || busy || !new FormData(event.currentTarget).has('verified')) return;
+    setBusy(true); setModalError('');
     try {
-      const res = await fetch('/api/users/update-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: u.id,
-          newPassword: 'warga123',
-          actorName: 'Admin Pengurus Komplek',
-          reason: `Quick reset to default warga123 via table`
-        })
-      });
-
-      const json = await res.json();
-      if (res.ok && json.data?.success) {
-        setUsers(prev => prev.map(item => item.id === u.id ? { ...item, passwordHash: 'warga123' } : item));
-        showToast(`✓ Password ${targetName} berhasil di-reset ke default "warga123"`);
-      } else {
-        showToast(apiErrorMessage(json.error, 'Gagal mereset password.'));
-      }
-    } catch (e) {
-      showToast('Terjadi kesalahan jaringan.');
-    } finally {
-      setResettingId(null);
-    }
-  };
-
-  // PIN 6-digit Generator
-  const generatePin6Digit = () => {
-    return String(Math.floor(100000 + Math.random() * 900000));
-  };
-
-  // Fetch users from API
-  const fetchUsers = async () => {
-    setLoading(true);
+      const response=await apiFetch('/api/users/recovery-code',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({userId:target.id,identityVerified:true})});
+      setIssued((await response.json()).data);
+    } catch(error) {setModalError(error instanceof Error ? error.message : 'Kode belum dapat dibuat.');}
+    finally {setBusy(false);}
+  }
+  async function changePin(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if(!target || busy) return;
+    const pin=String(new FormData(event.currentTarget).get('pin') || '');
+    setBusy(true);setModalError('');
     try {
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        const json = await res.json();
-        if (json.data && Array.isArray(json.data)) {
-          setUsers(json.data);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load users:', err);
-      showToast('Gagal memuat daftar pengguna dari server.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Filtered Users
-  const filteredUsers = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return users.filter((u) => {
-      // Role Filter
-      if (roleFilter === 'RESIDENT') {
-        if (!['HOUSEHOLD_HEAD', 'RESIDENT', 'HOUSE_OWNER'].includes(u.role)) return false;
-      } else if (roleFilter === 'SECURITY') {
-        if (u.role !== 'SECURITY') return false;
-      } else if (roleFilter === 'MAINTENANCE') {
-        if (u.role !== 'MAINTENANCE') return false;
-      } else if (roleFilter === 'OFFICER') {
-        if (!['CHAIRMAN', 'TREASURER', 'SECRETARY', 'SUPER_ADMIN', 'RESIDENT_ADMIN'].includes(u.role)) return false;
-      }
-
-      // Status Filter
-      if (statusFilter === 'ACTIVE' && !u.isActive) return false;
-      if (statusFilter === 'INACTIVE' && u.isActive) return false;
-
-      // Text Search
-      if (!q) return true;
-      const matchName = u.fullName.toLowerCase().includes(q);
-      const matchUser = u.username.toLowerCase().includes(q);
-      const matchProp = (u.propertyCode || '').toLowerCase().includes(q);
-      const matchPhone = (u.phone || '').replace(/[^0-9]/g, '').includes(q.replace(/[^0-9]/g, ''));
-      const matchEmail = (u.email || '').toLowerCase().includes(q);
-      return matchName || matchUser || matchProp || matchPhone || matchEmail;
-    });
-  }, [users, search, roleFilter, statusFilter]);
-
-  // Random Password Generator
-  const generateRandomPassword = () => {
-    const words = ['warga', 'kavling', 'aman', 'sejahtera', 'asri', 'harmoni', 'berkah'];
-    const word = words[Math.floor(Math.random() * words.length)];
-    const num = Math.floor(1000 + Math.random() * 9000);
-    const chars = '!@#$';
-    const char = chars[Math.floor(Math.random() * chars.length)];
-    return `${word}${char}${num}`;
-  };
-
-  // Open Edit Password Modal
-  const handleOpenEditModal = (user: UserItem) => {
-    setSelectedUser(user);
-    setNewPassword('');
-    setShowPasswordText(false);
-    setShowEditModal(true);
-    setCopiedWa(false);
-  };
-
-  // Submit Edit Password
-  const handleSubmitUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUser) return;
-    if (!newPassword || newPassword.length < policyMinLength) {
-      showToast(`Password minimal ${policyMinLength} karakter sesuai kebijakan sistem.`);
-      return;
-    }
-
-    setSavingPassword(true);
+      await apiFetch('/api/users/update-password',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({userId:target.id,newPassword:pin,reason:'Pengaturan PIN pos oleh pengurus'})});
+      setTarget(null);setPinMode(false);setNotice('PIN pos diperbarui.');
+    } catch(error) {setModalError(error instanceof Error ? error.message : 'PIN belum dapat disimpan.');}
+    finally {setBusy(false);}
+  }
+  async function create(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if(busy) return;
+    setBusy(true);setModalError('');
+    const form=event.currentTarget;
     try {
-      const res = await fetch('/api/users/update-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: selectedUser.id,
-          newPassword: newPassword,
-          actorName: 'Admin Pengurus Komplek',
-          reason: `Pembaruan password akun ${selectedUser.propertyCode || selectedUser.username}`
-        })
-      });
+      await apiFetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({...Object.fromEntries(new FormData(form)),role:newRole})});
+      form.reset();setCreating(false);void load();
+    } catch(error) {setModalError(error instanceof Error ? error.message : 'Akun belum dapat dibuat.');}
+    finally {setBusy(false);}
+  }
 
-      const json = await res.json();
-      if (res.ok && json.data?.success) {
-        showToast(`✓ ${json.data.message}`);
-        setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, passwordHash: newPassword } : u));
-        setSelectedUser(prev => prev ? { ...prev, passwordHash: newPassword } : null);
-      } else {
-        showToast(apiErrorMessage(json.error, 'Gagal memperbarui password.'));
-      }
-    } catch (err) {
-      showToast('Terjadi kesalahan jaringan.');
-    } finally {
-      setSavingPassword(false);
-    }
-  };
-
-  // Submit Create New User
-  const handleSubmitCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!createFullName || !createUsername || !createPassword) {
-      showToast('Nama lengkap, username, dan password wajib diisi.');
-      return;
-    }
-    if (createPassword.length < policyMinLength) {
-      showToast(`Password minimal ${policyMinLength} karakter.`);
-      return;
-    }
-
-    setSavingNewUser(true);
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: createUsername,
-          fullName: createFullName,
-          role: createRole,
-          propertyCode: createPropCode || undefined,
-          phone: createPhone || undefined,
-          email: createEmail || undefined,
-          password: createPassword,
-        })
-      });
-
-      const json = await res.json();
-      if (res.ok && json.data) {
-        showToast(`✓ Akun ${createFullName} berhasil didaftarkan ke sistem!`);
-        setShowCreateModal(false);
-        setCreateFullName('');
-        setCreateUsername('');
-        setCreatePropCode('');
-        setCreatePhone('');
-        setCreateEmail('');
-        setCreatePassword('warga123');
-        fetchUsers();
-      } else {
-        showToast(apiErrorMessage(json.error, 'Gagal membuat akun.'));
-      }
-    } catch (err) {
-      showToast('Terjadi gangguan koneksi server.');
-    } finally {
-      setSavingNewUser(false);
-    }
-  };
-
-  // Submit Bulk Reset
-  const handleSubmitBulkReset = async () => {
-    setBulkResetting(true);
-    try {
-      const res = await fetch('/api/users/reset-bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scope: bulkScope,
-          defaultPassword: bulkPassword,
-          actorName: 'Admin Pengurus Komplek'
-        })
-      });
-
-      const json = await res.json();
-      if (res.ok && json.data?.success) {
-        showToast(`✓ ${json.data.message}`);
-        setShowBulkResetModal(false);
-        fetchUsers();
-      } else {
-        showToast(apiErrorMessage(json.error, 'Gagal melakukan reset massal.'));
-      }
-    } catch (err) {
-      showToast('Terjadi kesalahan jaringan.');
-    } finally {
-      setBulkResetting(false);
-    }
-  };
-
-  // WhatsApp Message Generator
-  const getWaNotificationText = (user: UserItem, pwd: string) => {
-    const propName = user.propertyCode || 'Komplek Grand Sariwangi';
-    const loginUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : 'https://wrghub.vercel.app/login';
-    return (
-      `*INFORMASI AKSES LOGIN WARGAHUB*\n` +
-      `Komplek Grand Sariwangi RT 01 / RW 08\n\n` +
-      `Halo Bapak/Ibu *${user.fullName}*,\n` +
-      `Berikut adalah informasi akun akses Portal WargaHub Anda:\n\n` +
-      `🏡 *Unit / No. Rumah:* ${propName}\n` +
-      `👤 *ID / Username Login:* ${user.propertyCode || user.username}\n` +
-      `🔑 *Password Baru / PIN:* *${pwd}*\n\n` +
-      `🌐 *Tautan Masuk Portal:*\n${loginUrl}\n\n` +
-      `_Catatan: Anda juga dapat masuk langsung menggunakan Nomor WhatsApp yang terdaftar dan password di atas. Harap simpan informasi ini dengan baik._\n\n` +
-      `Salam hangat,\n*Pengurus Komplek Grand Sariwangi*`
-    );
-  };
-
-  const handleCopyWa = (user: UserItem, pwd: string) => {
-    const text = getWaNotificationText(user, pwd);
-    navigator.clipboard.writeText(text);
-    setCopiedWa(true);
-    showToast('Pesan kredensial login disalin ke clipboard!');
-    setTimeout(() => setCopiedWa(false), 3000);
-  };
-
-  const getWaLink = (user: UserItem, pwd: string) => {
-    const text = encodeURIComponent(getWaNotificationText(user, pwd));
-    const phoneClean = (user.phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
-    return phoneClean ? `https://wa.me/${phoneClean}?text=${text}` : `https://wa.me/?text=${text}`;
-  };
-
-  // Auto-fill username when property code or name changes
-  const handlePropCodeChange = (val: string) => {
-    setCreatePropCode(val);
-    if (!createUsername || createUsername.startsWith('kav_') || createUsername.startsWith('warga_')) {
-      const clean = val.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/^kavling_/, 'kav_');
-      setCreateUsername(clean.startsWith('kav_') ? clean : `warga_${clean}`);
-    }
-  };
-
-  // Role Badge Helper
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-800 border border-red-200">Super Admin</span>;
-      case 'CHAIRMAN':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">Ketua Komplek</span>;
-      case 'TREASURER':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">Bendahara</span>;
-      case 'SECRETARY':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">Sekretaris</span>;
-      case 'SECURITY':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">Petugas Satpam</span>;
-      case 'MAINTENANCE':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-200">Teknisi / Kebersihan</span>;
-      case 'HOUSEHOLD_HEAD':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">Kepala Keluarga</span>;
-      case 'RESIDENT':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-200">Penghuni / Sewa</span>;
-      case 'HOUSE_OWNER':
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-100 text-violet-800 border border-violet-200">Pemilik Rumah</span>;
-      default:
-        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200">{role}</span>;
-    }
-  };
-
-  return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl bg-zinc-900/95 text-white text-xs font-bold shadow-2xl flex items-center gap-3 border border-zinc-700 animate-in slide-in-from-bottom-3 backdrop-blur-md">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Top Banner & Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-              Total Akun Terdaftar
-            </span>
-            <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">
-              {users.length} Akun
-            </p>
-            <span className="text-[10px] text-emerald-600 font-bold font-mono">100% AKTIF & TERDATA</span>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-primary-50 border border-primary-200 flex items-center justify-center text-primary-600">
-            <Users className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-              Warga Sistem Kavling
-            </span>
-            <p className="text-2xl font-black font-mono text-indigo-700 mt-0.5 tabular-nums">
-              {users.filter(u => u.propertyCode && (u.propertyCode.startsWith('Kav') || u.propertyCode.startsWith('KV'))).length} Unit
-            </p>
-            <span className="text-[10px] text-indigo-600 font-bold">Kav A s/d Kav M</span>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
-            <Building2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-              Staff & Petugas
-            </span>
-            <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">
-              {users.filter(u => ['SECURITY', 'MAINTENANCE'].includes(u.role)).length} Personil
-            </p>
-            <span className="text-[10px] text-amber-600 font-bold">Satpam & Teknisi TPS</span>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
-            <Shield className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-              Kebijakan Password
-            </span>
-            <p className="text-base font-black font-mono text-emerald-700 mt-0.5">
-              Default: warga123
-            </p>
-            <span className="text-[10px] text-emerald-600 font-bold">Min. {policyMinLength} Karakter</span>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-            <KeyRound className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Card */}
-      <div className="p-5 bg-surface rounded-2xl border border-border shadow-xs space-y-5">
-        {/* Card Header & Primary Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary-600 animate-pulse" />
-              <h3 className="text-sm font-black text-ink uppercase tracking-wide">
-                Pengaturan Pembuatan & Pembaruan Password
-              </h3>
-            </div>
-            <p className="text-xs text-ink-muted mt-1">
-              Kelola kredensial akses masuk warga, petugas keamanan, teknisi, dan pengurus komplek.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-primary-600 text-white hover:bg-primary-700 transition-all shadow-xs active:scale-[0.98]"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Buat Akun Baru</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowBulkResetModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-all active:scale-[0.98]"
-            >
-              <RotateCcw className="w-4 h-4 text-amber-700" />
-              <span>Reset Massal Password</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={fetchUsers}
-              disabled={loading}
-              className="p-2 rounded-xl border border-border text-ink-muted hover:text-ink hover:bg-canvas transition-all"
-              title="Segarkan data"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-primary-600' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Role Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-          <button
-            type="button"
-            onClick={() => setRoleFilter('ALL')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
-              roleFilter === 'ALL'
-                ? 'bg-primary-600 text-white shadow-xs'
-                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-            }`}
-          >
-            <span>Semua Akun</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              roleFilter === 'ALL' ? 'bg-white/25 text-white' : 'bg-zinc-200 text-zinc-700'
-            }`}>
-              {users.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRoleFilter('RESIDENT')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
-              roleFilter === 'RESIDENT'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-            }`}
-          >
-            <span>Warga Kavling</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              roleFilter === 'RESIDENT' ? 'bg-white/25 text-white' : 'bg-indigo-100 text-indigo-800'
-            }`}>
-              {users.filter(u => ['HOUSEHOLD_HEAD', 'RESIDENT', 'HOUSE_OWNER'].includes(u.role)).length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRoleFilter('SECURITY')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
-              roleFilter === 'SECURITY'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-            }`}
-          >
-            <span>Petugas Satpam</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              roleFilter === 'SECURITY' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
-            }`}>
-              {users.filter(u => u.role === 'SECURITY').length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRoleFilter('OFFICER')}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
-              roleFilter === 'OFFICER'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-            }`}
-          >
-            <span>Pengurus Komplek</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              roleFilter === 'OFFICER' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-800'
-            }`}>
-              {users.filter(u => ['CHAIRMAN', 'TREASURER', 'SECRETARY', 'SUPER_ADMIN', 'RESIDENT_ADMIN'].includes(u.role)).length}
-            </span>
-          </button>
-        </div>
-
-        {/* Search & Status Filters */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
-            <input
-              type="text"
-              placeholder="Cari warga, kavling (Kav A), username, no. WA..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-canvas border border-border rounded-xl text-xs text-ink placeholder:text-ink-muted focus:outline-hidden focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-            >
-              <option value="ALL">Semua Status Akun</option>
-              <option value="ACTIVE">Aktif (Dapat Login)</option>
-              <option value="INACTIVE">Nonaktif</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Users Table */}
-        <div className="overflow-x-auto rounded-2xl border border-border/80">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-canvas border-b border-border/80 text-[11px] font-black uppercase text-ink-muted tracking-wider">
-                <th className="py-3 px-4">No. Rumah / Kavling</th>
-                <th className="py-3 px-4">Nama Lengkap & Kontak</th>
-                <th className="py-3 px-4">Username & Peran</th>
-                <th className="py-3 px-4">Password & Akses</th>
-                <th className="py-3 px-4 text-right">Aksi Manajemen</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {loading && users.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-ink-muted">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto text-primary-600 mb-2" />
-                    Memuat data pengguna dan password...
-                  </td>
-                </tr>
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-ink-muted">
-                    Tidak ditemukan data pengguna yang cocok dengan pencarian.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((u) => {
-                  const isKavling = (u.propertyCode || '').toUpperCase().startsWith('KAV');
-                  const isPwdVisible = !!visiblePasswords[u.id];
-                  const currentPassword = u.passwordHash || 'Tidak ditampilkan';
-                  const isResetting = resettingId === u.id;
-
-                  return (
-                    <tr key={u.id} className="hover:bg-canvas/60 transition-colors group">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs border ${
-                            isKavling
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                              : u.propertyCode
-                              ? 'bg-blue-50 text-blue-800 border-blue-300'
-                              : 'bg-zinc-100 text-zinc-700 border-zinc-300'
-                          }`}>
-                            {u.propertyCode || 'Non-Rumah'}
-                          </span>
-                          {isKavling && (
-                            <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider hidden sm:inline">
-                              Kavling
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-ink text-xs">{u.fullName}</div>
-                        <div className="flex items-center gap-2 text-[11px] text-ink-muted mt-0.5">
-                          {u.phone ? (
-                            <a
-                              href={`https://wa.me/${u.phone.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-medium"
-                              title="Kirim pesan WhatsApp"
-                            >
-                              <Phone className="w-3 h-3 text-emerald-600" />
-                              <span>{u.phone}</span>
-                            </a>
-                          ) : (
-                            <span>{u.email || '-'}</span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="font-mono text-xs font-bold text-zinc-900">
-                          {u.username}
-                        </div>
-                        <div className="mt-1">
-                          {getRoleBadge(u.role)}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md border tracking-wider transition-colors ${
-                            isPwdVisible 
-                              ? 'bg-amber-50 text-amber-900 border-amber-300' 
-                              : 'bg-zinc-100 text-zinc-700 border-zinc-200'
-                          }`}>
-                            {isPwdVisible ? currentPassword : '••••••••'}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleShowPassword(u.id)}
-                            className="p-1 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas transition-colors"
-                            title={isPwdVisible ? "Sembunyikan password" : "Intip password"}
-                          >
-                            {isPwdVisible ? (
-                              <EyeOff className="w-3.5 h-3.5 text-amber-700" />
-                            ) : (
-                              <Eye className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-800" />
-                            )}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleCopyCredential(u)}
-                            className="p-1 rounded-lg text-ink-muted hover:text-primary-700 hover:bg-primary-50 transition-colors"
-                            title="Salin kredensial (Username & Password)"
-                          >
-                            {copiedCredentialId === u.id ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5 text-zinc-500 hover:text-primary-600" />
-                            )}
-                          </button>
-                        </div>
-                        <span className="text-[10px] text-ink-muted mt-0.5 block">
-                          Bisa login via: No. Rumah / No. WA / Username
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(u)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-primary-50 text-primary-800 border border-primary-300 hover:bg-primary-600 hover:text-white transition-all active:scale-[0.98]"
-                            title="Ubah Password atau Buat PIN Baru"
-                          >
-                            <KeyRound className="w-3.5 h-3.5" />
-                            <span>Ubah</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleQuickResetDefault(u)}
-                            disabled={isResetting}
-                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-bold bg-zinc-100 hover:bg-amber-100 text-zinc-700 hover:text-amber-900 border border-zinc-200 hover:border-amber-300 transition-all active:scale-[0.98]"
-                            title="Reset cepat ke default (warga123)"
-                          >
-                            <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin text-amber-700' : 'text-zinc-500'}`} />
-                            <span className="hidden md:inline">Reset Default</span>
-                          </button>
-
-                          {u.phone && (
-                            <a
-                              href={getWaLink(u, currentPassword)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 p-1.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-all"
-                              title="Kirim Kredensial via WhatsApp"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Global Policy Settings Banner */}
-        <div className="p-4 bg-canvas rounded-2xl border border-border/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
-              <Sliders className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-ink">
-                Kebijakan Akses Masuk Multi-Identitas
-              </h4>
-              <p className="text-[11px] text-ink-muted mt-0.5">
-                Warga dapat login menggunakan Nomor Rumah (cth: <code className="text-primary-700 font-bold">Kav A</code>, <code className="text-primary-700 font-bold">KVa</code>), Username, ataupun Nomor WhatsApp aktif.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
-              ✓ Multi-Identitas Aktif
-            </span>
-            <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full">
-              ✓ Neon PostgreSQL Synced
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ================= MODAL 1: EDIT / RESET PASSWORD ================= */}
-      {showEditModal && selectedUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-surface rounded-3xl border border-border shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-5 bg-canvas border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold">
-                  <KeyRound className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-ink">
-                    Ubah Password Akun Pengguna
-                  </h3>
-                  <p className="text-xs text-ink-muted">
-                    {selectedUser.fullName} ({selectedUser.propertyCode || selectedUser.username})
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditModal(false)}
-                className="p-2 rounded-xl text-ink-muted hover:text-ink hover:bg-surface transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Form */}
-            <form onSubmit={handleSubmitUpdatePassword} className="p-6 space-y-4">
-              {/* User Details Readonly Card */}
-              <div className="p-3.5 bg-canvas rounded-2xl border border-border flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-[10px] text-ink-muted uppercase font-mono font-bold block">Target Akun</span>
-                  <p className="font-bold text-ink mt-0.5">{selectedUser.fullName}</p>
-                  <p className="text-ink-muted font-mono text-[11px] mt-0.5">Username: {selectedUser.username}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-ink-muted uppercase font-mono font-bold block">No. Unit</span>
-                  <span className="font-bold text-primary-700 font-mono text-sm">{selectedUser.propertyCode || '-'}</span>
-                </div>
-              </div>
-
-              {/* New Password Input */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-ink flex items-center justify-between">
-                  <span>Password Baru / PIN Akses</span>
-                  <span className="text-[10px] text-ink-muted font-normal">Minimal {policyMinLength} karakter</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPasswordText ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                    placeholder="Masukkan password baru..."
-                    className="w-full pl-3.5 pr-10 py-2.5 bg-canvas border border-border rounded-xl text-xs font-mono font-bold text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordText(!showPasswordText)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
-                  >
-                    {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-
-                {/* Password Generator Helpers */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setNewPassword(generatePin6Digit())}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-all inline-flex items-center gap-1 active:scale-[0.98]"
-                  >
-                    <Smartphone className="w-3 h-3 text-amber-600" />
-                    <span>PIN 6 Digit (Mudah Warga)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewPassword(generateRandomPassword())}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all inline-flex items-center gap-1 active:scale-[0.98]"
-                  >
-                    <Sparkles className="w-3 h-3 text-purple-600" />
-                    <span>Acak Kuat</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewPassword('warga123')}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 hover:bg-zinc-200 transition-all active:scale-[0.98]"
-                  >
-                    Default (warga123)
-                  </button>
-                </div>
-              </div>
-
-              {/* WhatsApp Notification Preview Card */}
-              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
-                  <span className="flex items-center gap-1.5">
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                    Format Notifikasi WhatsApp
-                  </span>
-                  <span className="text-[10px] text-emerald-700 font-mono">WA: {selectedUser.phone || 'Nomor belum ada'}</span>
-                </div>
-
-                <div className="p-2.5 bg-white rounded-xl border border-emerald-200/80 text-[11px] font-mono text-zinc-700 whitespace-pre-line leading-relaxed max-h-32 overflow-y-auto">
-                  {getWaNotificationText(selectedUser, newPassword)}
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyWa(selectedUser, newPassword)}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all inline-flex items-center gap-1.5"
-                  >
-                    {copiedWa ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-emerald-600" />}
-                    <span>{copiedWa ? 'Tersalin!' : 'Salin Pesan WA'}</span>
-                  </button>
-
-                  <a
-                    href={getWaLink(selectedUser, newPassword)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-all inline-flex items-center gap-1.5 shadow-xs"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Kirim via WA</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-ink-muted hover:bg-canvas transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingPassword}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-primary-600 text-white hover:bg-primary-700 transition-all shadow-xs inline-flex items-center gap-2 active:scale-[0.98]"
-                >
-                  {savingPassword ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Menyimpan...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Simpan Password Baru</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL 2: BUAT AKUN & PASSWORD BARU ================= */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-surface rounded-3xl border border-border shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-5 bg-canvas border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center font-bold">
-                  <UserPlus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-ink">
-                    Daftarkan Akun & Password Baru
-                  </h3>
-                  <p className="text-xs text-ink-muted">
-                    Buat akun login untuk warga komplek, satpam, atau teknisi
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="p-2 rounded-xl text-ink-muted hover:text-ink hover:bg-surface transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Form */}
-            <form onSubmit={handleSubmitCreateUser} className="p-6 space-y-4">
-              {/* Kavling Quick Selector */}
-              <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl space-y-1.5">
-                <label className="text-xs font-bold text-indigo-950 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-700" />
-                    Pilih Kavling Terdaftar (Grand Sariwangi)
-                  </span>
-                  <span className="text-[10px] text-indigo-700 font-bold">Auto-Fill Praktis</span>
-                </label>
-                <select
-                  onChange={(e) => {
-                    const selected = KAVLING_CATALOG.find(k => k.code === e.target.value);
-                    if (selected) {
-                      setCreatePropCode(selected.code);
-                      setCreateFullName(selected.name);
-                      setCreatePhone(selected.phone);
-                      handlePropCodeChange(selected.code);
-                    }
-                  }}
-                  defaultValue=""
-                  className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-ink focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- Pilih Kavling untuk Isi Otomatis --</option>
-                  {KAVLING_CATALOG.map(k => (
-                    <option key={k.code} value={k.code}>{k.code} - {k.name} ({k.phone})</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Role Selection */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-ink">Peran / Kategori Akun</label>
-                <select
-                  value={createRole}
-                  onChange={(e) => setCreateRole(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-                >
-                  <option value="HOUSEHOLD_HEAD">Warga Komplek / Kepala Keluarga (Dihuni Pemilik)</option>
-                  <option value="RESIDENT">Warga Komplek / Penyewa (Disewakan)</option>
-                  <option value="HOUSE_OWNER">Pemilik Rumah (Pemilik Kosong)</option>
-                  <option value="SECURITY">Petugas Keamanan (Satpam Pos 1 & 2)</option>
-                  <option value="MAINTENANCE">Teknisi & Kebersihan (Armada TPS / Fasum)</option>
-                  <option value="TREASURER">Bendahara Komplek</option>
-                  <option value="SECRETARY">Sekretaris Komplek</option>
-                  <option value="CHAIRMAN">Ketua Komplek</option>
-                </select>
-              </div>
-
-              {/* Full Name & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-ink">Nama Lengkap</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Pak Verial"
-                    value={createFullName}
-                    onChange={(e) => setCreateFullName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-ink">Nomor WhatsApp Aktif</label>
-                  <input
-                    type="text"
-                    placeholder="082316485044"
-                    value={createPhone}
-                    onChange={(e) => setCreatePhone(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Property Code & Username */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-ink">No. Rumah / Kavling</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Kav A atau KVa"
-                    value={createPropCode}
-                    onChange={(e) => handlePropCodeChange(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden font-mono font-bold"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-ink">Username Login</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: kav_a"
-                    value={createUsername}
-                    onChange={(e) => setCreateUsername(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-ink flex items-center justify-between">
-                  <span>Password Awal / PIN</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCreatePassword(generatePin6Digit())}
-                      className="text-[10px] text-amber-700 font-bold hover:underline inline-flex items-center gap-1"
-                    >
-                      <Smartphone className="w-3 h-3" />
-                      PIN 6 Digit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCreatePassword(generateRandomPassword())}
-                      className="text-[10px] text-purple-600 font-bold hover:underline inline-flex items-center gap-1"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      Acak Kata
-                    </button>
-                  </div>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showCreatePasswordText ? 'text' : 'password'}
-                    required
-                    value={createPassword}
-                    onChange={(e) => setCreatePassword(e.target.value)}
-                    className="w-full pl-3.5 pr-10 py-2.5 bg-canvas border border-border rounded-xl text-xs font-mono font-bold text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCreatePasswordText(!showCreatePasswordText)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
-                  >
-                    {showCreatePasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-ink-muted hover:bg-canvas transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingNewUser}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-primary-600 text-white hover:bg-primary-700 transition-all shadow-xs inline-flex items-center gap-2 active:scale-[0.98]"
-                >
-                  {savingNewUser ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Mendaftarkan...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Daftarkan Akun & Password</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL 3: BULK RESET PASSWORD ================= */}
-      {showBulkResetModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-surface rounded-3xl border border-border shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="p-5 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center font-bold">
-                  <RotateCcw className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-amber-950">
-                    Reset Password Massal
-                  </h3>
-                  <p className="text-xs text-amber-800">
-                    Setel ulang password kelompok akun sekaligus
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowBulkResetModal(false)}
-                className="p-2 rounded-xl text-amber-800 hover:bg-amber-100 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="p-3 bg-canvas rounded-2xl border border-border text-xs text-ink-muted">
-                Pilih kelompok akun yang ingin direset kata sandinya ke default baru. Seluruh data identitas warga tidak akan terpengaruh.
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-ink">Cakupan Akun yang Direset</label>
-                <select
-                  value={bulkScope}
-                  onChange={(e) => setBulkScope(e.target.value as any)}
-                  className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-                >
-                  <option value="KAVLING_ONLY">Hanya Seluruh Warga Kavling (Kav A s/d Kav M)</option>
-                  <option value="ALL_RESIDENTS">Seluruh Warga Komplek & Penghuni</option>
-                  <option value="ALL_STAFF">Seluruh Petugas Keamanan (Satpam) & Teknisi</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-ink">Password Baru yang Ditetapkan</label>
-                <input
-                  type="text"
-                  required
-                  value={bulkPassword}
-                  onChange={(e) => setBulkPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-mono font-bold text-ink"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setShowBulkResetModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-ink-muted hover:bg-canvas transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitBulkReset}
-                  disabled={bulkResetting}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 transition-all shadow-xs inline-flex items-center gap-2"
-                >
-                  {bulkResetting ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Mereset...</span>
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Konfirmasi Reset Massal</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+  return <section className="space-y-4" aria-label="Direktori akun">
+    {initialHouse && <a href={'/admin/properties?tab=units&house='+encodeURIComponent(initialHouse)} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary-800">
+      <ArrowLeft className="h-4 w-4" aria-hidden /> Rumah {initialHouse}
+    </a>}
+    <div className="grid min-w-0 gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+      <label className="block min-w-0 text-sm font-semibold">Cari akun
+        <input type="search" value={search} onChange={event=>{setSearch(event.target.value);setOnlyHouse(false);}} placeholder="Nama, username, atau rumah" className={field} />
+      </label>
+      <label className="block text-sm font-semibold">Kelompok
+        <select value={group} onChange={event=>setGroup(event.target.value)} className={field}>
+          <option value="all">Semua akun</option><option value="residents">Warga</option><option value="staff">Pengurus dan petugas</option>
+        </select>
+      </label>
+      {canEdit && <button type="button" className="btn-primary inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap" onClick={()=>{setNewRole('HOUSEHOLD_HEAD');setCreating(true);}}>
+        <Plus className="h-4 w-4" aria-hidden /> Tambah akun
+      </button>}
     </div>
-  );
-};
+    {notice && !target && <p role="status" className="rounded-lg bg-primary-50 p-3 text-sm text-primary-800">{notice}</p>}
+    {pending && <p role="status" className="rounded-xl border border-border p-4 text-sm text-ink-muted">Memuat akun…</p>}
+    {loadError && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{loadError} <button type="button" onClick={load} className="font-semibold underline">Coba lagi</button></p>}
+    {!pending && !loadError && !visible.length && <p className="rounded-xl border border-border p-4 text-sm text-ink-muted">{onlyHouse ? 'Belum ada akun untuk rumah ini.' : 'Tidak ada akun yang cocok.'}</p>}
+    {!pending && !loadError && visible.length>0 && <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
+      {visible.map(item=><li key={item.id} className="grid min-w-0 gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="min-w-0">
+          <p className="font-semibold [overflow-wrap:anywhere]">{item.fullName}</p>
+          <p className="text-sm text-ink-muted [overflow-wrap:anywhere]">{item.username} · {roleLabels[item.role] || item.role}{item.propertyCode ? ' · '+item.propertyCode : ''}</p>
+        </div>
+        {item.isActive && mayManageCredential(actor,item) ? <div className="flex flex-wrap gap-2"><button type="button" onClick={()=>setTarget(item)} className="btn-secondary inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap">
+          <KeyRound className="h-4 w-4" aria-hidden /> Kode pemulihan
+        </button>{item.role==='SECURITY' && <button type="button" className="btn-secondary min-h-11" onClick={()=>{setPinMode(true);setTarget(item);}}>Setel PIN</button>}</div> : <span className="text-xs font-semibold text-ink-muted">{item.isActive ? 'Aktif' : 'Nonaktif'}</span>}
+      </li>)}
+    </ul>}
+    <ModalDialog open={Boolean(target)} onClose={close} label={pinMode?"Setel PIN pos":"Kode pemulihan"} className="w-[min(32rem,calc(100vw-2rem))]">
+      <div className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-3"><h2 className="text-lg font-bold">{pinMode?"Setel PIN pos":"Kode pemulihan"}</h2><button type="button" aria-label="Tutup" onClick={close} disabled={busy} className="min-h-11 min-w-11"><X className="mx-auto h-5 w-5" /></button></div>
+        {target && <p className="break-words text-sm text-ink-muted">{target.fullName} · {target.username}</p>}
+        {pinMode ? <form onSubmit={changePin} className="space-y-3">
+          <label className="block text-sm font-semibold">PIN baru<input name="pin" type="password" inputMode="numeric" pattern="[0-9]{6}" required maxLength={6} autoComplete="new-password" className={field} /></label>
+          <button type="submit" className="btn-primary min-h-11" disabled={busy}>{busy?'Menyimpan…':'Simpan PIN'}</button>
+        </form> : issued ? <div className="space-y-3">
+          <p className="text-sm">Bagikan secara pribadi kepada pemilik akun. Kode hanya ditampilkan di sini.</p>
+          <code className="block rounded-lg bg-canvas p-3 text-sm [overflow-wrap:anywhere]">{issued.code}</code>
+          <p className="text-xs text-ink-muted">Berlaku sampai {new Date(issued.expiresAt).toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit'})} WIB.</p>
+          <button type="button" onClick={async()=>{try{await navigator.clipboard.writeText(issued.code);setNotice('Kode disalin.');}catch{setNotice('Salin kode secara manual.');}}} className="btn-secondary inline-flex min-h-11 items-center gap-2"><Copy className="h-4 w-4" aria-hidden /> Salin kode</button>
+          {notice && <p role="status" className="text-xs">{notice}</p>}
+        </div> : <form onSubmit={issue} className="space-y-3">
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" name="verified" required /> Saya sudah memeriksa identitas pemilik akun.</label>
+          <button type="submit" className="btn-primary min-h-11 disabled:opacity-60" disabled={busy}>{busy?'Menyiapkan…':'Buat kode'}</button>
+        </form>}
+        {modalError && <p role="alert" className="text-sm text-rose-800">{modalError}</p>}
+      </div>
+    </ModalDialog>
+    <ModalDialog open={creating} onClose={close} label="Tambah akun" className="w-[min(32rem,calc(100vw-2rem))]">
+      <form className="space-y-3 p-5" onSubmit={create}>
+        <div className="flex items-start justify-between gap-3"><h2 className="text-lg font-bold">Tambah akun</h2><button type="button" aria-label="Tutup" onClick={close} disabled={busy} className="min-h-11 min-w-11"><X className="mx-auto h-5 w-5" /></button></div>
+        <label className="block text-sm font-semibold">Nama lengkap<input name="fullName" className={field} required maxLength={150} /></label>
+        <label className="block text-sm font-semibold">Username<input name="username" className={field} autoComplete="off" required minLength={2} maxLength={60} /></label>
+        <label className="block text-sm font-semibold">Peran<select className={field} value={newRole} onChange={event=>setNewRole(event.target.value as UserRole)}>
+          {choices.filter(role=>mayManageCredential(actor,{id:'new',role})).map(role=><option key={role} value={role}>{roleLabels[role]}</option>)}
+        </select></label>
+        <label className="block text-sm font-semibold">Rumah<select key={isResidentRole(newRole)?'resident':'staff'} name="propertyCode" defaultValue={initialHouse} required={isResidentRole(newRole)} className={field}>
+          <option value="">Pilih rumah</option>{houses.map(house=><option key={house.id} value={house.code}>{house.code}</option>)}
+        </select></label>
+        <label className="block text-sm font-semibold">{newRole==='SECURITY'?'PIN pos 6 digit atau kata sandi':'Kata sandi awal'}<input name="password" type="password" autoComplete="new-password" required minLength={newRole==='SECURITY'?6:minimumNewPassword} maxLength={1024} className={field} /></label>
+        {modalError && <p role="alert" className="text-sm text-rose-800">{modalError}</p>}
+        <button type="submit" className="btn-primary min-h-11 disabled:opacity-60" disabled={busy}>{busy?'Menyimpan…':'Buat akun'}</button>
+      </form>
+    </ModalDialog>
+  </section>;
+}

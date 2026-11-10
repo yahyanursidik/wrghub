@@ -11,8 +11,10 @@ const run = (args, env, capture = false) => new Promise((resolve, reject) => {
 
 let server;
 const securityOnly = process.argv.includes('--security-only');
+const workspaceOnly = process.argv.includes('--workspace-only');
+const roleLayouts = process.argv.includes('--role-layouts');
 try {
-  if (!securityOnly && process.env.UI_TEST_URL && process.env.UI_TEST_USERNAME && process.env.UI_TEST_PASSWORD) {
+  if (!securityOnly && !workspaceOnly && !roleLayouts && process.env.UI_TEST_URL && process.env.UI_TEST_USERNAME && process.env.UI_TEST_PASSWORD) {
     await run(['scripts/test-ui-navigation.mjs'], process.env);
   } else {
     const fixture = JSON.parse(await run(['--import', 'tsx', 'scripts/create-ui-test-fixture.ts'], process.env, true));
@@ -26,8 +28,10 @@ try {
       server.stdout.on('data', chunk => { if (String(chunk).includes('Server listening')) { clearTimeout(timer); resolve(); } });
       server.stderr.on('data', chunk => process.stderr.write(chunk));
     });
-    const testEnv = { ...env, UI_TEST_URL: `http://127.0.0.1:${port}`, UI_TEST_USERNAME: fixture.username, UI_TEST_PASSWORD: fixture.password, UI_TEST_RESIDENT_USERNAME: fixture.residentUsername, UI_TEST_ALL_MENUS: '1', UI_TEST_OUTPUT: process.env.UI_TEST_OUTPUT || path.join(fixture.directory, 'screenshots'), UI_TEST_ISOLATED:'1', UI_TEST_FIXTURE_ID:fixture.fixtureId };
-    const suites = securityOnly ? ['scripts/test-server-security.mjs'] : ['scripts/test-ui-navigation.mjs', 'scripts/test-server-security.mjs'];
+    const testEnv = { ...env, UI_TEST_URL: `http://127.0.0.1:${port}`, UI_TEST_USERNAME: fixture.username, UI_TEST_PASSWORD: fixture.password, UI_TEST_RESIDENT_USERNAME: fixture.residentUsername, UI_TEST_ALL_MENUS: '1', UI_TEST_ROLE_LAYOUTS: roleLayouts ? '1' : '0', UI_TEST_OUTPUT: process.env.UI_TEST_OUTPUT || path.join(fixture.directory, 'screenshots'), UI_TEST_ISOLATED:'1', UI_TEST_FIXTURE_ID:fixture.fixtureId };
+    const suites = workspaceOnly ? ['scripts/test-workspace-flows.mjs']
+      : roleLayouts ? ['scripts/test-ui-navigation.mjs']
+      : securityOnly ? ['scripts/test-server-security.mjs'] : ['scripts/test-ui-navigation.mjs', 'scripts/test-server-security.mjs'];
     for (const suite of suites) {
       try { await run([suite], testEnv); }
       catch (error) { console.error(error.message); process.exitCode = 1; }

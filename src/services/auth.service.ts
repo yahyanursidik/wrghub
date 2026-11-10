@@ -7,81 +7,57 @@ import { getLocalCredentialHash } from './local-credentials.service';
 export * from '../types/auth';
 
 export async function authenticateUser(identifier: string, password: string): Promise<{ success: boolean; user?: UserSession; credentialVersion?: string; error?: string }> {
-  const cleanId = identifier.trim().toLowerCase();
-  const cleanPass = password;
-
-  // 1. Check in Neon PostgreSQL
-  if (process.env.DATABASE_URL) {
-    try {
-      const normId = cleanId.replace(/[\s\-_]/g, '');
-      const altKva = normId.startsWith('kva') ? 'kava' + normId.slice(3) : normId;
-      const rawDigits = cleanId.replace(/[^0-9]/g, '');
-      const phoneSuffix = rawDigits.length >= 8 ? rawDigits.slice(-8) : '___nomatch___';
-
-      const users = await neonSql`
-        SELECT u.* FROM users u
-        LEFT JOIN property_ownerships po ON u.property_id = po.property_id AND po.is_active = true
-        LEFT JOIN persons per ON (u.person_id = per.id OR po.person_id = per.id)
-        WHERE (
-          LOWER(u.username) = ${cleanId} 
-          OR LOWER(u.email) = ${cleanId} 
-          OR LOWER(COALESCE(u.property_code, '')) = ${cleanId}
-          OR REPLACE(REPLACE(LOWER(COALESCE(u.property_code, '')), ' ', ''), '-', '') = ${normId}
-          OR REPLACE(REPLACE(LOWER(COALESCE(u.property_code, '')), ' ', ''), '-', '') = ${altKva}
-          OR REPLACE(REPLACE(LOWER(u.username), ' ', ''), '_', '') = ${normId}
-          OR REPLACE(REPLACE(LOWER(u.username), ' ', ''), '_', '') = ${altKva}
-          OR (per.phone IS NOT NULL AND per.phone LIKE ${'%' + phoneSuffix})
-        )
-        AND u.is_active = true
-        LIMIT 1
-      `;
-      if (users.length) {
-        const u = users[0];
-        if (verifyPassword(cleanPass, u.password_hash)) {
-          return {
-            success: true,
-            credentialVersion: credentialVersion(u.password_hash),
-            user: {
-              id: u.id,
-              username: u.username,
-              fullName: u.full_name,
-              email: u.email,
-              role: u.role as UserRole,
-              avatarUrl: u.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-              propertyCode: u.property_code || undefined,
-              propertyId: u.property_id || undefined,
-            }
-          };
-        } else {
-          return { success: false, error: 'Password atau PIN yang dimasukkan salah.' };
-        }
+  const cleanId=identifier.trim().toLowerCase();
+  const norm=cleanId.replace(/[\s_-]/g,'');
+  const alternate=norm.startsWith('kva')?'kava'+norm.slice(3):norm;
+  const digits=/^[\d+().\s-]+$/.test(cleanId)?cleanId.replace(/\D/g,''):'';
+  const phoneSuffix=digits.length>=10?'%'+digits.slice(-10):null;
+  const invalid={success:false,error:'Username, nomor rumah, atau kata sandi tidak sesuai.'};
+  if(!cleanId) return invalid;
+  try {
+    const candidates=process.env.DATABASE_URL
+      ? await neonSql`SELECT u.id,u.username,u.email,u.full_name,u.role,u.avatar_url,u.password_hash,u.property_id,
+        coalesce(p.code,u.property_code) AS property_code,
+        CASE WHEN lower(u.username)=${cleanId} THEN 0 WHEN lower(u.email)=${cleanId} THEN 1 ELSE 2 END AS rank
+        FROM users u LEFT JOIN properties p ON p.id=u.property_id
+        WHERE u.is_active=true AND (
+          lower(u.username)=${cleanId} OR lower(u.email)=${cleanId} OR lower(coalesce(p.code,u.property_code,''))=${cleanId}
+          OR regexp_replace(lower(coalesce(p.code,u.property_code,'')), '[ _-]', '', 'g') IN (${norm},${alternate})
+          OR regexp_replace(lower(u.username), '[ _-]', '', 'g') IN (${norm},${alternate})
+          OR EXISTS (SELECT 1 FROM persons person WHERE person.id=u.person_id AND person.is_active=true
+            AND regexp_replace(person.phone,'[^0-9]','','g') LIKE ${phoneSuffix})
+        ) ORDER BY rank,u.id LIMIT 13`
+      : (await client.execute({
+        sql:`SELECT u.*,p.id AS property_id,p.code AS property_code,
+          CASE WHEN lower(u.username)=? THEN 0 WHEN lower(u.email)=? THEN 1 ELSE 2 END AS rank FROM users u
+          LEFT JOIN properties p ON p.id=(SELECT a.property_id FROM user_property_access a WHERE a.user_id=u.id AND a.ended_at IS NULL ORDER BY a.started_at DESC,a.id LIMIT 1)
+          WHERE u.is_active=true AND (lower(u.username)=? OR lower(u.email)=? OR lower(p.code)=?
+            OR replace(replace(replace(lower(p.code),' ',''),'-',''),'_','') IN (?,?))
+          ORDER BY rank,u.id LIMIT 13`,
+        args:[cleanId,cleanId,cleanId,cleanId,cleanId,norm,alternate],
+      })).rows;
+    if(!candidates.length) return invalid;
+    const firstRank=Number(candidates[0].rank);
+    const matching=candidates.filter(row=>Number(row.rank)===firstRank);
+    if(matching.length>12) return invalid;
+    let chosen:{row:typeof candidates[number];hash:string}|undefined;
+    for(const row of matching) {
+      const stored=process.env.DATABASE_URL ? row.password_hash?.toString()
+        : (await getLocalCredentialHash(String(row.id))) || row.password_hash?.toString();
+      if(stored && verifyPassword(password,stored)) {
+        if(chosen) return {...invalid,error:'Nomor rumah cocok dengan beberapa akun. Masuk dengan username masing-masing.'};
+        chosen={row,hash:stored};
       }
-    } catch (e) {
-      console.warn('Neon auth query error:', e);
-      return { success: false, error: 'Layanan masuk belum bisa dihubungi. Coba lagi.' };
     }
-  } else {
-    try {
-      const rows = await client.execute({
-        sql: `SELECT u.*, p.id AS resolved_property_id, p.code AS resolved_property_code FROM users u
-          LEFT JOIN user_property_access upa ON upa.user_id = u.id AND upa.ended_at IS NULL
-          LEFT JOIN properties p ON p.id = upa.property_id
-          WHERE u.is_active = 1 AND (LOWER(u.username) = ? OR LOWER(u.email) = ? OR LOWER(p.code) = ?) LIMIT 1`,
-        args: [cleanId, cleanId, cleanId],
-      });
-      const row = rows.rows[0];
-      if (row) {
-        const stored = await getLocalCredentialHash(String(row.id)) || row.password_hash?.toString();
-        if (verifyPassword(cleanPass, stored)) return { success: true, credentialVersion: credentialVersion(stored!), user: {
-          id: String(row.id), username: String(row.username), fullName: String(row.full_name), email: String(row.email), role: row.role as UserRole,
-          avatarUrl: row.avatar_url?.toString() || '', propertyId: row.resolved_property_id?.toString(), propertyCode: row.resolved_property_code?.toString(),
-        } };
-        return { success: false, error: 'Username atau kata sandi tidak sesuai.' };
-      }
-    } catch { return { success: false, error: 'Layanan masuk lokal belum dikonfigurasi. Hubungi pengurus.' }; }
+    if(!chosen) return invalid;
+    const {row,hash}=chosen;
+    return {success:true,credentialVersion:credentialVersion(hash),user:{
+      id:String(row.id),username:String(row.username),fullName:String(row.full_name),email:String(row.email),role:row.role as UserRole,
+      avatarUrl:row.avatar_url?.toString() || '',propertyId:row.property_id?.toString(),propertyCode:row.property_code?.toString(),
+    }};
+  } catch {
+    return {success:false,error:'Layanan masuk belum bisa dihubungi. Coba lagi.'};
   }
-
-  return { success: false, error: 'Akun / No. Rumah tidak terdaftar di sistem komplek.' };
 }
 
 const PERMISSION_MATRIX: Record<string, UserRole[]> = {

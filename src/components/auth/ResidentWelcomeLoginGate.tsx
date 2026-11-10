@@ -219,7 +219,7 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
           </div>
 
           {/* Admin Switcher */}
-          <details className="text-sm text-ink-muted"><summary className="cursor-pointer py-2">Lupa kata sandi atau butuh bantuan?</summary><p className="pt-2 leading-relaxed">Hubungi pengurus komplek untuk memulihkan akses akun Anda.</p><a href="/login?tab=security_faq" className="inline-block py-3 text-primary-700 font-semibold">Panduan akses akun</a></details>
+          <a href="/pulihkan-akun" className="inline-flex min-h-11 items-center text-sm font-semibold text-primary-700 hover:underline">Lupa kata sandi?</a>
           <div className="pt-2 text-center">
             <a
               href="/login?portal=admin"

@@ -1,87 +1,28 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { neonSql } from '../../../db/neon';
-import { recordAuditLog } from '../../../services/audit.service';
+import { findVerifiedReceipt } from '../../../services/receipt-verification.service';
 
-const verifySchema = z.object({
-  qrPayload: z.string(),
-  scannedBy: z.string().default('Petugas Pos Satpam Utama'),
-  gateLocation: z.string().default('Gerbang Utama (Pos 1)'),
-});
+const input = z.object({ qrPayload: z.string().trim().min(3).max(700) });
+
+function receiptQuery(payload: string) {
+  if (!payload.startsWith('/') && !/^https?:\/\//i.test(payload)) return payload;
+  const url = new URL(payload, 'https://wargahub.invalid');
+  return /^\/kuitansi\/?$/.test(url.pathname) ? url.searchParams.get('q') || '' : '';
+}
 
 export const POST: APIRoute = async ({ request }) => {
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: 'Masukkan nomor kuitansi atau tautan QR.' } }, { status: 400 });
   try {
-    const body = await request.json();
-    const validated = verifySchema.parse(body);
-
-    let verificationResult = {
-      isValid: true,
-      type: 'RESIDENT_RECEIPT',
-      title: 'Kuitansi Iuran Resmi Terverifikasi',
-      propertyCode: 'A-17',
-      residentName: 'Budi Santoso',
-      periodName: 'Agustus 2026',
-      amount: 750000,
-      status: 'LUNAS (TERVERIFIKASI)',
-      verifiedAt: new Date().toISOString(),
-    };
-
-    // Extract property code or QR type if payload matches pattern
-    if (validated.qrPayload.toUpperCase().includes('INV-')) {
-      const match = validated.qrPayload.match(/INV-\d+-([A-Z0-9]+)/i);
-      if (match) {
-        verificationResult.propertyCode = match[1].replace(/(\D+)(\d+)/, '$1-$2');
-      }
-    } else if (
-      validated.qrPayload.toUpperCase().includes('PASS') ||
-      validated.qrPayload.toUpperCase().includes('GUEST') ||
-      validated.qrPayload.toUpperCase().includes('TAMU')
-    ) {
-      let propCode = 'Kav E';
-      let resName = 'Warga Komplek';
-      const houseMatch = validated.qrPayload.match(/Rumah\s+([A-Za-z0-9\s-]+?)(?:\s*-\s*(.+))?$/i);
-      if (houseMatch) {
-        propCode = houseMatch[1]?.trim() || propCode;
-        resName = houseMatch[2]?.trim() || resName;
-      }
-      verificationResult = {
-        isValid: true,
-        type: 'VISITOR_PASS',
-        title: 'Pas Tamu / Akses Gerbang Digital',
-        propertyCode: propCode,
-        residentName: resName,
-        periodName: 'Akses Masuk Gerbang 1x 24 Jam',
-        amount: 0,
-        status: 'IZIN MASUK DITERBITKAN',
-        verifiedAt: new Date().toISOString(),
-      };
-    }
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: validated.scannedBy,
-        action: 'security.scan_pass',
-        entityType: 'SECURITY_GATE_PASS',
-        entityId: `scan-${Date.now()}`,
-        newValue: { payload: validated.qrPayload, result: verificationResult.status, gate: validated.gateLocation },
-      });
-    }
-
-    return new Response(
-      JSON.stringify({
-        data: verificationResult,
-        meta: {},
-        error: null,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'VERIFICATION_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    let query = '';
+    try { query = receiptQuery(body.data.qrPayload); } catch {}
+    const receipt = query ? await findVerifiedReceipt(query) : undefined;
+    return Response.json({ data: receipt
+      ? { isValid: true, allowsEntry: false, type: 'RESIDENT_RECEIPT', status: 'Kuitansi terverifikasi', message: `Pembayaran rumah ${receipt.propertyCode} tercatat. Kuitansi bukan izin masuk.` }
+      : { isValid: false, allowsEntry: false, status: 'Tidak terverifikasi', message: 'Kuitansi tidak ditemukan. Pas tamu digital belum tersedia; periksa tamu secara manual.' }
+    });
+  } catch (error) {
+    console.error('Validasi kuitansi pos keamanan:', error);
+    return Response.json({ error: { message: 'Pemeriksaan belum tersedia. Gunakan pemeriksaan manual.' } }, { status: 503 });
   }
 };

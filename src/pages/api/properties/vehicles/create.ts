@@ -1,77 +1,25 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
+import { vehicleInput } from '../../../../lib/vehicle-input';
+import { saveRegisteredVehicle } from '../../../../services/vehicle.service';
 import { recordAuditLog } from '../../../../services/audit.service';
+import type { UserSession } from '../../../../types/auth';
 
-const vehicleSchema = z.object({
-  propertyId: z.string().default('prop-a-17'),
-  houseCode: z.string().optional(),
-  ownerName: z.string().optional(),
-  plateNumber: z.string().min(3),
-  type: z.string().default('Mobil'), // Mobil, Motor, Sepeda Listrik, Truk/Pickup
-  brand: z.string().min(1),
-  model: z.string().min(1),
-  color: z.string().default('Hitam'),
-  year: z.number().optional(),
-  rfidTag: z.string().optional(),
-  gateAccess: z.string().default('SEMUA_GERBANG'),
-  rfidStatus: z.enum(['AKTIF', 'DIBLOKIR', 'PENDING_VERIFIKASI']).default('AKTIF'),
-  notes: z.string().optional(),
-});
-
-export const POST: APIRoute = async ({ request }) => {
+const input = vehicleInput.extend({ id: z.string().min(1).max(180).optional() });
+export const POST: APIRoute = async ({ request, session }) => {
+  const actor = await session?.get('wargahub_user') as UserSession | undefined;
+  if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: body.error.issues[0]?.message } }, { status: 400 });
   try {
-    const body = await request.json();
-    const validated = vehicleSchema.parse(body);
-
-    const newVehicle = {
-      id: `veh-${Date.now()}`,
-      propertyId: validated.propertyId,
-      houseCode: validated.houseCode || validated.propertyId.replace('prop-', '').toUpperCase(),
-      ownerName: validated.ownerName || 'Warga Terdaftar',
-      plateNumber: validated.plateNumber.toUpperCase(),
-      type: validated.type,
-      brand: validated.brand,
-      model: validated.model,
-      color: validated.color,
-      year: validated.year || new Date().getFullYear(),
-      rfidTag: validated.rfidTag || `RFID-${Math.floor(1000000 + Math.random() * 9000000)}`,
-      gateAccess: validated.gateAccess,
-      rfidStatus: validated.rfidStatus,
-      notes: validated.notes || null,
-      createdAt: new Date().toISOString(),
-    };
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Pengurus Komplek',
-        action: 'property.register_vehicle',
-        entityType: 'PROPERTY_VEHICLE',
-        entityId: newVehicle.id,
-        newValue: {
-          plate: newVehicle.plateNumber,
-          house: newVehicle.houseCode,
-          type: newVehicle.type,
-          rfid: newVehicle.rfidTag,
-          status: newVehicle.rfidStatus
-        },
-      });
-    }
-
-    return new Response(
-      JSON.stringify({
-        data: newVehicle,
-        meta: {},
-        error: null,
-      }),
-      { status: 201, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'CREATE_VEHICLE_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    const vehicle = await saveRegisteredVehicle(body.data);
+    await recordAuditLog({ actorUserId: actor.id, actorName: actor.fullName, action: 'vehicle.save',
+      entityType: 'PROPERTY_VEHICLE', entityId: vehicle.id, newValue: { plateNumber: vehicle.plateNumber, propertyId: vehicle.propertyId } });
+    return Response.json({ data: vehicle, error: null }, { status: body.data.id ? 200 : 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const status = message === 'Plat nomor sudah terdaftar.' ? 409 : message.endsWith('tidak ditemukan.') ? 404 : 503;
+    if (status === 503) console.error('Gagal menyimpan kendaraan:', error);
+    return Response.json({ error: { message: status === 503 ? 'Penyimpanan belum bisa dipastikan. Muat ulang daftar kendaraan.' : message } }, { status });
   }
 };

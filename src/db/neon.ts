@@ -1,11 +1,12 @@
 import postgres from 'postgres';
 import 'dotenv/config';
+import { postgresSsl } from './postgres-connection';
 
 // Never embed database credentials or fall back to an unrelated remote database.
 // SQLite callers remain usable when DATABASE_URL is intentionally unset.
 const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/wargahub';
 export const neonSql = postgres(connectionString, {
-  ssl: process.env.DATABASE_URL ? 'require' : false,
+  ssl: process.env.DATABASE_URL ? postgresSsl(connectionString) : false,
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,

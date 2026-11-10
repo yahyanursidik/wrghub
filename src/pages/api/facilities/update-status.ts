@@ -1,57 +1,36 @@
 import type { APIRoute } from 'astro';
+import { and, eq, notLike } from 'drizzle-orm';
 import { z } from 'zod';
 import { neonSql } from '../../../db/neon';
+import { db, schema } from '../../../db';
 import { recordAuditLog } from '../../../services/audit.service';
+import type { UserSession } from '../../../types/auth';
 
-const statusSchema = z.object({
-  requestId: z.string(),
-  status: z.string(),
-  approvedBy: z.string().default('user-ketua'),
-  notes: z.string().optional(),
+const input = z.object({
+  requestId: z.string().min(1).max(180),
+  status: z.enum(['PLANNED', 'IN_PROGRESS', 'RESOLVED', 'REJECTED']),
+  notes: z.string().trim().max(2000).optional(),
 });
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, session }) => {
+  const actor = await session?.get('wargahub_user') as UserSession | undefined;
+  if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: 'Status perawatan tidak valid.' } }, { status: 400 });
+  const { requestId, status, notes } = body.data;
+  const completedDate = status === 'RESOLVED' ? new Date().toISOString().slice(0, 10) : null;
+  const mr = schema.maintenanceRequests;
   try {
-    const body = await request.json();
-    const validated = statusSchema.parse(body);
-
-    if (process.env.DATABASE_URL) {
-      await neonSql`
-        UPDATE maintenance_requests
-        SET status = ${validated.status},
-            completed_date = ${validated.status === 'COMPLETED' ? new Date().toISOString().substring(0, 10) : null}
-        WHERE id = ${validated.requestId};
-      `;
-
-      await recordAuditLog({
-        actorName: 'Pengurus / Pengelola Sarana',
-        action: 'facility.status_update',
-        entityType: 'MAINTENANCE_REQUEST',
-        entityId: validated.requestId,
-        newValue: { status: validated.status, notes: validated.notes },
-      });
-
-      return new Response(
-        JSON.stringify({
-          data: { success: true, message: `Status permohonan sarana berhasil diubah menjadi ${validated.status}.` },
-          meta: {},
-          error: null,
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ data: { success: true, message: 'Status diupdate.' } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'STATUS_UPDATE_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    const rows = process.env.DATABASE_URL
+      ? await neonSql`UPDATE maintenance_requests SET status = ${status}, completed_date = ${completedDate}
+        WHERE id = ${requestId} AND title NOT LIKE 'Reservasi:%' RETURNING id`
+      : await db.update(mr).set({ status, completedDate }).where(and(eq(mr.id, requestId), notLike(mr.title, 'Reservasi:%'))).returning({ id: mr.id });
+    if (!rows.length) return Response.json({ error: { message: 'Pekerjaan perawatan tidak ditemukan.' } }, { status: 404 });
+    await recordAuditLog({ actorUserId: actor.id, actorName: actor.fullName, action: 'facility.status_update',
+      entityType: 'MAINTENANCE_REQUEST', entityId: requestId, newValue: { status, notes } });
+    return Response.json({ data: { id: requestId, status }, error: null });
+  } catch (error) {
+    console.error('Pembaruan perawatan:', error);
+    return Response.json({ error: { message: 'Perubahan belum bisa dipastikan. Muat ulang daftar.' } }, { status: 503 });
   }
 };

@@ -17,30 +17,25 @@ export function readResidentNavigation(search: string) {
   };
 }
 
-export function useResidentNavigation() {
-  const [activeTab, setTab] = useState<ResidentTab>('beranda');
-  const [rumahSubTab, setHouse] = useState<HouseTab>('specs');
-  const [infoSubTab, setInfo] = useState<InfoTab>('announcements');
+export function useResidentNavigation(initialSearch = '') {
+  const [{ tab: activeTab, house: rumahSubTab, info: infoSubTab }, setNavigation] = useState(() => readResidentNavigation(initialSearch));
 
   useEffect(() => {
-    const restore = () => {
-      const state = readResidentNavigation(window.location.search);
-      setTab(state.tab); setHouse(state.house); setInfo(state.info);
-    };
+    const restore = () => setNavigation(readResidentNavigation(window.location.search));
     restore();
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
   }, []);
 
-  const updateUrl = (key: string, value: string) => {
+  const navigateTo = (tab: ResidentTab, subtab?: { house?: HouseTab; info?: InfoTab }) => {
     const url = new URL(window.location.href);
-    if ((url.searchParams.get(key) || (key === 'tab' ? 'beranda' : '')) === value) return;
-    url.searchParams.set(key, value);
+    const previous = readResidentNavigation(url.search);
+    if (previous.tab !== tab) url.searchParams.set('tab', tab);
+    if (subtab?.house && previous.house !== subtab.house) url.searchParams.set('rumah', subtab.house);
+    if (subtab?.info && previous.info !== subtab.info) url.searchParams.set('info', subtab.info);
+    if (url.search === window.location.search) return;
     window.history.pushState(window.history.state, '', url);
-  };
-
-  const setActiveTab = (tab: ResidentTab) => {
-    setTab(tab); updateUrl('tab', tab);
+    setNavigation(readResidentNavigation(url.search));
     if (tab !== activeTab) {
       window.scrollTo({ top: 0, behavior: 'instant' });
       document.getElementById('main-content')?.focus({ preventScroll: true });
@@ -48,8 +43,8 @@ export function useResidentNavigation() {
   };
 
   return {
-    activeTab, rumahSubTab, infoSubTab, setActiveTab,
-    setRumahSubTab: (tab: HouseTab) => { setHouse(tab); updateUrl('rumah', tab); },
-    setInfoSubTab: (tab: InfoTab) => { setInfo(tab); updateUrl('info', tab); },
+    activeTab, rumahSubTab, infoSubTab, navigateTo, setActiveTab: navigateTo,
+    setRumahSubTab: (tab: HouseTab) => navigateTo('rumah', { house: tab }),
+    setInfoSubTab: (tab: InfoTab) => navigateTo('info', { info: tab }),
   };
 }

@@ -1,0 +1,32 @@
+---
+import '../styles/global.css';
+import { AccountRecoveryForm } from '../components/auth/AccountRecoveryForm';
+const portal = Astro.url.searchParams.get('portal') === 'admin' ? 'admin' : 'resident';
+const loginHref = '/login?portal=' + portal;
+Astro.response.headers.set('Cache-Control','no-store');
+Astro.response.headers.set('Referrer-Policy','no-referrer');
+---
+<!doctype html>
+<html lang="id" class="bg-canvas text-ink">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Pulihkan akun · WargaHub</title>
+  </head>
+  <body class="min-h-screen font-sans">
+    <!-- Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 -->
+    <main class="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 sm:py-14">
+      <a class="inline-flex min-h-11 items-center font-bold text-primary-800" href={loginHref}>WargaHub</a>
+      <section class="mt-4 grid gap-6 rounded-2xl border border-border bg-surface p-4 sm:p-7 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)]">
+        <div class="min-w-0 border-b border-border pb-5 md:border-b-0 md:border-r md:pr-6">
+          <p class="text-xs font-bold uppercase tracking-widest text-primary-700">Bantuan masuk</p>
+          <h1 class="mt-2 text-3xl font-bold tracking-tight [overflow-wrap:anywhere]">Pulihkan akun</h1>
+          <p class="mt-3 text-sm text-ink-muted">Minta kode sekali pakai kepada {portal === 'admin' ? 'super admin WargaHub' : 'pengurus yang mengelola akun'} setelah identitas Anda diperiksa.</p>
+          <p class="mt-3 text-sm text-ink-muted">Kode berlaku 20 menit. Kata sandi baru minimal 12 karakter.</p>
+        </div>
+        <AccountRecoveryForm loginHref={loginHref} client:load />
+      </section>
+    </main>
+  </body>
+</html>

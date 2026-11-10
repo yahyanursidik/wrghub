@@ -1,8 +1,10 @@
+import { query } from '../db/operational-query';
+import { readPropertyProfile, type PropertyProfile } from '../lib/property-profile';
 import { neonSql } from '../db/neon';
 import { db, schema } from '../db';
 import { eq } from 'drizzle-orm';
 
-export interface PropertyListItem {
+export interface PropertyListItem extends PropertyProfile {
   id: string;
   code: string;
   blockCode: string;
@@ -29,149 +31,23 @@ function extractFromNotes(notes: string | null | undefined, field: 'Pemilik' | '
   return match ? match[1].trim() : null;
 }
 
-export async function getProperties(): Promise<PropertyListItem[]> {
-  try {
-    if (process.env.DATABASE_URL) {
-      const rows = await neonSql`
-        SELECT 
-          p.id, p.code, p.number, p.address, p.occupancy_status, p.is_active, p.notes,
-          b.name as block_name, b.code as block_code,
-          (SELECT per.name FROM property_ownerships po 
-           JOIN persons per ON po.person_id = per.id 
-           WHERE po.property_id = p.id AND po.is_active = true 
-           LIMIT 1) as owner_name,
-          (SELECT per.name FROM occupancies occ 
-           JOIN household_members hm ON occ.household_id = hm.household_id 
-           JOIN persons per ON hm.person_id = per.id 
-           WHERE occ.property_id = p.id AND occ.is_active = true 
-           LIMIT 1) as occupant_name,
-          (SELECT COUNT(*) FROM occupancies occ 
-           JOIN household_members hm ON occ.household_id = hm.household_id 
-           WHERE occ.property_id = p.id AND occ.is_active = true) as resident_count
-        FROM properties p
-        LEFT JOIN blocks b ON p.block_id = b.id
-        WHERE p.is_active = true
-        ORDER BY p.code ASC
-      `;
-
-      return rows.map((r: any) => {
-        const ownerFromNotes = extractFromNotes(r.notes, 'Pemilik');
-        const occupantFromNotes = extractFromNotes(r.notes, 'Kepala Keluarga');
-
-        let resolvedOwner = r.owner_name || ownerFromNotes || 'Warga';
-        if (resolvedOwner === 'Warga' && ownerFromNotes) {
-          resolvedOwner = ownerFromNotes;
-        }
-
-        let resolvedOccupant: string | undefined = undefined;
-        if (r.occupancy_status === 'VACANT') {
-          resolvedOccupant = undefined;
-        } else if (r.occupancy_status === 'RENTED') {
-          resolvedOccupant = r.occupant_name || occupantFromNotes || 'Penyewa';
-        } else {
-          resolvedOccupant = r.occupant_name || occupantFromNotes || resolvedOwner;
-        }
-
-        const isRented = r.occupancy_status === 'RENTED';
-        const isVacant = r.occupancy_status === 'VACANT';
-        const currentResident = isRented
-          ? (resolvedOccupant || 'Penyewa')
-          : (isVacant ? `${resolvedOwner} (Kosong)` : (resolvedOccupant || resolvedOwner));
-
-        const displayResident = isRented
-          ? `${resolvedOccupant || 'Penyewa'} (Penyewa / Kontrak)`
-          : (isVacant ? `${resolvedOwner} (Kosong)` : `${resolvedOccupant || resolvedOwner} (Penghuni)`);
-
-        const statusLabel = isRented ? 'Penyewa / Kontrak' : (isVacant ? 'Kosong' : 'Penghuni');
-        const resCount = Number(r.resident_count || (isVacant ? 0 : 1));
-
-        return {
-          id: r.id,
-          code: r.code,
-          blockCode: r.block_code || (r.code.toUpperCase().startsWith('KAV') ? 'KAV' : r.code.split('-')[0]) || '',
-          blockName: r.block_name || (r.code.toUpperCase().startsWith('KAV') ? 'Area Kavling' : `Blok ${r.code.split('-')[0]}`),
-          number: r.number,
-          address: r.address,
-          occupancyStatus: r.occupancy_status,
-          isActive: Boolean(r.is_active),
-          notes: r.notes,
-          legalOwner: resolvedOwner,
-          ownerName: currentResident, // Selalu tampilkan penghuni sekarang (penyewa bila disewakan)
-          occupantName: resolvedOccupant,
-          headName: resolvedOccupant,
-          currentResident,
-          displayResident,
-          isRented,
-          statusLabel,
-          residentCount: resCount,
-        };
-      });
-    }
-  } catch (err) {
-    console.warn('Falling back to local db:', err);
-  }
-
-  // Fallback to local Drizzle
-  const props = await db.select().from(schema.properties).where(eq(schema.properties.isActive, true)).orderBy(schema.properties.code);
-  const blocks = await db.select().from(schema.blocks);
-  const blockMap = new Map(blocks.map(b => [b.id, b]));
-  const persons = await db.select().from(schema.persons);
-  const personMap = new Map(persons.map(p => [p.id, p]));
-  const ownerships = await db.select().from(schema.propertyOwnerships).where(eq(schema.propertyOwnerships.isActive, true));
-  const ownerMap = new Map(ownerships.map(o => [o.propertyId, personMap.get(o.personId ?? '')?.name]));
-
-  const occupanciesList = await db.select().from(schema.occupancies).where(eq(schema.occupancies.isActive, true));
-  const householdMemberList = await db.select().from(schema.householdMembers).where(eq(schema.householdMembers.isActive, true));
-  const hhMemberMap = new Map(householdMemberList.map(hm => [hm.householdId, personMap.get(hm.personId ?? '')?.name]));
-  const occMap = new Map(occupanciesList.map(o => [o.propertyId, hhMemberMap.get(o.householdId ?? '')]));
-
-  return props.map(p => {
-    const blk = p.blockId ? blockMap.get(p.blockId) : null;
-    const ownerFromNotes = extractFromNotes(p.notes, 'Pemilik');
-    const occupantFromNotes = extractFromNotes(p.notes, 'Kepala Keluarga');
-
-    let resolvedOwner = ownerMap.get(p.id) || ownerFromNotes || (p.occupancyStatus === 'VACANT' ? 'Belum berpenghuni' : 'Warga');
-    let resolvedOccupant: string | undefined = undefined;
-    if (p.occupancyStatus === 'VACANT') {
-      resolvedOccupant = undefined;
-    } else if (p.occupancyStatus === 'RENTED') {
-      resolvedOccupant = occMap.get(p.id) || occupantFromNotes || 'Penyewa';
-    } else {
-      resolvedOccupant = occMap.get(p.id) || occupantFromNotes || resolvedOwner;
-    }
-
-    const isRented = p.occupancyStatus === 'RENTED';
-    const isVacant = p.occupancyStatus === 'VACANT';
-    const currentResident = isRented
-      ? (resolvedOccupant || 'Penyewa')
-      : (isVacant ? `${resolvedOwner} (Kosong)` : (resolvedOccupant || resolvedOwner));
-
-    const displayResident = isRented
-      ? `${resolvedOccupant || 'Penyewa'} (Penyewa / Kontrak)`
-      : (isVacant ? `${resolvedOwner} (Kosong)` : `${resolvedOccupant || resolvedOwner} (Penghuni)`);
-
-    const statusLabel = isRented ? 'Penyewa / Kontrak' : (isVacant ? 'Kosong' : 'Penghuni');
-
-    return {
-      id: p.id,
-      code: p.code,
-      blockCode: blk?.code || (p.code.toUpperCase().startsWith('KAV') ? 'KAV' : p.code.split('-')[0]) || '',
-      blockName: blk?.name || (p.code.toUpperCase().startsWith('KAV') ? 'Area Kavling' : `Blok ${p.code.split('-')[0]}`),
-      number: p.number,
-      address: p.address,
-      occupancyStatus: p.occupancyStatus,
-      isActive: Boolean(p.isActive),
-      notes: p.notes,
-      legalOwner: resolvedOwner,
-      ownerName: currentResident, // Selalu tampilkan penghuni sekarang (penyewa bila disewakan)
-      occupantName: resolvedOccupant,
-      headName: resolvedOccupant,
-      currentResident,
-      displayResident,
-      isRented,
-      statusLabel,
-      residentCount: p.occupancyStatus === 'VACANT' ? 0 : 1,
-    };
+export async function getProperties(propertyId?:string):Promise<PropertyListItem[]> {
+  const rows=await query<{id:string;code:string;number:string;address:string;occupancy_status:string;is_active:boolean|number;notes:string|null;
+    profile_json:string;block_name:string|null;block_code:string|null;owner_name:string|null;occupant_name:string|null;resident_count:string|number}>(
+    "SELECT p.id,p.code,p.number,p.address,p.occupancy_status,p.is_active,p.notes,p.profile_json,b.name AS block_name,b.code AS block_code,"+
+    " (SELECT person.name FROM property_ownerships po JOIN persons person ON person.id=po.person_id WHERE po.property_id=p.id AND po.is_active=true AND po.ended_at IS NULL AND person.is_active=true ORDER BY po.started_at DESC,po.id LIMIT 1) AS owner_name,"+
+    " (SELECT person.name FROM occupancies o JOIN household_members m ON m.household_id=o.household_id JOIN persons person ON person.id=m.person_id WHERE o.property_id=p.id AND o.is_active=true AND o.ended_at IS NULL AND m.is_active=true AND m.ended_at IS NULL AND person.is_active=true AND m.relationship IN ('HEAD','KEPALA_KELUARGA') ORDER BY o.started_at DESC,m.id LIMIT 1) AS occupant_name,"+
+    " (SELECT count(DISTINCT m.id) FROM occupancies o JOIN household_members m ON m.household_id=o.household_id JOIN persons person ON person.id=m.person_id WHERE o.property_id=p.id AND o.is_active=true AND o.ended_at IS NULL AND m.is_active=true AND m.ended_at IS NULL AND person.is_active=true) AS resident_count"+
+    ' FROM properties p LEFT JOIN blocks b ON b.id=p.block_id WHERE p.is_active=true'+(propertyId?' AND p.id=?':'')+' ORDER BY p.code,p.id',propertyId?[propertyId]:[]);
+  return rows.map(row=>{
+    const owner=row.owner_name || extractFromNotes(row.notes,'Pemilik') || undefined;
+    const vacant=row.occupancy_status==='VACANT', rented=row.occupancy_status==='RENTED';
+    const head=vacant ? undefined : row.occupant_name || extractFromNotes(row.notes,'Kepala Keluarga') || undefined;
+    const blockCode=row.block_code || (row.code.startsWith('KAV')?'KAV':row.code.includes('-')?row.code.split('-')[0]:'');
+    return {...readPropertyProfile(row.profile_json),id:row.id,code:row.code,number:row.number,address:row.address,
+      occupancyStatus:row.occupancy_status,isActive:Boolean(row.is_active),notes:row.notes,blockCode,blockName:row.block_name || (blockCode?'Blok '+blockCode:'Tanpa blok'),
+      ownerName:owner,legalOwner:owner,occupantName:head,headName:head,currentResident:head,displayResident:head,
+      statusLabel:vacant?'Kosong':rented?'Penyewa / Kontrak':row.occupancy_status==='OWNER_OCCUPIED'?'Dihuni pemilik':undefined,isRented:rented,residentCount:Number(row.resident_count)};
   });
 }
 

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 /** Validated, shareable tabs with browser Back/Forward support. */
-export function useUrlTab<T extends string>(tabs: readonly T[], fallback: T, parameter = 'tab', aliases: Record<string, T> = {}): [T, Dispatch<SetStateAction<T>>] {
-  const [active, setActive] = useState<T>(tabs.includes(fallback) ? fallback : tabs[0]);
+export function useUrlTab<T extends string>(tabs: readonly T[], fallback: T, parameter = 'tab', aliases: Record<string, T> = {}, serverInitial?: string): [T, Dispatch<SetStateAction<T>>] {
+  const initial = aliases[serverInitial || ''] || serverInitial as T | undefined;
+  const [active, setActive] = useState<T>(initial && tabs.includes(initial) ? initial : tabs.includes(fallback) ? fallback : tabs[0]);
   const latest = useRef(active);
   latest.current = active;
   const key = tabs.join('|');

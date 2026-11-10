@@ -45,7 +45,7 @@ export interface FacilityItem {
   id: string;
   name: string;
   code: string;
-  category: 'BALAI_WARGA' | 'OLAHRAGA' | 'IBADAH' | 'TAMAN' | 'KOLAM_RENANG' | 'KEAMANAN_PJU' | 'INFRASTRUKTUR';
+  category: string;
   location: string;
   capacity?: number;
   operatingHours?: string;
@@ -155,147 +155,13 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   };
 
   // 1. Facilities Default Roster
-  const defaultFacilities: FacilityItem[] = [
-    {
-      id: 'fac-1',
-      name: 'Gedung Balai Warga Serbaguna',
-      code: 'FAS-BW-01',
-      category: 'BALAI_WARGA',
-      location: 'Pusat Komplek (Depan Taman Blok B)',
-      capacity: 150,
-      operatingHours: '07:00 - 22:00 WIB',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'Pengurus Sarana & Fasilitas',
-      imageUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&auto=format&fit=crop&q=80',
-      notes: 'Dilengkapi pendingin ruangan AC 3 PK, sound system wireless, 80 kursi lipat, dan proyektor presentasi.',
-    },
-    {
-      id: 'fac-2',
-      name: 'Lapangan Tenis & Futsal Outdoor',
-      code: 'FAS-LAP-01',
-      category: 'OLAHRAGA',
-      location: 'Area Fasum Belakang Blok C',
-      capacity: 30,
-      operatingHours: '06:00 - 21:00 WIB',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'Mandor Wawan & Tim Sarana',
-      imageUrl: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=600&auto=format&fit=crop&q=80',
-      notes: 'Lantai flexi-pave anti-slip dengan 4 titik tiang lampu sorot LED 100W untuk pemakaian malam.',
-    },
-    {
-      id: 'fac-3',
-      name: 'Lapangan Badminton Indoor Balai Warga',
-      code: 'FAS-BDM-01',
-      category: 'OLAHRAGA',
-      location: 'Di dalam Balai Warga',
-      capacity: 20,
-      operatingHours: '07:00 - 22:00 WIB',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'Pengurus Sarana & Fasilitas',
-      imageUrl: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=600&auto=format&fit=crop&q=80',
-      notes: 'Karpet vinyl standar PBSI dengan jaring net Yonex baru.',
-    },
-    {
-      id: 'fac-4',
-      name: 'Kolam Renang Fasum Paguyuban Warga',
-      code: 'FAS-KLM-01',
-      category: 'KOLAM_RENANG',
-      location: 'Club House Fasum Blok B',
-      capacity: 40,
-      operatingHours: '06:30 - 18:00 WIB (Kecuali Senin Kuras Air)',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'Pak Adri (Petugas Jaga & Pompa Air)',
-      imageUrl: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=600&auto=format&fit=crop&q=80',
-      notes: 'Klorinasi otomatis & sistem sirkulasi pompa sand filter Hayward 1.5 HP.',
-    },
-    {
-      id: 'fac-5',
-      name: 'Musholla Baitul Makmur Komplek',
-      code: 'FAS-MSH-01',
-      category: 'IBADAH',
-      location: 'Blok A (Dekat Gerbang Utama)',
-      capacity: 80,
-      operatingHours: '24 Jam (Waktu Sholat)',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'DKM Baitul Makmur & Pak Dadang',
-      imageUrl: 'https://images.unsplash.com/photo-1542810634-71277d95dcbb?w=600&auto=format&fit=crop&q=80',
-      notes: 'Tempat wudhu bersih terpisah pria/wanita dan sound system corong TOA baru.',
-    },
-    {
-      id: 'fac-6',
-      name: 'Taman Bermain Anak & Gazebo Lansia',
-      code: 'FAS-TMN-01',
-      category: 'TAMAN',
-      location: 'Ruang Terbuka Hijau Blok B & D',
-      capacity: 50,
-      operatingHours: '06:00 - 18:30 WIB',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'Pak Slamet Radiyanto (Petugas Taman)',
-      imageUrl: 'https://images.unsplash.com/photo-1588880331179-bc9b93a8cb5e?w=600&auto=format&fit=crop&q=80',
-      notes: 'Ayunan, perosotan anak, jogging track paving block, dan 3 unit gazebo kayu jati.',
-    },
-    {
-      id: 'fac-7',
-      name: 'Barrier Gate RFID & Pos Keamanan Utama',
-      code: 'FAS-SEC-01',
-      category: 'KEAMANAN_PJU',
-      location: 'Gerbang Akses Masuk Pos 1 & Pos 2',
-      capacity: 2,
-      operatingHours: '24 Jam Nonstop',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'Bambang Sudiro (Danru Satpam)',
-      imageUrl: 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=600&auto=format&fit=crop&q=80',
-      notes: 'Palang otomatis MX-50 RFID 13.56MHz terintegrasi scanner QR warga.',
-    },
-    {
-      id: 'fac-8',
-      name: 'Jaringan Penerangan Jalan Umum (PJU) Solar Cell',
-      code: 'FAS-PJU-01',
-      category: 'KEAMANAN_PJU',
-      location: 'Sepanjang Jl. Utama, Blok A s/d D & Kavling',
-      capacity: 45,
-      operatingHours: 'Otomatis Sensor Cahaya (18:00 - 05:30 WIB)',
-      hourlyRate: 0,
-      condition: 'GOOD',
-      picName: 'Pak Adri (Petugas Jaga PJU)',
-      imageUrl: 'https://images.unsplash.com/photo-1508873696983-2df5293cb32b?w=600&auto=format&fit=crop&q=80',
-      notes: '45 titik tiang lampu LED 60W solar cell otomatis menyala saat gelap.',
-    }
-  ];
-
   // Nama petugas fiktif dibersihkan dari data default maupun yang tersimpan.
   const sanitizeDummyName = (value: string) =>
     /ujang suhendra|hendro siswanto/i.test(String(value || ''))
       ? value.replace(/[^,()]*(?:Ujang Suhendra|Hendro Siswanto)[^,()]*/i, 'Petugas Jaga').replace(/\s{2,}/g, ' ').trim()
       : value;
 
-  const [facilities, setFacilities] = useState<FacilityItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_facilities');
-        const deletedStr = localStorage.getItem('wargahub_deleted_facilities');
-        const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
-        if (saved !== null) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            return parsed
-              .filter((f: any) => !deletedIds.includes(f.id))
-              .map((f: any) => ({ ...f, picName: sanitizeDummyName(f.picName) }));
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return defaultFacilities;
-  });
+  const [facilities, setFacilities] = useState<FacilityItem[]>(initialServerFacilities);
 
   // 2. Bookings State
   const defaultBookings: FacilityBooking[] = [
@@ -624,94 +490,19 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
     e.preventDefault();
     setIsSaving(true);
     try {
-      if (editingFacilityId) {
-        await apiFetch('/api/facilities/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: editingFacilityId,
-            name: formFacName,
-            code: formFacCode,
-            category: formFacCategory,
-            location: formFacLocation,
-            capacity: Number(formFacCapacity),
-            hourlyRate: Number(formFacRate),
-            operatingHours: formFacHours,
-            condition: formFacCondition,
-            picName: formFacPic,
-            notes: formFacNotes,
-          }),
-        });
-
-        const updated = facilities.map(f => {
-          if (f.id === editingFacilityId) {
-            return {
-              ...f,
-              name: formFacName,
-              code: formFacCode,
-              category: formFacCategory,
-              location: formFacLocation,
-              capacity: Number(formFacCapacity),
-              hourlyRate: Number(formFacRate),
-              operatingHours: formFacHours,
-              condition: formFacCondition,
-              picName: formFacPic,
-              notes: formFacNotes,
-            };
-          }
-          return f;
-        });
-
-        setFacilities(updated);
-        savePersisted('wargahub_facilities', updated);
-        showToast(`Data fasilitas ${formFacName} berhasil diperbarui.`);
-        setShowAddFacilityModal(false);
-      } else {
-        await apiFetch('/api/facilities/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formFacName,
-            code: formFacCode,
-            category: formFacCategory,
-            location: formFacLocation,
-            capacity: Number(formFacCapacity),
-            hourlyRate: Number(formFacRate),
-            operatingHours: formFacHours,
-            condition: formFacCondition,
-            picName: formFacPic,
-            notes: formFacNotes,
-          }),
-        });
-
-        const newId = `fac-${Date.now().toString().slice(-4)}`;
-        const newFac: FacilityItem = {
-          id: newId,
-          name: formFacName,
-          code: formFacCode.toUpperCase(),
-          category: formFacCategory,
-          location: formFacLocation,
-          capacity: Number(formFacCapacity),
-          hourlyRate: Number(formFacRate),
-          operatingHours: formFacHours,
-          condition: formFacCondition,
-          picName: formFacPic,
-          imageUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&auto=format&fit=crop&q=80',
-          notes: formFacNotes,
-        };
-
-        const updated = [newFac, ...facilities];
-        setFacilities(updated);
-        savePersisted('wargahub_facilities', updated);
-        showToast(`Fasilitas baru ${formFacName} berhasil ditambahkan.`);
-        setShowAddFacilityModal(false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal memproses data fasilitas.');
-    } finally {
-      setIsSaving(false);
-    }
+      const response = await apiFetch(editingFacilityId ? '/api/facilities/update' : '/api/facilities/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingFacilityId || undefined, name: formFacName, code: formFacCode,
+          category: formFacCategory, location: formFacLocation, capacity: Number(formFacCapacity),
+          hourlyRate: Number(formFacRate), operatingHours: formFacHours, condition: formFacCondition,
+          picName: formFacPic, notes: formFacNotes }),
+      });
+      const { data } = await response.json();
+      setFacilities(items => items.some(item => item.id === data.id) ? items.map(item => item.id === data.id ? data : item) : [data, ...items]);
+      setShowAddFacilityModal(false);
+      showToast('Katalog fasilitas diperbarui.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Fasilitas belum disimpan.'); }
+    finally { setIsSaving(false); }
   };
 
   const handleConfirmDeleteFacility = async () => {
@@ -725,8 +516,6 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
 
       const updated = facilities.filter(f => f.id !== facilityToDelete.id);
       setFacilities(updated);
-      savePersisted('wargahub_facilities', updated);
-      addDeletedIds('wargahub_deleted_facilities', [facilityToDelete.id]);
       showToast(`Fasilitas ${facilityToDelete.name} berhasil dihapus.`);
       setFacilityToDelete(null);
     } catch (err) {
@@ -747,8 +536,6 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
 
       const updated = facilities.filter(f => !selectedFacilityIds.includes(f.id));
       setFacilities(updated);
-      savePersisted('wargahub_facilities', updated);
-      addDeletedIds('wargahub_deleted_facilities', selectedFacilityIds);
       showToast(`${selectedFacilityIds.length} fasilitas berhasil dihapus.`);
       setSelectedFacilityIds([]);
       setShowBulkDeleteModal(false);
@@ -763,63 +550,30 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
   // Handlers for Booking
   const handleSaveBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setIsSaving(true);
     try {
-      const selectedFac = facilities.find(f => f.id === bkgFacilityId) || facilities[0];
       const response = await apiFetch('/api/facilities/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          facilityId: selectedFac.id,
-          facilityName: selectedFac.name,
-          residentName: bkgResidentName,
-          date: bkgDate,
-          startTime: bkgStartTime,
-          endTime: bkgEndTime,
-          purpose: bkgPurpose,
-          contactPhone: bkgPhone,
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facilityId: bkgFacilityId, propertyCode: bkgPropertyCode, residentName: bkgResidentName,
+          date: bkgDate, startTime: bkgStartTime, endTime: bkgEndTime, purpose: bkgPurpose, contactPhone: bkgPhone }),
       });
-      const payload = await response.json();
-
-      const newBkg: FacilityBooking = {
-        id: payload.data.id,
-        bookingNumber: `RES-${bkgDate.replace(/-/g, '').slice(0, 6)}-${bkgPropertyCode.replace(/[^A-Z0-9]/g, '')}`,
-        facilityId: selectedFac.id,
-        facilityName: selectedFac.name,
-        propertyCode: bkgPropertyCode,
-        residentName: bkgResidentName,
-        phone: bkgPhone,
-        date: bkgDate,
-        startTime: bkgStartTime,
-        endTime: bkgEndTime,
-        purpose: bkgPurpose,
-        depositAmount: Number(bkgDeposit),
-        status: 'PENDING',
-        notes: bkgNotes,
-      };
-
-      const updated = [newBkg, ...bookings];
-      setBookings(updated);
-      savePersisted('wargahub_facility_bookings', updated);
-      showToast(`Reservasi ${selectedFac.name} tercatat dan menunggu persetujuan.`);
+      const { data } = await response.json();
+      setBookings(previous => [data, ...previous]);
+      showToast('Reservasi tercatat dan menunggu persetujuan.');
       setShowAddBookingModal(false);
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal mencatat reservasi.');
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Reservasi belum tercatat.');
+    } finally { setIsSaving(false); }
   };
 
   const handleUpdateBookingStatus = async (id: string, newStatus: FacilityBooking['status']) => {
     try {
-    await apiFetch('/api/facilities/booking-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: newStatus }) });
-    const updated = bookings.map(b => b.id === id ? { ...b, status: newStatus, approvedBy: 'Ketua RW / Pengurus' } : b);
-    setBookings(updated);
-    savePersisted('wargahub_facility_bookings', updated);
-    showToast(`Status booking diubah menjadi ${newStatus}.`);
-    } catch { showToast('Status reservasi belum berubah. Coba lagi.'); }
+      const response = await apiFetch('/api/facilities/booking-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: newStatus }) });
+      const { data } = await response.json();
+      setBookings(previous => previous.map(booking => booking.id === id ? { ...booking, ...data } : booking));
+      showToast('Status reservasi diperbarui.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Status reservasi belum berubah.'); }
   };
 
   // Handlers for Maintenance
@@ -1890,15 +1644,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-ink block mb-1">Uang Jaminan Kebersihan (Rp - Jika Ada)</label>
-                <input
-                  type="number"
-                  value={bkgDeposit}
-                  onChange={(e) => setBkgDeposit(Number(e.target.value))}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
-                />
-              </div>
+
 
               <div className="pt-2 flex gap-2">
                 <button
@@ -1913,7 +1659,7 @@ export const FacilitiesManager: React.FC<FacilitiesManagerProps> = ({
                   disabled={isSaving}
                   className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
                 >
-                  {isSaving ? 'Menyimpan...' : 'Setujui & Buat Booking'}
+                  {isSaving ? 'Menyimpan...' : 'Catat reservasi'}
                 </button>
               </div>
             </form>

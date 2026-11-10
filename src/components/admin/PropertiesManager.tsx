@@ -1,3 +1,6 @@
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
+import { useUrlTab } from '../../lib/use-url-tab';
+import { apiFetch } from '../../lib/api-fetch';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Home,
@@ -81,6 +84,10 @@ interface PropertiesManagerProps {
   initialVehicles?: VehicleItem[];
   initialPermits?: PermitItem[];
   initialUtilities?: UtilityItem[];
+  initialHouse?: string;
+  initialQuery?: string;
+  canEdit?: boolean;
+  canOpenBilling?: boolean;
 }
 
 const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
@@ -90,57 +97,33 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   initialVehicles,
   initialPermits,
   initialUtilities,
+  initialHouse = '', initialQuery = '', canEdit = false, canOpenBilling = false,
 }) => {
-  const resolveTab = (t?: string): 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics' => {
-    if (!t) return 'units';
-    if (t === 'occupants' || t === 'residents') return 'residents';
-    if (t === 'owners') return 'units';
-    if (t === 'vehicles' || t === 'rfid') return 'vehicles';
-    if (t === 'permits' || t === 'renovation') return 'permits';
-    if (t === 'analytics' || t === 'utilities' || t === 'occupancy') return 'analytics';
-    return 'units';
-  };
+  const tabs = ['units','residents','vehicles','permits','analytics'] as const;
+  type RegistryTab = typeof tabs[number];
+  const aliases: Record<string,RegistryTab> = {owners:'units',occupants:'residents',rfid:'vehicles',renovation:'permits',utilities:'analytics',occupancy:'analytics'};
+  const [activeSubTab, setActiveSubTab] = useUrlTab(tabs,'units','tab',aliases,initialTab);
+  const [houseFilter,setHouseFilter] = useState(initialHouse);
+  useEffect(()=>{
+    const restore=()=>setHouseFilter(new URLSearchParams(window.location.search).get('house') || '');
+    window.addEventListener('popstate',restore); return ()=>window.removeEventListener('popstate',restore);
+  },[]);
+  function scopeHouse(code:string,tab:RegistryTab=activeSubTab) {
+    const url=new URL(window.location.href);
+    url.searchParams.set('tab',tab);
+    if(code) url.searchParams.set('house',code); else url.searchParams.delete('house');
+    url.searchParams.delete('q');
+    if(url.href!==window.location.href) window.history.pushState(window.history.state,'',url);
+    setHouseFilter(code); setActiveSubTab(tab); setSearch('');
+    setResidentSearch(''); setVehicleSearch(''); setPermitSearch(''); setUtilitySearch('');
+    setActiveProperty(null);
+  }
+  const handleTabChange=(tab:RegistryTab)=>setActiveSubTab(tab);
+  const matchesHouse=(code:string)=>!houseFilter || code.toLowerCase()===houseFilter.toLowerCase();
 
-  const [activeSubTab, setActiveSubTab] = useState<'units' | 'residents' | 'vehicles' | 'permits' | 'analytics'>(() => {
-    if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search);
-      const qTab = p.get('tab');
-      if (qTab) return resolveTab(qTab);
-    }
-    return resolveTab(initialTab);
-  });
-
-  const handleTabChange = (tab: 'units' | 'residents' | 'vehicles' | 'permits' | 'analytics') => {
-    setActiveSubTab(tab);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
-      window.history.pushState({ tab }, '', url.toString());
-    }
-  };
-
-  // Synchronize activeSubTab if initialTab changes (Astro View Transitions)
-  useEffect(() => {
-    if (initialTab) {
-      setActiveSubTab(resolveTab(initialTab));
-    }
-  }, [initialTab]);
-
-  // Listen to browser Back/Forward navigation
-  useEffect(() => {
-    const handlePopState = () => {
-      if (typeof window !== 'undefined') {
-        const p = new URLSearchParams(window.location.search);
-        const qTab = p.get('tab') || 'units';
-        setActiveSubTab(resolveTab(qTab));
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'auto' | 'table' | 'grid'>('auto');
   const [properties, setProperties] = useState<PropertyListItem[]>(initialProperties || []);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialQuery);
   useEffect(() => {
     const syncSearch = () => setSearch(new URLSearchParams(window.location.search).get('q') || '');
     syncSearch();
@@ -174,19 +157,17 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // Area Naming Type
   const [namingType, setNamingType] = useState<'BLOK' | 'KAV' | 'STREET' | 'CLUSTER'>('BLOK');
-  const [formAreaName, setFormAreaName] = useState('Blok A');
   const [formCode, setFormCode] = useState('');
   const [formNumber, setFormNumber] = useState('');
   const [formAddress, setFormAddress] = useState('');
-  const [formOccupancy, setFormOccupancy] = useState<'OWNER_OCCUPIED' | 'RENTED' | 'VACANT' | 'RENOVATION'>('OWNER_OCCUPIED');
+  const [formOccupancy, setFormOccupancy] = useState<'OWNER_OCCUPIED' | 'RENTED' | 'VACANT' | 'RENOVATION' | 'BORROWED' | 'FOR_SALE' | 'OTHER'>('OWNER_OCCUPIED');
   const [formOwner, setFormOwner] = useState('');
   const [formOccupant, setFormOccupant] = useState('');
-  const [formBuildingType, setFormBuildingType] = useState('Tipe 72/120');
-  const [formLandArea, setFormLandArea] = useState(120);
-  const [formBuildingArea, setFormBuildingArea] = useState(72);
+  const [formBuildingType, setFormBuildingType] = useState('');
+  const [formLandArea, setFormLandArea] = useState(0);
+  const [formBuildingArea, setFormBuildingArea] = useState(0);
   const [formPlnCapacity, setFormPlnCapacity] = useState('3.500 VA');
   const [formPamMeterNo, setFormPamMeterNo] = useState('PAM-88301');
-  const [formMonthlyRate, setFormMonthlyRate] = useState(250000);
   const [formNotes, setFormNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -204,157 +185,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   };
 
   // Helper for saving persisted state to localStorage
-  const savePersisted = (key: string, data: any) => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(key, JSON.stringify(data));
-      } catch (e) {
-        console.warn('Failed to save to localStorage:', e);
-      }
-    }
-  };
-
-  const addDeletedIds = (key: string, ids: string[]) => {
-    if (typeof window === 'undefined') return;
-    try {
-      const existing = localStorage.getItem(key);
-      const list: string[] = existing ? JSON.parse(existing) : [];
-      const updated = Array.from(new Set([...list, ...ids]));
-      localStorage.setItem(key, JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Failed to save deleted IDs:', e);
-    }
-  };
-
-  // Determine if operating in clean/pristine mode (real data mode)
-  const isCleanInitial = initialProperties.length === 0;
-
-  // Synchronize persisted changes from localStorage on client load
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const deletedPropsStr = localStorage.getItem('wargahub_deleted_properties');
-        if (deletedPropsStr) {
-          const deletedIds: string[] = JSON.parse(deletedPropsStr);
-          if (Array.isArray(deletedIds) && deletedIds.length > 0) {
-            setProperties(prev => prev.filter(p => !deletedIds.includes(p.id) && !deletedIds.includes(p.code)));
-          }
-        }
-
-        if (properties.length === 0 && !isCleanInitial) {
-          fetch('/api/properties')
-            .then(r => r.json())
-            .then(data => {
-              if (Array.isArray(data) && data.length > 0) {
-                const deletedIds: string[] = deletedPropsStr ? JSON.parse(deletedPropsStr) : [];
-                setProperties(data.filter((p: any) => !deletedIds.includes(p.id) && !deletedIds.includes(p.code)));
-              }
-            })
-            .catch(() => {});
-        }
-
-        const savedResidents = localStorage.getItem('wargahub_residents');
-        const deletedResStr = localStorage.getItem('wargahub_deleted_residents');
-        const deletedResIds: string[] = deletedResStr ? JSON.parse(deletedResStr) : [];
-
-        // Detect and purge old mock dummy data
-        const isMockResident = (r: any) =>
-          r.fullName === 'Bu Viny' ||
-          r.fullName === 'Kenzo Verial' ||
-          r.fullName === 'Mahasiswa Polban' ||
-          r.fullName === 'Dr. Handoko' ||
-          r.fullName === 'Farhan Gunawan' ||
-          r.idCard === '3204281404840001' ||
-          r.birthPlaceDate === 'Jakarta, 22-09-1986' ||
-          (typeof r.id === 'string' && r.id.startsWith('res-kav-a-'));
-
-        if (savedResidents !== null) {
-          const parsed = JSON.parse(savedResidents);
-          if (Array.isArray(parsed) && parsed.some(isMockResident)) {
-            localStorage.removeItem('wargahub_residents');
-            const cleanResidents = (initialResidents || []).filter((r: any) => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
-            setResidents(cleanResidents);
-            localStorage.setItem('wargahub_residents', JSON.stringify(cleanResidents));
-          } else if (Array.isArray(parsed)) {
-            setResidents(parsed.filter((r: any) => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName)));
-          }
-        } else {
-          const cleanResidents = (initialResidents || []).filter((r: any) => !deletedResIds.includes(r.id) && !deletedResIds.includes(r.fullName));
-          setResidents(cleanResidents);
-          localStorage.setItem('wargahub_residents', JSON.stringify(cleanResidents));
-        }
-
-        const isMockVehicle = (v: any) =>
-          v.plateNumber === 'D 1234 VRL' ||
-          v.model === 'Innova Zenix 2.0 Hybrid' ||
-          v.model === 'PCX 160 ABS';
-
-        const savedVehicles = localStorage.getItem('wargahub_vehicles');
-        const deletedVehStr = localStorage.getItem('wargahub_deleted_vehicles');
-        const deletedVehIds: string[] = deletedVehStr ? JSON.parse(deletedVehStr) : [];
-        if (savedVehicles !== null) {
-          const parsed = JSON.parse(savedVehicles);
-          if (Array.isArray(parsed) && parsed.some(isMockVehicle)) {
-            localStorage.removeItem('wargahub_vehicles');
-            const cleanVeh = (initialVehicles || []).filter((v: any) => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
-            setVehicles(cleanVeh);
-            localStorage.setItem('wargahub_vehicles', JSON.stringify(cleanVeh));
-          } else if (Array.isArray(parsed)) {
-            setVehicles(parsed.filter((v: any) => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber)));
-          }
-        } else {
-          const cleanVeh = (initialVehicles || []).filter((v: any) => !deletedVehIds.includes(v.id) && !deletedVehIds.includes(v.plateNumber));
-          setVehicles(cleanVeh);
-          localStorage.setItem('wargahub_vehicles', JSON.stringify(cleanVeh));
-        }
-
-        const isMockPermit = (p: any) =>
-          p.id === 'PERMIT-KAV-D-01' ||
-          p.contractorName === 'Mandor Kang Asep' ||
-          p.contractorName === 'Mandor Pak Ujang';
-
-        const savedPermits = localStorage.getItem('wargahub_permits');
-        const deletedPermitStr = localStorage.getItem('wargahub_deleted_permits');
-        const deletedPermitIds: string[] = deletedPermitStr ? JSON.parse(deletedPermitStr) : [];
-        if (savedPermits !== null) {
-          const parsed = JSON.parse(savedPermits);
-          if (Array.isArray(parsed) && parsed.some(isMockPermit)) {
-            localStorage.removeItem('wargahub_permits');
-            const cleanPermits = (initialPermits || []).filter((p: any) => !deletedPermitIds.includes(p.id));
-            setPermits(cleanPermits);
-            localStorage.setItem('wargahub_permits', JSON.stringify(cleanPermits));
-          } else if (Array.isArray(parsed)) {
-            setPermits(parsed.filter((p: any) => !deletedPermitIds.includes(p.id)));
-          }
-        } else {
-          const cleanPermits = (initialPermits || []).filter((p: any) => !deletedPermitIds.includes(p.id));
-          setPermits(cleanPermits);
-          localStorage.setItem('wargahub_permits', JSON.stringify(cleanPermits));
-        }
-
-        const savedUtilities = localStorage.getItem('wargahub_utilities');
-        const deletedUtilStr = localStorage.getItem('wargahub_deleted_utilities');
-        const deletedUtilIds: string[] = deletedUtilStr ? JSON.parse(deletedUtilStr) : [];
-        if (savedUtilities !== null) {
-          const parsed = JSON.parse(savedUtilities);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setUtilities(parsed.filter((u: any) => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode)));
-          } else {
-            const cleanUtils = (initialUtilities || []).filter((u: any) => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
-            setUtilities(cleanUtils);
-            localStorage.setItem('wargahub_utilities', JSON.stringify(cleanUtils));
-          }
-        } else {
-          const cleanUtils = (initialUtilities || []).filter((u: any) => !deletedUtilIds.includes(u.id) && !deletedUtilIds.includes(u.houseCode));
-          setUtilities(cleanUtils);
-          localStorage.setItem('wargahub_utilities', JSON.stringify(cleanUtils));
-        }
-      } catch (e) {
-        console.warn('Error reading from localStorage:', e);
-      }
-    }
-  }, [isCleanInitial, initialResidents, initialVehicles, initialPermits, initialUtilities]);
-
   // ================= RESIDENTS (PENGHUNI) STATE =================
   const [residentCategory, setResidentCategory] = useState('ALL');
   const [residentSearch, setResidentSearch] = useState('');
@@ -379,7 +209,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [resAreaLabel, setResAreaLabel] = useState('Kavling');
   const [resFullName, setResFullName] = useState('');
   const [resRelation, setResRelation] = useState<'KEPALA_KELUARGA' | 'ISTRI' | 'ANAK' | 'ORANG_TUA' | 'FAMILI_LAIN' | 'ART' | 'PENYEWA'>('KEPALA_KELUARGA');
-  const [resGender, setResGender] = useState<'LAKI_LAKI' | 'PEREMPUAN'>('LAKI_LAKI');
+  const [resGender, setResGender] = useState<ResidentItem['gender']>('');
   const [resBirthPlaceDate, setResBirthPlaceDate] = useState('Bandung, 14-04-1985');
   const [resReligion, setResReligion] = useState('ISLAM');
   const [resOccupation, setResOccupation] = useState('Karyawan Swasta');
@@ -387,8 +217,8 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [resEmail, setResEmail] = useState('');
   const [resIdCard, setResIdCard] = useState('');
   const [resFamilyCard, setResFamilyCard] = useState('');
-  const [resDomicileStatus, setResDomicileStatus] = useState<'KTP_SETEMPAT' | 'KTP_LUAR_DAERAH' | 'SURAT_DOMISILI'>('KTP_SETEMPAT');
-  const [resBloodType, setResBloodType] = useState<'A' | 'B' | 'AB' | 'O'>('O');
+  const [resDomicileStatus, setResDomicileStatus] = useState<ResidentItem['domicileStatus']>('');
+  const [resBloodType, setResBloodType] = useState<ResidentItem['bloodType']>('');
   const [resIsEmergency, setResIsEmergency] = useState(false);
   const [resNotes, setResNotes] = useState('');
   const [resSaving, setResSaving] = useState(false);
@@ -470,10 +300,10 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [pContractorPhone, setPContractorPhone] = useState('0812-3344-5566');
   const [pWorkers, setPWorkers] = useState(3);
   const [pWorkersList, setPWorkersList] = useState('');
-  const [pStart, setPStart] = useState('2026-10-01');
-  const [pEnd, setPEnd] = useState('2026-10-15');
+  const [pStart, setPStart] = useState('');
+  const [pEnd, setPEnd] = useState('');
   const [pAllowedHours, setPAllowedHours] = useState('08:00 - 17:00 WIB (Senin - Sabtu)');
-  const [pStatus, setPStatus] = useState<'APPROVED' | 'PENDING_REVIEW' | 'COMPLETED' | 'SUSPENDED'>('APPROVED');
+  const [pStatus, setPStatus] = useState<'APPROVED' | 'PENDING_REVIEW' | 'COMPLETED' | 'SUSPENDED'>('PENDING_REVIEW');
   const [pDesc, setPDesc] = useState('');
   const [permitSaving, setPermitSaving] = useState(false);
 
@@ -511,13 +341,15 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const [uPamMeterNo, setUPamMeterNo] = useState('PAM-88301');
   const [uPamLastMonth, setUPamLastMonth] = useState(120);
   const [uPamThisMonth, setUPamThisMonth] = useState(138);
-  const [uMonthlyIplFee, setUMonthlyIplFee] = useState(250000);
   const [uWasteSchedule, setUWasteSchedule] = useState('SENIN_RABU_JUMAT');
   const [uHasBiopori, setUHasBiopori] = useState(true);
   const [uHasSolarPanel, setUHasSolarPanel] = useState(false);
-  const [uPaymentStatus, setUPaymentStatus] = useState<'LUNAS' | 'MENUNGGU_BAYAR' | 'MENUNGGAK'>('LUNAS');
   const [uNotes, setUNotes] = useState('');
   const [utilitySaving, setUtilitySaving] = useState(false);
+
+  useEffect(()=>{
+    setSelectedPropertyIds([]); setSelectedResidentIds([]); setSelectedVehicleIds([]); setSelectedPermitIds([]); setSelectedUtilityIds([]);
+  },[houseFilter]);
 
   // Status Helpers
   const getStatusBadge = (status: string) => {
@@ -567,118 +399,36 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // Property Handlers
   const handleOpenAdd = () => {
-    setEditingPropertyId(null);
-    setFormCode('');
-    setFormNumber('');
-    setFormAddress('');
-    setFormOccupancy('OWNER_OCCUPIED');
-    setFormOwner('');
-    setFormOccupant('');
-    setFormBuildingType('Tipe 72/120');
-    setFormLandArea(120);
-    setFormBuildingArea(72);
-    setFormPlnCapacity('3.500 VA');
-    setFormPamMeterNo('PAM-88301');
-    setFormMonthlyRate(250000);
-    setFormNotes('');
-    setShowAddModal(true);
+    setEditingPropertyId(null); setFormCode(''); setFormNumber(''); setFormAddress(''); setFormOccupancy('OWNER_OCCUPIED');
+    setFormOwner(''); setFormOccupant(''); setFormBuildingType(''); setFormLandArea(0); setFormBuildingArea(0);
+    setFormPlnCapacity(''); setFormPamMeterNo(''); setFormNotes(''); setShowAddModal(true);
   };
-
-  const handleOpenEdit = (p: PropertyListItem) => {
-    setEditingPropertyId(p.id);
-    setFormCode(p.code);
-    setFormNumber(p.number);
-    setFormAddress(p.address || '');
-    setFormOccupancy((p.occupancyStatus as any) || 'OWNER_OCCUPIED');
-    setFormOwner(p.ownerName || '');
-    setFormOccupant(p.occupantName || p.headName || '');
-    setFormBuildingType('Tipe 72/120');
-    setFormLandArea(120);
-    setFormBuildingArea(72);
-    setFormPlnCapacity('3.500 VA');
-    setFormPamMeterNo('PAM-88301');
-    setFormMonthlyRate(250000);
-    setFormNotes(p.notes || '');
-    setShowAddModal(true);
+  const handleOpenEdit = (property: PropertyListItem) => {
+    setEditingPropertyId(property.id); setFormCode(property.code); setFormNumber(property.number); setFormAddress(property.address);
+    setFormOccupancy((property.occupancyStatus || 'OTHER') as typeof formOccupancy); setFormOwner(property.legalOwner || '');
+    setFormOccupant(property.occupantName || ''); setFormBuildingType(property.buildingType || '');
+    setFormLandArea(property.landArea ?? 0); setFormBuildingArea(property.buildingArea ?? 0);
+    setFormPlnCapacity(property.plnCapacity || ''); setFormPamMeterNo(property.pamMeterNo || '');
+    setFormNotes(property.notes || ''); setShowAddModal(true);
   };
-
-  const handleSaveProperty = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+  const handleSaveProperty = async (event: React.FormEvent) => {
+    event.preventDefault(); setSaving(true);
     try {
-      const isEdit = Boolean(editingPropertyId);
-      const url = isEdit ? '/api/properties/update' : '/api/properties/create';
-      const resolvedOcc = formOccupancy === 'VACANT'
-        ? undefined
-        : (formOccupant || (formOccupancy === 'OWNER_OCCUPIED' ? formOwner : 'Penyewa'));
-
-      const payload = {
-        id: editingPropertyId || `prop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-        code: formCode.trim(),
-        number: formNumber || formCode,
-        address: formAddress || `Komplek Grand Sariwangi, ${formAreaName} No. ${formNumber || formCode}`,
-        occupancyStatus: formOccupancy,
-        ownerName: formOwner || 'Warga',
-        occupantName: resolvedOcc,
-        headName: resolvedOcc,
-        buildingType: formBuildingType,
-        landArea: Number(formLandArea),
-        buildingArea: Number(formBuildingArea),
-        plnCapacity: formPlnCapacity,
-        pamMeterNo: formPamMeterNo,
-        monthlyRate: Number(formMonthlyRate),
-        notes: formNotes || undefined,
-      };
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const response=await apiFetch('/api/properties/'+(editingPropertyId?'update':'create'),{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:editingPropertyId || undefined,code:formCode,number:formNumber || formCode,address:formAddress,
+          occupancyStatus:formOccupancy,ownerName:formOwner.trim() || undefined,occupantName:formOccupant.trim() || undefined,
+          buildingType:formBuildingType,landArea:formLandArea || undefined,buildingArea:formBuildingArea || undefined,
+          plnCapacity:formPlnCapacity,pamMeterNo:formPamMeterNo,notes:formNotes}),
       });
-
-      if (res.ok) {
-        if (isEdit) {
-          setProperties(properties.map(p => p.id === editingPropertyId ? {
-            ...p,
-            code: payload.code,
-            number: payload.number,
-            address: payload.address,
-            occupancyStatus: payload.occupancyStatus,
-            ownerName: payload.ownerName,
-            occupantName: resolvedOcc,
-            headName: resolvedOcc,
-            notes: payload.notes || null,
-          } : p));
-          showToast(`Unit ${payload.code} berhasil diperbarui.`);
-        } else {
-          const newP: PropertyListItem = {
-            id: payload.id,
-            code: payload.code,
-            blockCode: payload.code.split('-')[0] || 'A',
-            blockName: formAreaName || `Blok ${payload.code.split('-')[0]}`,
-            number: payload.number,
-            address: payload.address,
-            occupancyStatus: payload.occupancyStatus,
-            isActive: true,
-            notes: payload.notes || null,
-            ownerName: payload.ownerName,
-            occupantName: resolvedOcc,
-            headName: resolvedOcc,
-            residentCount: formOccupancy === 'VACANT' ? 0 : 1,
-          };
-          setProperties([newP, ...properties]);
-          showToast(`Unit ${payload.code} berhasil didaftarkan ke sistem.`);
-        }
-        setShowAddModal(false);
-      } else {
-        showToast('Gagal menyimpan data unit properti.');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal terhubung ke server.');
-    } finally {
-      setSaving(false);
-    }
+      const {data}=await response.json();
+      setProperties(items=>items.some(item=>item.id===data.id)?items.map(item=>item.id===data.id?data:item):[data,...items]);
+      setActiveProperty(item=>item?.id===data.id?data:item);
+      if(!editingPropertyId && houseFilter && !matchesHouse(data.code)) scopeHouse(data.code,'units');
+      const latest = await fetch('/api/properties/occupants').then(res=>res.ok?res.json():null).catch(()=>null);
+      if(Array.isArray(latest)) setResidents(latest);
+      setShowAddModal(false); showToast('Rumah disimpan.');
+    } catch(error) { showToast(error instanceof Error?error.message:'Rumah belum dapat disimpan.'); }
+    finally {setSaving(false);}
   };
 
   const handleConfirmDelete = async () => {
@@ -701,12 +451,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         const nextProps = properties.filter(p => p.id !== propertyToDelete.id && p.code !== propertyToDelete.code);
         setProperties(nextProps);
         setSelectedPropertyIds(prev => prev.filter(id => id !== propertyToDelete.id));
-        if (typeof window !== 'undefined') {
-          try {
-            const prevDel = JSON.parse(localStorage.getItem('wargahub_deleted_properties') || '[]');
-            localStorage.setItem('wargahub_deleted_properties', JSON.stringify(Array.from(new Set([...prevDel, propertyToDelete.id, propertyToDelete.code]))));
-          } catch (e) {}
-        }
         showToast(`Unit ${propertyToDelete.code} berhasil dihapus dari direktori aktif.`);
         setPropertyToDelete(null);
         if (activeProperty?.id === propertyToDelete.id) setActiveProperty(null);
@@ -741,12 +485,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextProps = properties.filter(p => !selectedPropertyIds.includes(p.id));
         setProperties(nextProps);
-        if (typeof window !== 'undefined') {
-          try {
-            const prevDel = JSON.parse(localStorage.getItem('wargahub_deleted_properties') || '[]');
-            localStorage.setItem('wargahub_deleted_properties', JSON.stringify(Array.from(new Set([...prevDel, ...selectedPropertyIds, ...selectedCodes]))));
-          } catch (e) {}
-        }
         showToast(`${selectedPropertyIds.length} unit rumah berhasil dihapus secara massal.`);
         setSelectedPropertyIds([]);
         setShowBulkDeleteModal(false);
@@ -765,20 +503,20 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   // Resident Handlers
   const handleOpenAddResident = () => {
     setEditingResidentId(null);
-    setResHouseCode(properties[0]?.code || 'Kav A');
+    setResHouseCode(houseFilter || properties[0]?.code || '');
     setResAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
     setResFullName('');
-    setResRelation('KEPALA_KELUARGA');
-    setResGender('LAKI_LAKI');
-    setResBirthPlaceDate('Bandung, 14-04-1985');
-    setResReligion('ISLAM');
-    setResOccupation('Karyawan Swasta');
+    setResRelation('FAMILI_LAIN');
+    setResGender('');
+    setResBirthPlaceDate('');
+    setResReligion('');
+    setResOccupation('');
     setResPhone('');
     setResEmail('');
     setResIdCard('');
     setResFamilyCard('');
-    setResDomicileStatus('KTP_SETEMPAT');
-    setResBloodType('O');
+    setResDomicileStatus('');
+    setResBloodType('');
     setResIsEmergency(false);
     setResNotes('');
     setShowResidentModal(true);
@@ -790,7 +528,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     setResAreaLabel(r.areaLabel || 'Blok A');
     setResFullName(r.fullName);
     setResRelation(r.relation);
-    setResGender(r.gender || 'LAKI_LAKI');
+    setResGender(r.gender || '');
     setResBirthPlaceDate(r.birthPlaceDate || 'Jakarta, 12-03-1985');
     setResReligion(r.religion || 'ISLAM');
     setResOccupation(r.occupation || 'Karyawan Swasta');
@@ -798,8 +536,8 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     setResEmail(r.email || '');
     setResIdCard(r.idCard || '');
     setResFamilyCard(r.familyCard || '');
-    setResDomicileStatus(r.domicileStatus || 'KTP_SETEMPAT');
-    setResBloodType(r.bloodType || 'O');
+    setResDomicileStatus(r.domicileStatus || '');
+    setResBloodType(r.bloodType || '');
     setResIsEmergency(Boolean(r.isEmergency));
     setResNotes(r.notes || '');
     setShowResidentModal(true);
@@ -809,8 +547,11 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     e.preventDefault();
     setResSaving(true);
     try {
+      const property = properties.find(item => item.code === resHouseCode);
+      if (!property) throw new Error('Pilih rumah yang terdaftar.');
       const payload = {
-        propertyId: `prop-${resHouseCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        propertyId: property.id,
+        id: editingResidentId || undefined,
         houseCode: resHouseCode.toUpperCase(),
         areaLabel: resAreaLabel,
         fullName: resFullName,
@@ -829,31 +570,15 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         notes: resNotes || '',
       };
 
-      const res = await fetch('/api/properties/occupants/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const response = await apiFetch('/api/properties/occupants/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
-
-      if (res.ok) {
-        let nextRes: any[];
-        if (editingResidentId) {
-          nextRes = residents.map(r => r.id === editingResidentId ? { ...r, ...payload, id: editingResidentId, status: 'VERIFIED' } : r);
-          showToast(`Data penghuni ${resFullName} berhasil diperbarui.`);
-        } else {
-          const newRes = { ...payload, id: `res-${Date.now()}`, status: 'VERIFIED' };
-          nextRes = [newRes, ...residents];
-          showToast(`Penghuni baru ${resFullName} berhasil didaftarkan.`);
-        }
-        setResidents(nextRes);
-        savePersisted('wargahub_residents', nextRes);
-        setShowResidentModal(false);
-      } else {
-        showToast('Gagal menyimpan data penghuni.');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal terhubung ke server.');
+      const { data } = await response.json();
+      setResidents(items => items.some(item => item.id === data.id) ? items.map(item => item.id === data.id ? data : item) : [data, ...items]);
+      setShowResidentModal(false);
+      showToast('Data penghuni disimpan.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Perubahan belum tersimpan.');
     } finally {
       setResSaving(false);
     }
@@ -876,8 +601,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextRes = residents.filter(r => r.id !== residentToDelete.id);
         setResidents(nextRes);
-        savePersisted('wargahub_residents', nextRes);
-        addDeletedIds('wargahub_deleted_residents', [residentToDelete.id, residentToDelete.fullName]);
         setSelectedResidentIds(prev => prev.filter(id => id !== residentToDelete.id));
         showToast(`Data penghuni ${residentToDelete.fullName} berhasil dihapus/diarsipkan.`);
         setResidentToDelete(null);
@@ -911,8 +634,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextRes = residents.filter(r => !selectedResidentIds.includes(r.id));
         setResidents(nextRes);
-        savePersisted('wargahub_residents', nextRes);
-        addDeletedIds('wargahub_deleted_residents', [...selectedResidentIds, ...selectedNames]);
         showToast(`${selectedResidentIds.length} data penghuni berhasil dihapus secara massal.`);
         setSelectedResidentIds([]);
         setShowBulkDeleteResidentModal(false);
@@ -930,21 +651,11 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // Vehicle Handlers
   const handleOpenAddVehicle = () => {
-    setEditingVehicleId(null);
-    setVehHouseCode(properties[0]?.code || 'Kav A');
-    setVehAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
-    setVehOwnerName(properties[0]?.ownerName || 'Pak Verial');
-    setVehPlateNumber('');
-    setVehType('Mobil');
-    setVehBrand('Toyota');
-    setVehModel('');
-    setVehYear(2024);
-    setVehColor('Hitam Metalik');
-    setVehRfidTag(`RFID-${Math.floor(1000000 + Math.random() * 9000000)}`);
-    setVehGateAccess('SEMUA_GERBANG');
-    setVehRfidStatus('AKTIF');
-    setVehNotes('');
-    setShowVehicleModal(true);
+    const house=properties.find(item=>matchesHouse(item.code)) || properties[0];
+    setEditingVehicleId(null); setVehHouseCode(house?.code || ''); setVehAreaLabel(house?.blockName || '');
+    setVehOwnerName(house?.headName || house?.legalOwner || ''); setVehPlateNumber(''); setVehType('Mobil');
+    setVehBrand(''); setVehModel(''); setVehYear(0); setVehColor(''); setVehRfidTag('');
+    setVehGateAccess(''); setVehRfidStatus('PENDING_VERIFIKASI'); setVehNotes(''); setShowVehicleModal(true);
   };
 
   const handleOpenEditVehicle = (v: any) => {
@@ -967,66 +678,29 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   const handleSaveVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (vehSaving) return;
+    const property = properties.find(item => item.code === vehHouseCode);
+    if (!property) { showToast('Pilih rumah yang terdaftar.'); return; }
     setVehSaving(true);
     try {
-      const payload = {
-        propertyId: `prop-${vehHouseCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-        houseCode: vehHouseCode.toUpperCase(),
-        areaLabel: vehAreaLabel,
-        ownerName: vehOwnerName,
-        plateNumber: vehPlateNumber.toUpperCase(),
-        type: vehType,
-        brand: vehBrand,
-        model: vehModel,
-        year: Number(vehYear),
-        color: vehColor,
-        rfidTag: vehRfidTag,
-        gateAccess: vehGateAccess,
-        rfidStatus: vehRfidStatus,
-        notes: vehNotes || '',
-      };
-
       const res = await fetch('/api/properties/vehicles/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingVehicleId || undefined, propertyId: property.id, plateNumber: vehPlateNumber,
+          type: vehType, brand: vehBrand, model: vehModel, year: vehYear || undefined, color: vehColor,
+        }),
       });
-
-      if (res.ok) {
-        let nextVeh: any[];
-        if (editingVehicleId) {
-          nextVeh = vehicles.map(v => v.id === editingVehicleId ? { ...v, ...payload, id: editingVehicleId } : v);
-          showToast(`Data kendaraan ${vehPlateNumber} berhasil diperbarui.`);
-        } else {
-          const newVeh = { ...payload, id: `veh-${Date.now()}` };
-          nextVeh = [newVeh, ...vehicles];
-          showToast(`Kendaraan baru ${vehPlateNumber} (${vehRfidTag}) berhasil didaftarkan.`);
-        }
-        setVehicles(nextVeh);
-        savePersisted('wargahub_vehicles', nextVeh);
-        setShowVehicleModal(false);
-      } else {
-        showToast('Gagal menyimpan data kendaraan.');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal terhubung ke server.');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || 'Kendaraan belum tersimpan.');
+      const saved: VehicleItem = json.data;
+      setVehicles(previous => editingVehicleId ? previous.map(item => item.id === saved.id ? saved : item) : [saved, ...previous]);
+      showToast(editingVehicleId ? 'Kendaraan diperbarui.' : 'Kendaraan terdaftar.');
+      setShowVehicleModal(false);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Kendaraan belum tersimpan.');
     } finally {
       setVehSaving(false);
     }
-  };
-
-  const handleToggleRfid = (id: string) => {
-    const nextVeh = vehicles.map(v => {
-      if (v.id === id) {
-        const nextStatus = v.rfidStatus === 'AKTIF' ? 'DIBLOKIR' : 'AKTIF';
-        showToast(`Akses RFID kendaraan ${v.plateNumber} diubah menjadi ${nextStatus}.`);
-        return { ...v, rfidStatus: nextStatus as any };
-      }
-      return v;
-    });
-    setVehicles(nextVeh);
-    savePersisted('wargahub_vehicles', nextVeh);
   };
 
   const handleConfirmDeleteVehicle = async () => {
@@ -1046,8 +720,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextVeh = vehicles.filter(v => v.id !== vehicleToDelete.id);
         setVehicles(nextVeh);
-        savePersisted('wargahub_vehicles', nextVeh);
-        addDeletedIds('wargahub_deleted_vehicles', [vehicleToDelete.id, vehicleToDelete.plateNumber]);
         showToast(`Kendaraan ${vehicleToDelete.plateNumber} berhasil dihapus/dinonaktifkan.`);
         setVehicleToDelete(null);
         if (activeVehicleView?.id === vehicleToDelete.id) setActiveVehicleView(null);
@@ -1080,8 +752,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextVeh = vehicles.filter(v => !selectedVehicleIds.includes(v.id));
         setVehicles(nextVeh);
-        savePersisted('wargahub_vehicles', nextVeh);
-        addDeletedIds('wargahub_deleted_vehicles', [...selectedVehicleIds, ...selectedPlates]);
         showToast(`${selectedVehicleIds.length} kendaraan berhasil dinonaktifkan / dihapus secara massal.`);
         setSelectedVehicleIds([]);
         setShowBulkDeleteVehicleModal(false);
@@ -1114,21 +784,11 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // Permit Handlers
   const handleOpenAddPermit = () => {
-    setEditingPermitId(null);
-    setPCode(properties[0]?.code || 'Kav D');
-    setPAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
-    setPOwnerName(properties[0]?.ownerName || 'Pak Rieva');
-    setPType('Pengecatan & Kanopi');
-    setPContractor('');
-    setPContractorPhone('0812-3344-5566');
-    setPWorkers(3);
-    setPWorkersList('');
-    setPStart('2026-10-01');
-    setPEnd('2026-10-15');
-    setPAllowedHours('08:00 - 17:00 WIB (Senin - Sabtu)');
-    setPStatus('APPROVED');
-    setPDesc('');
-    setShowAddPermitModal(true);
+    const house=properties.find(item=>matchesHouse(item.code)) || properties[0];
+    setEditingPermitId(null); setPCode(house?.code || ''); setPAreaLabel(house?.blockName || '');
+    setPOwnerName(house?.legalOwner || ''); setPType('Pengecatan & Kanopi'); setPContractor(''); setPContractorPhone('');
+    setPWorkers(1); setPWorkersList(''); setPStart(''); setPEnd(''); setPAllowedHours('');
+    setPStatus('PENDING_REVIEW'); setPDesc(''); setShowAddPermitModal(true);
   };
 
   const handleOpenEditPermit = (p: any) => {
@@ -1153,8 +813,11 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     e.preventDefault();
     setPermitSaving(true);
     try {
+      const property = properties.find(item => item.code === pCode);
+      if (!property) throw new Error('Pilih rumah yang terdaftar.');
       const payload = {
-        propertyId: `prop-${pCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        propertyId: property.id,
+        id: editingPermitId || undefined,
         houseCode: pCode.toUpperCase(),
         areaLabel: pAreaLabel,
         ownerName: pOwnerName,
@@ -1170,47 +833,32 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         description: pDesc || '',
       };
 
-      const res = await fetch('/api/properties/permits/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const response = await apiFetch('/api/properties/permits/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
-
-      if (res.ok) {
-        let nextPermits: any[];
-        if (editingPermitId) {
-          nextPermits = permits.map(p => p.id === editingPermitId ? { ...p, ...payload, id: editingPermitId } : p);
-          showToast(`Surat izin renovasi ${editingPermitId} berhasil diperbarui.`);
-        } else {
-          const newPermit = { ...payload, id: `PERMIT-2026-00${permits.length + 1}` };
-          nextPermits = [newPermit, ...permits];
-          showToast(`Surat izin renovasi untuk unit ${pCode} berhasil diterbitkan.`);
-        }
-        setPermits(nextPermits);
-        savePersisted('wargahub_permits', nextPermits);
-        setShowAddPermitModal(false);
-      } else {
-        showToast('Gagal menerbitkan surat izin renovasi.');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal terhubung ke server.');
+      const { data } = await response.json();
+      setPermits(items => items.some(item => item.id === data.id) ? items.map(item => item.id === data.id ? data : item) : [data, ...items]);
+      setShowAddPermitModal(false);
+      showToast('Izin renovasi disimpan.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Perubahan belum tersimpan.');
     } finally {
       setPermitSaving(false);
     }
   };
 
-  const handleQuickTogglePermitStatus = async (permit: any) => {
+  const handleQuickTogglePermitStatus = async (permit: PermitItem) => {
+    if (permit.status === 'COMPLETED') return;
+    const status = permit.status === 'APPROVED' ? 'COMPLETED' : 'APPROVED';
     try {
-      const nextStatus = permit.status === 'PENDING_REVIEW' ? 'APPROVED' : permit.status === 'APPROVED' ? 'COMPLETED' : 'APPROVED';
-      const updated = { ...permit, status: nextStatus };
-      const nextPermits = permits.map(item => item.id === permit.id ? updated : item);
-      setPermits(nextPermits);
-      savePersisted('wargahub_permits', nextPermits);
-      showToast(`Status izin ${permit.id} berhasil diubah ke: ${nextStatus === 'APPROVED' ? 'Disetujui' : nextStatus === 'COMPLETED' ? 'Selesai' : 'Pending'}.`);
-    } catch (e) {
-      showToast('Gagal mengubah status izin.');
-    }
+      const response = await apiFetch('/api/properties/permits/status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: permit.id, status, expectedStatus: permit.status }),
+      });
+      const { data } = await response.json();
+      setPermits(items => items.map(item => item.id === data.id ? data : item));
+      showToast('Status izin diperbarui.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Status belum berubah.'); }
   };
 
   const handleConfirmDeletePermit = async () => {
@@ -1230,8 +878,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextPermits = permits.filter(p => p.id !== permitToDelete.id);
         setPermits(nextPermits);
-        savePersisted('wargahub_permits', nextPermits);
-        addDeletedIds('wargahub_deleted_permits', [permitToDelete.id]);
         showToast(`Surat izin ${permitToDelete.id} berhasil dibatalkan/diarsipkan.`);
         setPermitToDelete(null);
         if (activePermitView?.id === permitToDelete.id) setActivePermitView(null);
@@ -1262,8 +908,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextPermits = permits.filter(p => !selectedPermitIds.includes(p.id));
         setPermits(nextPermits);
-        savePersisted('wargahub_permits', nextPermits);
-        addDeletedIds('wargahub_deleted_permits', selectedPermitIds);
         showToast(`${selectedPermitIds.length} izin renovasi berhasil dihapus secara massal.`);
         setSelectedPermitIds([]);
         setShowBulkDeletePermitModal(false);
@@ -1296,113 +940,36 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
   // Utility Handlers
   const handleOpenAddUtility = () => {
-    setEditingUtilityId(null);
-    setUCode(properties[0]?.code || 'Kav A');
-    setUAreaLabel(properties[0]?.code?.toUpperCase().startsWith('KAV') ? 'Kavling' : 'Komplek');
-    setUOwnerName(properties[0]?.ownerName || 'Pak Verial');
-    setUPlnCapacity('3.500 VA');
-    setUPlnCustomerId(`PLN-5388${Math.floor(100000 + Math.random() * 900000)}`);
-    setUPamMeterNo('PAM-88301');
-    setUPamLastMonth(135);
-    setUPamThisMonth(154);
-    setUMonthlyIplFee(250000);
-    setUWasteSchedule('SENIN_RABU_JUMAT');
-    setUHasBiopori(true);
-    setUHasSolarPanel(false);
-    setUPaymentStatus('LUNAS');
-    setUNotes('');
+    const property=properties.find(item=>item.code===houseFilter) || properties[0];
+    const existing=utilities.find(item=>item.propertyId===property?.id);
+    if(existing) {handleOpenEditUtility(existing);return;}
+    setEditingUtilityId(null); setUCode(property?.code || ''); setUAreaLabel(property?.blockName || ''); setUOwnerName(property?.legalOwner || '');
+    setUPlnCapacity(property?.plnCapacity || ''); setUPlnCustomerId(''); setUPamMeterNo(property?.pamMeterNo || '');
+    setUPamLastMonth(0); setUPamThisMonth(0); setUWasteSchedule(''); setUHasBiopori(false); setUHasSolarPanel(false); setUNotes('');
     setShowUtilityModal(true);
   };
-
-  const handleOpenEditUtility = (u: any) => {
-    setEditingUtilityId(u.id);
-    setUCode(u.houseCode);
-    setUAreaLabel(u.areaLabel);
-    setUOwnerName(u.ownerName);
-    setUPlnCapacity(u.plnCapacity);
-    setUPlnCustomerId(u.plnCustomerId);
-    setUPamMeterNo(u.pamMeterNo);
-    setUPamLastMonth(u.pamReadingLastMonth);
-    setUPamThisMonth(u.pamReadingThisMonth);
-    setUMonthlyIplFee(u.monthlyIplFee);
-    setUWasteSchedule(u.wasteSchedule);
-    setUHasBiopori(Boolean(u.hasBiopori));
-    setUHasSolarPanel(Boolean(u.hasSolarPanel));
-    setUPaymentStatus(u.paymentStatus);
-    setUNotes(u.notes || '');
-    setShowUtilityModal(true);
+  const handleOpenEditUtility = (utility: UtilityItem) => {
+    setEditingUtilityId(utility.id); setUCode(utility.houseCode); setUAreaLabel(utility.areaLabel); setUOwnerName(utility.ownerName);
+    setUPlnCapacity(utility.plnCapacity); setUPlnCustomerId(utility.plnCustomerId); setUPamMeterNo(utility.pamMeterNo);
+    setUPamLastMonth(utility.pamReadingLastMonth); setUPamThisMonth(utility.pamReadingThisMonth); setUWasteSchedule(utility.wasteSchedule);
+    setUHasBiopori(utility.hasBiopori); setUHasSolarPanel(utility.hasSolarPanel); setUNotes(utility.notes || ''); setShowUtilityModal(true);
   };
-
-  const handleSaveUtility = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setUtilitySaving(true);
+  const handleSaveUtility = async (event: React.FormEvent) => {
+    event.preventDefault(); setUtilitySaving(true);
     try {
-      const payload = {
-        propertyId: `prop-${uCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-        houseCode: uCode.toUpperCase(),
-        areaLabel: uAreaLabel,
-        ownerName: uOwnerName,
-        plnCapacity: uPlnCapacity,
-        plnCustomerId: uPlnCustomerId,
-        pamMeterNo: uPamMeterNo,
-        pamReadingLastMonth: Number(uPamLastMonth),
-        pamReadingThisMonth: Number(uPamThisMonth),
-        monthlyIplFee: Number(uMonthlyIplFee),
-        wasteSchedule: uWasteSchedule,
-        hasBiopori: uHasBiopori,
-        hasSolarPanel: uHasSolarPanel,
-        paymentStatus: uPaymentStatus,
-        notes: uNotes || '',
-      };
-
-      const res = await fetch('/api/properties/utilities/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const property=properties.find(item=>item.code===uCode);
+      if(!property) throw new Error('Pilih rumah yang terdaftar.');
+      const response=await apiFetch('/api/properties/utilities/create',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({propertyId:property.id,plnCapacity:uPlnCapacity,plnCustomerId:uPlnCustomerId,pamMeterNo:uPamMeterNo,
+          pamReadingLastMonth:uPamLastMonth,pamReadingThisMonth:uPamThisMonth,wasteSchedule:uWasteSchedule,
+          hasBiopori:uHasBiopori,hasSolarPanel:uHasSolarPanel,notes:uNotes}),
       });
-
-      if (res.ok) {
-        const pamUsage = Math.max(0, Number(uPamThisMonth) - Number(uPamLastMonth));
-        let nextUtil: any[];
-        if (editingUtilityId) {
-          nextUtil = utilities.map(item => item.id === editingUtilityId ? {
-            ...item,
-            ...payload,
-            pamUsage,
-          } : item);
-          showToast(`Data utilitas ${uCode} berhasil diperbarui.`);
-        } else {
-          const newUtil = {
-            id: `UTIL-${uCode.toUpperCase()}`,
-            ...payload,
-            pamUsage,
-          };
-          nextUtil = [newUtil, ...utilities];
-          showToast(`Catatan utilitas ${uCode} berhasil ditambahkan.`);
-        }
-        setUtilities(nextUtil);
-        savePersisted('wargahub_utilities', nextUtil);
-        setShowUtilityModal(false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menyimpan catatan utilitas.');
-    } finally {
-      setUtilitySaving(false);
-    }
-  };
-
-  const handleQuickToggleUtilityStatus = async (util: any) => {
-    try {
-      const nextStatus = util.paymentStatus === 'LUNAS' ? 'MENUNGGU_BAYAR' : 'LUNAS';
-      const updated = { ...util, paymentStatus: nextStatus };
-      const nextUtils = utilities.map(item => item.id === util.id ? updated : item);
-      setUtilities(nextUtils);
-      savePersisted('wargahub_utilities', nextUtils);
-      showToast(`Status pembayaran Unit ${util.houseCode} diubah menjadi: ${nextStatus === 'LUNAS' ? 'LUNAS' : 'MENUNGGU BAYAR'}.`);
-    } catch (e) {
-      showToast('Gagal mengubah status pembayaran.');
-    }
+      const {data}=await response.json();
+      setUtilities(items=>items.some(item=>item.id===data.id)?items.map(item=>item.id===data.id?data:item):[data,...items]);
+      setProperties(items=>items.map(item=>item.id===property.id?{...item,plnCapacity:data.plnCapacity,pamMeterNo:data.pamMeterNo}:item));
+      setShowUtilityModal(false); showToast('Catatan utilitas disimpan.');
+    } catch(error) { showToast(error instanceof Error?error.message:'Utilitas belum dapat disimpan.'); }
+    finally {setUtilitySaving(false);}
   };
 
   const handleConfirmDeleteUtility = async () => {
@@ -1421,8 +988,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextUtil = utilities.filter(u => u.id !== utilityToDelete.id);
         setUtilities(nextUtil);
-        savePersisted('wargahub_utilities', nextUtil);
-        addDeletedIds('wargahub_deleted_utilities', [utilityToDelete.id, utilityToDelete.houseCode]);
         showToast(`Catatan utilitas ${utilityToDelete.houseCode} berhasil direset/dihapus.`);
         setUtilityToDelete(null);
         if (activeUtilityView?.id === utilityToDelete.id) setActiveUtilityView(null);
@@ -1450,8 +1015,6 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (res.ok) {
         const nextUtil = utilities.filter(u => !selectedUtilityIds.includes(u.id));
         setUtilities(nextUtil);
-        savePersisted('wargahub_utilities', nextUtil);
-        addDeletedIds('wargahub_deleted_utilities', selectedUtilityIds);
         showToast(`${selectedUtilityIds.length} catatan utilitas berhasil direset/dihapus secara massal.`);
         setSelectedUtilityIds([]);
         setShowBulkDeleteUtilityModal(false);
@@ -1489,6 +1052,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     const altKvaQ = normQ.startsWith('kva') ? 'kava' + normQ.slice(3) : normQ;
 
     const list = (properties || []).filter((p) => {
+      if (!matchesHouse(p.code)) return false;
       const codeNorm = p.code.toLowerCase().replace(/[\s\-_]/g, '');
       const matchSearch = !q ||
                           p.code.toLowerCase().includes(q) ||
@@ -1509,11 +1073,12 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
       if (sortBy === 'code') comparison = a.code.localeCompare(b.code, undefined, { numeric: true });
       else if (sortBy === 'owner') comparison = (a.ownerName || '').localeCompare(b.ownerName || '');
       else if (sortBy === 'status') comparison = a.occupancyStatus.localeCompare(b.occupancyStatus);
+      else if (sortBy === 'residents') comparison = (a.residentCount || 0)-(b.residentCount || 0);
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
     return list;
-  }, [properties, search, selectedBlock, selectedStatus, sortBy, sortOrder]);
+  }, [properties, houseFilter, search, selectedBlock, selectedStatus, sortBy, sortOrder]);
 
   const totalItems = filteredAndSortedProperties.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -1542,6 +1107,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const filteredAndSortedResidents = useMemo(() => {
     const q = (residentSearch || '').toLowerCase().trim();
     const list = (residents || []).filter((r) => {
+      if (!matchesHouse(r.houseCode)) return false;
       const matchSearch = !q ||
                           (r.fullName || '').toLowerCase().includes(q) ||
                           (r.houseCode || '').toLowerCase().includes(q) ||
@@ -1562,7 +1128,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     });
 
     return list;
-  }, [residents, residentSearch, residentCategory, residentSortBy, residentSortOrder]);
+  }, [residents, houseFilter, residentSearch, residentCategory, residentSortBy, residentSortOrder]);
 
   const totalResidents = filteredAndSortedResidents.length;
   const totalResidentPages = Math.max(1, Math.ceil(totalResidents / residentPageSize));
@@ -1591,6 +1157,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const filteredAndSortedVehicles = useMemo(() => {
     const q = (vehicleSearch || '').toLowerCase().trim();
     const list = (vehicles || []).filter((v) => {
+      if (!matchesHouse(v.houseCode)) return false;
       const matchSearch = !q ||
                           (v.plateNumber || '').toLowerCase().includes(q) ||
                           (v.houseCode || '').toLowerCase().includes(q) ||
@@ -1614,7 +1181,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     });
 
     return list;
-  }, [vehicles, vehicleSearch, vehicleTypeFilter, vehicleRfidFilter, vehicleSortBy, vehicleSortOrder]);
+  }, [vehicles, houseFilter, vehicleSearch, vehicleTypeFilter, vehicleRfidFilter, vehicleSortBy, vehicleSortOrder]);
 
   const totalVehicles = filteredAndSortedVehicles.length;
   const totalVehiclePages = Math.max(1, Math.ceil(totalVehicles / vehiclePageSize));
@@ -1627,6 +1194,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const filteredAndSortedPermits = useMemo(() => {
     const q = (permitSearch || '').toLowerCase().trim();
     const list = (permits || []).filter((p) => {
+      if (!matchesHouse(p.houseCode)) return false;
       const matchSearch = !q ||
                           (p.id || '').toLowerCase().includes(q) ||
                           (p.houseCode || '').toLowerCase().includes(q) ||
@@ -1647,7 +1215,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     });
 
     return list;
-  }, [permits, permitSearch, permitStatusFilter, permitTypeFilter, permitSortBy, permitSortOrder]);
+  }, [permits, houseFilter, permitSearch, permitStatusFilter, permitTypeFilter, permitSortBy, permitSortOrder]);
 
   const totalPermits = filteredAndSortedPermits.length;
   const totalPermitPages = Math.max(1, Math.ceil(totalPermits / permitPageSize));
@@ -1660,6 +1228,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const filteredAndSortedUtilities = useMemo(() => {
     const q = (utilitySearch || '').toLowerCase().trim();
     const list = (utilities || []).filter((u) => {
+      if (!matchesHouse(u.houseCode)) return false;
       const matchSearch = !q ||
                           (u.houseCode || '').toLowerCase().includes(q) ||
                           (u.ownerName || '').toLowerCase().includes(q) ||
@@ -1681,7 +1250,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
     });
 
     return list;
-  }, [utilities, utilitySearch, utilityPlnFilter, utilityPaymentFilter, utilitySortBy, utilitySortOrder]);
+  }, [utilities, houseFilter, utilitySearch, utilityPlnFilter, utilityPaymentFilter, utilitySortBy, utilitySortOrder]);
 
   const totalUtilities = filteredAndSortedUtilities.length;
   const totalUtilityPages = Math.max(1, Math.ceil(totalUtilities / utilityPageSize));
@@ -1691,145 +1260,33 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
   const paginatedUtilities = filteredAndSortedUtilities.slice(utilStartIndex, utilEndIndex);
 
   // CSV Export Handlers
-  const handleExportPropertiesCSV = () => {
-    const headers = ['Kode Unit', 'Nomor', 'Blok / Kav / Jalan', 'Alamat Lengkap', 'Status Hunian', 'Pemilik Unit (Owner)', 'Penghuni (Kepala Keluarga)', 'Jumlah Penghuni'];
-    const rows = properties.map((p) => [
-      p.code,
-      p.number,
-      p.code.toUpperCase().startsWith('KAV') ? 'Kavling' : p.code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${p.blockCode}`,
-      `"${p.address}"`,
-      p.occupancyStatus,
-      `"${p.ownerName || '-'}"`,
-      `"${p.occupantName || p.headName || (p.occupancyStatus === 'VACANT' ? 'Kosong' : p.ownerName || '-')}"`,
-      p.residentCount || (p.occupancyStatus === 'VACANT' ? 0 : 1),
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DATA_RUMAH_KAV_JALAN_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Data master rumah/kavling berhasil diekspor ke CSV.');
-  };
+  function exportCsv(title:string,headers:string[],rows:(string|number|null|undefined)[][]) {
+    const cell=(value:string|number|null|undefined)=>{
+      const text=String(value ?? '');
+      return '"'+(/^[\s]*[=+\-@]|^[\t\r\n]/.test(text)?"'"+text:text).replaceAll('"','""')+'"';
+    };
+    const url=URL.createObjectURL(new Blob(['\uFEFF',[headers,...rows].map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a'); link.href=url; link.download=title+'.csv'; link.click();
+    window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function exportSelection() {
+    if(activeSubTab==='units') return exportCsv('rumah',['Rumah','Alamat','Status hunian','Pemilik','Kepala keluarga','Penghuni'],
+      filteredAndSortedProperties.map(item=>[item.code,item.address,item.occupancyStatus,item.legalOwner,item.headName,item.residentCount]));
+    if(activeSubTab==='residents') return exportCsv('penghuni',['Rumah','Nama','Hubungan','Kontak darurat'],
+      filteredAndSortedResidents.map(item=>[item.houseCode,item.fullName,item.relation,item.isEmergency?'Ya':'Tidak']));
+    if(activeSubTab==='vehicles') return exportCsv('kendaraan',['Rumah','Nomor polisi','Jenis','Merek','Model','Status administrasi RFID'],
+      filteredAndSortedVehicles.map(item=>[item.houseCode,item.plateNumber,item.type,item.brand,item.model,item.rfidStatus]));
+    if(activeSubTab==='permits') return exportCsv('izin-renovasi',['Rumah','Pekerjaan','Status','Mulai','Selesai'],
+      filteredAndSortedPermits.map(item=>[item.houseCode,item.workType,item.status,item.startDate,item.endDate]));
+    return exportCsv('utilitas',['Rumah','Daya listrik','Stand sebelumnya','Stand saat ini','Pemakaian','Periode iuran','Iuran','Status'],
+      filteredAndSortedUtilities.map(item=>[item.houseCode,item.plnCapacity,item.pamReadingLastMonth,item.pamReadingThisMonth,item.pamUsage,item.billingPeriodName,item.monthlyIplFee,billLabel(item.paymentStatus)]));
+  }
+  const billLabels: Record<UtilityItem['paymentStatus'],string>={LUNAS:'Lunas',MENUNGGU_BAYAR:'Belum bayar',MENUNGGAK:'Menunggak',
+    SEBAGIAN:'Dibayar sebagian',DIBEBASKAN:'Dibebaskan',BELUM_ADA_TAGIHAN:'Belum ada tagihan',TERBATAS:'Akses bendahara'};
+  const billLabel=(status:UtilityItem['paymentStatus']|undefined)=>status?billLabels[status]:'Belum tersedia';
+  const billAmount=(amount:number|null|undefined)=>amount==null?'—':'Rp '+amount.toLocaleString('id-ID');
+  const billHref=(code:string,period?:string)=>'/admin/billing?house='+encodeURIComponent(code)+(period?'&period='+encodeURIComponent(period):'');
 
-  const handleExportResidentsCSV = () => {
-    const headers = ['No Unit', 'Wilayah / Jalan', 'Nama Lengkap', 'Hubungan Keluarga', 'Gender', 'TTL', 'Agama', 'Pekerjaan', 'No KTP/NIK', 'No KK', 'No WhatsApp', 'Email', 'Gol Darah', 'Status KTP', 'Kontak Darurat'];
-    const rows = residents.map((r) => [
-      r.houseCode,
-      `"${r.areaLabel}"`,
-      `"${r.fullName}"`,
-      r.relation,
-      r.gender,
-      `"${r.birthPlaceDate}"`,
-      r.religion,
-      `"${r.occupation}"`,
-      `'${r.idCard}`,
-      `'${r.familyCard}`,
-      r.phone,
-      r.email,
-      r.bloodType,
-      r.domicileStatus,
-      r.isEmergency ? 'YA' : 'TIDAK',
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DATABASE_SENSUS_KEPENDUDUKAN_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Database sensus kependudukan lengkap berhasil diekspor ke CSV.');
-  };
-
-  const handleExportVehiclesCSV = () => {
-    const headers = ['No Plat', 'No Unit', 'Wilayah', 'Pemilik / Pengemudi', 'Jenis', 'Merk', 'Model / Tipe', 'Tahun', 'Warna', 'Serial RFID', 'Hak Akses Gerbang', 'Status Akses RFID', 'Catatan Parkir'];
-    const rows = vehicles.map((v) => [
-      v.plateNumber,
-      v.houseCode,
-      `"${v.areaLabel}"`,
-      `"${v.ownerName}"`,
-      v.type,
-      v.brand,
-      `"${v.model}"`,
-      v.year,
-      `"${v.color}"`,
-      v.rfidTag,
-      v.gateAccess,
-      v.rfidStatus,
-      `"${v.notes || '-'}"`,
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `MASTER_KENDARAAN_DAN_RFID_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Master kendaraan & tag RFID berhasil diekspor ke CSV.');
-  };
-
-  const handleExportPermitsCSV = () => {
-    const headers = ['ID Izin', 'No Unit', 'Wilayah', 'Jenis Renovasi', 'Mandor / Kontraktor', 'No WA Mandor', 'Jumlah Tukang', 'Masa Mulai', 'Masa Selesai', 'Jam Kerja', 'Status Izin', 'Rincian Pekerjaan'];
-    const rows = permits.map((p) => [
-      p.id,
-      p.houseCode,
-      `"${p.areaLabel}"`,
-      `"${p.workType}"`,
-      `"${p.contractorName}"`,
-      p.contractorPhone,
-      p.workersCount,
-      p.startDate,
-      p.endDate,
-      `"${p.allowedHours}"`,
-      p.status,
-      `"${p.description}"`,
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `LAPORAN_IZIN_RENOVASI_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Laporan izin renovasi & pekerja bangunan berhasil diekspor ke CSV.');
-  };
-
-  const handleExportUtilitiesCSV = () => {
-    const headers = ['No Unit', 'Wilayah', 'Pemilik / Penghuni', 'Daya PLN', 'ID Pelanggan PLN', 'No Meter PAM', 'Meter Lalu (m³)', 'Meter Ini (m³)', 'Pemakaian Air (m³)', 'Tarif IPL (Rp)', 'Jadwal Sampah', 'Biopori', 'Solar Panel', 'Status Bayar', 'Catatan'];
-    const rows = utilities.map((u) => [
-      u.houseCode,
-      `"${u.areaLabel}"`,
-      `"${u.ownerName}"`,
-      u.plnCapacity,
-      u.plnCustomerId,
-      u.pamMeterNo,
-      u.pamReadingLastMonth,
-      u.pamReadingThisMonth,
-      u.pamUsage,
-      u.monthlyIplFee,
-      u.wasteSchedule,
-      u.hasBiopori ? 'ADA' : 'TIDAK',
-      u.hasSolarPanel ? 'TERPASANG' : 'TIDAK',
-      u.paymentStatus,
-      `"${u.notes || '-'}"`,
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `LAPORAN_OKUPANSI_DAN_UTILITAS_WARGAHUB_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Laporan okupansi & meteran utilitas berhasil diekspor ke CSV.');
-  };
-
-  // Matched details for Active Property
   const activePropertyResidents = useMemo(() => {
     if (!activeProperty) return [];
     return residents.filter(r => r.houseCode.toUpperCase() === activeProperty.code.toUpperCase());
@@ -1860,203 +1317,52 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
         </div>
       )}
 
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-black tracking-tight text-ink">
-              {activeSubTab === 'units'
-                ? selectedStatus === 'OWNER_OCCUPIED'
-                  ? 'Data Kepemilikan Rumah & Sertifikat'
-                  : 'Pengelolaan Unit Rumah & Kavling'
-                : activeSubTab === 'residents'
-                ? 'Sensus & Data Penghuni Warga'
-                : activeSubTab === 'vehicles'
-                ? 'Data Kendaraan & Akses RFID'
-                : activeSubTab === 'permits'
-                ? 'Izin Renovasi & Pekerja Proyek'
-                : 'Okupansi & Utilitas Mandiri'}
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-primary-50 text-primary-800 border border-primary-200">
-              {activeSubTab === 'units'
-                ? selectedStatus === 'OWNER_OCCUPIED'
-                  ? `${properties.filter(p => p.occupancyStatus === 'OWNER_OCCUPIED').length} Pemilik Terdaftar`
-                  : `${properties.length} Unit Terdaftar`
-                : activeSubTab === 'residents'
-                ? `${residents.length} Jiwa Sensus`
-                : activeSubTab === 'vehicles'
-                ? `${vehicles.length} Kendaraan RFID`
-                : activeSubTab === 'permits'
-                ? `${permits.length} Izin Kerja`
-                : `${utilities.length} Meteran Terdata`}
-            </span>
+      <section className="space-y-4 rounded-2xl border border-border bg-surface p-4 sm:p-6" aria-labelledby="registry-heading">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="workspace-kicker">Administrasi lingkungan</p>
+            <h1 id="registry-heading" className="mt-1 text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere] sm:text-3xl">Rumah &amp; Warga</h1>
           </div>
-          <p className="text-xs text-ink-muted mt-1 font-medium">
-            {activeSubTab === 'units'
-              ? selectedStatus === 'OWNER_OCCUPIED'
-                ? 'Daftar pemilik sah unit hunian komplek, data kepemilikan, dan riwayat sertifikat rumah.'
-                : 'Direktori hunian komplek, status okupansi pemilik/penyewa, luas kavling, dan spesifikasi teknis rumah.'
-              : activeSubTab === 'residents'
-              ? 'Database sensus kependudukan warga komplek, verifikasi NIK KTP, status domisili, dan kontak darurat.'
-              : activeSubTab === 'vehicles'
-              ? 'Pendaftaran kendaraan warga, nomor plat resmi, dan kendali izin barrier gate otomatis.'
-              : activeSubTab === 'permits'
-              ? 'Penerbitan surat izin kerja renovasi rumah, registrasi pekerja/mandor, dan masa berlaku izin.'
-              : 'Pencatatan angka meteran air PAM & listrik PLN, monitoring konsumsi bulanan, dan audit okupansi.'}
-          </p>
+          <a href={'/admin/passwords'+(houseFilter?'?house='+encodeURIComponent(houseFilter):'')} className="btn-secondary inline-flex min-h-11 items-center gap-2 whitespace-nowrap"><KeyRound className="h-4 w-4" aria-hidden /> Akun warga</a>
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Export CSV Button */}
-          <button
-            type="button"
-            onClick={
-              activeSubTab === 'analytics'
-                ? handleExportUtilitiesCSV
-                : activeSubTab === 'permits'
-                ? handleExportPermitsCSV
-                : activeSubTab === 'vehicles'
-                ? handleExportVehiclesCSV
-                : activeSubTab === 'residents'
-                ? handleExportResidentsCSV
-                : handleExportPropertiesCSV
-            }
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Ekspor CSV</span>
-          </button>
-
-          {/* Action Button */}
-          {activeSubTab === 'analytics' ? (
-            <button
-              type="button"
-              onClick={handleOpenAddUtility}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Input Meteran Utilitas
-            </button>
-          ) : activeSubTab === 'permits' ? (
-            <button
-              type="button"
-              onClick={handleOpenAddPermit}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Terbitkan Izin Baru
-            </button>
-          ) : activeSubTab === 'vehicles' ? (
-            <button
-              type="button"
-              onClick={handleOpenAddVehicle}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Daftarkan Kendaraan & RFID
-            </button>
-          ) : activeSubTab === 'residents' ? (
-            <button
-              type="button"
-              onClick={handleOpenAddResident}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-            >
-              <UserPlus className="w-4 h-4" />
-              Tambah Data Penghuni
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Tambah Unit Rumah / Kavling
-            </button>
-          )}
+        <div role="tablist" aria-label="Menu Rumah dan Warga" className="flex flex-wrap gap-1.5" onKeyDown={event=>{
+          if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+          const current=tabs.indexOf(activeSubTab);
+          const next=event.key==='Home'?tabs[0]:event.key==='End'?tabs[tabs.length-1]:tabs[(current+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];
+          event.preventDefault();handleTabChange(next);document.getElementById('tab-btn-'+next)?.focus();
+        }}>
+          {([
+            {id:'units',label:'Rumah',icon:Home,theme:'bg-primary-50 text-primary-800',count:filteredAndSortedProperties.length},
+            {id:'residents',label:'Penghuni',icon:Users,theme:'bg-sky-50 text-sky-800',count:filteredAndSortedResidents.length},
+            {id:'vehicles',label:'Kendaraan',icon:Car,theme:'bg-violet-50 text-violet-800',count:filteredAndSortedVehicles.length},
+            {id:'permits',label:'Izin renovasi',icon:Hammer,theme:'bg-amber-50 text-amber-900',count:filteredAndSortedPermits.length},
+            {id:'analytics',label:'Utilitas',icon:Zap,theme:'bg-teal-50 text-teal-800',count:filteredAndSortedUtilities.length},
+          ] as const).map(tab=><button key={tab.id} id={'tab-btn-'+tab.id} type="button" role="tab" aria-selected={activeSubTab===tab.id}
+            aria-controls={'tab-panel-'+tab.id} tabIndex={activeSubTab===tab.id?0:-1} onClick={()=>handleTabChange(tab.id)}
+            className={'inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-bold transition-colors sm:text-sm '+(activeSubTab===tab.id?'border-primary-700 '+tab.theme:'border-border bg-surface text-ink hover:bg-canvas')}>
+            <tab.icon className="h-4 w-4" aria-hidden />{tab.label}<span className="tabular-nums text-[11px]" aria-label={tab.count+' catatan'}>{tab.count}</span>
+          </button>)}
         </div>
-      </div>
-
-      {/* ================= SUBTAB NAVIGATION PILL BAR ================= */}
-      <div 
-        role="tablist" 
-        aria-label="Navigasi Pengelolaan Unit dan Warga"
-        className="flex items-center gap-1.5 p-1.5 bg-surface rounded-2xl border border-border overflow-x-auto shadow-2xs no-scrollbar"
-      >
-        {[
-          { id: 'units', label: 'Data Rumah & Kavling', icon: Home, count: `${properties.length} Unit` },
-          { id: 'residents', label: 'Sensus Penghuni & Warga', icon: Users, count: `${residents.length} Jiwa` },
-          { id: 'vehicles', label: 'Kendaraan & Akses RFID', icon: Car, count: `${vehicles.length} Unit` },
-          { id: 'permits', label: 'Izin Renovasi & Proyek', icon: Hammer, count: `${permits.length} Izin` },
-          { id: 'analytics', label: 'Okupansi & Utilitas Mandiri', icon: Zap, count: `${utilities.length} Unit` },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              id={`tab-btn-${tab.id}`}
-              role="tab"
-              aria-selected={isActive}
-              aria-controls={`tab-panel-${tab.id}`}
-              type="button"
-              onClick={() => handleTabChange(tab.id as any)}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 active:scale-[0.98] cursor-pointer ${
-                isActive
-                  ? 'bg-primary-600 text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-canvas border border-transparent hover:border-border/60'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-ink-muted'}`} />
-              <span>{tab.label}</span>
-              <span
-                className={`px-2 py-0.5 rounded-lg text-[10px] font-mono tabular-nums font-bold ${
-                  isActive
-                    ? 'bg-white/20 text-white'
-                    : 'bg-canvas text-ink-muted border border-border'
-                }`}
-              >
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+          <label className="min-w-0 max-w-full text-xs font-semibold">Lingkup rumah
+            <select aria-label="Lingkup rumah" value={houseFilter} onChange={event=>scopeHouse(event.target.value)} className="mt-1 block min-h-11 max-w-full rounded-lg border border-border bg-canvas px-2.5 text-sm">
+              <option value="">Semua rumah</option>
+              {houseFilter&&!properties.some(item=>item.code===houseFilter)&&<option value={houseFilter}>{houseFilter} (tidak tersedia)</option>}
+              {properties.map(item=><option key={item.id} value={item.code}>{item.code}</option>)}
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            <button type="button" onClick={exportSelection} className="btn-secondary inline-flex min-h-11 items-center gap-2 whitespace-nowrap"><FileSpreadsheet className="h-4 w-4" aria-hidden /> Ekspor CSV</button>
+            {canEdit && <button type="button" onClick={{units:handleOpenAdd,residents:handleOpenAddResident,vehicles:handleOpenAddVehicle,permits:handleOpenAddPermit,analytics:handleOpenAddUtility}[activeSubTab]}
+              className="btn-primary inline-flex min-h-11 items-center gap-2 whitespace-nowrap"><Plus className="h-4 w-4" aria-hidden />
+              {{units:'Tambah rumah',residents:'Tambah penghuni',vehicles:'Daftar kendaraan',permits:'Buat izin',analytics:'Catat utilitas'}[activeSubTab]}</button>}
+          </div>
+        </div>
+      </section>
 
       {/* ================= SUBTAB 1: DIREKTORI RUMAH & KAVLING ================= */}
       {activeSubTab === 'units' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          {/* Summary Cards with Monospaced Tabular Figures */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Unit Master</span>
-              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{properties.length} Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">100% TERDATA LENGKAP</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Dihuni Pemilik</span>
-              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">
-                {properties.filter(p => p.occupancyStatus === 'OWNER_OCCUPIED').length} Unit
-              </p>
-              <span className="text-[10px] text-ink-muted">Pemilik Tetap Aktif</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Disewa / Kontrak</span>
-              <p className="text-2xl font-black font-mono text-blue-700 mt-0.5 tabular-nums">
-                {properties.filter(p => p.occupancyStatus === 'RENTED').length} Unit
-              </p>
-              <span className="text-[10px] text-ink-muted">Penyewa Terverifikasi</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Kosong / Renovasi</span>
-              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">
-                {properties.filter(p => p.occupancyStatus === 'VACANT' || p.occupancyStatus === 'RENOVATION').length} Unit
-              </p>
-              <span className="text-[10px] text-amber-600 font-bold font-mono">STANDBY / RENOVASI</span>
-            </div>
-          </div>
-
-
+        <div id="tab-panel-units" role="tabpanel" aria-labelledby="tab-btn-units" className="space-y-4 animate-in fade-in duration-150">
           {/* Bulk Action Bar (Properties) */}
           {selectedPropertyIds.length > 0 && (
             <div className="p-3.5 bg-red-50/90 border border-red-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
@@ -2109,14 +1415,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto">
               <select
                 value={selectedBlock}
                 onChange={(e) => {
                   setSelectedBlock(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Wilayah</option>
                 <option value="A">Blok A</option>
@@ -2134,19 +1440,19 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   setSelectedStatus(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Status</option>
                 <option value="OWNER_OCCUPIED">Dihuni Pemilik</option>
                 <option value="RENTED">Disewa</option>
                 <option value="VACANT">Kosong</option>
-                <option value="RENOVATION">Renovasi</option>
+                <option value="RENOVATION">Renovasi</option><option value="BORROWED">Dipinjamkan</option><option value="FOR_SALE">Dijual</option><option value="OTHER">Lainnya</option>
               </select>
 
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="code">Urut Kode</option>
                 <option value="owner">Urut Pemilik</option>
@@ -2155,7 +1461,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
               <button
                 type="button"
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                aria-label="Balik urutan rumah" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                 className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink"
               >
                 <ArrowUpDown className="w-3.5 h-3.5" />
@@ -2164,14 +1470,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <div className="flex items-center bg-canvas p-1 rounded-xl border border-border">
                 <button
                   type="button"
-                  onClick={() => setViewMode('table')}
+                  aria-label="Tampilan tabel" aria-pressed={viewMode==='table'} onClick={() => setViewMode('table')}
                   className={`p-1.5 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-surface text-primary-700 shadow-xs' : 'text-ink-muted'}`}
                 >
                   <List className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setViewMode('grid')}
+                  aria-label="Tampilan kartu" aria-pressed={viewMode==='grid'} onClick={() => setViewMode('grid')}
                   className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-surface text-primary-700 shadow-xs' : 'text-ink-muted'}`}
                 >
                   <LayoutGrid className="w-4 h-4" />
@@ -2181,8 +1487,8 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
           </div>
 
           {/* VIEW 1: TABLE WITH CHECKBOXES */}
-          {viewMode === 'table' && (
-            <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
+          {viewMode !== 'grid' && (
+            <div className={(viewMode==='auto'?'hidden md:block ':'')+'bg-surface rounded-2xl border border-border shadow-card overflow-hidden'}>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
                   <thead>
@@ -2253,7 +1559,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                               <span className="font-extrabold text-ink text-xs">{prop.legalOwner || prop.ownerName || '-'}</span>
                               <span className="text-[10px] text-ink-muted font-medium flex items-center gap-1">
                                 <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
-                                <span>Pemilik Sah</span>
+                                <span>Pemilik tercatat</span>
                               </span>
                             </div>
                           </td>
@@ -2341,14 +1647,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenEdit(prop)}
+                                disabled={!canEdit} onClick={() => handleOpenEdit(prop)}
                                 className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
                               >
                                 <Edit3 className="w-3.5 h-3.5" /> Edit
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setPropertyToDelete(prop)}
+                                disabled={!canEdit} onClick={() => setPropertyToDelete(prop)}
                                 className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-xs"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Hapus
@@ -2391,18 +1697,13 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
           )}
 
           {/* VIEW 2: GRID */}
-          {viewMode === 'grid' && (
-            <div className="space-y-6">
+          {viewMode !== 'table' && (
+            <div className={(viewMode==='auto'?'md:hidden ':'')+'space-y-4'}>
+              {!filteredAndSortedProperties.length && <p className="rounded-xl border border-border bg-surface p-4 text-sm text-ink-muted">Tidak ada rumah sesuai filter.</p>}
               {(() => {
                 const groups: { [key: string]: PropertyListItem[] } = {};
                 filteredAndSortedProperties.forEach(p => {
-                  const groupKey = p.code.toUpperCase().startsWith('KAV')
-                    ? 'Kavling Grand Sariwangi'
-                    : p.code.startsWith('SW')
-                    ? 'Jl. Sariwangi Indah'
-                    : p.blockCode
-                    ? `Blok ${p.blockCode}`
-                    : 'Kavling & Rumah Komplek';
+                  const groupKey = p.blockName || 'Tanpa blok';
                   if (!groups[groupKey]) groups[groupKey] = [];
                   groups[groupKey].push(p);
                 });
@@ -2413,7 +1714,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                       <h3 className="font-extrabold text-sm text-ink">{groupTitle}</h3>
                       <span className="text-[11px] font-mono font-bold text-ink-muted">{items.length} Unit</span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                       {items.map((p) => {
                         const isVacant = p.occupancyStatus === 'VACANT';
                         const isRented = p.occupancyStatus === 'RENTED';
@@ -2436,14 +1737,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             <div className="flex items-center justify-between mb-1">
                               <p className="font-mono text-xs font-black">{p.code}</p>
                               <span className="text-[9px] font-bold uppercase">
-                                {isVacant ? 'Kosong' : isRented ? 'Disewa' : 'Pemilik'}
+                                {p.statusLabel || (p.occupancyStatus==='RENOVATION'?'Renovasi':'Lainnya')}
                               </span>
                             </div>
                             <p className="text-[11px] font-bold truncate text-ink">
-                              {p.ownerName || p.occupantName || 'Warga'}
+                              {p.address}
                             </p>
                             <p className="text-[10px] text-ink-muted truncate mt-0.5">
-                              {isVacant ? 'Standby' : `${p.residentCount || 1} Jiwa`}
+                              {p.residentCount ?? 0} penghuni
                             </p>
                           </button>
                         );
@@ -2459,37 +1760,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
       {/* ================= SUBTAB 2: DATABASE KEPENDUDUKAN (SENSUS) ================= */}
       {activeSubTab === 'residents' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Sensus Jiwa</span>
-              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{residents.length} Jiwa</p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">100% TERVERIFIKASI</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Kepala Keluarga</span>
-              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
-                {residents.filter(r => r.relation === 'KEPALA_KELUARGA').length} Orang
-              </p>
-              <span className="text-[10px] text-ink-muted font-medium">Penanggung Jawab KK</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Anak & Pelajar</span>
-              <p className="text-2xl font-black font-mono text-sky-700 mt-0.5 tabular-nums">
-                {residents.filter(r => r.relation === 'ANAK').length} Jiwa
-              </p>
-              <span className="text-[10px] text-sky-600 font-bold font-mono">USIA 0-18 TAHUN</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Kontak Darurat</span>
-              <p className="text-2xl font-black font-mono text-rose-700 mt-0.5 tabular-nums">
-                {residents.filter(r => r.isEmergency).length} Kontak
-              </p>
-              <span className="text-[10px] text-rose-600 font-bold font-mono">PRIORITAS KEAMANAN</span>
-            </div>
-          </div>
-
-
+        <div id="tab-panel-residents" role="tabpanel" aria-labelledby="tab-btn-residents" className="space-y-4 animate-in fade-in duration-150">
           {/* Bulk Action Bar (Residents) */}
           {selectedResidentIds.length > 0 && (
             <div className="p-3.5 bg-red-50/90 border border-red-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
@@ -2542,28 +1813,29 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto">
               <select
                 value={residentCategory}
                 onChange={(e) => {
                   setResidentCategory(e.target.value);
                   setResidentCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Hubungan</option>
                 <option value="KEPALA_KELUARGA">Kepala Keluarga</option>
                 <option value="ISTRI">Istri</option>
                 <option value="ANAK">Anak</option>
                 <option value="ART">ART / Supir</option>
-                <option value="KTP_SETEMPAT">KTP Setempat</option>
-                <option value="KTP_LUAR">KTP Luar / Kos</option>
+                <option value="">Belum tercatat</option>
+                    <option value="KTP_SETEMPAT">KTP Setempat</option>
+                <option value="KTP_LUAR_DAERAH">KTP luar daerah</option>
               </select>
 
               <select
                 value={residentSortBy}
                 onChange={(e) => setResidentSortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="houseCode">Urut Unit</option>
                 <option value="fullName">Urut Nama</option>
@@ -2594,7 +1866,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                           paginatedResidents.length > 0 &&
                           paginatedResidents.every((r) => selectedResidentIds.includes(r.id))
                         }
-                        onChange={handleToggleSelectAllResidents}
+                        disabled={!canEdit} onChange={handleToggleSelectAllResidents}
                         className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                       />
                     </th>
@@ -2632,7 +1904,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => handleToggleSelectOneResident(r.id)}
+                              disabled={!canEdit} onChange={() => handleToggleSelectOneResident(r.id)}
                               className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                             />
                           </td>
@@ -2648,7 +1920,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             </div>
                           </td>
                           <td className="py-3.5 px-4">{getRelationBadge(r.relation)}</td>
-                          <td className="py-3.5 px-4 font-mono text-ink-muted">{r.idCard || '-'}</td>
+                          <td className="py-3.5 px-4 font-mono text-ink-muted">{r.idCard ? '••••'+r.idCard.slice(-4) : '—'}</td>
                           <td className="py-3.5 px-4 font-medium text-ink">{r.occupation || '-'}</td>
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-1.5 font-mono text-ink">
@@ -2677,14 +1949,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditResident(r)}
+                                disabled={!canEdit} onClick={() => handleOpenEditResident(r)}
                                 className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Edit3 className="w-3.5 h-3.5" /> Edit
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setResidentToDelete(r)}
+                                disabled={!canEdit} onClick={() => setResidentToDelete(r)}
                                 className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Hapus
@@ -2730,37 +2002,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
       {/* ================= SUBTAB 3: MASTER KENDARAAN & RFID ================= */}
       {activeSubTab === 'vehicles' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Kendaraan</span>
-              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{vehicles.length} Unit</p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">TERDATA DI GATE BARRIER</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Mobil / Roda 4</span>
-              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
-                {vehicles.filter(v => v.type === 'Mobil').length} Unit
-              </p>
-              <span className="text-[10px] text-ink-muted font-medium">Lane Barrier Mobil</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Motor & Sepeda Listrik</span>
-              <p className="text-2xl font-black font-mono text-sky-700 mt-0.5 tabular-nums">
-                {vehicles.filter(v => v.type === 'Motor' || v.type === 'Sepeda Listrik').length} Unit
-              </p>
-              <span className="text-[10px] text-sky-600 font-bold font-mono">LANE MOTOR BARRIER</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Stiker RFID Aktif</span>
-              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">
-                {vehicles.filter(v => v.rfidStatus === 'AKTIF').length} RFID
-              </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">100% AKSES OTOMATIS</span>
-            </div>
-          </div>
-
-
+        <div id="tab-panel-vehicles" role="tabpanel" aria-labelledby="tab-btn-vehicles" className="space-y-4 animate-in fade-in duration-150">
           {/* Bulk Action Bar (Vehicles) */}
           {selectedVehicleIds.length > 0 && (
             <div className="p-3.5 bg-red-50/90 border border-red-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
@@ -2813,14 +2055,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto">
               <select
                 value={vehicleTypeFilter}
                 onChange={(e) => {
                   setVehicleTypeFilter(e.target.value);
                   setVehicleCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Jenis</option>
                 <option value="Mobil">Mobil</option>
@@ -2835,7 +2077,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   setVehicleRfidFilter(e.target.value);
                   setVehicleCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Status RFID</option>
                 <option value="AKTIF">RFID Aktif</option>
@@ -2845,7 +2087,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <select
                 value={vehicleSortBy}
                 onChange={(e) => setVehicleSortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="plateNumber">Urut Plat Nomor</option>
                 <option value="houseCode">Urut Unit Rumah</option>
@@ -2875,7 +2117,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                           paginatedVehicles.length > 0 &&
                           paginatedVehicles.every((v) => selectedVehicleIds.includes(v.id))
                         }
-                        onChange={handleToggleSelectAllVehicles}
+                        disabled={!canEdit} onChange={handleToggleSelectAllVehicles}
                         className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                       />
                     </th>
@@ -2896,7 +2138,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                         <Car className="w-10 h-10 text-ink-muted/40 mx-auto mb-3" />
                         <h4 className="text-sm font-bold text-ink">Belum Ada Data Kendaraan & RFID</h4>
                         <p className="text-xs text-ink-muted mt-1 max-w-sm mx-auto">
-                          Data kendaraan warga dan status tag RFID barrier gate akan tampil di sini. Silakan klik <strong>"+ Daftarkan Kendaraan & RFID"</strong> untuk mulai mendaftarkan.
+                          Belum ada kendaraan pada filter ini.
                         </p>
                       </td>
                     </tr>
@@ -2914,7 +2156,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => handleToggleSelectOneVehicle(v.id)}
+                              disabled={!canEdit} onChange={() => handleToggleSelectOneVehicle(v.id)}
                               className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                             />
                           </td>
@@ -2933,17 +2175,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                           <td className="py-3.5 px-4 font-medium text-ink">{v.brand} {v.model}</td>
                           <td className="py-3.5 px-4 font-mono text-primary-700 font-bold tracking-tight">{v.rfidTag}</td>
                           <td className="py-3.5 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleRfid(v.id)}
-                              className={`px-3 py-1 rounded-lg text-[10px] font-mono font-black border transition-all active:scale-[0.95] ${
-                                v.rfidStatus === 'AKTIF'
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
-                                  : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                              }`}
-                            >
-                              {v.rfidStatus === 'AKTIF' ? '✓ AKTIF' : '✕ DIBLOKIR'}
-                            </button>
+                            <span className="text-xs text-ink-muted">Belum terhubung</span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="inline-flex items-center gap-1">
@@ -2956,14 +2188,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditVehicle(v)}
+                                disabled={!canEdit} onClick={() => handleOpenEditVehicle(v)}
                                 className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Edit3 className="w-3.5 h-3.5" /> Edit
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setVehicleToDelete(v)}
+                                disabled={!canEdit} onClick={() => setVehicleToDelete(v)}
                                 className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Hapus
@@ -3009,37 +2241,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
       {/* ================= SUBTAB 4: IZIN RENOVASI & TUKANG ================= */}
       {activeSubTab === 'permits' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Izin Diajukan</span>
-              <p className="text-2xl font-black font-mono text-ink mt-0.5 tabular-nums">{permits.length} Permit</p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">TERCATAT DI SISTEM</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Sedang Berjalan</span>
-              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">
-                {permits.filter(p => p.status === 'APPROVED').length} Unit
-              </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">DALAM PENGAWASAN</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Menunggu ACC</span>
-              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">
-                {permits.filter(p => p.status === 'PENDING_REVIEW').length} Pengajuan
-              </p>
-              <span className="text-[10px] text-amber-600 font-bold font-mono">PERLU REVIEW PENGURUS</span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Tenaga Kerja</span>
-              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
-                {permits.filter(p => p.status === 'APPROVED').reduce((acc, p) => acc + (p.workersCount || 0), 0)} Orang
-              </p>
-              <span className="text-[10px] text-primary-600 font-bold font-mono">PEKERJA AKTIF DI KOMPLEK</span>
-            </div>
-          </div>
-
-
+        <div id="tab-panel-permits" role="tabpanel" aria-labelledby="tab-btn-permits" className="space-y-4 animate-in fade-in duration-150">
           {/* Bulk Action Bar (Permits) */}
           {selectedPermitIds.length > 0 && (
             <div className="p-3.5 bg-red-50/90 border border-red-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
@@ -3092,14 +2294,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto">
               <select
                 value={permitStatusFilter}
                 onChange={(e) => {
                   setPermitStatusFilter(e.target.value);
                   setPermitCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Status Izin</option>
                 <option value="APPROVED">Disetujui (Approved)</option>
@@ -3114,7 +2316,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   setPermitTypeFilter(e.target.value);
                   setPermitCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Jenis Pekerjaan</option>
                 <option value="Pengecatan & Kanopi">Pengecatan & Kanopi</option>
@@ -3127,7 +2329,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <select
                 value={permitSortBy}
                 onChange={(e) => setPermitSortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="startDate">Urut Tgl Mulai</option>
                 <option value="houseCode">Urut Unit Rumah</option>
@@ -3157,7 +2359,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                           paginatedPermits.length > 0 &&
                           paginatedPermits.every((p) => selectedPermitIds.includes(p.id))
                         }
-                        onChange={handleToggleSelectAllPermits}
+                        disabled={!canEdit} onChange={handleToggleSelectAllPermits}
                         className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                       />
                     </th>
@@ -3195,7 +2397,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => handleToggleSelectOnePermit(p.id)}
+                              disabled={!canEdit} onChange={() => handleToggleSelectOnePermit(p.id)}
                               className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                             />
                           </td>
@@ -3238,7 +2440,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                               {p.status === 'PENDING_REVIEW' && (
                                 <button
                                   type="button"
-                                  onClick={() => handleQuickTogglePermitStatus(p)}
+                                  disabled={!canEdit} onClick={() => handleQuickTogglePermitStatus(p)}
                                   className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-2xs active:scale-[0.95] transition-all"
                                 >
                                   ✓ Setujui ACC
@@ -3257,14 +2459,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditPermit(p)}
+                                disabled={!canEdit} onClick={() => handleOpenEditPermit(p)}
                                 className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Edit3 className="w-3.5 h-3.5" /> Edit
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setPermitToDelete(p)}
+                                disabled={!canEdit} onClick={() => setPermitToDelete(p)}
                                 className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Hapus
@@ -3310,63 +2512,12 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
       {/* ================= SUBTAB 5: OKUPANSI & UTILITAS ================= */}
       {activeSubTab === 'analytics' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Tingkat Okupansi</span>
-              <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">
-                {properties.length > 0
-                  ? ((properties.filter(p => p.occupancyStatus && p.occupancyStatus !== 'VACANT').length / properties.length) * 100).toFixed(1)
-                  : '0.0'}%
-              </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">
-                {properties.filter(p => p.occupancyStatus && p.occupancyStatus !== 'VACANT').length} DARI {properties.length} UNIT DIHUNI
-              </span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Beban Daya PLN</span>
-              <p className="text-2xl font-black font-mono text-amber-700 mt-0.5 tabular-nums">
-                {(() => {
-                  const totalVA = utilities.reduce((acc, u) => {
-                    const str = String(u.plnCapacity || (u as any).electricityCapacity || '');
-                    const num = parseInt(str.replace(/\D/g, ''), 10) || 0;
-                    return acc + num;
-                  }, 0);
-                  if (totalVA > 0) {
-                    return (totalVA / 1000).toFixed(1) + ' kVA';
-                  }
-                  return '0 kVA';
-                })()}
-              </p>
-              <span className="text-[10px] text-amber-600 font-bold font-mono">
-                {utilities.length > 0 ? `TOTAL DAYA ${utilities.length} METERAN` : 'BELUM ADA METERAN PLN'}
-              </span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Total Konsumsi PAM</span>
-              <p className="text-2xl font-black font-mono text-sky-700 mt-0.5 tabular-nums">
-                {utilities.reduce((acc, u) => acc + (Number(u.pamUsage) || 0), 0)} m³
-              </p>
-              <span className="text-[10px] text-sky-600 font-bold font-mono">
-                {utilities.length > 0 ? 'AKUMULASI SELURUH UNIT' : 'BELUM ADA PEMBACAAN'}
-              </span>
-            </div>
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Potensi Iuran IPL</span>
-              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">
-                {(() => {
-                  const totalFee = utilities.reduce((acc, u) => acc + (Number(u.monthlyIplFee) || 0), 0);
-                  if (totalFee === 0) return 'Rp 0';
-                  if (totalFee >= 1000000) return `Rp ${(totalFee / 1000000).toFixed(2)} Jt`;
-                  return `Rp ${totalFee.toLocaleString('id-ID')}`;
-                })()}
-              </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono">
-                {utilities.filter(u => u.paymentStatus === 'LUNAS').length} LUNAS TERCATAT
-              </span>
-            </div>
-          </div>
-
+        <div id="tab-panel-analytics" role="tabpanel" aria-labelledby="tab-btn-analytics" className="space-y-4 animate-in fade-in duration-150">
+          {filteredAndSortedUtilities.length>0 && <dl className="flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-border bg-surface p-3 text-sm">
+            <div><dt className="text-xs text-ink-muted">Catatan meter</dt><dd className="font-semibold tabular-nums">{filteredAndSortedUtilities.length}</dd></div>
+            <div><dt className="text-xs text-ink-muted">Pemakaian PAM tercatat</dt><dd className="font-semibold tabular-nums">{filteredAndSortedUtilities.reduce((sum,item)=>sum+item.pamUsage,0).toLocaleString('id-ID')} m³</dd></div>
+            {canOpenBilling && filteredAndSortedUtilities.some(item=>item.monthlyIplFee!==null) && <div><dt className="text-xs text-ink-muted">Total tagihan tercatat</dt><dd className="font-semibold tabular-nums">{billAmount(filteredAndSortedUtilities.reduce((sum,item)=>sum+(item.monthlyIplFee ?? 0),0))}</dd></div>}
+          </dl>}
 
           {/* Bulk Action Bar (Utilities) */}
           {selectedUtilityIds.length > 0 && (
@@ -3420,17 +2571,18 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto">
               <select
                 value={utilityPlnFilter}
                 onChange={(e) => {
                   setUtilityPlnFilter(e.target.value);
                   setUtilityCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Daya PLN</option>
-                <option value="1.300 VA">1.300 VA</option>
+                <option value="">Belum tercatat</option>
+                    <option value="1.300 VA">1.300 VA</option>
                 <option value="2.200 VA">2.200 VA</option>
                 <option value="3.500 VA">3.500 VA</option>
                 <option value="4.400 VA">4.400 VA</option>
@@ -3443,18 +2595,18 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   setUtilityPaymentFilter(e.target.value);
                   setUtilityCurrentPage(1);
                 }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="ALL">Semua Status Bayar</option>
                 <option value="LUNAS">Lunas</option>
                 <option value="MENUNGGU_BAYAR">Menunggu Bayar</option>
-                <option value="MENUNGGAK">Menunggak</option>
+                <option value="MENUNGGAK">Menunggak</option><option value="SEBAGIAN">Dibayar sebagian</option><option value="BELUM_ADA_TAGIHAN">Belum ada tagihan</option><option value="DIBEBASKAN">Dibebaskan</option>
               </select>
 
               <select
                 value={utilitySortBy}
                 onChange={(e) => setUtilitySortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
+                className="min-h-11 min-w-28 max-w-full px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
               >
                 <option value="houseCode">Urut No Unit</option>
                 <option value="pamUsage">Urut Pakai PAM</option>
@@ -3485,7 +2637,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                           paginatedUtilities.length > 0 &&
                           paginatedUtilities.every((u) => selectedUtilityIds.includes(u.id))
                         }
-                        onChange={handleToggleSelectAllUtilities}
+                        disabled={!canEdit} onChange={handleToggleSelectAllUtilities}
                         className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                       />
                     </th>
@@ -3523,7 +2675,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => handleToggleSelectOneUtility(u.id)}
+                              disabled={!canEdit} onChange={() => handleToggleSelectOneUtility(u.id)}
                               className="w-4 h-4 rounded border-border text-primary-600 focus:ring-primary-500 cursor-pointer"
                             />
                           </td>
@@ -3538,23 +2690,10 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             <span className="text-[10px] text-ink-muted font-mono">{u.pamMeterNo}</span>
                           </td>
                           <td className="py-3.5 px-4 font-mono font-black text-ink">
-                            Rp {u.monthlyIplFee.toLocaleString('id-ID')}
+                            {billAmount(u.monthlyIplFee)}
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleQuickToggleUtilityStatus(u)}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-black border transition-all active:scale-[0.95] ${
-                                u.paymentStatus === 'LUNAS'
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
-                                  : u.paymentStatus === 'MENUNGGU_BAYAR'
-                                  ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                                  : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                              }`}
-                              title="Klik untuk ubah status pembayaran"
-                            >
-                              {u.paymentStatus === 'LUNAS' ? '✓ LUNAS' : u.paymentStatus === 'MENUNGGU_BAYAR' ? '⏳ MENUNGGU' : '✕ MENUNGGAK'}
-                            </button>
+                            <span className="inline-block rounded-lg bg-canvas px-2.5 py-1 text-xs font-semibold">{billLabel(u.paymentStatus)}</span>{u.billingPeriodName && <p className="mt-1 text-[11px] text-ink-muted">{u.billingPeriodName}</p>}
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="inline-flex items-center gap-1">
@@ -3567,14 +2706,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditUtility(u)}
+                                disabled={!canEdit} onClick={() => handleOpenEditUtility(u)}
                                 className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Edit3 className="w-3.5 h-3.5" /> Edit
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setUtilityToDelete(u)}
+                                disabled={!canEdit} onClick={() => setUtilityToDelete(u)}
                                 className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg font-bold text-xs inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Hapus
@@ -3776,7 +2915,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <div>
                   <label className="font-bold text-ink block mb-1">Pilih Unit Rumah *</label>
                   <select
-                    value={resHouseCode}
+                    disabled={!!editingResidentId} value={resHouseCode}
                     onChange={(e) => {
                       const code = e.target.value;
                       setResHouseCode(code);
@@ -3858,6 +2997,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                     onChange={(e) => setResGender(e.target.value as any)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
+                    <option value="">Belum tercatat</option>
                     <option value="LAKI_LAKI">Laki-Laki</option>
                     <option value="PEREMPUAN">Perempuan</option>
                   </select>
@@ -3869,7 +3009,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                     onChange={(e) => setResReligion(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
-                    <option value="ISLAM">Islam</option>
+                    <option value="">Belum tercatat</option><option value="ISLAM">Islam</option>
                     <option value="KRISTEN">Kristen Protestan</option>
                     <option value="KATOLIK">Katolik</option>
                     <option value="HINDU">Hindu</option>
@@ -3946,7 +3086,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold font-mono text-ink"
                   >
                     <option value="O">O</option>
-                    <option value="A">A</option>
+                    <option value="">Belum tercatat</option><option value="A">A</option>
                     <option value="B">B</option>
                     <option value="AB">AB</option>
                   </select>
@@ -4108,6 +3248,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                     type="text"
                     placeholder="Contoh: Kav A, A-17, SW1-02"
                     value={formCode}
+                    readOnly={Boolean(editingPropertyId)}
                     onChange={(e) => setFormCode(e.target.value)}
                     required
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
@@ -4128,7 +3269,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 </div>
               </div>
 
-              {/* Pemilik Sah vs Penghuni Terpisah */}
+              {/* Pemilik tercatat vs Penghuni Terpisah */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-canvas/60 rounded-xl border border-border">
                 <div>
                   <label className="font-bold text-ink block mb-1 flex items-center gap-1.5">
@@ -4137,10 +3278,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="Nama Pemilik Sah (contoh: Pak Verial / Bu Shinta)"
+                    placeholder="Nama Pemilik tercatat (contoh: Pak Verial / Bu Shinta)"
                     value={formOwner}
                     onChange={(e) => setFormOwner(e.target.value)}
-                    required
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   />
                   <span className="text-[10px] text-ink-muted mt-1 block">Pemilik sah sertifikat / rumah.</span>
@@ -4184,15 +3324,17 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-ink block mb-1">Tarif Iuran IPL Bulanan (Rp)</label>
-                <input
-                  type="number"
-                  value={formMonthlyRate}
-                  onChange={(e) => setFormMonthlyRate(Number(e.target.value))}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
-                />
-              </div>
+              <details className="rounded-xl border border-border p-3">
+                <summary className="min-h-11 cursor-pointer font-bold">Spesifikasi rumah</summary>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label>Tipe bangunan<input value={formBuildingType} onChange={event=>setFormBuildingType(event.target.value)} className="block min-h-11 w-full rounded-lg border border-border bg-canvas px-2" /></label>
+                  <label>Nomor rumah<input value={formNumber} onChange={event=>setFormNumber(event.target.value)} className="block min-h-11 w-full rounded-lg border border-border bg-canvas px-2" /></label>
+                  <label>Luas tanah (m²)<input type="number" min={0} step="any" value={formLandArea || ''} onChange={event=>setFormLandArea(Number(event.target.value))} className="block min-h-11 w-full rounded-lg border border-border bg-canvas px-2" /></label>
+                  <label>Luas bangunan (m²)<input type="number" min={0} step="any" value={formBuildingArea || ''} onChange={event=>setFormBuildingArea(Number(event.target.value))} className="block min-h-11 w-full rounded-lg border border-border bg-canvas px-2" /></label>
+                  <label>Daya PLN<input value={formPlnCapacity} onChange={event=>setFormPlnCapacity(event.target.value)} className="block min-h-11 w-full rounded-lg border border-border bg-canvas px-2" /></label>
+                  <label>Nomor meter PAM<input value={formPamMeterNo} onChange={event=>setFormPamMeterNo(event.target.value)} className="block min-h-11 w-full rounded-lg border border-border bg-canvas px-2" /></label>
+                </div>
+              </details>
 
               <div className="pt-3 flex gap-2">
                 <button
@@ -4241,7 +3383,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const content = `KARTU IDENTITAS UNIT RUMAH - WARGAHUB\n=======================================\nKode Unit: ${activeProperty.code}\nAlamat: ${activeProperty.address}\nStatus Okupansi: ${activeProperty.occupancyStatus}\nPemilik Unit (Owner): ${activeProperty.ownerName || '-'}\nPenghuni (Kepala Keluarga): ${activeProperty.occupancyStatus === 'VACANT' ? 'Kosong (Belum Berpenghuni)' : (activeProperty.occupantName || activeProperty.headName || activeProperty.ownerName || '-')}\nTotal Penghuni Terdata: ${activePropertyResidents.length} Jiwa\nTotal Kendaraan Terdaftar: ${activePropertyVehicles.length} Unit\nDaya PLN: ${activePropertyUtility?.plnCapacity || '3.500 VA'}\nMeter PAM: ${activePropertyUtility?.pamMeterNo || 'PAM-88301'}\nIuran IPL: Rp ${(activePropertyUtility?.monthlyIplFee || 250000).toLocaleString('id-ID')} / bln\nStatus Bayar: ${activePropertyUtility?.paymentStatus || 'LUNAS'}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPengurus Komplek Grand Sariwangi`;
+                    const content = `KARTU IDENTITAS UNIT RUMAH - WARGAHUB\n=======================================\nKode Unit: ${activeProperty.code}\nAlamat: ${activeProperty.address}\nStatus Okupansi: ${activeProperty.occupancyStatus}\nPemilik Unit (Owner): ${activeProperty.ownerName || '-'}\nPenghuni (Kepala Keluarga): ${activeProperty.occupancyStatus === 'VACANT' ? 'Kosong (Belum Berpenghuni)' : (activeProperty.headName || '—')}\nTotal Penghuni Terdata: ${activePropertyResidents.length} Jiwa\nTotal Kendaraan Terdaftar: ${activePropertyVehicles.length} Unit\nDaya PLN: ${activeProperty.plnCapacity || '—'}\nMeter PAM: ${activeProperty.pamMeterNo || '—'}\nIuran IPL:  ${billAmount(activePropertyUtility?.monthlyIplFee)} / bln\nStatus Bayar: ${billLabel(activePropertyUtility?.paymentStatus)}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPengurus Komplek Grand Sariwangi`;
                     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -4268,13 +3410,22 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
             </div>
 
             {/* Quick Metrics Bar */}
+            <nav aria-label="Data terkait rumah" className="flex flex-wrap gap-2">
+              <button type="button" onClick={()=>scopeHouse(activeProperty.code,'residents')} className="btn-secondary min-h-11 whitespace-nowrap">Penghuni</button>
+              <button type="button" onClick={()=>scopeHouse(activeProperty.code,'vehicles')} className="btn-secondary min-h-11 whitespace-nowrap">Kendaraan</button>
+              <button type="button" onClick={()=>scopeHouse(activeProperty.code,'permits')} className="btn-secondary min-h-11 whitespace-nowrap">Izin renovasi</button>
+              <button type="button" onClick={()=>scopeHouse(activeProperty.code,'analytics')} className="btn-secondary min-h-11 whitespace-nowrap">Utilitas</button>
+              <a href={'/admin/passwords?house='+encodeURIComponent(activeProperty.code)} className="btn-secondary inline-flex min-h-11 items-center whitespace-nowrap">Akun warga</a>
+              {canOpenBilling && <a href={billHref(activeProperty.code,activePropertyUtility?.billingPeriodName)} className="btn-secondary inline-flex min-h-11 items-center whitespace-nowrap">Iuran</a>}
+            </nav>
+
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
               <div className="p-3 bg-canvas rounded-2xl border border-border">
                 <span className="text-[10px] text-ink-muted font-bold block">Pemilik Unit (Owner)</span>
                 <p className="font-extrabold text-ink text-sm mt-0.5 truncate">{activeProperty.ownerName || '-'}</p>
                 <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
-                  <span>Pemilik Sah</span>
+                  <span>Pemilik tercatat</span>
                 </span>
               </div>
               <div className="p-3 bg-canvas rounded-2xl border border-border">
@@ -4282,7 +3433,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <p className="font-extrabold text-ink text-sm mt-0.5 truncate">
                   {activeProperty.occupancyStatus === 'VACANT'
                     ? 'Kosong'
-                    : (activeProperty.occupantName || activeProperty.headName || activeProperty.ownerName || '-')}
+                    : (activeProperty.headName || '—')}
                 </p>
                 <span className="text-[10px] font-semibold truncate block">
                   {activeProperty.occupancyStatus === 'VACANT' ? (
@@ -4297,7 +3448,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <div className="p-3 bg-canvas rounded-2xl border border-border">
                 <span className="text-[10px] text-ink-muted font-bold block">Sensus Penghuni</span>
                 <p className="font-extrabold text-ink text-sm mt-0.5">{activePropertyResidents.length} Jiwa</p>
-                <span className="text-[10px] text-emerald-700 font-semibold">{activePropertyResidents.length > 0 ? 'KTP & KK Terverifikasi' : 'Belum Ada Anggota'}</span>
+                <span className="text-[10px] text-emerald-700 font-semibold">{activePropertyResidents.length > 0 ? 'Anggota tercatat' : 'Belum ada anggota'}</span>
               </div>
               <div className="p-3 bg-canvas rounded-2xl border border-border">
                 <span className="text-[10px] text-ink-muted font-bold block">Kendaraan & RFID</span>
@@ -4307,9 +3458,9 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <div className="p-3 bg-canvas rounded-2xl border border-border">
                 <span className="text-[10px] text-ink-muted font-bold block">Iuran Lingkungan (IPL)</span>
                 <p className="font-extrabold text-emerald-800 text-sm mt-0.5">
-                  Rp {(activePropertyUtility?.monthlyIplFee || 250000).toLocaleString('id-ID')}
+                  {billAmount(activePropertyUtility?.monthlyIplFee)}
                 </p>
-                <span className="text-[10px] text-emerald-700 font-semibold">Status: {activePropertyUtility?.paymentStatus || 'LUNAS'}</span>
+                <span className="text-[10px] text-emerald-700 font-semibold">Status: {billLabel(activePropertyUtility?.paymentStatus)}</span>
               </div>
             </div>
 
@@ -4348,39 +3499,27 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <div className="p-4 bg-canvas rounded-2xl border border-border grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Tipe Bangunan:</span>
-                    <p className="font-extrabold text-ink mt-0.5">Tipe 72/120 (2 Lantai)</p>
+                    <p className="font-extrabold text-ink mt-0.5">{activeProperty.buildingType || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Luas Tanah:</span>
-                    <p className="font-extrabold text-ink mt-0.5">120 m²</p>
+                    <p className="font-extrabold text-ink mt-0.5">{activeProperty.landArea ? activeProperty.landArea+' m²' : '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Luas Bangunan:</span>
-                    <p className="font-extrabold text-ink mt-0.5">72 m²</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-ink-muted font-bold block">Arah Hadap Rumah:</span>
-                    <p className="font-extrabold text-ink mt-0.5">Timur (Menghadap Taman)</p>
+                    <p className="font-extrabold text-ink mt-0.5">{activeProperty.buildingArea ? activeProperty.buildingArea+' m²' : '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Kapasitas Listrik PLN:</span>
-                    <p className="font-extrabold text-amber-800 mt-0.5">{activePropertyUtility?.plnCapacity || '3.500 VA'}</p>
+                    <p className="font-extrabold text-amber-800 mt-0.5">{activeProperty.plnCapacity || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">No. Meteran PAM:</span>
-                    <p className="font-extrabold text-sky-800 mt-0.5">{activePropertyUtility?.pamMeterNo || 'PAM-88301'}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-ink-muted font-bold block">Tahun Serah Terima:</span>
-                    <p className="font-extrabold text-ink mt-0.5">15 Januari 2024</p>
+                    <p className="font-extrabold text-sky-800 mt-0.5">{activeProperty.pamMeterNo || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Wilayah / Blok:</span>
                     <p className="font-extrabold text-ink mt-0.5">{activeProperty.blockCode ? `Blok ${activeProperty.blockCode}` : 'Wilayah Komplek'}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-ink-muted font-bold block">Status Sertifikat:</span>
-                    <p className="font-extrabold text-emerald-800 mt-0.5">SHM (Sertifikat Hak Milik)</p>
                   </div>
                 </div>
 
@@ -4402,7 +3541,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                     <div>
                       <p className="font-bold text-ink">Belum ada rincian anggota keluarga yang tercatat di unit ini.</p>
                       <p className="text-ink-muted text-[11px] mt-0.5">
-                        Pemilik Sah: <strong>{activeProperty.ownerName || '-'}</strong>
+                        Pemilik tercatat: <strong>{activeProperty.ownerName || '-'}</strong>
                         {activeProperty.occupantName && (
                           <> • Penghuni (Kepala Keluarga): <strong className="text-sky-700">{activeProperty.occupantName}</strong></>
                         )}
@@ -4442,7 +3581,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                             )}
                           </div>
                           <p className="text-[10px] text-ink-muted font-mono">
-                            NIK: {r.idCard} • No. KK: {r.familyCard || '-'} • Profesi: {r.occupation}
+                            Profesi: {r.occupation || '—'}
                           </p>
                         </div>
                         <div className="text-right shrink-0">
@@ -4534,40 +3673,40 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <div className="p-4 bg-canvas rounded-2xl border border-border grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">ID Pelanggan PLN:</span>
-                    <p className="font-mono font-extrabold text-amber-800 mt-0.5">{activePropertyUtility?.plnCustomerId || 'PLN-5388123490'}</p>
+                    <p className="font-mono font-extrabold text-amber-800 mt-0.5">{activePropertyUtility?.plnCustomerId || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Kapasitas Listrik:</span>
-                    <p className="font-extrabold text-ink mt-0.5">{activePropertyUtility?.plnCapacity || '3.500 VA'}</p>
+                    <p className="font-extrabold text-ink mt-0.5">{activeProperty.plnCapacity || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Nomor Meter PAM:</span>
-                    <p className="font-mono font-extrabold text-sky-800 mt-0.5">{activePropertyUtility?.pamMeterNo || 'PAM-88301'}</p>
+                    <p className="font-mono font-extrabold text-sky-800 mt-0.5">{activeProperty.pamMeterNo || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Pemakaian Air (Bulan Ini):</span>
-                    <p className="font-extrabold text-ink mt-0.5">{activePropertyUtility?.pamUsage || 18} m³</p>
+                    <p className="font-extrabold text-ink mt-0.5">{activePropertyUtility?.pamUsage ?? '—'} m³</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Iuran Lingkungan (IPL):</span>
-                    <p className="font-mono font-extrabold text-emerald-800 mt-0.5">Rp {(activePropertyUtility?.monthlyIplFee || 250000).toLocaleString('id-ID')} / bln</p>
+                    <p className="font-mono font-extrabold text-emerald-800 mt-0.5">{billAmount(activePropertyUtility?.monthlyIplFee)} / bln</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Status Pembayaran:</span>
                     <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] inline-block mt-0.5">
-                      {activePropertyUtility?.paymentStatus || 'LUNAS'}
+                      {billLabel(activePropertyUtility?.paymentStatus)}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Sumur Resapan Biopori:</span>
                     <p className="font-extrabold text-emerald-800 mt-0.5">
-                      {activePropertyUtility?.hasBiopori !== false ? '✓ Terpasang (2 Titik)' : '✕ Belum Ada'}
+                      {activePropertyUtility ? (activePropertyUtility.hasBiopori ? 'Ada' : 'Tidak ada') : '—'}
                     </p>
                   </div>
                   <div>
                     <span className="text-[10px] text-ink-muted font-bold block">Solar Panel Rooftop:</span>
                     <p className="font-extrabold text-amber-800 mt-0.5">
-                      {activePropertyUtility?.hasSolarPanel ? '✓ Terpasang (On-Grid)' : '✕ Belum Terpasang'}
+                      {activePropertyUtility ? (activePropertyUtility.hasSolarPanel ? 'Ada' : 'Tidak ada') : '—'}
                     </p>
                   </div>
                   <div>
@@ -4626,7 +3765,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                       activeVehicleView.rfidStatus === 'AKTIF' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
                     }`}>
-                      {activeVehicleView.rfidStatus === 'AKTIF' ? '✓ RFID Aktif' : '✕ RFID Diblokir'}
+                      {activeVehicleView.rfidStatus === 'AKTIF' ? 'RFID terhubung' : 'RFID belum terhubung'}
                     </span>
                   </div>
                   <p className="text-xs text-ink-muted mt-0.5">
@@ -4681,7 +3820,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  const content = `KARTU AKSES RFID BARRIER GATE - WARGAHUB\n===========================================\nNomor Plat: ${activeVehicleView.plateNumber}\nJenis: ${activeVehicleView.type}\nMerk/Model: ${activeVehicleView.brand} ${activeVehicleView.model} (${activeVehicleView.year})\nWarna: ${activeVehicleView.color}\nTag RFID: ${activeVehicleView.rfidTag}\nUnit Rumah: ${activeVehicleView.houseCode}\nPemilik: ${activeVehicleView.ownerName}\nHak Akses: ${activeVehicleView.gateAccess}\nStatus: ${activeVehicleView.rfidStatus}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPos Satpam & Keamanan Komplek`;
+                  const content = `DATA REGISTRASI KENDARAAN - WARGAHUB\n===========================================\nNomor Plat: ${activeVehicleView.plateNumber}\nJenis: ${activeVehicleView.type}\nMerk/Model: ${activeVehicleView.brand} ${activeVehicleView.model} (${activeVehicleView.year})\nWarna: ${activeVehicleView.color}\nTag RFID: ${activeVehicleView.rfidTag}\nUnit Rumah: ${activeVehicleView.houseCode}\nPemilik: ${activeVehicleView.ownerName}\nHak Akses: ${activeVehicleView.gateAccess}\nStatus: ${activeVehicleView.rfidStatus}\n\nDicetak pada: ${new Date().toLocaleString('id-ID')}\nPos Satpam & Keamanan Komplek`;
                   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
@@ -4696,7 +3835,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl flex items-center gap-1.5"
               >
                 <Printer className="w-3.5 h-3.5 text-primary-600" />
-                <span>Cetak Stiker RFID</span>
+                <span>Unduh data kendaraan</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -4735,7 +3874,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 </div>
                 <div>
                   <h3 className="font-black text-base text-ink">
-                    {editingVehicleId ? `Edit Kendaraan: ${vehPlateNumber}` : 'Daftarkan Kendaraan & RFID Baru'}
+                    {editingVehicleId ? `Edit Kendaraan: ${vehPlateNumber}` : 'Daftarkan Kendaraan Baru'}
                   </h3>
                   <p className="text-[11px] text-ink-muted">Master kendaraan untuk barrier gate pos satpam komplek.</p>
                 </div>
@@ -4770,17 +3909,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nama Pemilik / Pengemudi *</label>
-                  <input
-                    type="text"
-                    placeholder="Nama Pemilik"
-                    value={vehOwnerName}
-                    onChange={(e) => setVehOwnerName(e.target.value)}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  />
-                </div>
+
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -4840,7 +3969,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   <label className="font-bold text-ink block mb-1">Tahun Pembuatan</label>
                   <input
                     type="number"
-                    value={vehYear}
+                    value={vehYear || ''}
                     onChange={(e) => setVehYear(Number(e.target.value))}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
                   />
@@ -4850,62 +3979,14 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   <input
                     type="text"
                     placeholder="Contoh: Hitam Metalik, Putih"
-                    value={vehColor}
+                    required value={vehColor}
                     onChange={(e) => setVehColor(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nomor Seri Tag RFID</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: RFID-8830192"
-                    value={vehRfidTag}
-                    onChange={(e) => setVehRfidTag(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Status Akses RFID</label>
-                  <select
-                    value={vehRfidStatus}
-                    onChange={(e) => setVehRfidStatus(e.target.value as any)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="AKTIF">AKTIF (Diberi Akses Gate)</option>
-                    <option value="DIBLOKIR">DIBLOKIR (Akses Ditolak)</option>
-                    <option value="PENDING_VERIFIKASI">PENDING VERIFIKASI</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Hak Akses Gerbang Barrier</label>
-                <select
-                  value={vehGateAccess}
-                  onChange={(e) => setVehGateAccess(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                >
-                  <option value="SEMUA_GERBANG">Semua Gerbang (Utama & Barat)</option>
-                  <option value="GERBANG_UTAMA">Hanya Gerbang Utama</option>
-                  <option value="GERBANG_BARAT">Hanya Gerbang Barat</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Catatan Parkir / Garasi</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Parkir di garasi dalam unit"
-                  value={vehNotes}
-                  onChange={(e) => setVehNotes(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
+              <p className="text-ink-muted">Registrasi kendaraan tidak mengaktifkan perangkat RFID.</p>
               <div className="pt-3 flex gap-2">
                 <button
                   type="button"
@@ -5126,7 +4207,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 <div>
                   <label className="font-bold text-ink block mb-1">Pilih Unit Rumah *</label>
                   <select
-                    value={pCode}
+                    disabled={!!editingPermitId} value={pCode}
                     onChange={(e) => {
                       const code = e.target.value;
                       setPCode(code);
@@ -5382,13 +4463,16 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                   <label className="font-bold text-ink block mb-1">Pilih Unit Rumah *</label>
                   <select
                     value={uCode}
+                    disabled={Boolean(editingUtilityId)}
                     onChange={(e) => {
                       const code = e.target.value;
                       setUCode(code);
                       const matchedProp = properties.find(p => p.code === code);
                       if (matchedProp) {
                         setUAreaLabel(code.startsWith('KAV') ? 'Kavling' : code.startsWith('SW') ? 'Jl. Sariwangi Indah' : `Blok ${matchedProp.blockCode}`);
-                        if (matchedProp.ownerName) setUOwnerName(matchedProp.ownerName);
+                        setUOwnerName(matchedProp.legalOwner || '');
+                        setUPlnCapacity(matchedProp.plnCapacity || '');
+                        setUPamMeterNo(matchedProp.pamMeterNo || '');
                       }
                     }}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
@@ -5403,13 +4487,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
 
                 <div>
                   <label className="font-bold text-ink block mb-1">Nama Pemilik / Penghuni *</label>
-                  <input
-                    type="text"
-                    value={uOwnerName}
-                    onChange={(e) => setUOwnerName(e.target.value)}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  />
+                  <span className="block min-h-11 py-2 text-sm">{uOwnerName || '-'}</span>
                 </div>
               </div>
 
@@ -5472,29 +4550,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Tarif Iuran IPL (Rp / Bulan)</label>
-                  <input
-                    type="number"
-                    value={uMonthlyIplFee}
-                    onChange={(e) => setUMonthlyIplFee(Number(e.target.value))}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Status Pembayaran</label>
-                  <select
-                    value={uPaymentStatus}
-                    onChange={(e) => setUPaymentStatus(e.target.value as any)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="LUNAS">LUNAS (Terverifikasi)</option>
-                    <option value="MENUNGGU_BAYAR">MENUNGGU BAYAR</option>
-                    <option value="MENUNGGAK">MENUNGGAK</option>
-                  </select>
-                </div>
-              </div>
+              {canOpenBilling && uCode && <a href={billHref(uCode)} className="inline-flex min-h-11 items-center text-primary-700 font-semibold">Buka tagihan rumah</a>}
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
@@ -5504,6 +4560,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                     onChange={(e) => setUWasteSchedule(e.target.value)}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   >
+                    <option value="">Belum tercatat</option>
                     <option value="SENIN_RABU_JUMAT">Senin, Rabu, Jumat</option>
                     <option value="SELASA_KAMIS_SABTU">Selasa, Kamis, Sabtu</option>
                     <option value="SETIAP_HARI">Setiap Hari</option>
@@ -5582,7 +4639,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
                         ? 'bg-amber-50 text-amber-800 border border-amber-200'
                         : 'bg-rose-50 text-rose-800 border border-rose-200'
                     }`}>
-                      {activeUtilityView.paymentStatus === 'LUNAS' ? '✓ Iuran Lunas' : activeUtilityView.paymentStatus === 'MENUNGGU_BAYAR' ? '⏳ Menunggu Bayar' : '✕ Menunggak'}
+                      {billLabel(activeUtilityView.paymentStatus)}
                     </span>
                   </div>
                   <p className="text-xs text-ink-muted mt-0.5">
@@ -5617,7 +4674,7 @@ const PropertiesManagerInner: React.FC<PropertiesManagerProps> = ({
               <div>
                 <span className="text-[10px] text-ink-muted font-bold block">Tarif Iuran Lingkungan (IPL):</span>
                 <p className="font-mono font-black text-emerald-800 text-sm mt-0.5">
-                  Rp {(activeUtilityView.monthlyIplFee || 250000).toLocaleString('id-ID')} / bln
+                  {billAmount(activeUtilityView.monthlyIplFee)} / bln
                 </p>
               </div>
               <div>

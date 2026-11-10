@@ -3,9 +3,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { ComplaintsManager } from '../../components/admin/ComplaintsManager';
 import { getComplaints } from '../../services/complaint.service';
 
-const complaints = await getComplaints().catch(() => []);
+const complaints = await getComplaints().catch(() => null);
+const status = Astro.url.searchParams.get('status');
+const initialStatus = status === 'OPEN' || status === 'REPORTED' || status === 'IN_PROGRESS' || status === 'RESOLVED' ? status : 'ALL';
 ---
 
 <AdminLayout title="Aduan Warga - WargaHub" currentPath="/admin/complaints">
-  <ComplaintsManager initialComplaints={complaints} client:load />
+  <ComplaintsManager initialComplaints={complaints} initialStatus={initialStatus} client:load />
 </AdminLayout>

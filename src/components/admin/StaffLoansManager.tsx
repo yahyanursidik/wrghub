@@ -90,100 +90,13 @@ export interface LoanPolicyConfig {
   repaymentNotes: string;
 }
 
-export const DEFAULT_GRAND_SARIWANGI_LOANS: StaffLoan[] = [
-  {
-    id: 'LOAN-1001',
-    staffName: 'Pa Adri Harry',
-    staffRole: 'SATPAM',
-    staffPhone: '0812-2008-2240',
-    baseSalary: 1350000,
-    loanType: 'KASBON_CICILAN',
-    totalLoanAmount: 400000,
-    paidAmount: 200000,
-    remainingBalance: 200000,
-    monthlyDeduction: 200000,
-    tenorMonths: 2,
-    remainingTenorMonths: 1,
-    loanDate: '2026-08-05',
-    dueDate: '2026-10-05',
-    purpose: 'Biaya Rawat Jalan Flu Berat & Vitamin Anak',
-    approvedBy: 'Ketua RW 05 & Bendahara (Disetujui)',
-    status: 'ACTIVE_INSTALLMENT',
-    disbursementSource: 'Kas Operasional Paguyuban',
-    installments: [
-      {
-        id: 'inst-0901-adri',
-        installmentNo: 1,
-        amount: 200000,
-        paymentDate: '2026-09-01',
-        paymentMethod: 'POTONG_GAJI',
-        receivedBy: 'Hendra Wijaya (Bendahara)',
-        notes: 'Potongan otomatis payroll honor satpam periode Agustus 2026',
-      },
-    ],
-    notes: 'Plafon pinjaman disetujui untuk satpam utama komplek 24 jam.',
-  },
-  {
-    id: 'LOAN-1002',
-    staffName: 'Pak Slamet Radiyanto',
-    staffRole: 'SATPAM',
-    staffPhone: '0813-8899-2241',
-    baseSalary: 1100000,
-    loanType: 'GAJI_DI_AWAL',
-    totalLoanAmount: 250000,
-    paidAmount: 0,
-    remainingBalance: 250000,
-    monthlyDeduction: 250000,
-    tenorMonths: 1,
-    remainingTenorMonths: 1,
-    loanDate: '2026-09-18',
-    dueDate: '2026-10-01',
-    purpose: 'Tarik Gaji di Awal untuk Servis Rantai & Ban Motor Operasional',
-    approvedBy: 'Menunggu Persetujuan Bendahara & RW',
-    status: 'PENDING_APPROVAL',
-    disbursementSource: 'Kas Tunai Bendahara',
-    installments: [],
-    notes: 'Pengajuan penarikan gaji di awal bulan September 2026.',
-  },
-];
-
 export interface StaffLoansManagerProps {
   initialTab?: StaffLoanSubTab;
+  initialLoans: StaffLoan[];
+  initialPolicy: LoanPolicyConfig;
 }
 
-export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab = 'active_loans' }) => {
-  // Helper storage persistence
-  const getPersisted = <T,>(key: string, fallback: T): T => {
-    if (typeof window === 'undefined') return fallback;
-    try {
-      const val = localStorage.getItem(key);
-      return val ? JSON.parse(val) : fallback;
-    } catch {
-      return fallback;
-    }
-  };
-
-  const savePersisted = (key: string, value: any) => {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
-      console.error('Failed to persist storage:', e);
-    }
-  };
-
-  const addDeletedIds = (key: string, ids: string[]) => {
-    if (typeof window === 'undefined') return;
-    try {
-      const existing = localStorage.getItem(key);
-      const list: string[] = existing ? JSON.parse(existing) : [];
-      const updated = Array.from(new Set([...list, ...ids]));
-      localStorage.setItem(key, JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Failed to save deleted IDs:', e);
-    }
-  };
-
+export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab = 'active_loans', initialLoans, initialPolicy }) => {
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const showToast = (msg: string) => {
@@ -191,32 +104,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Staff Loans Data State (dynamic, seeded with real Grand Sariwangi roster)
-  const [loans, setLoans] = useState<StaffLoan[]>(() => {
-    // Data petugas fiktif (Pak Ujang Suhendra / Pak Hendro Siswanto) dibersihkan
-    // dari data yang tersimpan maupun default.
-    const isRemovedDummy = (name: string) =>
-      /ujang suhendra|hendro siswanto/i.test(String(name || ''));
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_staff_loans');
-        const deletedStr = localStorage.getItem('wargahub_deleted_loans');
-        const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
-        if (saved !== null) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const filtered = parsed
-              .filter((l: any) => !deletedIds.includes(l.id))
-              .filter((l: any) => !isRemovedDummy(l.staffName));
-            if (filtered.length > 0) return filtered;
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return DEFAULT_GRAND_SARIWANGI_LOANS.filter((l) => !isRemovedDummy(l.staffName));
-  });
+  const [loans, setLoans] = useState<StaffLoan[]>(initialLoans);
 
   // Subtab State with URL synchronization
   const [activeSubTab, setActiveSubTab] = useUrlTab<StaffLoanSubTab>(['active_loans', 'new_requests', 'payroll_deductions', 'repayment_history', 'loan_policies'], initialTab);
@@ -252,10 +140,10 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
 
   // Form State for Add / Edit Loan
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
-  const [fStaffName, setFStaffName] = useState('Pa Adri Harry');
+  const [fStaffName, setFStaffName] = useState('');
   const [fStaffRole, setFStaffRole] = useState<StaffLoan['staffRole']>('SATPAM');
-  const [fStaffPhone, setFStaffPhone] = useState('0812-2008-2240');
-  const [fBaseSalary, setFBaseSalary] = useState(1350000);
+  const [fStaffPhone, setFStaffPhone] = useState('');
+  const [fBaseSalary, setFBaseSalary] = useState(0);
   const [fLoanType, setFLoanType] = useState<StaffLoan['loanType']>('KASBON_CICILAN');
   const [fTotalAmount, setFTTotalAmount] = useState(400000);
   const [fMonthlyDeduction, setFMonthlyDeduction] = useState(200000);
@@ -272,30 +160,23 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   const [instNotes, setInstNotes] = useState('Potongan gaji bulan berjalan');
 
   // Subtab 3: Payroll Deduction State
-  const [payrollMonth, setPayrollMonth] = useState('September 2026');
-  const [processedDeductions, setProcessedDeductions] = useState<{ [staffName: string]: boolean }>({});
+  const [payrollMonth, setPayrollMonth] = useState(() => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit' }).format(new Date()));
+  const [installmentRequestId, setInstallmentRequestId] = useState('');
 
   // Subtab 4: Repayment History Filter
   const [historyMethodFilter, setHistoryMethodFilter] = useState<string>('ALL');
   const [historySearchQuery, setHistorySearchQuery] = useState('');
 
   // Subtab 5: Loan Policy State
-  const [loanPolicy, setLoanPolicy] = useState<LoanPolicyConfig>(() => {
-    return getPersisted<LoanPolicyConfig>('wargahub_loan_policies', {
-      maxLoanRatio: 50,
-      maxTenorMonths: 4,
-      minWorkingMonths: 3,
-      requiredApprovers: 'Ketua RW & Bendahara Paguyuban',
-      defaultDisbursementSource: 'Kas Operasional Paguyuban',
-      repaymentNotes: 'Potongan payroll dilakukan otomatis pada awal bulan berjalan saat transfer gaji.',
-    });
-  });
-
-  // Staff Directory Presets - Roster Resmi Grand Sariwangi
-  const staffPresets = [
-    { name: 'Pa Adri Harry', role: 'SATPAM' as const, salary: 1350000, phone: '0812-2008-2240' },
-    { name: 'Pak Slamet Radiyanto', role: 'SATPAM' as const, salary: 1100000, phone: '0813-8899-2241' },
-  ];
+  const [loanPolicy, setLoanPolicy] = useState<LoanPolicyConfig>(initialPolicy);
+  const staffPresets = Array.from(new Map(loans.map(loan => [loan.staffName, {
+    name: loan.staffName, role: loan.staffRole, salary: loan.baseSalary, phone: loan.staffPhone,
+  }])).values());
+  const isActive = (loan: StaffLoan) => loan.status === 'ACTIVE_INSTALLMENT' || loan.status === 'OVERDUE';
+  const recordedPayroll = (name: string) => loans.filter(loan => loan.staffName === name).flatMap(loan => loan.installments)
+    .filter(item => item.paymentMethod === 'POTONG_GAJI' && item.paymentDate.startsWith(payrollMonth + '-'));
+  const processedDeductions = Object.fromEntries(staffPresets.map(staff => [staff.name, recordedPayroll(staff.name).length > 0]));
+  const setSavedLoan = (loan: StaffLoan) => setLoans(items => items.some(item => item.id === loan.id) ? items.map(item => item.id === loan.id ? loan : item) : [loan, ...items]);
 
   // Calculations & KPIs
   const totalActiveRemaining = loans
@@ -397,127 +278,41 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   // Handlers
   const handleOpenAdd = (type: StaffLoan['loanType'] = 'KASBON_CICILAN') => {
     setEditingLoanId(null);
-    const defaultStaff = staffPresets[0];
-    setFStaffName(defaultStaff.name);
-    setFStaffRole(defaultStaff.role);
-    setFStaffPhone(defaultStaff.phone);
-    setFBaseSalary(defaultStaff.salary);
+    setFStaffName('');
+    setFStaffRole('SATPAM');
+    setFStaffPhone('');
+    setFBaseSalary(0);
     setFLoanType(type);
-    if (type === 'GAJI_DI_AWAL') {
-      setFTTotalAmount(250000);
-      setFMonthlyDeduction(250000);
-      setFTenorMonths(1);
-      setFPurpose('Tarik Gaji di Awal untuk Keperluan Operasional');
-    } else {
-      setFTTotalAmount(400000);
-      setFMonthlyDeduction(200000);
-      setFTenorMonths(2);
-      setFPurpose('Biaya Rawat Jalan Flu Berat & Vitamin Anak');
-    }
+    setFTTotalAmount(0);
+    setFMonthlyDeduction(0);
+    setFTenorMonths(1);
+    setFPurpose('');
     setFLoanDate(new Date().toISOString().slice(0, 10));
-    setFDisbursementSource('Kas Operasional Paguyuban');
+    setFDisbursementSource(loanPolicy.defaultDisbursementSource);
     setFNotes('');
     setShowAddModal(true);
   };
 
-  // Real Payroll Deduction Execution Handler
   const handleExecutePayrollDeduction = async (staffName: string) => {
-    const isAlreadyProcessed = processedDeductions[staffName] ?? false;
-
-    if (isAlreadyProcessed) {
-      setProcessedDeductions((prev) => ({
-        ...prev,
-        [staffName]: false,
-      }));
-      showToast(`Status potongan payroll ${staffName} dibatalkan.`);
-      return;
-    }
-
-    const activeLoan = loans.find(
-      (l) =>
-        l.staffName.toLowerCase() === staffName.toLowerCase() &&
-        l.remainingBalance > 0 &&
-        (l.status === 'ACTIVE_INSTALLMENT' || l.status === 'OVERDUE')
-    );
-
-    if (!activeLoan) {
-      showToast(`Tidak ditemukan kasbon aktif yang perlu dipotong untuk ${staffName}.`);
-      return;
-    }
-
-    const deductionAmount = Math.min(activeLoan.monthlyDeduction, activeLoan.remainingBalance);
-    if (deductionAmount <= 0) {
-      showToast('Nominal potongan kasbon sudah 0 (lunas).');
-      return;
-    }
-
+    if (!payrollMonth || processedDeductions[staffName] || isSaving) return;
+    const loan = loans.find(item => item.staffName === staffName && isActive(item) && item.loanDate.slice(0, 7) <= payrollMonth);
+    if (!loan) return showToast('Tidak ada kasbon aktif untuk periode ini.');
+    const amount = Math.min(loan.monthlyDeduction, loan.remainingBalance);
+    const date = loan.loanDate.startsWith(payrollMonth + '-') ? loan.loanDate : payrollMonth + '-01';
+    setIsSaving(true);
     try {
-      await apiFetch('/api/expenses/loans/installment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loanId: activeLoan.id,
-          staffName: activeLoan.staffName,
-          installmentAmount: deductionAmount,
-          paymentMethod: 'POTONG_GAJI',
-          installmentDate: new Date().toISOString().slice(0, 10),
-          notes: `Potongan otomatis payroll periode ${payrollMonth}`,
-        }),
+      const response = await apiFetch('/api/expenses/loans/installment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanId: loan.id, installmentAmount: amount, paymentMethod: 'POTONG_GAJI',
+          installmentDate: date, notes: 'Potongan gaji ' + payrollMonth, requestId: 'payroll-' + payrollMonth + '-' + loan.id }),
       });
-
-      const newPaid = activeLoan.paidAmount + deductionAmount;
-      const newRemaining = Math.max(0, activeLoan.remainingBalance - deductionAmount);
-      const newStatus = newRemaining === 0 ? 'PAID_OFF' : 'ACTIVE_INSTALLMENT';
-
-      const newInstRecord: InstallmentRecord = {
-        id: `inst-pr-${Date.now().toString().slice(-6)}`,
-        installmentNo: activeLoan.installments.length + 1,
-        amount: deductionAmount,
-        paymentDate: new Date().toISOString().slice(0, 10),
-        paymentMethod: 'POTONG_GAJI',
-        receivedBy: 'Hendra Wijaya (Bendahara)',
-        notes: `Potongan otomatis payroll periode ${payrollMonth}`,
-      };
-
-      const updatedLoans = loans.map((l) => {
-        if (l.id === activeLoan.id) {
-          return {
-            ...l,
-            paidAmount: newPaid,
-            remainingBalance: newRemaining,
-            status: newStatus as any,
-            installments: [...l.installments, newInstRecord],
-          };
-        }
-        return l;
-      });
-
-      setLoans(updatedLoans);
-      savePersisted('wargahub_staff_loans', updatedLoans);
-      setProcessedDeductions((prev) => ({
-        ...prev,
-        [staffName]: true,
-      }));
-
-      showToast(
-        `✓ Sukses memotong gaji ${staffName} sebesar ${formatRupiah(
-          deductionAmount
-        )}. Sisa pinjaman: ${formatRupiah(newRemaining)}.`
-      );
-
-      // Offer receipt preview
-      setSelectedReceipt({
-        loan: { ...activeLoan, remainingBalance: newRemaining, status: newStatus as any },
-        installment: newInstRecord,
-      });
-      setShowReceiptModal(true);
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal memproses pemotongan payroll ke pembukuan.');
-    }
+      const { data } = await response.json();
+      setSavedLoan(data.loan); setSelectedReceipt(data); setShowReceiptModal(true);
+      showToast('Potongan gaji dicatat sebagai angsuran.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Potongan belum tercatat.'); }
+    finally { setIsSaving(false); }
   };
 
-  // WhatsApp Share Handlers
   const handleShareWhatsAppReceipt = (receipt: { loan: StaffLoan; installment: InstallmentRecord }) => {
     const rawPhone = receipt.loan.staffPhone.replace(/[^0-9]/g, '');
     const phone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone;
@@ -594,111 +389,24 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   };
 
   const handleSaveLoan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
+    e.preventDefault(); setIsSaving(true);
     try {
-      if (editingLoanId) {
-        const res = await fetch('/api/expenses/loans/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            loanId: editingLoanId,
-            staffName: fStaffName,
-            staffRole: fStaffRole,
-            totalLoanAmount: Number(fTotalAmount),
-            monthlyDeduction: Number(fMonthlyDeduction),
-            tenorMonths: Number(fTenorMonths),
-            purpose: fPurpose,
-            notes: fNotes,
-          }),
-        });
-
-        if (res.ok) {
-          const updated = loans.map((l) => {
-            if (l.id === editingLoanId) {
-              const diff = Number(fTotalAmount) - l.paidAmount;
-              return {
-                ...l,
-                staffName: fStaffName,
-                staffRole: fStaffRole,
-                staffPhone: fStaffPhone,
-                baseSalary: Number(fBaseSalary),
-                loanType: fLoanType,
-                totalLoanAmount: Number(fTotalAmount),
-                remainingBalance: Math.max(0, diff),
-                monthlyDeduction: Number(fMonthlyDeduction),
-                tenorMonths: Number(fTenorMonths),
-                loanDate: fLoanDate,
-                purpose: fPurpose,
-                disbursementSource: fDisbursementSource,
-                notes: fNotes,
-              };
-            }
-            return l;
-          });
-          setLoans(updated);
-          savePersisted('wargahub_staff_loans', updated);
-          showToast(`Data kasbon untuk ${fStaffName} berhasil diperbarui.`);
-          setShowAddModal(false);
-        }
-      } else {
-        const res = await fetch('/api/expenses/loans/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            staffName: fStaffName,
-            staffRole: fStaffRole,
-            staffPhone: fStaffPhone,
-            totalLoanAmount: Number(fTotalAmount),
-            monthlyDeduction: Number(fMonthlyDeduction),
-            tenorMonths: Number(fTenorMonths),
-            loanDate: fLoanDate,
-            purpose: fPurpose,
-          }),
-        });
-
-        const newId = `LOAN-${Date.now().toString().slice(-4)}`;
-        const newRecord: StaffLoan = {
-          id: newId,
-          staffName: fStaffName,
-          staffRole: fStaffRole,
-          staffPhone: fStaffPhone,
-          baseSalary: Number(fBaseSalary),
-          loanType: fLoanType,
-          totalLoanAmount: Number(fTotalAmount),
-          paidAmount: 0,
-          remainingBalance: Number(fTotalAmount),
-          monthlyDeduction: Number(fMonthlyDeduction),
-          tenorMonths: Number(fTenorMonths),
-          remainingTenorMonths: Number(fTenorMonths),
-          loanDate: fLoanDate,
-          dueDate: new Date(new Date(fLoanDate).setMonth(new Date(fLoanDate).getMonth() + Number(fTenorMonths)))
-            .toISOString()
-            .slice(0, 10),
-          purpose: fPurpose,
-          approvedBy: 'Ketua RW & Bendahara',
-          status: 'ACTIVE_INSTALLMENT',
-          disbursementSource: fDisbursementSource,
-          installments: [],
-          notes: fNotes,
-        };
-
-        const updated = [newRecord, ...loans];
-        setLoans(updated);
-        savePersisted('wargahub_staff_loans', updated);
-        showToast(`Kasbon sebesar ${formatRupiah(Number(fTotalAmount))} untuk ${fStaffName} berhasil disetujui.`);
-        setShowAddModal(false);
-      }
-    } catch (e) {
-      console.error(e);
-      showToast('Gagal menyimpan kasbon.');
-    } finally {
-      setIsSaving(false);
-    }
+      const response = await apiFetch(editingLoanId ? '/api/expenses/loans/update' : '/api/expenses/loans/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanId: editingLoanId || undefined, staffName: fStaffName, staffRole: fStaffRole, staffPhone: fStaffPhone,
+          baseSalary: fBaseSalary, loanType: fLoanType, totalLoanAmount: fTotalAmount, monthlyDeduction: fMonthlyDeduction,
+          tenorMonths: fTenorMonths, loanDate: fLoanDate, purpose: fPurpose, disbursementSource: fDisbursementSource, notes: fNotes }),
+      });
+      const { data } = await response.json(); setSavedLoan(data); setShowAddModal(false);
+      if (!editingLoanId) setActiveSubTab('new_requests');
+      showToast(editingLoanId ? 'Kasbon diperbarui.' : 'Pengajuan kasbon menunggu persetujuan.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Kasbon belum tersimpan.'); }
+    finally { setIsSaving(false); }
   };
 
   const handleOpenInstallment = (l: StaffLoan) => {
     setSelectedLoan(l);
+    setInstallmentRequestId(globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2));
     setInstAmount(Math.min(l.monthlyDeduction, l.remainingBalance));
     setInstMethod('POTONG_GAJI');
     setInstDate(new Date().toISOString().slice(0, 10));
@@ -707,68 +415,17 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   };
 
   const handleSaveInstallment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLoan) return;
-
-    setIsSaving(true);
+    e.preventDefault(); if (!selectedLoan) return; setIsSaving(true);
     try {
-      await apiFetch('/api/expenses/loans/installment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loanId: selectedLoan.id,
-          staffName: selectedLoan.staffName,
-          installmentAmount: Number(instAmount),
-          paymentMethod: instMethod,
-          installmentDate: instDate,
-          notes: instNotes,
-        }),
+      const response = await apiFetch('/api/expenses/loans/installment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanId: selectedLoan.id, installmentAmount: instAmount, paymentMethod: instMethod,
+          installmentDate: instDate, notes: instNotes, requestId: installmentRequestId }),
       });
-
-      const newPaid = selectedLoan.paidAmount + Number(instAmount);
-      const newRemaining = Math.max(0, selectedLoan.remainingBalance - Number(instAmount));
-      const newStatus = newRemaining === 0 ? 'PAID_OFF' : 'ACTIVE_INSTALLMENT';
-
-      const newInstRecord: InstallmentRecord = {
-        id: `inst-${Date.now()}`,
-        installmentNo: selectedLoan.installments.length + 1,
-        amount: Number(instAmount),
-        paymentDate: instDate,
-        paymentMethod: instMethod,
-        receivedBy: 'Hendra Wijaya (Bendahara)',
-        notes: instNotes,
-      };
-
-      const updated = loans.map((l) => {
-        if (l.id === selectedLoan.id) {
-          return {
-            ...l,
-            paidAmount: newPaid,
-            remainingBalance: newRemaining,
-            status: newStatus as any,
-            installments: [...l.installments, newInstRecord],
-          };
-        }
-        return l;
-      });
-
-      setLoans(updated);
-      savePersisted('wargahub_staff_loans', updated);
-      showToast(`Pembayaran angsuran ${formatRupiah(Number(instAmount))} berhasil dicatat.`);
-      setShowInstallmentModal(false);
-
-      // Offer receipt preview
-      setSelectedReceipt({
-        loan: selectedLoan,
-        installment: newInstRecord,
-      });
-      setShowReceiptModal(true);
-    } catch (e) {
-      console.error(e);
-      showToast('Gagal memproses pembayaran angsuran.');
-    } finally {
-      setIsSaving(false);
-    }
+      const { data } = await response.json(); setSavedLoan(data.loan); setShowInstallmentModal(false);
+      setSelectedReceipt(data); setShowReceiptModal(true); showToast('Angsuran dicatat.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Angsuran belum tersimpan.'); }
+    finally { setIsSaving(false); }
   };
 
   const handleConfirmDelete = async () => {
@@ -782,8 +439,8 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
 
       const updated = loans.filter((l) => l.id !== loanToDelete.id);
       setLoans(updated);
-      savePersisted('wargahub_staff_loans', updated);
-      addDeletedIds('wargahub_deleted_loans', [loanToDelete.id]);
+
+
       showToast(`Data kasbon ${loanToDelete.staffName} berhasil dihapus.`);
       setLoanToDelete(null);
     } catch (e) {
@@ -793,33 +450,17 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
   };
 
   const handleApprovePendingLoan = async (loanId: string, decision: 'APPROVE' | 'REJECT') => {
+    setIsSaving(true);
     try {
-      if (decision === 'APPROVE') {
-        const updated = loans.map((l) => {
-          if (l.id === loanId) {
-            return {
-              ...l,
-              status: 'ACTIVE_INSTALLMENT' as const,
-              approvedBy: 'Ketua RW 05 & Bendahara (Disetujui)',
-            };
-          }
-          return l;
-        });
-        setLoans(updated);
-        savePersisted('wargahub_staff_loans', updated);
-        showToast('Pengajuan kasbon berhasil disetujui.');
-      } else {
-        const updated = loans.filter((l) => l.id !== loanId);
-        setLoans(updated);
-        savePersisted('wargahub_staff_loans', updated);
-        addDeletedIds('wargahub_deleted_loans', [loanId]);
-        showToast('Pengajuan kasbon telah ditolak dan diarsipkan.');
-      }
-      setLoanForApproval(null);
-    } catch (e) {
-      console.error(e);
-      showToast('Gagal memproses persetujuan pengajuan.');
-    }
+      const response = await apiFetch('/api/expenses/loans/decision', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanId, decision, notes: approvalNotes }),
+      });
+      const { data } = await response.json();
+      if (data.loan) setSavedLoan(data.loan); else setLoans(items => items.filter(item => item.id !== loanId));
+      setLoanForApproval(null); showToast(decision === 'APPROVE' ? 'Pengajuan disetujui.' : 'Pengajuan ditolak.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Keputusan belum tersimpan.'); }
+    finally { setIsSaving(false); }
   };
 
   const handleExportCSV = () => {
@@ -877,9 +518,10 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
 
     const rows = staffPresets.map((s) => {
       const activeLoan = loans.find(
-        (l) => l.staffName.toLowerCase() === s.name.toLowerCase() && l.remainingBalance > 0
+        (l) => l.staffName === s.name && isActive(l) && l.loanDate.slice(0, 7) <= payrollMonth
       );
-      const deduction = activeLoan ? Math.min(activeLoan.monthlyDeduction, activeLoan.remainingBalance) : 0;
+      const records = recordedPayroll(s.name);
+      const deduction = records.length ? records.reduce((sum, record) => sum + record.amount, 0) : activeLoan ? Math.min(activeLoan.monthlyDeduction, activeLoan.remainingBalance) : 0;
       const netPay = s.salary - deduction;
       const isDeducted = processedDeductions[s.name] ? 'SUDAH DIPOTONG' : 'BELUM';
       return [
@@ -904,10 +546,14 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
     showToast(`Rekapitulasi payroll ${payrollMonth} berhasil diekspor.`);
   };
 
-  const handleSavePolicy = (e: React.FormEvent) => {
+  const handleSavePolicy = async (e: React.FormEvent) => {
     e.preventDefault();
-    savePersisted('wargahub_loan_policies', loanPolicy);
-    showToast('Kebijakan dan aturan kasbon paguyuban berhasil diperbarui.');
+    try {
+      const response = await apiFetch('/api/expenses/loans/policy', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loanPolicy),
+      });
+      const { data } = await response.json(); setLoanPolicy(data); showToast('Kebijakan kasbon diperbarui.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Kebijakan belum tersimpan.'); }
   };
 
   const getStatusBadge = (status: StaffLoan['status']) => {
@@ -1648,24 +1294,14 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                   <span>Jadwal Rekapitulasi Potongan Payroll Gaji Petugas</span>
                 </h3>
                 <p className="text-xs text-ink-muted mt-0.5">
-                  Daftar pemotongan kasbon otomatis pada saat pencairan gaji berkala Satpam, Tim Kebersihan, dan Teknisi
-                  Sarana.
+                  Catat angsuran setelah potongan gaji dilakukan.
                 </p>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5 text-xs">
                   <span className="text-ink-muted font-medium">Bulan:</span>
-                  <select
-                    value={payrollMonth}
-                    onChange={(e) => setPayrollMonth(e.target.value)}
-                    className="px-3 py-1.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="Agustus 2026">Agustus 2026</option>
-                    <option value="September 2026">September 2026</option>
-                    <option value="Oktober 2026">Oktober 2026</option>
-                    <option value="November 2026">November 2026</option>
-                  </select>
+                  <input type="month" aria-label="Bulan potongan gaji" value={payrollMonth} onChange={e => setPayrollMonth(e.target.value)} className="px-3 py-1.5 bg-canvas border border-border rounded-xl" />
                 </div>
 
                 <button
@@ -1684,7 +1320,7 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
               const totalGrossSalary = staffPresets.reduce((sum, s) => sum + s.salary, 0);
               const totalDeductionsThisMonth = staffPresets.reduce((sum, s) => {
                 const activeLoan = loans.find(
-                  (l) => l.staffName.toLowerCase() === s.name.toLowerCase() && l.remainingBalance > 0
+                  (l) => l.staffName === s.name && isActive(l) && l.loanDate.slice(0, 7) <= payrollMonth
                 );
                 return (
                   sum + (activeLoan ? Math.min(activeLoan.monthlyDeduction, activeLoan.remainingBalance) : 0)
@@ -1743,11 +1379,10 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                   <tbody className="divide-y divide-border/60">
                     {staffPresets.map((s, idx) => {
                       const activeLoan = loans.find(
-                        (l) => l.staffName.toLowerCase() === s.name.toLowerCase() && l.remainingBalance > 0
+                        (l) => l.staffName === s.name && isActive(l) && l.loanDate.slice(0, 7) <= payrollMonth
                       );
-                      const deduction = activeLoan
-                        ? Math.min(activeLoan.monthlyDeduction, activeLoan.remainingBalance)
-                        : 0;
+                      const records = recordedPayroll(s.name);
+      const deduction = records.length ? records.reduce((sum, record) => sum + record.amount, 0) : activeLoan ? Math.min(activeLoan.monthlyDeduction, activeLoan.remainingBalance) : 0;
                       const takeHomePay = s.salary - deduction;
                       const isProcessed = processedDeductions[s.name] ?? false;
 
@@ -1803,9 +1438,10 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
                                       ? 'bg-canvas text-ink-muted border-border hover:text-ink'
                                       : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
                                   }`}
-                                  title={isProcessed ? 'Batalkan status pemotongan payroll' : 'Eksekusi pemotongan gaji & catat ke buku kas'}
+                                  disabled={isProcessed || isSaving}
+                                  title="Catat potongan yang sudah dilakukan sebagai angsuran"
                                 >
-                                  {isProcessed ? 'Batal Potong' : 'Potong Gaji'}
+                                  {isProcessed ? 'Sudah Dicatat' : 'Catat Potongan'}
                                 </button>
                               )}
 
@@ -2155,26 +1791,18 @@ export const StaffLoansManager: React.FC<StaffLoansManagerProps> = ({ initialTab
 
             <form onSubmit={handleSaveLoan} className="space-y-3.5">
               <div>
-                <label className="font-bold text-ink block mb-1">Pilih Nama Petugas / Staf *</label>
-                <select
-                  value={fStaffName}
-                  onChange={(e) => {
-                    const found = staffPresets.find((s) => s.name === e.target.value);
-                    if (found) {
-                      setFStaffName(found.name);
-                      setFStaffRole(found.role as any);
-                      setFBaseSalary(found.salary);
-                      setFStaffPhone(found.phone);
-                    }
-                  }}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                >
-                  {staffPresets.map((s, idx) => (
-                    <option key={idx} value={s.name}>
-                      {s.name} ({s.role} - Gaji: {formatRupiah(s.salary)})
-                    </option>
-                  ))}
-                </select>
+                <label className="font-bold text-ink block mb-1">Nama petugas *
+                  <input required value={fStaffName} onChange={e => setFStaffName(e.target.value)} className="w-full p-2.5 bg-canvas border border-border rounded-xl" />
+                </label>
+                <label className="font-bold text-ink block mt-2">Peran petugas
+                  <select value={fStaffRole} onChange={e => setFStaffRole(e.target.value as StaffLoan["staffRole"])} className="w-full p-2.5 bg-canvas border border-border rounded-xl">
+                    <option value="SATPAM">Satpam</option><option value="PETUGAS_KEBERSIHAN">Kebersihan</option>
+                    <option value="PETUGAS_TAMAN">Taman</option><option value="TEKNISI">Teknisi</option>
+                  </select>
+                </label>
+                <label className="font-bold text-ink block mt-2">Nomor kontak
+                  <input type="tel" value={fStaffPhone} onChange={e => setFStaffPhone(e.target.value)} className="w-full p-2.5 bg-canvas border border-border rounded-xl" />
+                </label>
               </div>
 
               {/* Quick Presets Buttons */}

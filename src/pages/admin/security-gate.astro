@@ -1,18 +1,20 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { SecurityGateManager } from '../../components/admin/SecurityGateManager';
-import { getProperties, getAllVehicles } from '../../services/property.service';
+import { getProperties } from '../../services/property.service';
+import { getRegisteredVehicles } from '../../services/vehicle.service';
 
 const [properties, vehicles] = await Promise.all([
   getProperties().catch(() => []),
-  getAllVehicles().catch(() => [])
+  getRegisteredVehicles().catch(() => [])
 ]);
 ---
 
 <AdminLayout title="Pos Satpam & Kontrol Gerbang - WargaHub" currentPath="/admin/security-gate">
   <SecurityGateManager
+    initialTab={Astro.url.searchParams.get('tab') || undefined}
     initialProperties={properties as any}
-    initialVehicles={vehicles as any}
+    initialVehicles={vehicles.map(vehicle => ({ ...vehicle, propertyCode: vehicle.houseCode }))}
     client:load
   />
 </AdminLayout>

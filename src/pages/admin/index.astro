@@ -1,83 +1,15 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { AdminDashboardView } from '../../components/admin/AdminDashboardView';
-import { getPropertyStats } from '../../services/property.service';
-import { getBillingProgress, getCurrentBillingPeriod } from '../../services/billing.service';
-import { getMainAccountBalance } from '../../services/finance.service';
-import { getPendingPaymentsCount, getPayments } from '../../services/payment.service';
-import { getOpenComplaintsCount } from '../../services/complaint.service';
-import { getNeedingRepairCount } from '../../services/facility.service';
-import { getProperties } from '../../services/property.service';
-import { can, type UserSession } from '../../services/auth.service';
+import { getWorkspaceNavigation, hasWorkspace } from '../../lib/dashboard-workspace';
+import { getDashboardCounts } from '../../services/dashboard.service';
+import type { UserSession } from '../../types/auth';
 
-const currentUser = await Astro.session?.get('wargahub_user') as UserSession;
-const financeAccess = can(currentUser, 'billing.read');
-const propertyAccess = can(currentUser, 'property.read');
-
-const [
-  propStats,
-  propertiesList,
-  currentPeriod,
-  cashBalance,
-  pendingPayments,
-  pendingPaymentsList,
-  openComplaints,
-  needingRepair
-] = await Promise.all([
-  propertyAccess ? getPropertyStats().catch(() => ({ total: 0, occupied: 0, vacant: 0, occupiedPercentage: '0.0', vacantPercentage: '0.0' })) : { total: 0, occupied: 0, vacant: 0, occupiedPercentage: '0.0', vacantPercentage: '0.0' },
-  propertyAccess ? getProperties().catch(() => []) : [],
-  financeAccess ? getCurrentBillingPeriod().catch(() => null) : null,
-  financeAccess ? getMainAccountBalance().catch(() => 0) : 0,
-  financeAccess ? getPendingPaymentsCount().catch(() => 0) : 0,
-  financeAccess ? getPayments(undefined, 'PENDING').catch(() => []) : [],
-  getOpenComplaintsCount().catch(() => 0),
-  getNeedingRepairCount().catch(() => 0),
-]);
-
-const billingProgress = currentPeriod ? await getBillingProgress(currentPeriod.id).catch(() => null) : null;
-const safeBillingProgress = billingProgress || {
-  total: 0,
-  paidCount: 0,
-  unpaidCount: 0,
-  percentage: 0,
-  totalAmount: 0,
-  paidAmount: 0,
-  unpaidAmount: 0,
-  monthlyRatePerHouse: 250000,
-};
-
-const stats = {
-  totalProperties: propStats.total ?? 0,
-  occupiedProperties: propStats.occupied ?? 0,
-  vacantProperties: propStats.vacant ?? 0,
-  occupiedPercentage: propStats.occupiedPercentage ?? '0.0',
-  vacantPercentage: propStats.vacantPercentage ?? '0.0',
-  paidCount: safeBillingProgress.paidCount ?? 0,
-  unpaidCount: safeBillingProgress.unpaidCount ?? 0,
-  paidPercentage: safeBillingProgress.percentage ?? 0,
-  paidAmount: safeBillingProgress.paidAmount ?? 0,
-  unpaidAmount: safeBillingProgress.unpaidAmount ?? 0,
-  monthlyRate: 250000,
-  cashBalance: cashBalance ?? 0,
-  pendingPaymentsCount: pendingPayments ?? 0,
-  openComplaintsCount: openComplaints ?? 0,
-  needingRepairCount: needingRepair ?? 0,
-};
-
-const pageTitle = currentUser?.role === 'TREASURER' ? 'Dashboard Bendahara - WargaHub'
-  : currentUser?.role === 'SECRETARY' ? 'Dashboard Sekretaris - WargaHub'
-  : currentUser?.role === 'SECURITY' ? 'Dashboard Satpam & Keamanan - WargaHub'
-  : currentUser?.role === 'MAINTENANCE' ? 'Dashboard Kebersihan & Fasum - WargaHub'
-  : 'Dashboard Ketua Komplek - WargaHub';
+const user = await Astro.session?.get('wargahub_user') as UserSession | undefined;
+if (!user || !hasWorkspace(user.role)) return Astro.redirect('/warga');
+const workspace = getWorkspaceNavigation(user.role);
+const counts = await getDashboardCounts(workspace.items);
 ---
-
-<AdminLayout title={pageTitle} currentPath="/admin">
-  <AdminDashboardView 
-    stats={stats} 
-    currentUser={currentUser} 
-    pendingPayments={pendingPaymentsList} 
-    properties={propertiesList} 
-    periodName={currentPeriod?.name || 'Belum ada periode iuran'}
-    client:load 
-  />
+<AdminLayout title={`${workspace.title} - WargaHub`} currentPath="/admin">
+  <AdminDashboardView role={user.role} name={user.fullName} counts={counts} />
 </AdminLayout>

@@ -3,13 +3,16 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { CleaningStaffManager } from '../../components/admin/CleaningStaffManager';
 import { getProperties } from '../../services/property.service';
 
-const properties = await getProperties().catch(() => []);
+import { listCleaningTasks } from '../../services/cleaning-checklist.service';
+
+const [properties, tasks] = await Promise.all([getProperties().catch(() => []), listCleaningTasks()]);
 ---
 
 <AdminLayout title="Pengelolaan Tim Kebersihan & Sampah - WargaHub" currentPath="/admin/cleaning-staff">
   <CleaningStaffManager
     totalProperties={properties.length}
     properties={properties as any}
+    initialTasks={tasks}
     client:load
   />
 </AdminLayout>

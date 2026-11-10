@@ -1,59 +1,23 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { recordAuditLog } from '../../../services/audit.service';
+import type { UserSession } from '../../../types/auth';
+import { archiveAnnouncements } from '../../../services/announcement.service';
 
-const deleteAnnSchema = z.object({
-  id: z.string().optional(),
-  ids: z.array(z.string()).optional(),
-  title: z.string().optional(),
-  reason: z.string().optional(),
-});
-
-export const POST: APIRoute = async ({ request }) => {
+const id = z.string().min(1).max(180);
+const input = z.object({ id: id.optional(), ids: z.array(id).min(1).max(100).optional() });
+export const POST: APIRoute = async ({ request, session }) => {
+  const actor = await session?.get('wargahub_user') as UserSession | undefined;
+  if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: 'Pilih pengumuman yang akan diarsipkan.' } }, { status: 400 });
+  const ids = body.data.ids ?? (body.data.id ? [body.data.id] : []);
+  if (!ids.length) return Response.json({ error: { message: 'Pilih pengumuman yang akan diarsipkan.' } }, { status: 400 });
   try {
-    const body = await request.json();
-    const validated = deleteAnnSchema.parse(body);
-    const targetIds = validated.ids && validated.ids.length > 0 
-      ? validated.ids 
-      : [validated.id || ''].filter(Boolean);
-
-    if (targetIds.length === 0) {
-      throw new Error('ID pengumuman wajib disertakan.');
-    }
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Pengurus Komplek',
-        action: 'announcement.delete',
-        entityType: 'ANNOUNCEMENT',
-        entityId: targetIds[0] || 'bulk',
-        newValue: {
-          announcementIds: targetIds,
-          reason: validated.reason || 'Dihapus dari papan pengumuman komplek',
-          deletedAt: new Date().toISOString(),
-        },
-      });
-    }
-
-    return new Response(
-      JSON.stringify({
-        data: {
-          success: true,
-          ids: targetIds,
-          message: `Sebanyak ${targetIds.length} pengumuman berhasil dihapus.`
-        },
-        meta: {},
-        error: null,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'ANNOUNCEMENT_DELETE_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    const archived = await archiveAnnouncements([...new Set(ids)], actor);
+    if (!archived.length) return Response.json({ error: { message: 'Pengumuman aktif tidak ditemukan.' } }, { status: 404 });
+    return Response.json({ data: { ids: archived }, error: null });
+  } catch (error) {
+    console.error('Pengarsipan pengumuman:', error);
+    return Response.json({ error: { message: 'Status arsip belum bisa dipastikan. Muat ulang daftar.' } }, { status: 503 });
   }
 };

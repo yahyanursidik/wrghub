@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useUrlTab } from '../../lib/use-url-tab';
+import { normalizeVehiclePlate } from '../../lib/vehicle-plate';
 import {
   ShieldCheck,
   QrCode,
@@ -210,16 +211,18 @@ export const DEFAULT_ROSTERS: RosterSchedule[] = [
 ];
 
 export interface SecurityGateManagerProps {
+  initialTab?: string;
   initialProperties?: any[];
   initialVehicles?: any[];
 }
 
 export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
+  initialTab,
   initialProperties = [],
   initialVehicles = [],
 }) => {
   // Main Subtab State
-  const [activeTab, setActiveTab] = useUrlTab(['guards', 'roster', 'patrol', 'gate', 'inventory', 'emergency'] as const, 'guards');
+  const [activeTab, setActiveTab] = useUrlTab(['guards', 'roster', 'patrol', 'gate', 'inventory', 'emergency'] as const, 'guards', 'tab', {}, initialTab);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1193,6 +1196,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     e.preventDefault();
     if (!qrInput) return;
     setScanLoading(true);
+    setScanResult(null);
     try {
       const res = await fetch('/api/security/verify-pass', {
         method: 'POST',
@@ -1200,7 +1204,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
         body: JSON.stringify({ qrPayload: qrInput })
       });
       const json = await res.json();
-      setScanResult(json.data);
+      setScanResult(res.ok ? json.data : { isValid: false, status: 'Belum bisa diperiksa', message: json.error?.message || 'Coba lagi.' });
     } catch (err) {
       console.error(err);
       showToast('Gagal memverifikasi QR code.');
@@ -1213,12 +1217,12 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     e.preventDefault();
     if (!searchingPlate) return;
     const rawPlate = searchingPlate.trim();
-    const cleanPlate = rawPlate.toUpperCase().replace(/[\s\-\.]/g, '');
+    const cleanPlate = normalizeVehiclePlate(rawPlate);
 
     // Search in initialVehicles from real database
     const matched = (initialVehicles || []).find((v: any) => {
-      const p = (v.plateNumber || v.plate_number || '').toUpperCase().replace(/[\s\-\.]/g, '');
-      return p === cleanPlate || p.includes(cleanPlate) || cleanPlate.includes(p);
+      const p = normalizeVehiclePlate(v.plateNumber || v.plate_number || '');
+      return Boolean(p && cleanPlate && p === cleanPlate);
     });
 
     if (matched) {
@@ -1228,9 +1232,9 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
         vehicle: `${matched.brand || ''} ${matched.model || ''} (${matched.color || '-'})`.trim(),
         owner: matched.ownerName || 'Warga Terdaftar',
         house: matched.propertyCode ? `Unit ${matched.propertyCode}` : 'Unit Terdaftar',
-        status: 'WARGA RESMI (TERVERIFIKASI)',
+        status: 'Kendaraan terdaftar',
         type: matched.type || 'Mobil',
-        rfidTag: matched.rfidTag || `RFID-WH-${matched.id ? String(matched.id).replace(/\D/g, '').slice(-6) || '882910' : '882910'}`,
+        rfidTag: 'Belum terintegrasi',
       });
     } else {
       setPlateResult({
@@ -1272,7 +1276,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     if (gateNo === 1) {
       setGate1Open(true);
       setGate1Countdown(5);
-      showToast('⚡ Palang Gerbang 1 (Pintu Masuk) DIBUKA secara manual.');
+      showToast('Simulasi palang masuk dimulai.');
       let c1 = 5;
       const t1 = setInterval(() => {
         c1 -= 1;
@@ -1287,7 +1291,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     } else {
       setGate2Open(true);
       setGate2Countdown(5);
-      showToast('⚡ Palang Gerbang 2 (Pintu Keluar) DIBUKA secara manual.');
+      showToast('Simulasi palang keluar dimulai.');
       let c2 = 5;
       const t2 = setInterval(() => {
         c2 -= 1;
@@ -1306,9 +1310,9 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
     const nextState = !sirenActive;
     setSirenActive(nextState);
     if (nextState) {
-      showToast('🚨 SIAGA SATPAM DIAKTIFKAN: Notifikasi darurat disiarkan!');
+      showToast('Simulasi sirene dimulai di layar ini.');
     } else {
-      showToast('Status siaga darurat dinonaktifkan.');
+      showToast('Simulasi sirene dihentikan.');
     }
   };
 
@@ -2817,7 +2821,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   </div>
                   <div>
                     <h4 className="font-bold text-xs text-ink">Palang Gerbang 1 — Pintu Masuk Utama</h4>
-                    <p className="text-[10px] text-ink-muted font-mono">Loop Sensor #1 • Relay Kontrol G1</p>
+                    <p className="text-[10px] text-ink-muted font-mono">Simulasi palang</p>
                   </div>
                 </div>
 
@@ -2832,7 +2836,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
 
               <div className="mt-3.5 pt-3 border-t border-border/70 flex items-center justify-between gap-2">
                 <span className="text-[10px] text-ink-muted">
-                  {gate1Open ? `Relay aktif • Menutup otomatis dalam ${gate1Countdown ?? 5} detik` : 'Mode operasional: Otomatis RFID / Manual Satpam'}
+                  {gate1Open ? `Simulasi • Menutup dalam ${gate1Countdown ?? 5} detik` : 'Perangkat fisik belum terhubung'}
                 </span>
                 <button
                   type="button"
@@ -2841,7 +2845,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-emerald-600 text-white font-bold rounded-xl text-xs shadow-xs transition-all active:scale-[0.98] shrink-0 flex items-center gap-1.5"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  {gate1Open ? `Membuka (${gate1Countdown ?? 5}s)...` : '⚡ Buka Palang Masuk'}
+                  {gate1Open ? `Membuka (${gate1Countdown ?? 5}s)...` : 'Simulasi palang masuk'}
                 </button>
               </div>
             </div>
@@ -2859,7 +2863,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   </div>
                   <div>
                     <h4 className="font-bold text-xs text-ink">Palang Gerbang 2 — Pintu Keluar / Blok C</h4>
-                    <p className="text-[10px] text-ink-muted font-mono">Loop Sensor #2 • Relay Kontrol G2</p>
+                    <p className="text-[10px] text-ink-muted font-mono">Simulasi palang</p>
                   </div>
                 </div>
 
@@ -2874,7 +2878,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
 
               <div className="mt-3.5 pt-3 border-t border-border/70 flex items-center justify-between gap-2">
                 <span className="text-[10px] text-ink-muted">
-                  {gate2Open ? `Relay aktif • Menutup otomatis dalam ${gate2Countdown ?? 5} detik` : 'Mode operasional: Loop Sensor / Manual Satpam'}
+                  {gate2Open ? `Simulasi • Menutup dalam ${gate2Countdown ?? 5} detik` : 'Perangkat fisik belum terhubung'}
                 </span>
                 <button
                   type="button"
@@ -2883,7 +2887,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                   className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-emerald-600 text-white font-bold rounded-xl text-xs shadow-xs transition-all active:scale-[0.98] shrink-0 flex items-center gap-1.5"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  {gate2Open ? `Membuka (${gate2Countdown ?? 5}s)...` : '⚡ Buka Palang Keluar'}
+                  {gate2Open ? `Membuka (${gate2Countdown ?? 5}s)...` : 'Simulasi palang keluar'}
                 </button>
               </div>
             </div>
@@ -2917,20 +2921,15 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     disabled={scanLoading}
                     className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs disabled:opacity-50 transition-all active:scale-[0.98] shrink-0"
                   >
-                    {scanLoading ? 'Memeriksa...' : 'Validasi QR'}
+                    {scanLoading ? 'Memeriksa...' : 'Cek kuitansi'}
                   </button>
                 </div>
               </form>
 
               {scanResult && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-950">Hasil Verifikasi:</span>
-                    <span className="px-2 py-0.5 bg-emerald-600 text-white font-bold rounded-full text-[10px]">
-                      {scanResult.status}
-                    </span>
-                  </div>
-                  <p className="text-emerald-900 font-medium">{scanResult.message}</p>
+                <div role="status" className={`space-y-1 rounded-xl border p-4 ${scanResult.isValid ? 'border-primary-200 bg-primary-50' : 'border-amber-200 bg-amber-50'}`}>
+                  <p className="font-semibold">{scanResult.status}</p>
+                  <p>{scanResult.message}</p>
                 </div>
               )}
             </div>
@@ -2940,7 +2939,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
               <div>
                 <h4 className="font-bold text-sm text-ink flex items-center gap-2">
                   <Car className="w-4 h-4 text-sky-600" />
-                  Cek Plat Nomor Kendaraan & Akses RFID
+                  Cek plat kendaraan
                 </h4>
                 <p className="text-ink-muted text-[11px] mt-0.5">
                   Cek apakah plat nomor mobil/motor terdaftar resmi dalam database kendaraan warga komplek.
@@ -3002,7 +3001,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                           className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold rounded-xl text-xs transition-all active:scale-[0.98] shadow-xs flex items-center justify-center gap-1.5"
                         >
                           <Zap className="w-3.5 h-3.5" />
-                          {gate1Open ? `Palang 1 Terbuka (${gate1Countdown ?? 5}s)` : 'Buka Palang Masuk (G1)'}
+                          {gate1Open ? `Simulasi masuk (${gate1Countdown ?? 5}s)` : 'Simulasi masuk'}
                         </button>
                         <button
                           type="button"
@@ -3011,7 +3010,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                           className="flex-1 py-2 px-3 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-400 text-white font-bold rounded-xl text-xs transition-all active:scale-[0.98] shadow-xs flex items-center justify-center gap-1.5"
                         >
                           <Zap className="w-3.5 h-3.5" />
-                          {gate2Open ? `Palang 2 Terbuka (${gate2Countdown ?? 5}s)` : 'Buka Palang Keluar (G2)'}
+                          {gate2Open ? `Simulasi keluar (${gate2Countdown ?? 5}s)` : 'Simulasi keluar'}
                         </button>
                       </div>
                     </div>
@@ -3340,17 +3339,15 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                 </div>
                 <div>
                   <h4 className="font-black text-sm text-ink flex items-center gap-2">
-                    <span>Pusat Komando & Sirene Siaga Darurat Pos Satpam</span>
+                    <span>Simulasi sirene</span>
                     {sirenActive && (
                       <span className="px-2 py-0.5 bg-rose-600 text-white rounded-full text-[10px] font-bold animate-pulse">
-                        SIAGA 1 AKTIF
+                        Simulasi aktif
                       </span>
                     )}
                   </h4>
                   <p className="text-ink-muted text-xs mt-0.5">
-                    {sirenActive
-                      ? '⚠️ Sirene siaga darurat aktif! Notifikasi otomatis disiarkan ke seluruh pengurus RT/RW.'
-                      : 'Gunakan tombol ini saat terjadi tindak kejahatan, kebakaran, atau situasi darurat tingkat tinggi.'}
+                    Simulasi di layar ini tidak mengirim notifikasi. Gunakan kontak darurat untuk meminta bantuan.
                   </p>
                 </div>
               </div>
@@ -3364,7 +3361,7 @@ export const SecurityGateManager: React.FC<SecurityGateManagerProps> = ({
                     : 'bg-rose-600 hover:bg-rose-700 text-white'
                 }`}
               >
-                {sirenActive ? 'Matikan Sirene Siaga' : '🚨 AKTIFKAN SIAGA 1'}
+                {sirenActive ? 'Hentikan simulasi' : 'Mulai simulasi'}
               </button>
             </div>
           </div>

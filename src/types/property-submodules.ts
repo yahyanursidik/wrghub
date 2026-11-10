@@ -5,7 +5,7 @@ export interface ResidentItem {
   areaLabel: string;
   fullName: string;
   relation: 'KEPALA_KELUARGA' | 'ISTRI' | 'ANAK' | 'ORANG_TUA' | 'FAMILI_LAIN' | 'ART' | 'PENYEWA';
-  gender: 'LAKI_LAKI' | 'PEREMPUAN';
+  gender: 'LAKI_LAKI' | 'PEREMPUAN' | '';
   birthPlaceDate: string;
   religion: string;
   occupation: string;
@@ -13,8 +13,8 @@ export interface ResidentItem {
   email: string;
   idCard: string;
   familyCard: string;
-  domicileStatus: 'KTP_SETEMPAT' | 'KTP_LUAR_DAERAH' | 'SURAT_DOMISILI';
-  bloodType: 'A' | 'B' | 'AB' | 'O';
+  domicileStatus: 'KTP_SETEMPAT' | 'KTP_LUAR_DAERAH' | 'SURAT_DOMISILI' | '';
+  bloodType: 'A' | 'B' | 'AB' | 'O' | '';
   isEmergency: boolean;
   notes?: string;
 }
@@ -71,11 +71,12 @@ export interface UtilityItem {
   pamReadingLastMonth: number;
   pamReadingThisMonth: number;
   pamUsage: number;
-  monthlyIplFee: number;
+  monthlyIplFee: number | null;
+  billingPeriodName?: string;
   wasteSchedule: string;
   hasBiopori: boolean;
   hasSolarPanel: boolean;
-  paymentStatus: 'LUNAS' | 'MENUNGGU_BAYAR' | 'MENUNGGAK';
+  paymentStatus: 'LUNAS' | 'MENUNGGU_BAYAR' | 'MENUNGGAK' | 'SEBAGIAN' | 'DIBEBASKAN' | 'BELUM_ADA_TAGIHAN' | 'TERBATAS';
   notes?: string;
 }
 

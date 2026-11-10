@@ -46,6 +46,7 @@ const safeProgress = progress || {
 
 <AdminLayout title="Iuran & Billing - WargaHub" currentPath="/admin/billing">
   <BillingManager
+    initialHouse={Astro.url.searchParams.get('house')?.slice(0,30) || ''}
     initialPeriodId={currentPeriod?.id || 'period-2026-10'}
     initialPeriodName={currentPeriod?.name || 'Oktober 2026'}
     initialInvoices={invoices as any}
