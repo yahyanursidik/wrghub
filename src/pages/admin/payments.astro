@@ -3,6 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { PaymentsManager } from '../../components/admin/PaymentsManager';
 import { getPayments } from '../../services/payment.service';
 import { getAccounts } from '../../services/finance.service';
+import { getFinanceWhatsAppProfile } from '../../services/settings.service';
 import { getBillingPeriods, getInvoices } from '../../services/billing.service';
 import { canReversePayment } from '../../lib/access-policy';
 import { jakartaDate } from '../../lib/billing-data';
@@ -13,9 +14,9 @@ if (!actor) return Astro.redirect('/login?portal=admin');
 const params = Astro.url.searchParams;
 if (params.get('tab') === 'receiving_channels') return Astro.redirect('/admin/ledger?tab=accounts_manage', 302);
 
-const data = await Promise.all([getPayments(),getAccounts(),getBillingPeriods(),getInvoices('ALL',{details:true})])
-  .then(([payments,accounts,periods,invoices])=>({
-    payments,accounts,periods,
+const data = await Promise.all([getPayments(),getAccounts(),getBillingPeriods(),getInvoices('ALL',{details:true}),getFinanceWhatsAppProfile().catch(()=>null)])
+  .then(([payments,accounts,periods,invoices,shareProfile])=>({
+    payments,accounts,periods,shareProfile,
     invoices:invoices.map(({id,invoiceNumber,propertyCode,propertyId,billingPeriodId,billingPeriodName,residentName,total,paidAmount,status,pendingPaymentId})=>
       ({id,invoiceNumber,propertyCode,propertyId,billingPeriodId,billingPeriodName,residentName,total,paidAmount,status,pendingPaymentId})),
   })).catch(()=>null);

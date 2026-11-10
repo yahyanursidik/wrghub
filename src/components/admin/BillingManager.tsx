@@ -6,10 +6,12 @@ import {
   invoiceCollected, invoiceRemaining, invoiceState, PAYMENT_METHODS, selectReceivingBank, type BillingTariff, type TariffComponent,
 } from '../../lib/billing-data';
 import { formatRupiah } from '../../lib/format';
+import type { FinanceWhatsAppProfile } from '../../lib/finance-whatsapp';
 import { useUrlTab } from '../../lib/use-url-tab';
 import type { BillingInvoice, BillingPeriod } from '../../services/billing.service';
 import type { FinanceAccount } from '../../services/finance.service';
 import { ReceiptModal, type ReceiptModalData } from '../shared/ReceiptModal';
+import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
 import {
   FinanceDialog, FinanceEmpty, FinanceHeader, FinancePager, FinanceScope, FinanceStatus, FinanceSummary, FinanceTabs,
   financeButton, financeField, financePost, financePrimary, type FinanceHouse,
@@ -35,6 +37,7 @@ interface Props {
   accounts: FinanceAccount[];
   tariff: BillingTariff;
   billableIds: string[];
+  shareProfile: FinanceWhatsAppProfile|null;
   today: string;
   canManage: boolean;
   initialTab?: string;
@@ -52,7 +55,7 @@ const statusFilters = [
 const occupancyFilters = [['','Semua hunian'],['occupied','Dihuni'],['RENTED','Disewa'],['VACANT','Kosong']];
 
 export function BillingManager({
-  periods,invoices:initialInvoices,houses,accounts,tariff:initialTariff,billableIds,today,canManage,
+  periods,invoices:initialInvoices,houses,accounts,tariff:initialTariff,billableIds,shareProfile,today,canManage,
   initialTab,initialHouse,initialPeriodId,initialInvoiceId,unknownPeriod,
 }: Props) {
   const [tab,setTab]=useUrlTab(tabIds,'invoices','tab',{},initialTab);
@@ -70,7 +73,6 @@ export function BillingManager({
   const [invoiceDocument,setDocument]=useState<ReceiptModalData|null>(null);
   const [editingTariff,setEditingTariff]=useState(false);
   const [showReport,setShowReport]=useState(false);
-  const [reportNotice,setReportNotice]=useState('');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
@@ -146,12 +148,6 @@ export function BillingManager({
     window.open(waLink(lines.join('\n')),'_blank','noopener,noreferrer');
   }
 
-  const report=[
-    'Rekap iuran '+(activePeriod?.name || ''),'Tagihan '+formatRupiah(billed),'Diterima '+formatRupiah(received),
-    'Sisa '+formatRupiah(remaining),paidCount+' dari '+collectible.length+' tagihan lunas',
-    ...(pendingCount ? [pendingCount+' pembayaran menunggu verifikasi'] : []),...(bankText ? ['Rekening '+bankText] : []),
-  ].join('\n');
-
   async function submitInvoice(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if(!action || busy) return;
@@ -193,6 +189,9 @@ export function BillingManager({
       <a className={financeButton} href={financePath('/rekap-iuran',{period:periodId})} target="_blank" rel="noopener noreferrer">
         <ExternalLink className="size-4" aria-hidden="true" />Rekap publik
       </a>
+      {canManage && <button type="button" className={financeButton} onClick={()=>setShowReport(true)}>
+        <MessageCircle className="size-4" aria-hidden="true" />Laporan WA (wa.me)
+      </button>}
       {canManage && <button type="button" onClick={()=>openAction({kind:'create'})} className={financePrimary}><Plus className="size-4" aria-hidden="true" />Buat tagihan</button>}
     </FinanceHeader>
     <FinanceTabs tabs={tabs} active={tab} change={setTab} label="Submenu tagihan" />
@@ -207,9 +206,6 @@ export function BillingManager({
           </select>
         </label>
         <div className="flex flex-wrap gap-2">
-          {periodInvoices.length>0 && <button type="button" className={financeButton} onClick={()=>{setReportNotice('');setShowReport(true);}}>
-            <MessageCircle className="size-4" aria-hidden="true" />Rekap WhatsApp
-          </button>}
           <button type="button" className={financeButton} disabled={!visible.length} onClick={()=>downloadFinanceCsv('tagihan-'+(periodId || 'iuran')+'.csv',[
             ['Nomor tagihan','Rumah','Penghuni','Periode','Total','Diterima','Sisa','Status','Jatuh tempo'],
             ...visible.map(item=>[item.invoiceNumber,item.propertyCode,item.residentName,item.billingPeriodName,item.total,invoiceCollected(item),invoiceRemaining(item),invoiceState(item,today),item.dueDate]),
@@ -328,17 +324,8 @@ export function BillingManager({
         finally {setBusy(false);}
       }} />}
     </FinanceDialog>
-    <FinanceDialog open={showReport} title="Rekap WhatsApp" close={()=>setShowReport(false)}>
-      <textarea readOnly aria-label="Isi rekap" rows={7} value={report} className={financeField} />
-      <div className="flex flex-wrap gap-2">
-        <a className={financePrimary} target="_blank" rel="noopener noreferrer" href={waLink(report)}>Buka WhatsApp</a>
-        <button className={financeButton} type="button" onClick={async()=>{
-          try {await navigator.clipboard.writeText(report);setReportNotice('Rekap disalin.');}
-          catch {setReportNotice('Salin teks dari kotak rekap.');}
-        }}>Salin rekap</button>
-      </div>
-      {reportNotice && <p role="status" className="text-sm text-ink-muted">{reportNotice}</p>}
-    </FinanceDialog>
+    {canManage && showReport && <WhatsAppDuesReportModal mode="dues" periods={periods} invoices={invoices} initialPeriodId={periodId}
+      today={today} profile={shareProfile} onClose={()=>setShowReport(false)} />}
     {invoiceDocument && <ReceiptModal data={invoiceDocument} isOpen onClose={()=>setDocument(null)} />}
   </div>;
 }

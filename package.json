@@ -21,6 +21,7 @@
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "audit:navigation": "node scripts/audit-navigation.mjs",
     "test:ledger": "node --import tsx scripts/test-ledger-integrity.ts",
+    "test:finance-whatsapp": "node --import tsx scripts/test-finance-whatsapp.ts",
     "test:postgres": "node --import tsx scripts/test-postgres-operations.mjs",
     "test:authorization": "node --import tsx scripts/test-api-authorization.ts",
     "test:access": "node --import tsx scripts/test-access-policy.ts"

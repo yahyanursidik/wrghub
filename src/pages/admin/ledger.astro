@@ -2,8 +2,9 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { LedgerManager } from '../../components/admin/LedgerManager';
 import { getAccounts } from '../../services/finance.service';
+import { getFinanceWhatsAppProfile } from '../../services/settings.service';
 import { CASH_CSV_LIMIT, CASH_PAGE_SIZE, getCashLedger, getCashReconciliation } from '../../services/cash-ledger.service';
-import { financeCsv } from '../../lib/billing-data';
+import { financeCsv, jakartaDate } from '../../lib/billing-data';
 import { currentFinanceMonth, financeMonthPattern, ledgerSources, LEDGER_TABS, type LedgerScope, type LedgerSubTab } from '../../lib/cash-data';
 import { canManageFinance } from '../../lib/access-policy';
 import type { UserSession } from '../../types/auth';
@@ -29,10 +30,12 @@ const csv = tab==='ledger_list' && params.get('download')==='csv';
 const data = await getAccounts().then(async accounts=>{
   const selected = accounts.find(account=>account.id===params.get('account'));
   const accountId = selected?.id || (tab==='bank_reconciliation' ? accounts[0]?.id : '') || '';
-  const ledger = tab==='ledger_list' || tab==='financial_reports' ?
-    await getCashLedger({month,accountId,search,source:filterSource,page,scope,export:csv}) : null;
-  const reconciliation = tab==='bank_reconciliation' && accountId ? await getCashReconciliation(accountId,month) : null;
-  return {accounts,accountId,ledger,reconciliation};
+  const [ledger,reconciliation,shareProfile] = await Promise.all([
+    tab==='ledger_list' || tab==='financial_reports' ? getCashLedger({month,accountId,search,source:filterSource,page,scope,export:csv}) : null,
+    tab==='bank_reconciliation' && accountId ? getCashReconciliation(accountId,month) : null,
+    canWrite && (tab==='accounts_manage' || (tab==='financial_reports' && !accountId)) ? getFinanceWhatsAppProfile().catch(()=>null) : null,
+  ]);
+  return {accounts,accountId,ledger,reconciliation,shareProfile};
 }).catch(error=>{console.error('Cash workspace query failed',error instanceof Error?error.message:typeof error);return null;});
 if (!data) Astro.response.status=503;
 if (csv && data?.ledger) {
@@ -46,7 +49,7 @@ if (csv && data?.ledger) {
 
 <AdminLayout title="Buku Kas - WargaHub" currentPath="/admin/ledger">
   {data ? <LedgerManager {...data} initialTab={tab} canWrite={canWrite} month={month} search={search} source={filterSource}
-    scope={scope} journalPageSize={CASH_PAGE_SIZE} initialNotice={params.get('saved') || ''} client:load />
+    scope={scope} journalPageSize={CASH_PAGE_SIZE} initialNotice={params.get('saved') || ''} today={jakartaDate()} client:load />
   : <section class="workspace-panel" role="alert">
     <h1 class="text-xl font-bold">Buku kas</h1><p class="mt-2 text-sm text-ink-muted">Data buku kas belum dapat dimuat.</p>
     <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname + Astro.url.search} data-astro-reload>Coba lagi</a>

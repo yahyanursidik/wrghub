@@ -5,12 +5,14 @@ import {
   downloadFinanceCsv, financeDate, financePath, invoiceRemaining, jakartaDate, PAYMENT_METHODS, paymentMethodLabel, proofLink,
 } from '../../lib/billing-data';
 import { formatRupiah } from '../../lib/format';
+import type { FinanceWhatsAppProfile } from '../../lib/finance-whatsapp';
 import { receiptNumber } from '../../lib/receipt-number';
 import { useUrlTab } from '../../lib/use-url-tab';
 import type { BillingInvoice, BillingPeriod } from '../../services/billing.service';
 import type { FinanceAccount } from '../../services/finance.service';
 import type { PaymentListItem } from '../../services/payment.service';
 import { ReceiptModal, type ReceiptModalData } from '../shared/ReceiptModal';
+import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
 import {
   FinanceDialog, FinanceEmpty, FinanceHeader, FinancePager, FinanceScope, FinanceStatus, FinanceSummary, FinanceTabs,
   financeButton, financeField, financePost, financePrimary,
@@ -43,6 +45,7 @@ interface Props {
   payments:PaymentListItem[];accounts:FinanceAccount[];periods:BillingPeriod[];invoices:Invoice[];
   today:string;initialTab?:string;initialHouse:string;initialPeriod:string;initialInvoice:string;
   initialPayment:string;initialStatus:string;canReverse:boolean;
+  shareProfile:FinanceWhatsAppProfile|null;
 }
 
 function defaultStatus(tab?:string,status?:string,focused?:string) {
@@ -52,7 +55,7 @@ function defaultStatus(tab?:string,status?:string,focused?:string) {
 }
 
 export function PaymentsManager({
-  payments:initialPayments,accounts:initialAccounts,periods,invoices:initialInvoices,today,
+  payments:initialPayments,accounts:initialAccounts,periods,invoices:initialInvoices,today,shareProfile,
   initialTab,initialHouse,initialPeriod,initialInvoice,initialPayment,initialStatus,canReverse,
 }:Props) {
   const [tab,setTab]=useUrlTab(tabIds,'verification','tab',{},initialTab);
@@ -74,6 +77,7 @@ export function PaymentsManager({
   const [error,setError]=useState('');
   const [feedback,setFeedback]=useState<Feedback|null>(null);
   const [receipt,setReceipt]=useState<ReceiptModalData|null>(null);
+  const [showReport,setShowReport]=useState(false);
 
   useEffect(()=>{
     const restore=()=>{
@@ -233,6 +237,7 @@ export function PaymentsManager({
   return <div className="workspace">
     <FinanceHeader area="payments" title="Pembayaran">
       <a href="/admin/ledger?tab=accounts_manage" className={financeButton}><Wallet className="size-4" aria-hidden="true" />Rekening kas</a>
+      <button type="button" className={financeButton} onClick={()=>setShowReport(true)}><MessageCircle className="size-4" aria-hidden="true" />Laporan WA (wa.me)</button>
       {tab!=='manual_counter' && <button type="button" className={financePrimary} onClick={()=>chooseTab('manual_counter')}>
         <Plus className="size-4" aria-hidden="true" />Catat pembayaran
       </button>}
@@ -349,6 +354,9 @@ export function PaymentsManager({
         maxAmount={current.invoiceId ? invoiceById.get(current.invoiceId) && invoiceRemaining(invoiceById.get(current.invoiceId)!) : undefined}
         today={today} busy={busy} onSubmit={submitAction} />)}
     </FinanceDialog>
+    {showReport && <WhatsAppDuesReportModal mode="dues" periods={periods} invoices={invoices}
+      initialPeriodId={period || focusedInvoice?.billingPeriodId || focusedPayment?.billingPeriodId || ''}
+      today={today} profile={shareProfile} onClose={()=>setShowReport(false)} />}
     {receipt && <ReceiptModal isOpen data={receipt} onClose={()=>setReceipt(null)} />}
   </div>;
 }
