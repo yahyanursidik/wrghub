@@ -123,7 +123,7 @@ export function ExpensesManager({expenses,accounts,categories,projects,facilitie
   const summary = <FinanceSummary items={[
     {label:social?'Bantuan dibukukan':'Dibukukan',value:cashRupiah(booked.reduce((sum,item)=>sum+item.amount,0)),detail:booked.length+' transaksi',tone:'rose'},
     {label:'Draf',value:drafts.length,detail:unlinked.length?unlinked.length+' perlu cek jurnal':undefined,tone:'amber'},
-    {label:'Saldo kas aktif',value:cashRupiah(activeBalance),detail:<a href={ledgerHref({tab:'accounts_manage'})} className="inline-flex min-h-8 items-center gap-1 font-semibold hover:underline">Lihat rekening <ArrowUpRight className="size-3" aria-hidden="true" /></a>,tone:'mint'},
+     {label:'Saldo buku kas aktif',value:cashRupiah(activeBalance),detail:<a href={ledgerHref({tab:'accounts_manage'})} className="inline-flex min-h-8 items-center gap-1 font-semibold hover:underline">Lihat rekening <ArrowUpRight className="size-3" aria-hidden="true" /></a>,tone:'mint'},
   ]} />;
   const filterBar = <div className="grid gap-2 border-b border-border p-3 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,1.6fr)_repeat(3,minmax(8rem,1fr))] sm:p-4">
     <Field label={social?'Cari bantuan':'Cari pengeluaran'}><span className="relative block">

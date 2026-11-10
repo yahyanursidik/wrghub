@@ -23,7 +23,7 @@ function rows(data:AnalyticsWorkspace):(string|number)[][] {
     [],['Periode','Kategori','Masuk','Terbuka'],...data.security.categories.map(item=>[month,item.name,item.total,item.open]),
     [],['Periode','Indikator','Jumlah'],[month,'Patroli tercatat',data.security.patrols],
   ];
-  return [['Periode','Saldo awal (Rp)','Pemasukan bersih (Rp)','Pengeluaran bersih (Rp)','Arus bersih (Rp)','Mutasi internal bersih (Rp)','Saldo awal rekening (Rp)','Saldo akhir (Rp)','Jumlah jurnal'],
+   return [['Periode','Saldo awal menurut buku kas (Rp)','Pemasukan bersih (Rp)','Pengeluaran bersih tercatat (Rp)','Arus bersih (Rp)','Mutasi internal bersih (Rp)','Saldo awal rekening (Rp)','Saldo akhir menurut buku kas (Rp)','Jumlah jurnal'],
     ...data.trends.map(row=>[row.month,row.opening,row.income,row.outgoing,roundCash(row.income-row.outgoing),row.transfers,row.openingEntries,row.closing,row.count])];
 }
 export const GET:APIRoute=async({url})=>{

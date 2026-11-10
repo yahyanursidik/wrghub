@@ -12,7 +12,7 @@ if (filters.tab==='public_ledger' && query.get('download')==='csv') {
   const journal=await getPublicJournalExport(period,filters).catch(()=>null);
   if(!journal) return new Response('Jurnal publik belum dapat dimuat.',{status:503});
   if(journal.total>PUBLIC_CSV_LIMIT) return new Response('Persempit filter sebelum mengunduh.',{status:422});
-  return new Response(financeCsv([['Tanggal','Nomor jurnal publik','Uraian','Kategori','Arah','Nominal (Rp)','Saldo (Rp)'],
+   return new Response(financeCsv([['Tanggal','Nomor jurnal publik','Uraian','Kategori','Arah','Nominal (Rp)','Saldo menurut buku kas (Rp)'],
     ...journal.rows.map(row=>[row.date,row.reference,row.label,publicCashCategories[row.category],row.direction==='IN'?'Masuk':'Keluar',row.amount,row.balance])]),
     {headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="jurnal-warga-'+billingMonthKey(period.year,period.month)+'.csv"',
       'X-Content-Type-Options':'nosniff','Cache-Control':'no-store'}});

@@ -40,7 +40,8 @@ assert.match(short,/Rp340\.000/);
 const noAccount = buildFinanceWhatsAppMessage({template:'bank'},{...options,profile:{...options.profile,bankAccount:'BCA_MAIN'}});
 assert.equal(noAccount,'');
 const cash = buildFinanceWhatsAppMessage({template:'cash',month:'2026-10',summary:{opening:1000000,closing:940000,income:100000,outgoing:160000,transfers:0,openingEntries:0,count:2}},options);
-assert.match(cash,/Saldo akhir: \*Rp940\.000\*/);
+assert.match(cash,/Saldo akhir menurut buku kas: \*Rp940\.000\*/);
+assert.match(cash,/Pengeluaran yang belum dicatat belum mengurangi angka ini/);
 assert.doesNotMatch(cash,/01234567890/);
 
 assert.equal(financeWhatsAppNumber('0812-3456-7890'),'6281234567890');

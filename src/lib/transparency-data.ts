@@ -18,7 +18,7 @@ export interface PublicDuesMonth {month:number;billed:number;paid:number;receive
 export interface PublicTransparencyData {
   period:PublicReportPeriod;periodLabel:string;currentMonth:string;previousMonth:string|null;nextMonth:string|null;
   communityName:string;bank:{name:string;number:string;holder:string}|null;
-  cash:CashPeriodSummary;duesCash:number;loanCashIn:number;loanCashOut:number;homes:number;dues:PublicDuesMonth[];
+  cash:CashPeriodSummary;cashReconciled:boolean;duesCash:number;loanCashIn:number;loanCashOut:number;homes:number;dues:PublicDuesMonth[];
   outgoing:{category:PublicCashCategory;amount:number}[];journal:{rows:PublicJournalEntry[];total:number;page:number};
   shareUrl:string;qrCode:string;
   duty:{handover:string;current:number;upcoming:{date:string;turn:number}[]}|null;

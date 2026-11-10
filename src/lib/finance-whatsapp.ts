@@ -98,7 +98,8 @@ export function buildFinanceWhatsAppMessage(source:MessageSource,options:Message
   if (source.template==='cash') {
     const {summary} = source;
     body.push('📊 *Ringkasan Buku Kas*',`• Saldo awal: *${cashRupiah(summary.opening)}*`,`• Pemasukan bersih: *${cashRupiah(summary.income)}*`,
-      `• Pengeluaran bersih: *${cashRupiah(summary.outgoing)}*`,`• Saldo akhir: *${cashRupiah(summary.closing)}*`,'',
+       `• Pengeluaran bersih tercatat: *${cashRupiah(summary.outgoing)}*`,`• Saldo akhir menurut buku kas: *${cashRupiah(summary.closing)}*`,
+       '⚠️ Saldo buku bukan saldo bank/kas terverifikasi. Pengeluaran yang belum dicatat belum mengurangi angka ini.','',
       'Laporan transparansi warga:',transparencyUrl(source.month));
   } else if (source.template==='bank') {
     body.push('💳 *Rekening resmi pembayaran iuran*',bank,'','Cantumkan kode rumah saat transfer. Konfirmasi pembayaran dan buka kuitansi di portal warga:',portalUrl);

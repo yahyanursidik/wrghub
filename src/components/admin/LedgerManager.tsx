@@ -51,7 +51,7 @@ function sourceHref(row:CashJournalRow,canWrite:boolean) {
 }
 function CashSummary({summary,month}:{summary:CashPeriodSummary;month:string}) {
   return <FinanceSummary items={[
-    {label:'Saldo akhir',value:cashRupiah(summary.closing),detail:financeMonth(month),tone:'mint'},
+    {label:'Saldo akhir buku kas',value:cashRupiah(summary.closing),detail:financeMonth(month),tone:'mint'},
     {label:'Pemasukan bersih',value:cashRupiah(summary.income),detail:'Setelah pembalikan',tone:'sky'},
     {label:'Pengeluaran bersih',value:cashRupiah(summary.outgoing),detail:'Setelah pembatalan',tone:'rose'},
   ]} />;
@@ -222,7 +222,7 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:flex-col md:items-start">
                   <p className={'font-bold tabular-nums [overflow-wrap:anywhere] '+(incoming?'text-primary-800':'text-rose-800')}>{incoming?'+':'−'}{cashRupiah(row.amount)}</p>
-                  <p className="text-xs tabular-nums text-ink-muted">Saldo setelah {cashRupiah(row.runningBalance)}</p>
+                   <p className="text-xs tabular-nums text-ink-muted">Saldo buku setelah {cashRupiah(row.runningBalance)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 md:justify-end">
                   {destination && !(scope?.type==='transfer' && isInternalTransfer(row.sourceType)) && !(scope?.type==='payment' && !canWrite) && <a className={link} href={destination}>{isInternalTransfer(row.sourceType)?'Lihat pasangan':'Lihat sumber'} <ArrowUpRight className="size-3" aria-hidden="true" /></a>}
@@ -243,10 +243,11 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
     </>}
     {tab==='accounts_manage' && <section className="grid gap-4" aria-label="Rekening kas">
       <FinanceSummary items={[
-        {label:'Saldo kas aktif',value:cashRupiah(accounts.reduce((sum,item)=>sum+item.balance,0)),detail:accounts.some(item=>item.type===RESERVE_ACCOUNT)?'Termasuk dana cadangan':undefined,tone:'mint'},
+         {label:'Saldo buku kas aktif',value:cashRupiah(accounts.reduce((sum,item)=>sum+item.balance,0)),detail:accounts.some(item=>item.type===RESERVE_ACCOUNT)?'Termasuk dana cadangan':undefined,tone:'mint'},
         {label:'Rekening bank & tabungan',value:accounts.filter(item=>['BANK','SAVINGS'].includes(item.type)).length,tone:'sky'},
         {label:'Kas tunai & kas kecil',value:accounts.filter(item=>['CASH','PETTY_CASH'].includes(item.type)).length,tone:'amber'},
-      ]} />
+       ]} />
+       <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">Saldo rekening dalam aplikasi belum tentu sama dengan dana tersedia. Catat seluruh pengeluaran lalu cocokkan setiap rekening dan kas fisik pada tab Rekonsiliasi.</p>
       {!accounts.length ? <FinanceEmpty>Belum ada rekening kas.</FinanceEmpty> : <div className="grid gap-3 lg:grid-cols-2">
         {accounts.map(item=><article key={item.id} className="workspace-panel grid gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -271,13 +272,14 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
     </div> : <FinanceEmpty action={<a href={path({tab:'accounts_manage'})} className={financeButton}>Lihat rekening</a>}>Siapkan rekening untuk mulai rekonsiliasi.</FinanceEmpty>)}
     {tab==='financial_reports' && ledger && <section className="grid gap-4" aria-label="Laporan kas">
       {monthAccount('financial_reports')}
-      <CashSummary summary={ledger.summary} month={month} />
+       <CashSummary summary={ledger.summary} month={month} />
+       <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">Saldo ini menurut buku kas, bukan saldo kas/bank terverifikasi. Pengeluaran yang belum dicatat tidak mengurangi saldo. Cocokkan dengan rekening koran dan kas fisik.</p>
       <section className="workspace-panel grid gap-3">
         <header className="flex flex-wrap items-center justify-between gap-2"><h2 className="!mb-0">Pergerakan saldo · {financeMonth(month)}</h2>
           <span className="text-sm text-ink-muted [overflow-wrap:anywhere]">{account?.name || 'Semua rekening'}</span></header>
         <dl className="divide-y divide-border text-sm">
           {([['Saldo awal',ledger.summary.opening],['Pemasukan bersih',ledger.summary.income],['Pengeluaran bersih',-ledger.summary.outgoing],
-            ['Saldo awal rekening baru',ledger.summary.openingEntries],['Mutasi internal bersih',ledger.summary.transfers],['Saldo akhir',ledger.summary.closing]] as [string,number][]).map(([label,value])=><div key={label} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-1.5">
+             ['Saldo awal rekening baru',ledger.summary.openingEntries],['Mutasi internal bersih',ledger.summary.transfers],['Saldo akhir buku kas',ledger.summary.closing]] as [string,number][]).map(([label,value])=><div key={label} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-1.5">
             <dt>{label}</dt><dd className="font-semibold tabular-nums">{cashRupiah(value)}</dd>
           </div>)}
         </dl>
