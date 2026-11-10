@@ -204,7 +204,7 @@ export function ExpensesManager({expenses,accounts,categories,projects,facilitie
           : <ul className="divide-y divide-border px-4">
             {rows.slice((page-1)*pageSize,page*pageSize).map(item=>{
               const linkedProject = projects.find(row=>row.id===item.details.projectId);
-              const editable = canWrite && (item.status==='PENDING' || (item.status==='APPROVED' && item.journalCount===1));
+              const editable = canWrite && !item.payrollLinked && (item.status==='PENDING' || (item.status==='APPROVED' && item.journalCount===1));
               return <li key={item.id} data-expense-id={item.id} className="grid min-w-0 gap-x-4 gap-y-2 py-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,0.85fr)_minmax(0,1fr)] md:items-start">
                 <div className="min-w-0">
                   <p className="font-semibold [overflow-wrap:anywhere]">{item.title}</p>
@@ -219,6 +219,7 @@ export function ExpensesManager({expenses,accounts,categories,projects,facilitie
                 </div>
                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 md:justify-end">
                   {item.journalCount>0 && <a className={cellLink} href={ledgerHref({expense:item.id})}>Buku kas <ArrowUpRight className="size-3" aria-hidden="true" /></a>}
+                  {item.payrollLinked && <a className={cellLink} href={'/admin/staff-loans?'+new URLSearchParams({tab:'repayment_history',expense:item.id})}>Potongan gaji <ArrowUpRight className="size-3" aria-hidden="true" /></a>}
                   {item.hasProof && <a className={cellLink} href={'/api/expenses/proof?'+new URLSearchParams({expense:item.id})} download rel="noreferrer" data-astro-reload>Bukti <ArrowDownToLine className="size-3" aria-hidden="true" /></a>}
                   {editable && <button className={cellLink} type="button" onClick={()=>open({type:item.details.aidType?'social':'expense',record:item})}>Ubah</button>}
                   {editable && item.status==='PENDING' && <button className={cellLink} type="button" onClick={()=>open({type:'book',record:item})}>Bukukan</button>}

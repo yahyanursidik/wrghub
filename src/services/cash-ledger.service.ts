@@ -10,10 +10,12 @@ import { OperationalError, operationalAudit } from './operational-mutation';
 const transfers = "'INTERNAL_TRANSFER','MUTASI_KAS_INTERNAL','RESERVE_TRANSFER'";
 const expenseSources = "'EXPENSE','EXPENSE_REVERSAL'";
 const paymentSources = "'PAYMENT','PAYMENT_REVERSAL'";
-const incomeSql=`CASE WHEN source_type='PAYMENT_REVERSAL' THEN -amount
-  WHEN direction='IN' AND source_type NOT IN (${transfers},'OPENING_BALANCE','EXPENSE_REVERSAL') THEN amount ELSE 0 END`;
-const outgoingSql=`CASE WHEN source_type='EXPENSE_REVERSAL' THEN -amount
-  WHEN direction='OUT' AND source_type NOT IN (${transfers},'OPENING_BALANCE','PAYMENT_REVERSAL') THEN amount ELSE 0 END`;
+const loanDisbursementSources = "'STAFF_LOAN_DISBURSEMENT','STAFF_LOAN_DISBURSEMENT_REVERSAL'";
+const loanInstallmentSources = "'STAFF_LOAN_INSTALLMENT','STAFF_LOAN_INSTALLMENT_REVERSAL'";
+export const incomeSql=`CASE WHEN source_type IN ('PAYMENT_REVERSAL','STAFF_LOAN_INSTALLMENT_REVERSAL') THEN -amount
+  WHEN direction='IN' AND source_type NOT IN (${transfers},'OPENING_BALANCE','EXPENSE_REVERSAL','STAFF_LOAN_DISBURSEMENT_REVERSAL') THEN amount ELSE 0 END`;
+export const outgoingSql=`CASE WHEN source_type IN ('EXPENSE_REVERSAL','STAFF_LOAN_DISBURSEMENT_REVERSAL') THEN -amount
+  WHEN direction='OUT' AND source_type NOT IN (${transfers},'OPENING_BALANCE','PAYMENT_REVERSAL','STAFF_LOAN_INSTALLMENT_REVERSAL') THEN amount ELSE 0 END`;
 const periodSummarySql=`COALESCE(SUM(${incomeSql}),0) AS income,COALESCE(SUM(${outgoingSql}),0) AS outgoing,
   COALESCE(SUM(CASE WHEN source_type IN (${transfers}) THEN delta ELSE 0 END),0) AS transfers,
   COALESCE(SUM(CASE WHEN source_type='OPENING_BALANCE' THEN delta ELSE 0 END),0) AS opening_entries,COUNT(*) AS journal_count`;
@@ -39,7 +41,11 @@ export async function getCashLedger(input: LedgerQuery, run: Query = query) {
   const filterValues:string[] = [];
   const scope = input.scope;
   if (scope) {
-    predicates.push(`source_id=? AND source_type IN (${scope.type==='payment'?paymentSources:scope.type==='expense'?expenseSources:transfers})`);
+    if(scope.type==='loan') {
+      predicates.push(`((source_id=? AND source_type IN (${loanDisbursementSources})) OR
+        (source_type IN (${loanInstallmentSources}) AND source_id IN (SELECT id FROM staff_loan_installments WHERE loan_id=?)))`);
+      filterValues.push(scope.id);
+    } else predicates.push(`source_id=? AND source_type IN (${scope.type==='payment'?paymentSources:scope.type==='expense'?expenseSources:scope.type==='installment'?loanInstallmentSources:transfers})`);
     filterValues.push(scope.id);
   } else {
     if (input.search) {
@@ -50,7 +56,8 @@ export async function getCashLedger(input: LedgerQuery, run: Query = query) {
     if (input.source==='expense') predicates.push(`source_type IN (${expenseSources})`);
     if (input.source==='payment') predicates.push(`source_type IN (${paymentSources})`);
     if (input.source==='transfer') predicates.push(`source_type IN (${transfers})`);
-    if (input.source==='manual') predicates.push(`source_type NOT IN (${expenseSources},${paymentSources},${transfers},'OPENING_BALANCE')`);
+    if (input.source==='loan') predicates.push(`source_type IN (${loanDisbursementSources},${loanInstallmentSources})`);
+    if (input.source==='manual') predicates.push(`source_type NOT IN (${expenseSources},${paymentSources},${transfers},${loanDisbursementSources},${loanInstallmentSources},'OPENING_BALANCE')`);
     if (input.category) {
       predicates.push(`source_type IN (${expenseSources})`);
       const categoryJoin='SELECT 1 FROM expenses e JOIN expense_categories c ON c.id=e.category_id WHERE e.id=with_balances.source_id';

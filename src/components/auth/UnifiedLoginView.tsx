@@ -45,12 +45,18 @@ export type PortalType = 'resident' | 'admin' | 'security';
 interface UnifiedLoginViewProps {
   initialPortal?: 'resident' | 'admin' | 'security';
   initialTab?: LoginSubTab;
+  residentDuesMonth?:string;
+  residentComplaint?:boolean;
 }
 
 export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
   initialPortal = 'resident',
-  initialTab = 'portal_login'
+  initialTab = 'portal_login',
+  residentDuesMonth,
+  residentComplaint,
 }) => {
+  const residentDestination = residentDuesMonth ? '/warga?'+new URLSearchParams({tab:'iuran',month:residentDuesMonth}) :
+    residentComplaint ? '/warga?tab=info&info=complaints' : undefined;
   // Navigation State
   const [activeTab, setActiveTab] = useState<LoginSubTab>(() => {
     if (typeof window !== 'undefined') {
@@ -207,6 +213,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
         if (!destination) {
           destination = activePortal === 'resident' ? '/warga' : activePortal === 'security' ? '/admin/security-gate' : '/admin';
         }
+        if (destination==='/warga' && activePortal==='resident' && residentDestination) destination=residentDestination;
         window.location.href = destination;
       }, 400);
     } catch (err: any) {
@@ -291,7 +298,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
   // Clean, focused, minimal, professional backoffice sign-in without distraction
   // =========================================================================
   if (activePortal === 'resident' && activeTab === 'portal_login') {
-    return <ResidentWelcomeLoginGate />;
+    return <ResidentWelcomeLoginGate resumePath={residentDestination} />;
   }
 
   if (activePortal === 'admin') {

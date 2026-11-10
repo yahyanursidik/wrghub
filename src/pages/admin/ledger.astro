@@ -23,9 +23,9 @@ const month = financeMonthPattern.test(rawMonth) && rawMonth>='1900-01' && rawMo
 const search = params.get('q')?.trim().slice(0,100) || '';
 const category = tab==='ledger_list' ? params.get('category')?.trim().slice(0,64) || '' : '';
 const source = params.get('source') || '';
-const filterSource = category ? 'expense' : ['expense','payment','transfer','manual'].includes(source) ? source : '';
+const filterSource = category ? 'expense' : ['expense','payment','transfer','loan','manual'].includes(source) ? source : '';
 const page = /^\d{1,6}$/.test(params.get('page') || '') ? Number(params.get('page')) : 1;
-const scope = tab==='ledger_list' ? (['payment','expense','transfer'] as const).reduce<LedgerScope|undefined>((found,type)=>{
+const scope = tab==='ledger_list' ? (['payment','expense','transfer','loan','installment'] as const).reduce<LedgerScope|undefined>((found,type)=>{
   const id = params.get(type)?.trim().slice(0,64);
   return found || (id ? {type,id} : undefined);
 },undefined) : undefined;

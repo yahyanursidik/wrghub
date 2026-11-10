@@ -1,10 +1,14 @@
 ---
 import { UnifiedLoginView } from '../components/auth/UnifiedLoginView';
+import { financeMonthPattern } from '../lib/cash-data';
 import '../styles/global.css';
 
 const rawPortal = Astro.url.searchParams.get('portal');
 const portal = rawPortal === 'admin' ? 'admin' : rawPortal === 'security' ? 'security' : 'resident';
 const tab = (Astro.url.searchParams.get('tab') as any) || 'portal_login';
+const month = Astro.url.searchParams.get('month') || '';
+const residentDuesMonth = portal==='resident' && Astro.url.searchParams.get('tujuan')==='iuran' && financeMonthPattern.test(month) ? month : undefined;
+const residentComplaint = portal==='resident' && Astro.url.searchParams.get('tujuan')==='aduan';
 ---
 
 <!doctype html>
@@ -22,6 +26,6 @@ const tab = (Astro.url.searchParams.get('tab') as any) || 'portal_login';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   </head>
   <body class="min-h-full bg-canvas text-ink font-sans antialiased selection:bg-primary-100 selection:text-primary-900">
-    <UnifiedLoginView initialPortal={portal} initialTab={tab} client:load />
+    <UnifiedLoginView initialPortal={portal} initialTab={tab} residentDuesMonth={residentDuesMonth} residentComplaint={residentComplaint} client:load />
   </body>
 </html>

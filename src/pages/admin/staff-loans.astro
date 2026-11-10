@@ -1,13 +1,59 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { StaffLoansManager } from '../../components/admin/StaffLoansManager';
+import { LoanReceiptBody, StaffLoansManager } from '../../components/admin/StaffLoansManager';
+import { canManageFinance } from '../../lib/access-policy';
+import { jakartaDate } from '../../lib/billing-data';
+import { financeMonthPattern } from '../../lib/cash-data';
+import { loanPath, loanReceiptNumber, staffLoanTabs, type StaffLoanSubTab } from '../../lib/staff-loan-data';
+import { getAccounts } from '../../services/finance.service';
+import { getLoanPolicy, isLoanLeader, listStaffLoans } from '../../services/staff-loan.service';
+import type { UserSession } from '../../types/auth';
+import '../../styles/global.css';
 
-import { getLoanPolicy, listStaffLoans } from '../../services/staff-loan.service';
-
-const [loans, policy] = await Promise.all([listStaffLoans(), getLoanPolicy()]);
-const tab = Astro.url.searchParams.get('tab') || 'active_loans';
+const actor=await Astro.session?.get('wargahub_user') as UserSession|undefined;
+if(!actor) return Astro.redirect('/login?portal=admin');
+const canWrite=canManageFinance(actor.role),canSetPolicy=isLoanLeader(actor.role);
+const params=Astro.url.searchParams;
+const getId=(key:string)=>params.get(key)?.trim().slice(0,64) || '';
+const loanId=getId('loan'),installmentId=getId('installment'),expenseId=getId('expense'),receiptId=getId('receipt');
+const selected=params.get('tab') as StaffLoanSubTab;
+const tab=loanId?'active_loans':installmentId||expenseId?'repayment_history':staffLoanTabs.includes(selected)?selected:'active_loans';
+const today=jakartaDate(),current=today.slice(0,7),rawMonth=params.get('month') || '';
+const month=financeMonthPattern.test(rawMonth) && rawMonth>='1900-01' && rawMonth<=current?rawMonth:tab==='payroll_deductions'?current:'';
+const data=await Promise.all([listStaffLoans(canWrite),getLoanPolicy(),canWrite && !receiptId?getAccounts():[]])
+  .then(([loans,policy,accounts])=>({loans,policy,accounts:accounts.map(({id,name,type,balance})=>({id,name,type,balance}))})).catch(()=>null);
+if(!data) Astro.response.status=503;
+const receiptLoan=receiptId && data?.loans.find(loan=>loan.installments.some(item=>item.id===receiptId));
+const receipt=receiptLoan && receiptLoan.installments.find(item=>item.id===receiptId);
+if(receiptId && data && !receipt) Astro.response.status=404;
 ---
 
-<AdminLayout title="Buku Kasbon & Gaji di Awal Petugas - WargaHub" currentPath="/admin/staff-loans">
-  <StaffLoansManager client:load initialTab={tab as any} initialLoans={loans} initialPolicy={policy} />
-</AdminLayout>
+{receiptId ?
+  <html lang="id">
+    <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+      <title>{receipt ? loanReceiptNumber(receipt.id)+' · Kuitansi kasbon' : 'Kuitansi kasbon'} · WargaHub</title></head>
+    <body class="bg-white p-4 text-ink">
+      <main class="mx-auto grid max-w-lg gap-4">
+        <div><p class="text-sm font-semibold text-ink-muted">WargaHub · Kasbon petugas</p><h1 class="text-xl font-bold">Kuitansi angsuran</h1></div>
+        {receipt && receiptLoan ? <LoanReceiptBody loan={receiptLoan} item={receipt} /> :
+          <p role="alert">{data?'Kuitansi tidak ditemukan.':'Kuitansi belum dapat dimuat.'}</p>}
+        <div class="flex flex-wrap gap-2 print:hidden">
+          <a class="btn-secondary inline-flex min-h-11 items-center whitespace-nowrap" href={loanPath({tab:'repayment_history',installment:receipt?.id})}>Kembali ke riwayat</a>
+          {receipt && <button class="btn-primary inline-flex min-h-11 items-center" type="button" id="print-loan-receipt">Cetak</button>}
+        </div>
+      </main>
+      <script>
+        document.getElementById('print-loan-receipt')?.addEventListener('click',()=>window.print());
+      </script>
+    </body>
+  </html>
+  :
+  <AdminLayout title="Kasbon petugas - WargaHub" currentPath="/admin/staff-loans">
+    {data ? <StaffLoansManager client:load tab={tab} initialLoans={data.loans} initialPolicy={data.policy}
+      accounts={data.accounts} today={today} month={month} canWrite={canWrite} canSetPolicy={canSetPolicy}
+      loanId={loanId} installmentId={installmentId} expenseId={expenseId} initialNotice={params.get('saved')==='request'?'Pengajuan tersimpan.':''} /> :
+      <section class="workspace-panel" role="alert"><h1 class="text-xl font-bold">Kasbon petugas</h1>
+        <p class="mt-2 text-sm text-ink-muted">Data kasbon belum dapat dimuat.</p>
+        <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname+Astro.url.search} data-astro-reload>Coba lagi</a>
+      </section>}
+  </AdminLayout>}

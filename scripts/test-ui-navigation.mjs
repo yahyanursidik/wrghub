@@ -161,11 +161,17 @@ try {
   assert.equal(await evaluate(`document.querySelector('[aria-label="Menu publik seluler"] [aria-current="page"]').textContent.trim()`), 'Kuitansi');
   await screenshot('public-mobile');
 
-  // Isolated browser UI session only; no login or data mutation is sent to the server.
+  // Use the isolated resident account to check that login resumes the selected month.
   if (process.env.UI_TEST_RESIDENT_USERNAME) {
-    const residentLogin = await evaluate(`fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(${JSON.stringify({ identifier: process.env.UI_TEST_RESIDENT_USERNAME, password: process.env.UI_TEST_PASSWORD, portal: 'resident' })}) }).then(async response => ({ status:response.status, body:await response.json() }))`);
-    assert.equal(residentLogin.status, 200);
-    await evaluate(`localStorage.setItem('wargahub_user', JSON.stringify(${JSON.stringify(residentLogin.body.data.user)}))`);
+    await evaluate(`fetch('/api/auth/logout',{method:'POST'}).then(()=>localStorage.removeItem('wargahub_user'))`);
+    await navigate('/warga?tab=iuran&month=2026-10','#resident-identifier','/login');
+    await evaluate(`document.querySelector('#resident-identifier').focus()`);
+    await cdp('Input.insertText',{text:process.env.UI_TEST_RESIDENT_USERNAME});
+    await evaluate(`document.querySelector('#resident-identifier').closest('form').querySelector('input[type=password]').focus()`);
+    await cdp('Input.insertText',{text:process.env.UI_TEST_PASSWORD});
+    await evaluate(`document.querySelector('#resident-identifier').closest('form').requestSubmit()`);
+    await wait(`location.pathname==='/warga' && location.search.includes('tab=iuran') && location.search.includes('month=2026-10') &&
+      document.querySelector('main')?.innerText.includes('INV-TEST-A01')`);
   }
   await navigate('/warga?tab=info&info=sanitation', '.resident-app');
   await wait(`document.querySelector('[aria-label="Menu warga seluler"] [aria-current="page"]')?.href.includes('tab=info')`);
@@ -225,7 +231,7 @@ try {
       ['payments-queue','/admin/payments?tab=verification','Verifikasi pembayaran'],
       ['payments-receipts','/admin/payments?tab=history','Riwayat kuitansi'],
       ['payments-record','/admin/payments?tab=manual_counter&invoice=invoice-a-02','Catat pembayaran'],
-      ['public-dues','/rekap-iuran?period=period-test','Halaman rekap'],
+      ['public-dues','/transparency/2026/10?tab=dues_breakdown','Rekap iuran'],
       ['cash-expenses','/admin/expenses','Transaksi pengeluaran'],
       ['cash-recurring','/admin/expenses?tab=recurring_expenses','Rencana rutin'],
       ['cash-social','/admin/expenses?tab=social_aid','Riwayat bantuan sosial'],
@@ -371,7 +377,12 @@ try {
     console.log('PASS laporan WA dari Tagihan, Pembayaran, Buku Kas, dan Rekening; template, periode, clipboard dan tautan diuji tanpa membuka WhatsApp.');
 
     const clickNamedButton = (label,selector='main button')=>evaluate(`Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(button=>button.textContent.trim()===${JSON.stringify(label)}).click()`);
-    const fillNativeForm = (selector,values)=>evaluate(`(()=>{const form=document.querySelector(${JSON.stringify(selector)});for(const [key,value] of Object.entries(${JSON.stringify(values)})){form.elements.namedItem(key).value=value;}form.requestSubmit();})()`);
+    const fillNativeForm = async (selector,values)=>{
+      // Astro can remove the SSR marker while React is still attaching the form.
+      const target=`document.querySelector(${JSON.stringify(selector)})`;
+      await wait(`(()=>{const form=${target};return form && Object.keys(form).some(key=>key.startsWith('__reactProps$') && typeof form[key]?.onSubmit==='function');})()`);
+      return evaluate(`(()=>{const form=${target};for(const [key,value] of Object.entries(${JSON.stringify(values)})){form.elements.namedItem(key).value=value;}form.requestSubmit();})()`);
+    };
     await navigate('/admin/budget?tab=manual_form&month=2026-10','main [aria-label="Susun pagu"]');
     await viewport(320);
     await fillNativeForm('section[aria-label="Susun pagu"] form',{categoryId:'cat-pemeliharaan',amount:'85000',pic:'Bendahara fixture'});
@@ -412,6 +423,68 @@ try {
     await noOverflow('Arsip laporan 320');
     await viewport(1440);
     console.log('PASS Anggaran dan Laporan: delapan submenu di lima lebar; formulir pagu dan pengesahan, mutasi dan tautan jurnal, CSV, serta arsip lintas submenu.');
+
+    for(const [name,route,label] of [
+      ['staff-active','/admin/staff-loans','Daftar kasbon'],
+      ['staff-requests','/admin/staff-loans?tab=new_requests','Pengajuan kasbon'],
+      ['staff-payroll','/admin/staff-loans?tab=payroll_deductions','Potong gaji'],
+      ['staff-history','/admin/staff-loans?tab=repayment_history','Riwayat angsuran'],
+      ['staff-policy','/admin/staff-loans?tab=loan_policies','Kebijakan kasbon'],
+      ['transparency-cash','/transparency/2026/10?tab=cashflow_summary','Ringkasan arus kas'],
+      ['transparency-journal','/transparency/2026/10?tab=public_ledger','Jurnal publik'],
+      ['transparency-dues','/rekap-iuran?period=period-test','Rekap iuran'],
+      ['transparency-confirm','/transparency/2026/10?tab=citizen_confirm','Cek iuran saya'],
+      ['transparency-help','/transparency/2026/10?tab=audit_faq','Bantuan laporan'],
+    ]) {
+      await navigate(route,`main [aria-label="${label}"]`,name==='transparency-dues'?'/transparency/2026/10':undefined);
+      for(const width of [320,375,414,768,1440]) {
+        await viewport(width);await noOverflow(label+' '+width);
+        if(name.startsWith('transparency-')) assert.equal(await evaluate(`Array.from(document.querySelectorAll('header a')).some(a=>a.getClientRects().length && a.getBoundingClientRect().right>innerWidth)`),false);
+        if([320,1440].includes(width)) await screenshot(name+'-'+width);
+      }
+    }
+    await viewport(320);
+    await navigate('/admin/staff-loans?tab=new_requests','main [aria-label="Pengajuan kasbon"]');
+    await clickNamedButton('Ajukan kasbon');
+    await wait(`document.querySelector('dialog[open][aria-label="Ajukan kasbon"]')`);
+    await noOverflow('Formulir kasbon 320');
+    await fillNativeForm('dialog[open] form',{name:'Petugas uji browser',salary:'300000',principal:'30000',monthly:'15000',tenor:'2',purpose:'Pengujian browser'});
+    await wait(`document.querySelector('main [role=status]')?.textContent.includes('Pengajuan tersimpan')`);
+    await clickNamedButton('Setujui');
+    await wait(`document.querySelector('dialog[open][aria-label="Setujui pengajuan"]')`);
+    await clickNamedButton('Setujui','dialog[open] button');
+    await wait(`document.querySelector('main [role=status]')?.textContent.includes('Lanjutkan ke pencairan')`);
+    await navigate('/admin/staff-loans','main [aria-label="Daftar kasbon"]');
+    await clickNamedButton('Cairkan');
+    await wait(`document.querySelector('dialog[open][aria-label="Catat pencairan"]')`);
+    await fillNativeForm('dialog[open] form',{account:'acc-main'});
+    await wait(`document.querySelector('main [role=status]')?.textContent.includes('Pencairan tercatat')`);
+    await clickNamedButton('Catat angsuran');
+    await wait(`document.querySelector('dialog[open][aria-label="Catat angsuran"]')`);
+    await fillNativeForm('dialog[open] form',{account:'acc-main'});
+    await wait(`document.querySelector('dialog[open][aria-label="Kuitansi angsuran"]')`);
+    assert.equal(await evaluate(`Boolean(document.querySelector('dialog[open] a[href^="https://wa.me/"]'))`),false);
+    await screenshot('staff-receipt-320');
+    const printLoan=await evaluate(`document.querySelector('dialog[open] a[href*="receipt="]').getAttribute('href')`);
+    const loanJournal=await evaluate(`document.querySelector('dialog[open] a[href*="installment="]').getAttribute('href')`);
+    await navigate(printLoan,'#print-loan-receipt');
+    assert.match(await evaluate('document.querySelector("main").innerText'),/Petugas uji browser/);
+    await navigate(loanJournal,'main [data-journal-id]');
+    assert.equal(await evaluate('document.querySelectorAll("main [data-journal-id]").length'),1);
+
+    await navigate('/transparency/2026/10?tab=public_ledger','main [aria-label="Jurnal publik"]');
+    const publicCsv=await evaluate(`document.querySelector('main a[download]').getAttribute('href')`);
+    const csvText=await evaluate(`fetch(${JSON.stringify(publicCsv)},{credentials:'omit'}).then(r=>r.text())`);
+    assert.match(csvText,/Nomor jurnal publik/);
+    assert.doesNotMatch(csvText,/PRIVATE-FINANCIAL|INV-TEST|A-01|A-02/);
+    await clickNamedButton('Bagikan');
+    await wait(`document.querySelector('dialog[open][aria-label="Bagikan laporan"] img')`);
+    assert.equal(await evaluate(`new URL(document.querySelector('dialog[open] input').value).searchParams.get('tab')`),'public_ledger');
+    await noOverflow('Bagikan transparansi 320');
+    await navigate('/transparency/2026/10?tab=citizen_confirm','main [aria-label="Cek iuran saya"]');
+    assert.equal(await evaluate(`document.querySelector('main a[href^="/warga?tab=iuran"]').getAttribute('href')`),'/warga?tab=iuran&month=2026-10');
+    await viewport(1440);
+    console.log('PASS Kasbon dan Transparansi: 10 submenu di lima lebar, pengajuan sampai kuitansi dan Buku Kas, CSV aman, tautan periode dan QR.');
 
     const menus = {
       properties: ['units', 'residents', 'vehicles', 'permits', 'analytics'],

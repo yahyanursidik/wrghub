@@ -15,7 +15,7 @@ import {
   FileText
 } from 'lucide-react';
 
-export const ResidentWelcomeLoginGate: React.FC = () => {
+export const ResidentWelcomeLoginGate: React.FC<{resumePath?:string}> = ({resumePath}) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -55,7 +55,8 @@ export const ResidentWelcomeLoginGate: React.FC = () => {
         window.dispatchEvent(new CustomEvent('wargahub_user_changed', { detail: data.data.user }));
       }
       setTimeout(() => {
-        window.location.href = data.data?.redirectUrl || '/warga';
+        const destination=data.data?.redirectUrl || '/warga';
+        window.location.href = destination==='/warga' && resumePath ? resumePath : destination;
       }, 400);
     } catch (err: any) {
       setErrorMsg('Gagal terhubung ke server autentikasi.');

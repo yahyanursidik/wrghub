@@ -5,6 +5,7 @@ import { downloadFinanceCsv, financeDate, financePath, jakartaDate } from '../..
 import { cashRupiah, currentFinanceMonth, financeMonth, isEditableJournal, isInternalTransfer, ledgerSources, type CashJournalRow, type CashPeriodSummary, type CashReconciliation, type LedgerScope, type LedgerSubTab } from '../../lib/cash-data';
 import type { FinanceWhatsAppProfile } from '../../lib/finance-whatsapp';
 import { RESERVE_ACCOUNT } from '../../lib/planning-data';
+import { loanPath } from '../../lib/staff-loan-data';
 import type { FinanceAccount } from '../../services/finance.service';
 import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
 import { FinanceDialog, FinanceEmpty, FinanceHeader, FinanceStatus, FinanceSummary, FinanceTabLinks, financeButton, financeField, financePost, financePrimary } from './FinanceWorkspace';
@@ -16,9 +17,9 @@ const menus = [
   {id:'bank_reconciliation',label:'Rekonsiliasi',icon:ClipboardCheck},{id:'financial_reports',label:'Laporan kas',icon:ChartNoAxesCombined},
 ] as const;
 const accountTypes:Record<string,string> = {BANK:'Bank',CASH:'Kas tunai',SAVINGS:'Tabungan',PETTY_CASH:'Kas kecil',RESERVE:'Dana cadangan'};
-const sourceFilters = {expense:'Pengeluaran',payment:'Iuran',transfer:'Mutasi internal',manual:'Jurnal dan sumber lain'};
+const sourceFilters = {expense:'Pengeluaran',payment:'Iuran',transfer:'Mutasi internal',loan:'Kasbon petugas',manual:'Jurnal dan sumber lain'};
 const noticeLabels:Record<string,string> = {journal:'Jurnal tersimpan.',transfer:'Mutasi tersimpan pada kedua rekening.',account:'Rekening tersimpan.',delete:'Pembatalan tersimpan.'};
-const sourceHeadings = {payment:'Jurnal pembayaran',expense:'Jurnal pengeluaran',transfer:'Pasangan mutasi'};
+const sourceHeadings = {payment:'Jurnal pembayaran',expense:'Jurnal pengeluaran',transfer:'Pasangan mutasi',loan:'Jurnal kasbon',installment:'Jurnal angsuran'};
 const str = (data:FormData,key:string)=>String(data.get(key) || '').trim();
 const amount = (data:FormData,key:string)=>Number(str(data,key));
 type WorkspaceLedger = {entries:CashJournalRow[];summary:CashPeriodSummary;total:number;page:number};
@@ -43,6 +44,8 @@ function sourceHref(row:CashJournalRow,canWrite:boolean) {
   if (!row.sourceId) return null;
   if (['PAYMENT','PAYMENT_REVERSAL'].includes(row.sourceType)) return canWrite?financePath('/admin/payments',{tab:'history',payment:row.sourceId}):path({payment:row.sourceId});
   if (['EXPENSE','EXPENSE_REVERSAL'].includes(row.sourceType)) return financePath('/admin/expenses',{expense:row.sourceId});
+  if (row.sourceType.startsWith('STAFF_LOAN_DISBURSEMENT')) return loanPath({loan:row.sourceId});
+  if (row.sourceType.startsWith('STAFF_LOAN_INSTALLMENT')) return loanPath({tab:'repayment_history',installment:row.sourceId});
   if (isInternalTransfer(row.sourceType)) return path({transfer:row.sourceId});
   return null;
 }
@@ -123,7 +126,8 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
   const query = scope ? {[scope.type]:scope.id} : {month,account:accountId,q:search,source,category};
   const selectedTitle = scope ? sourceHeadings[scope.type] : 'Buku kas';
   const back = scope?.type==='payment' && canWrite ? financePath('/admin/payments',{tab:'history',payment:scope.id}) :
-    scope?.type==='expense' ? financePath('/admin/expenses',{expense:scope.id}) : '';
+    scope?.type==='expense' ? financePath('/admin/expenses',{expense:scope.id}) : scope?.type==='loan'?loanPath({loan:scope.id}):
+    scope?.type==='installment'?loanPath({tab:'repayment_history',installment:scope.id}):'';
   const title = modal?.type==='transfer'?'Pindah saldo antar rekening':modal?.type==='account'?(actionAccount?'Ubah rekening':'Rekening baru'):
     modal?.type==='delete'?(actionRow && isInternalTransfer(actionRow.sourceType)?'Batalkan mutasi':'Batalkan jurnal'):actionRow?'Ubah jurnal':'Catat jurnal manual';
   const open = (value:Modal)=>{
@@ -164,7 +168,7 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
 
   return <section className="workspace">
     <FinanceHeader area="ledger" title={selectedTitle} canViewPayments={canWrite}>
-      {back && <a className={financePrimary} href={back}>{scope?.type==='payment'?'Lihat pembayaran':'Lihat pengeluaran'} <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
+      {back && <a className={financePrimary} href={back}>{scope?.type==='payment'?'Lihat pembayaran':scope?.type==='expense'?'Lihat pengeluaran':'Lihat kasbon'} <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
       {!scope && canWrite && tab==='ledger_list' && operating.length>0 && account?.type!==RESERVE_ACCOUNT && <button type="button" className={financePrimary} onClick={()=>open({type:'journal'})}>
         <Plus className="size-4" aria-hidden="true" />Catat jurnal</button>}
       {canWrite && tab==='accounts_manage' && <button type="button" className={financePrimary} onClick={()=>open({type:'account'})}><Plus className="size-4" aria-hidden="true" />Rekening baru</button>}

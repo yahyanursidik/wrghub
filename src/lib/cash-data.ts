@@ -51,7 +51,7 @@ export interface ExpenseDetails {
 export interface ExpenseRow {
   id: string; title: string; description: string | null; amount: number; expenseDate: string;
   categoryId: string | null; categoryName: string | null; accountId: string | null; accountName: string | null;
-  status: string; hasProof: boolean; journalCount: number; journalMatches: boolean; details: ExpenseDetails;
+  status: string; hasProof: boolean; journalCount: number; journalMatches: boolean; payrollLinked?: boolean; details: ExpenseDetails;
 }
 export interface FacilityProject {
   id: string; projectName: string; projectType: ProjectType; budgetAmount: number; actualSpent: number;
@@ -69,14 +69,15 @@ export interface RecurringPreviewRow {
 export const ledgerSources: Record<string, string> = {
   PAYMENT: 'Pembayaran iuran', PAYMENT_REVERSAL: 'Pembalikan iuran', EXPENSE: 'Pengeluaran', EXPENSE_REVERSAL: 'Pembatalan pengeluaran',
   INTERNAL_TRANSFER: 'Mutasi antar rekening', MUTASI_KAS_INTERNAL: 'Mutasi antar rekening', RESERVE_TRANSFER: 'Mutasi dana cadangan', OPENING_BALANCE: 'Saldo awal',
-  MANUAL_JOURNAL: 'Jurnal manual', ADJUSTMENT: 'Penyesuaian', STAFF_LOAN_DISBURSEMENT: 'Pencairan kasbon', STAFF_LOAN_INSTALLMENT: 'Cicilan kasbon',
+  MANUAL_JOURNAL: 'Jurnal manual', ADJUSTMENT: 'Penyesuaian', STAFF_LOAN_DISBURSEMENT: 'Pencairan kasbon', STAFF_LOAN_INSTALLMENT: 'Pelunasan kasbon',
+  STAFF_LOAN_DISBURSEMENT_REVERSAL: 'Pembalikan pencairan kasbon', STAFF_LOAN_INSTALLMENT_REVERSAL: 'Pembalikan pelunasan kasbon',
 };
 export const isEditableJournal = (source: string) => ['MANUAL_JOURNAL', 'ADJUSTMENT', 'PENERIMAAN_KAS', 'PENGELUARAN_KAS', 'PEMASUKAN_LAIN', 'PENGELUARAN_LAIN'].includes(source);
 export const isInternalTransfer = (source: string) => ['INTERNAL_TRANSFER', 'MUTASI_KAS_INTERNAL', 'RESERVE_TRANSFER'].includes(source);
 export const proofMimes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' } as const;
 export const proofMaxBytes = 1_500_000;
 
-export type LedgerScope = { type: 'payment' | 'expense' | 'transfer'; id: string };
+export type LedgerScope = { type: 'payment' | 'expense' | 'transfer' | 'loan' | 'installment'; id: string };
 export interface CashJournalRow {
   id: string; accountId: string | null; accountName: string | null; entryDate: string; direction: string; amount: number;
   sourceType: string; sourceId: string | null; description: string; runningBalance: number;

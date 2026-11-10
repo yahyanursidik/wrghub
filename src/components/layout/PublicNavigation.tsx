@@ -17,7 +17,7 @@ export function PublicNavigation({ currentPath, signedIn = false }: Props) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-4">
         <a href={portalHref} className="flex items-center gap-3 shrink-0" aria-label="WargaHub beranda"><span className="brand-mark"><Building2 size={22} strokeWidth={1.8} /></span><span><strong className="text-lg tracking-tight block">WargaHub</strong><span className="text-xs text-ink-muted block">Informasi terbuka untuk warga</span></span></a>
         <nav aria-label="Menu publik" className="hidden lg:flex items-center gap-1">{links.map(link => <a key={link.href} href={link.href} className="public-navigation-link" aria-current={link.active ? 'page' : undefined}>{link.label}</a>)}</nav>
-        {!signedIn && <a href="/login?portal=admin" className="flex items-center gap-2 rounded-xl border border-border px-3 sm:px-4 py-3 text-sm font-semibold hover:bg-canvas"><LogIn size={17} /><span className="hidden sm:inline">Masuk pengurus</span><span className="sm:hidden">Masuk</span></a>}
+        {!signedIn && <a href="/login?portal=admin" className="hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-border px-4 py-3 text-sm font-semibold hover:bg-canvas sm:inline-flex"><LogIn size={17} aria-hidden="true" />Masuk pengurus</a>}
       </div>
     </header>
     <nav aria-label="Menu publik seluler" className="bottom-navigation lg:hidden">

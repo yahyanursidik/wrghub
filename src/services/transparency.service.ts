@@ -1,267 +1,132 @@
+import { createHash } from 'node:crypto';
 import QRCode from 'qrcode';
-import { query } from '../db/operational-query';
-import { billingMonthKey, billingMonthLabel, financeDate, invoiceCollected, invoiceRemaining, BILLING_MONTHS } from '../lib/billing-data';
+import { readSnapshot, type Query } from '../db/operational-query';
+import { BILLING_COMMUNITY_ID, billingMonthKey, billingMonthLabel } from '../lib/billing-data';
 import { currentFinanceMonth, ledgerSources, monthBounds } from '../lib/cash-data';
-import { getBillableProperties } from './billing.service';
-import { getCashLedger } from './cash-ledger.service';
-import { getCommunityProfile, getSecurityShiftRoster, type SecurityShiftRoster } from './settings.service';
+import { roundCash } from '../lib/planning-data';
+import { PUBLIC_CSV_LIMIT, PUBLIC_JOURNAL_PAGE_SIZE, publicReportPath,
+  type PublicCashCategory, type PublicDuesMonth, type PublicJournalEntry, type PublicReportFilters,
+  type PublicReportPeriod, type PublicTransparencyData } from '../lib/transparency-data';
+import { getCashLedger, outgoingSql } from './cash-ledger.service';
+import { getCommunityProfile } from './settings.service';
 
-export interface MonthStatus {
-  monthIndex: number;
-  monthCode: string; // '01'..'08'
-  monthName: string; // 'Jan', 'Feb', ...
-  fullName: string;  // 'Januari 2026'
-  isPaid: boolean;
-  isBilled?: boolean;
-  amount: number;
-  paidAt?: string;
+// Project only fields safe for anonymous visitors. Custom category names, notes,
+// descriptions, payment references, people, and account IDs stay in the admin ledger.
+const safeJournal =
+  "SELECT l.id,l.entry_date,l.direction,l.amount,l.source_type,l.created_at,CASE "+
+  "WHEN l.source_type IN ('PAYMENT','PAYMENT_REVERSAL') THEN 'DUES' "+
+  "WHEN l.source_type IN ('STAFF_LOAN_DISBURSEMENT','STAFF_LOAN_INSTALLMENT','STAFF_LOAN_DISBURSEMENT_REVERSAL','STAFF_LOAN_INSTALLMENT_REVERSAL') THEN 'STAFF_LOAN' "+
+  "WHEN l.source_type IN ('INTERNAL_TRANSFER','MUTASI_KAS_INTERNAL','RESERVE_TRANSFER') THEN 'TRANSFER' "+
+  "WHEN l.source_type='OPENING_BALANCE' THEN 'OPENING' "+
+  "WHEN l.source_type IN ('EXPENSE','EXPENSE_REVERSAL') THEN CASE "+
+  "WHEN UPPER(c.code) IN ('KEAMANAN','SECURITY') THEN 'SECURITY' "+
+  "WHEN UPPER(c.code) IN ('KEBERSIHAN','CLEANING','SAMPAH') THEN 'CLEANING' "+
+  "WHEN UPPER(c.code) IN ('UTILITAS','UTILITIES','LISTRIK','AIR','PJU') THEN 'UTILITIES' "+
+  "WHEN UPPER(c.code) IN ('FASUM','FASILITAS','PEMELIHARAAN','INFRASTRUKTUR') THEN 'FACILITIES' "+
+  "WHEN UPPER(c.code) IN ('SOSIAL','BANSOS','BANTUAN_SOSIAL','DANA_SOSIAL') THEN 'AID' ELSE 'EXPENSE' END "+
+  "ELSE 'OTHER' END AS category "+
+  "FROM ledger_entries l LEFT JOIN expenses e ON e.id=l.source_id AND l.source_type IN ('EXPENSE','EXPENSE_REVERSAL') "+
+  "LEFT JOIN expense_categories c ON c.id=e.category_id WHERE l.entry_date>=? AND l.entry_date<?";
+const safeSources = new Map(Object.entries(ledgerSources));
+const stableOrder='entry_date,CASE WHEN created_at IS NULL THEN 0 ELSE 1 END,created_at,id';
+const newestFirst='entry_date DESC,CASE WHEN created_at IS NULL THEN 0 ELSE 1 END DESC,created_at DESC,id DESC';
+
+type CashRow={id:string|null;entry_date:string;direction:'IN'|'OUT';amount:number|string;source_type:string;category:PublicCashCategory;
+  running_balance:number|string;total_count:number|string;page:number|string};
+async function readPublicJournal(run:Query,month:string,opening:number,filters:PublicReportFilters,download=false) {
+  const where=(filters.direction?' AND direction=?':'')+(filters.category?' AND category=?':'');
+  const flags=[filters.direction,filters.category].filter(Boolean);
+  const limit=download?PUBLIC_CSV_LIMIT:PUBLIC_JOURNAL_PAGE_SIZE;
+  const rows=await run<CashRow>("WITH journal AS ("+safeJournal+"), with_balances AS ("+
+    "SELECT journal.*,?+SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END) OVER (ORDER BY "+stableOrder+" ROWS UNBOUNDED PRECEDING) AS running_balance FROM journal), "+
+    "filtered AS (SELECT * FROM with_balances WHERE 1=1"+where+"), counted AS (SELECT COUNT(*) AS total_count FROM filtered), "+
+    "numbered AS (SELECT filtered.*,ROW_NUMBER() OVER (ORDER BY "+newestFirst+") AS row_no FROM filtered), "+
+    "bounds AS (SELECT counted.*,CASE WHEN total_count=0 THEN 1 WHEN total_count<=? THEN CAST((total_count+? - 1) / ? AS INTEGER) ELSE ? END AS page FROM counted) "+
+    "SELECT n.id,n.entry_date,n.direction,n.amount,n.source_type,n.category,n.running_balance,b.total_count,b.page FROM bounds b LEFT JOIN numbered n "+
+    "ON n.row_no>(b.page-1)*? AND n.row_no<=b.page*? ORDER BY n.row_no",
+    [...monthBounds(month),opening,...flags,(download?1:filters.page)*limit,limit,limit,download?1:filters.page,limit,limit]);
+  const entries:PublicJournalEntry[]=rows.flatMap(row=>row.id?[{
+    reference:'JRN-'+createHash('sha256').update('public-report:'+row.id).digest('hex').slice(0,12).toUpperCase(),
+    date:row.entry_date,direction:row.direction,amount:Number(row.amount),balance:roundCash(Number(row.running_balance)),category:row.category,
+    label:safeSources.get(row.source_type) || (row.direction==='IN'?'Penerimaan kas':'Pengeluaran kas'),
+  }]:[]);
+  return {rows:entries,total:Number(rows[0].total_count),page:Number(rows[0].page)};
 }
 
-export interface HouseholdDuesRecord {
-  propertyId: string;
-  propertyCode: string;
-  residentName: string;
-  months: MonthStatus[];
-  paidMonthsCount: number;
-  totalMonthsCount: number;
-  unpaidMonths: string[];
-  totalPaidAmount: number;
-  totalArrearsAmount: number;
-  isFullyPaid: boolean;
-  isCurrentMonthPaid?: boolean;
-}
-
-export interface UnpaidHouseDetail {
-  propertyCode: string;
-  residentName: string;
-  unpaidMonths: string[];
-  arrearsAmount: number;
-  paidMonthsCount: number;
-  phone?: string;
-  isCurrentMonthPaid?: boolean;
-}
-
-export interface PublicLedgerEntry {
-  id: string;
-  date: string;
-  voucherRef: string;
-  category: string;
-  description: string;
-  type: 'INCOME' | 'EXPENSE';
-  amount: number;
-  balance: number;
-  reconciled: boolean;
-  notes?: string;
-}
-
-export interface PublicTransparencyData {
-  periodName: string;
-  year: number;
-  month: number;
-  totalProperties: number;
-  paidProperties: number;
-  unpaidProperties: number;
-  paidPercentage: number;
-  unpaidPercentage: number;
-  income: number;
-  expense: number;
-  openingBalance: number;
-  closingBalance: number;
-  unpaidHouses: string[];
-  unpaidDetailedList: UnpaidHouseDetail[];
-  currentMonthUnpaidList?: UnpaidHouseDetail[];
-  pastArrearsList?: UnpaidHouseDetail[];
-  householdDuesList: HouseholdDuesRecord[];
-  ledgerEntries: PublicLedgerEntry[];
-  journalCount: number;
-  expenseBreakdown: Array<{
-    name: string;
-    percentage: number;
-    amount: number;
-    icon: string;
-  }>;
-  // Bukti pengeluaran riil per periode (sumber modal "Lihat Nota")
-  expenseItems: Array<{
-    id: string;
-    date: string;
-    title: string;
-    description: string;
-    amount: number;
-    categoryName: string;
-  }>;
-  // Roster jadwal shift & penugasan area jaga (publik, dikelola pengurus)
-  securityRoster: SecurityShiftRoster;
-  // Tampilan roster siap-render: petugas yang sedang dinas hari ini + jadwal
-  // rotasi estafet 7 hari ke depan (dihitung server per zona WIB).
-  securityRosterView?: {
-    onDutyIndex: number;
-    handoverTime: string;
-    weekSchedule: Array<{
-      iso: string;
-      dayShort: string;
-      dayNum: number;
-      monthShort: string;
-      officerIndex: number;
-      isToday: boolean;
-    }>;
-  };
-  bankInfo?: {
-    bankName: string;
-    accountNumber: string;
-    accountHolder: string;
-  };
-  qrCodeDataUrl: string;
-  lastUpdatedAt: string;
-  communityName: string;
-}
-
-export async function getPublicMonthlyReport(year:number,month:number,origin:string):Promise<PublicTransparencyData> {
-  const period = billingMonthKey(year,month);
-  const [start,end] = monthBounds(period);
-  const [cash,properties,invoices,expenseRows,[dues],profile] = await Promise.all([
-    getCashLedger({month:period,pageSize:250}),
-    getBillableProperties(),
-    query<{property_id:string;month:number;status:string;total:number|string;paid_amount:number|string;paid_at:string|null}>(`SELECT i.property_id,p.month,i.status,i.total,i.paid_amount,i.paid_at
-      FROM invoices i JOIN billing_periods p ON p.id=i.billing_period_id WHERE p.year=? AND p.month<=? AND i.status NOT IN ('VOID','WAIVED','CANCELLED')`,[year,month]),
-    query<{id:string;title:string|null;date:string;amount:number|string;type:string;category:string;icon:string}>(`SELECT l.id,e.title,l.entry_date AS date,l.amount,l.source_type AS type,
-      COALESCE(c.name,'Pengeluaran lain') AS category,COALESCE(c.icon,'CircleDot') AS icon
-      FROM ledger_entries l LEFT JOIN expenses e ON e.id=l.source_id LEFT JOIN expense_categories c ON c.id=e.category_id
-      WHERE l.source_type IN ('EXPENSE','EXPENSE_REVERSAL') AND l.entry_date>=? AND l.entry_date<? ORDER BY l.entry_date,l.id`,[start,end]),
-    query<{amount:number|string}>(`SELECT COALESCE(SUM(CASE WHEN source_type='PAYMENT_REVERSAL' THEN -amount ELSE amount END),0) AS amount FROM ledger_entries
-      WHERE source_type IN ('PAYMENT','PAYMENT_REVERSAL') AND entry_date>=? AND entry_date<?`,[start,end]),
-    getCommunityProfile(),
-  ]);
-  const bankInfo = {bankName:profile.bankName,accountNumber:profile.bankAccount,accountHolder:profile.accountHolder};
-  const invoiceIndex = new Map<string,typeof invoices>();
-  for (const invoice of invoices) {
-    const key = invoice.property_id+'|'+invoice.month;
-    const group = invoiceIndex.get(key) || [];
-    group.push(invoice);
-    invoiceIndex.set(key,group);
-  }
-  const householdDuesList:HouseholdDuesRecord[] = [];
-  const unpaidDetailedList:UnpaidHouseDetail[] = [];
-  const currentMonthUnpaidList:UnpaidHouseDetail[] = [];
-  const pastArrearsList:UnpaidHouseDetail[] = [];
-  for (const property of properties) {
-    let totalPaidAmount=0;
-    let totalArrearsAmount=0;
-    let paidMonthsCount=0;
-    const unpaidMonths:string[] = [];
-    const months = Array.from({length:month},(_,index)=>{
-      const m = index+1;
-      const group = invoiceIndex.get(property.id+'|'+m) || [];
-      const bill = group.map(item=>({status:item.status,total:Number(item.total),paidAmount:Number(item.paid_amount)}));
-      const isBilled = bill.length>0;
-      const amount = bill.reduce((sum,item)=>sum+item.total,0);
-      const remaining = bill.reduce((sum,item)=>sum+invoiceRemaining(item),0);
-      const isPaid = isBilled && remaining===0;
-      const fullName = billingMonthLabel(year,m);
-      const paidAt = group.map(item=>item.paid_at).filter((value):value is string=>Boolean(value)).sort().at(-1);
-      totalPaidAmount += bill.reduce((sum,item)=>sum+invoiceCollected(item),0);
-      totalArrearsAmount += remaining;
-      if (isPaid) paidMonthsCount++;
-      if (remaining>0) unpaidMonths.push(fullName);
-      return {monthIndex:m,monthCode:String(m).padStart(2,'0'),monthName:BILLING_MONTHS[index].slice(0,3),fullName,isPaid,isBilled,amount,paidAt};
-    });
-    const isCurrentMonthPaid = months[month-1]?.isPaid || false;
-    const billedThisMonth = months[month-1]?.isBilled || false;
-    const record = {propertyId:property.id,propertyCode:property.code,residentName:property.code,months,paidMonthsCount,
-      totalMonthsCount:months.filter(item=>item.isBilled).length,unpaidMonths,totalPaidAmount,totalArrearsAmount,isFullyPaid:months.some(item=>item.isBilled) && !unpaidMonths.length,isCurrentMonthPaid};
-    householdDuesList.push(record);
-    if (unpaidMonths.length) {
-      const item = {propertyCode:property.code,residentName:property.code,unpaidMonths,arrearsAmount:totalArrearsAmount,paidMonthsCount,isCurrentMonthPaid};
-      unpaidDetailedList.push(item);
-      if (billedThisMonth && !isCurrentMonthPaid) currentMonthUnpaidList.push(item);
-      else pastArrearsList.push(item);
-    }
-  }
-  const totalProps = properties.length;
-  const paidProps = householdDuesList.filter(item=>item.isCurrentMonthPaid).length;
-  const unpaidProps = currentMonthUnpaidList.length;
-  const categories = new Map<string,{name:string;amount:number;icon:string}>();
-  const expenseById = new Map(expenseRows.map(row=>[row.id,row]));
-  const expenseItems = expenseRows.map(row=>{
-    const amount = Number(row.amount)*(row.type==='EXPENSE_REVERSAL'?-1:1);
-    const entry = categories.get(row.category) || {name:row.category,amount:0,icon:row.icon};
-    entry.amount += amount;
-    categories.set(row.category,entry);
-    return {id:row.id,date:financeDate(row.date),title:(row.type==='EXPENSE_REVERSAL'?'Pembatalan: ':'')+(row.title || 'Pengeluaran kas'),
-      description:'',amount,categoryName:row.category};
+export async function getPublicJournalExport(period:PublicReportPeriod,filters:PublicReportFilters) {
+  const month=billingMonthKey(period.year,period.month);
+  return readSnapshot(async run=>{
+    const {summary}=await getCashLedger({month,pageSize:1},run);
+    return readPublicJournal(run,month,summary.opening,filters,true);
   });
-  const positive = [...categories.values()].reduce((sum,item)=>sum+Math.max(0,item.amount),0);
-  const expenseBreakdown = [...categories.values()].sort((a,b)=>b.amount-a.amount).map(item=>({...item,percentage:positive?Math.max(0,item.amount)/positive*100:0}));
-  const ledgerEntries:PublicLedgerEntry[] = cash.entries.map(row=>{
-    const linked = expenseById.get(row.id);
-    const label = ledgerSources[row.sourceType] || (row.direction==='IN'?'Penerimaan lain':'Pengeluaran lain');
-    return {id:row.id,date:financeDate(row.entryDate),voucherRef:'JRN-'+row.id.slice(-8).toUpperCase(),
-      category:linked?.category || label,description:linked?.title ? (row.sourceType==='EXPENSE_REVERSAL'?'Pembatalan: ':'')+linked.title : label,
-      type:row.direction==='IN'?'INCOME':'EXPENSE',amount:row.amount,balance:row.runningBalance,reconciled:false};
-  });
-  let qrCodeDataUrl = '';
-  const securityRoster = await getSecurityShiftRoster().catch(() => null);
-  let securityRosterView: PublicTransparencyData['securityRosterView'];
-  if (securityRoster && securityRoster.shifts.length > 0) {
-    // Rotasi estafet: petugas bergantian selang-seling tiap hari pada jam serah
-    // terima (WIB). Dinas berjalan pagi-s/d-pagi, sehingga sebelum jam serah
-    // terima yang dinas masih petugas dari tanggal sebelumnya.
-    const DAY_SHORT = ['MIN', 'SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB'];
-    const MONTH_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN', 'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'];
-    const n = securityRoster.shifts.length;
-    const handoverTime = securityRoster.handoverTime || '07:00';
-    const handoverHour = parseInt(handoverTime.split(':')[0], 10) || 7;
-    const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
-    const eff = new Date(nowWib);
-    if (nowWib.getUTCHours() < handoverHour) {
-      eff.setUTCDate(eff.getUTCDate() - 1);
-    }
-    const effIso = eff.toISOString().slice(0, 10);
-    const startIso = securityRoster.rotationStartDate || effIso;
-    const days = Math.floor((Date.parse(effIso) - Date.parse(startIso)) / 86400000);
-    const onDutyIndex = ((days % n) + n) % n;
+}
 
-    const weekSchedule = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(nowWib);
-      d.setUTCDate(d.getUTCDate() + i);
-      const iso = d.toISOString().slice(0, 10);
-      return {
-        iso,
-        dayShort: DAY_SHORT[d.getUTCDay()],
-        dayNum: d.getUTCDate(),
-        monthShort: MONTH_SHORT[d.getUTCMonth()],
-        officerIndex: (((days + i) % n) + n) % n,
-        isToday: i === 0,
-      };
-    });
-
-    securityRosterView = { onDutyIndex, handoverTime, weekSchedule };
-  }
+type DuesRow={month:number;billed:number|string;paid:number|string;received:number|string;remaining:number|string};
+async function publicDuty(run:Query):Promise<PublicTransparencyData['duty']> {
+  const [row]=await run<{value:string}>("SELECT value FROM settings WHERE key='security_shift_roster'");
+  if(!row) return null;
   try {
-    qrCodeDataUrl = await QRCode.toDataURL(`${origin}/transparency/${year}/${month.toString().padStart(2, '0')}`, {
-      margin: 1,
-      width: 140,
-      color: { dark: '#18201D', light: '#FFFFFF' }
-    });
-  } catch (e) {
-    qrCodeDataUrl = '';
-  }
-
-  return {
-    periodName:billingMonthLabel(year,month),year,month,
-    totalProperties:totalProps,paidProperties:paidProps,unpaidProperties:unpaidProps,
-    paidPercentage:totalProps?paidProps/totalProps*100:0,unpaidPercentage:totalProps?unpaidProps/totalProps*100:0,
-    income:Number(dues?.amount || 0),expense:cash.summary.outgoing,openingBalance:cash.summary.opening,closingBalance:cash.summary.closing,
-    unpaidHouses:unpaidDetailedList.map(item=>item.propertyCode),unpaidDetailedList,currentMonthUnpaidList,pastArrearsList,householdDuesList,
-    ledgerEntries,journalCount:cash.summary.count,expenseBreakdown,expenseItems,
-    securityRoster:securityRoster || {shifts:[],notes:'Roster jadwal shift petugas jaga akan diperbarui oleh pengurus.'},
-    securityRosterView,bankInfo,qrCodeDataUrl,lastUpdatedAt:new Date().toLocaleString('id-ID',{dateStyle:'long',timeStyle:'short',timeZone:'Asia/Jakarta'})+' WIB',
-    communityName:profile.communityName,
-  };
+    const {shifts,handoverTime,rotationStartDate}=JSON.parse(row.value);
+    if(!Array.isArray(shifts) || !shifts.length || typeof handoverTime!=='string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(handoverTime) ||
+      typeof rotationStartDate!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(rotationStartDate)) return null;
+    const start=Date.parse(rotationStartDate+'T00:00:00Z');
+    if(!Number.isFinite(start)) return null;
+    const now=new Date(Date.now()+7*60*60*1000);
+    const today=now.toISOString().slice(0,10);
+    const day=86_400_000;
+    const delta=Math.floor((Date.parse(today)-start)/day);
+    if(delta<0) return null;
+    const nowClock=now.toISOString().slice(11,16);
+    const turn=(offset:number)=>((offset%shifts.length)+shifts.length)%shifts.length+1;
+    return {handover:handoverTime,current:turn(delta-(nowClock<handoverTime?1:0)),
+      upcoming:Array.from({length:3},(_,i)=>({date:new Date(Date.parse(today)+day*(i+1)).toISOString().slice(0,10),turn:turn(delta+i+1)}))};
+  } catch {return null;}
 }
-export function publicReportPeriod(year: string|null|undefined, month: string|null|undefined) {
-  const fallback = currentFinanceMonth().split('-').map(Number);
-  const requestedYear = Number(year);
-  const requestedMonth = Number(month);
-  return {year: Number.isInteger(requestedYear) && requestedYear>=1900 && requestedYear<=2199?requestedYear:fallback[0],
-    month: Number.isInteger(requestedMonth) && requestedMonth>=1 && requestedMonth<=12?requestedMonth:fallback[1]};
+const monthShift = (period:PublicReportPeriod,delta:number) => {
+  const shifted=new Date(Date.UTC(period.year,period.month-1+delta,1));
+  return billingMonthKey(shifted.getUTCFullYear(),shifted.getUTCMonth()+1);
+};
+export async function getPublicMonthlyReport(period:PublicReportPeriod,filters:PublicReportFilters,origin:string):Promise<PublicTransparencyData> {
+  const {year,month}=period;
+  const key=billingMonthKey(year,month);
+  const currentMonth=currentFinanceMonth();
+  const shareUrl=new URL(publicReportPath(period,filters.tab,{direction:filters.tab==='public_ledger'?filters.direction:undefined,
+    category:filters.tab==='public_ledger'?filters.category:undefined}),origin).toString();
+  const [data,profile,qrCode]=await Promise.all([
+    readSnapshot(async run=>{
+      const {summary}=await getCashLedger({month:key,pageSize:1},run);
+      const [categories,invoices,[housing],journal,duty]=await Promise.all([
+        run<{category:PublicCashCategory;outgoing:number|string;dues:number|string;loan_in:number|string;loan_out:number|string}>(
+          "WITH journal AS ("+safeJournal+") SELECT category,COALESCE(SUM("+outgoingSql+"),0) AS outgoing,"+
+          "COALESCE(SUM(CASE WHEN source_type='PAYMENT' THEN amount WHEN source_type='PAYMENT_REVERSAL' THEN -amount ELSE 0 END),0) AS dues,"+
+          "COALESCE(SUM(CASE WHEN source_type='STAFF_LOAN_INSTALLMENT' THEN amount WHEN source_type='STAFF_LOAN_INSTALLMENT_REVERSAL' THEN -amount ELSE 0 END),0) AS loan_in,"+
+          "COALESCE(SUM(CASE WHEN source_type='STAFF_LOAN_DISBURSEMENT' THEN amount WHEN source_type='STAFF_LOAN_DISBURSEMENT_REVERSAL' THEN -amount ELSE 0 END),0) AS loan_out "+
+          "FROM journal GROUP BY category",monthBounds(key)),
+        run<DuesRow>("WITH house_month AS (SELECT p.month,i.property_id,"+
+          "SUM(CASE WHEN i.status='PAID' THEN 0 ELSE CASE WHEN i.total>i.paid_amount THEN i.total-i.paid_amount ELSE 0 END END) AS remaining,"+
+          "SUM(CASE WHEN i.status='PAID' OR i.paid_amount>i.total THEN i.total WHEN i.paid_amount<0 THEN 0 ELSE i.paid_amount END) AS received "+
+          "FROM invoices i JOIN billing_periods p ON p.id=i.billing_period_id JOIN properties h ON h.id=i.property_id "+
+          "WHERE p.year=? AND p.month<=? AND h.community_id=? AND h.is_active=true AND lower(h.code) NOT LIKE '%dummy%' AND h.code<>'A-99' "+
+          "AND i.status NOT IN ('VOID','WAIVED','CANCELLED') GROUP BY p.month,i.property_id) "+
+          "SELECT month,COUNT(*) AS billed,SUM(CASE WHEN remaining=0 THEN 1 ELSE 0 END) AS paid,SUM(received) AS received,SUM(remaining) AS remaining "+
+          "FROM house_month GROUP BY month ORDER BY month",[year,month,BILLING_COMMUNITY_ID]),
+        run<{total:number|string}>("SELECT COUNT(*) AS total FROM properties WHERE community_id=? AND is_active=true AND lower(code) NOT LIKE '%dummy%' AND code<>'A-99'",[BILLING_COMMUNITY_ID]),
+        filters.tab==='public_ledger'?readPublicJournal(run,key,summary.opening,filters):{rows:[],total:0,page:1},
+        filters.tab==='audit_faq'?publicDuty(run):null,
+      ]);
+      const dues:PublicDuesMonth[]=Array.from({length:month},(_,index)=>{
+        const row=invoices.find(item=>Number(item.month)===index+1);
+        return {month:index+1,billed:Number(row?.billed || 0),paid:Number(row?.paid || 0),received:roundCash(Number(row?.received || 0)),remaining:roundCash(Number(row?.remaining || 0))};
+      });
+      const total=(name:'dues'|'loan_in'|'loan_out')=>roundCash(categories.reduce((sum,row)=>sum+Number(row[name]),0));
+      return {cash:summary,duesCash:total('dues'),loanCashIn:total('loan_in'),loanCashOut:total('loan_out'),homes:Number(housing.total),dues,journal,duty,
+        outgoing:categories.filter(row=>Number(row.outgoing)!==0).map(row=>({category:row.category,amount:roundCash(Number(row.outgoing))})).sort((a,b)=>b.amount-a.amount)};
+    }),
+    getCommunityProfile(),
+    QRCode.toDataURL(shareUrl,{margin:2,width:180}).catch(()=>''),
+  ]);
+  const previous=monthShift(period,-1);
+  const next=monthShift(period,1);
+  return {...data,period,periodLabel:billingMonthLabel(year,month),currentMonth,previousMonth:previous>='1900-01'?previous:null,nextMonth:next<=currentMonth?next:null,
+    communityName:profile.communityName,bank:profile.bankAccount?{name:profile.bankName,number:profile.bankAccount,holder:profile.accountHolder}:null,shareUrl,qrCode};
 }

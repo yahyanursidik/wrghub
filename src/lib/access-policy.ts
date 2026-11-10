@@ -30,6 +30,8 @@ export function allowedApiRoles(path: string, method: string): UserRole[] | null
   if (['/api/health', '/api/auth/login', '/api/auth/logout', '/api/auth/recover', '/api/receipts/verify', '/api/settings/profile'].includes(path)) return null;
   if (path === '/api/payments/submit') return [...finance, ...residentRoles];
   if (path === '/api/payments/reverse') return finance.filter(canReversePayment);
+  if (path === '/api/expenses/loans/payroll') return finance;
+  if (path === '/api/expenses/loans/policy') return read ? financeRead : leaders;
   if (path === '/api/settings/security-roster') return read ? [...leaders, 'SECRETARY', 'SECURITY', 'MAINTENANCE'] : [...leaders, 'SECURITY'];
   if (path === '/api/complaints/create') return [...people, 'SECURITY', 'MAINTENANCE', ...residentRoles];
   if (path === '/api/facilities/book' || path === '/api/voting/cast-vote') return [...people, 'TREASURER', 'SECURITY', 'MAINTENANCE', ...residentRoles];

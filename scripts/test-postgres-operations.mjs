@@ -51,7 +51,7 @@ const invoke = async (route, cookie, body) => {
     body:body?JSON.stringify(body):undefined});
   const raw = await response.text();
   let payload; try { payload=JSON.parse(raw); } catch { payload=raw; }
-  return {status:response.status,payload,cookie:response.headers.getSetCookie().map(item=>item.split(';')[0]).join('; ')};
+  return {status:response.status,payload,location:response.headers.get('location'),cookie:response.headers.getSetCookie().map(item=>item.split(';')[0]).join('; ')};
 };
 const call = async (route,cookie,body,status=200) => {
   const res=await invoke(route,cookie,body);
@@ -140,16 +140,16 @@ try {
 
   const loan=await call('/api/expenses/loans/create',treasurer,{staffName:'Petugas Uji',staffRole:'SATPAM',baseSalary:2000000,totalLoanAmount:400000,
     monthlyDeduction:200000,tenorMonths:2,loanDate:'2026-10-01',purpose:'Uji persetujuan kasbon.'},201);
-  const installment={loanId:loan.id,installmentAmount:200000,paymentMethod:'POTONG_GAJI',installmentDate:'2026-10-05',requestId:'fixture-installment'};
+  const installment={loanId:loan.id,installmentAmount:200000,paymentMethod:'TRANSFER_BANK',accountId:'acc-main',installmentDate:'2026-10-05',requestId:'fixture-installment'};
   assert.equal((await call('/api/expenses/loans',treasurer2)).find(item=>item.id===loan.id).status,'PENDING_APPROVAL');
   await call('/api/expenses/loans/installment',treasurer,installment,409);
   await call('/api/expenses/loans/decision',chair,{loanId:loan.id,decision:'APPROVE'});
-  const saved = await call('/api/expenses/loans/installment',treasurer,installment,201);
-  const repeated = await call('/api/expenses/loans/installment',treasurer2,installment,201);
-  assert.equal(repeated.installment.id,saved.installment.id);
-  assert.equal((await call('/api/expenses/loans',treasurer2)).find(item=>item.id===loan.id).remainingBalance,200000);
-  await call('/api/expenses/loans/installment',treasurer2,{...installment,requestId:'fixture-over',installmentAmount:200001},409);
+  assert.equal((await call('/api/expenses/loans',treasurer2)).find(item=>item.id===loan.id).status,'AWAITING_DISBURSEMENT');
+  await call('/api/expenses/loans/installment',treasurer2,installment,409);
   assert.ok((await invoke('/admin/staff-loans',treasurer2)).payload.includes(loan.id));
+  await call('/api/expenses/loans/delete',treasurer,{loanId:loan.id,reason:'Belum dicairkan'},403);
+  assert.equal((await call('/api/expenses/loans/delete',chair,{loanId:loan.id,reason:'Pengajuan batal sebelum pencairan'})).loan.status,'ARCHIVED');
+  assert.match((await invoke('/admin/staff-loans?tab=repayment_history',treasurer2)).payload,/Ditarik/);
 
   const task=await call('/api/cleaning/tasks/create',cleaner,{taskName:'Sapu jalan uji',category:'SAPU_JALAN',location:'Blok Uji',assignedTo:'Petugas Uji'},201);
   assert.ok((await call('/api/cleaning/tasks',chair)).some(item=>item.id===task.id && !item.isCompleted));
@@ -200,8 +200,12 @@ try {
   assert.equal(billPage.status,200);
   assert.ok(billPage.payload.includes('payment='+first.id));
   const publicBill=await invoke('/rekap-iuran?period='+published.periodId);
-  assert.equal(publicBill.status,200);
-  assert.ok(publicBill.payload.includes('U-01') && !publicBill.payload.includes('FIXTURE-FIRST') && !publicBill.payload.includes(payment.proofFileUrl));
+  assert.equal(publicBill.status,302);
+  assert.equal(publicBill.location,'/transparency/2026/11?tab=dues_breakdown');
+  const aggregateBill=await invoke(publicBill.location);
+  assert.equal(aggregateBill.status,200);
+  assert.match(aggregateBill.payload,/Rekap iuran/);
+  assert.doesNotMatch(aggregateBill.payload,/U-01|FIXTURE-FIRST|proof\.example\.invalid/);
   const receiptRoute=id=>'/api/receipts/verify?q='+encodeURIComponent('KW-'+id.toUpperCase());
   await call(receiptRoute(first.id),null,undefined,404);
   await call('/api/payments/verify',owner,{paymentId:first.id},403);
@@ -560,6 +564,98 @@ try {
   assert.ok(earlierArchives.payload.includes('archive-page-fixture-1') && !earlierArchives.payload.includes(archive.id));
   assert.ok((await sql("SELECT actor_user_id FROM audit_logs WHERE action='budget.approve' AND entity_id=$1",[month])).every(row=>row.actor_user_id==='chair'));
   console.log('PASS Anggaran dan Laporan PostgreSQL: pengesahan & revisi, pagu lintas sesi, mutasi cadangan berpasangan/idempoten, CSV sesuai jurnal, blok & SLA terukur, serta arsip tetap setelah data berubah.');
+
+  const loanApi='/api/expenses/loans';
+  await sql("INSERT INTO accounts (id,community_id,code,name,type,balance) VALUES ('acc-loan-test','comm-01','LOAN-TEST','Bank kasbon uji','BANK',2000000)");
+  const rules={maxLoanRatio:25,maxTenorMonths:3,minWorkingMonths:2,approvalMode:'LEADERSHIP',defaultAccountId:'acc-loan-test',repaymentNotes:'Tinjau setiap bulan'};
+  await call(loanApi+'/policy',treasurer,rules,403);
+  await call(loanApi+'/policy',chair,rules);
+  const request={requestId:'staff-loan-pg',staffName:'PETUGAS-UJI-PRIVAT',staffRole:'SATPAM',staffPhone:'081298765409',
+    staffSince:'2020-01-01',baseSalary:2000000,totalLoanAmount:400000,monthlyDeduction:200000,tenorMonths:2,loanDate:today,purpose:'TUJUAN-UJI-PRIVAT'};
+  await call(loanApi+'/create',treasurer,{...request,staffSince:today},409);
+  await call(loanApi+'/create',treasurer,{...request,totalLoanAmount:600000},409);
+  const requests=await Promise.all([treasurer,treasurer2].map(cookie=>call(loanApi+'/create',cookie,request,201)));
+  const staffLoan=requests[0];
+  assert.equal(requests[1].id,staffLoan.id);
+  await call(loanApi+'/decision',treasurer,{loanId:staffLoan.id,decision:'APPROVE'},403);
+  const payout={loanId:staffLoan.id,accountId:'acc-loan-test',date:today};
+  await call(loanApi+'/disburse',treasurer,payout,409);
+  const approvals=await Promise.all([chair,chair2].map(cookie=>invoke(loanApi+'/decision',cookie,{loanId:staffLoan.id,decision:'APPROVE'})));
+  assert.deepEqual(approvals.map(item=>item.status).sort(),[200,409]);
+  assert.equal(await balance('acc-loan-test'),2000000);
+  const payouts=await Promise.all([treasurer,treasurer2].map(cookie=>call(loanApi+'/disburse',cookie,payout)));
+  assert.equal(payouts[0].loan.disbursement.journalId,payouts[1].loan.disbursement.journalId);
+  assert.equal(await balance('acc-loan-test'),1600000);
+  const bankRepay={loanId:staffLoan.id,installmentAmount:150000,paymentMethod:'TRANSFER_BANK',accountId:'acc-loan-test',installmentDate:today,requestId:'staff-loan-transfer'};
+  await call(loanApi+'/installment',treasurer,{...bankRepay,paymentMethod:'TUNAI_CASH'},400);
+  const payments=await Promise.all([treasurer,treasurer2].map(cookie=>call(loanApi+'/installment',cookie,bankRepay,201)));
+  const staffReceipt=payments[0].installment;
+  assert.equal(staffReceipt.journalId,payments[1].installment.journalId);
+  assert.equal(await balance('acc-loan-test'),1750000);
+  const scopedJournal=await invoke('/admin/ledger?loan='+staffLoan.id,treasurer2);
+  assert.match(scopedJournal.payload,new RegExp(staffReceipt.journalId));
+  assert.ok(scopedJournal.payload.includes('/admin/staff-loans?loan='+staffLoan.id));
+  const receiptPage=await invoke('/admin/staff-loans?receipt='+staffReceipt.id,treasurer2);
+  assert.equal(receiptPage.status,200);
+  assert.match(receiptPage.payload,/Kuitansi angsuran/);
+  assert.equal((await invoke('/admin/staff-loans?receipt='+staffReceipt.id,owner2)).status,302);
+
+  const salary=await call('/api/expenses/create',treasurer,{categoryId:'cat-pemeliharaan',accountId:'acc-loan-test',
+    title:'JURNAL-GAJI-UJI-PRIVAT',amount:700000,expenseDate:today,bookNow:true},201);
+  assert.ok((await call(loanApi+'/payroll?month='+month,treasurer)).some(item=>item.id===salary.id));
+  const deduction={loanId:staffLoan.id,installmentAmount:200000,paymentMethod:'POTONG_GAJI',installmentDate:today,requestId:'staff-loan-payroll',expenseId:salary.id,netPayrollConfirmed:true};
+  await call(loanApi+'/installment',treasurer,{...deduction,expenseId:undefined},400);
+  const beforeDeduction=await balance('acc-loan-test');
+  const withheld=await call(loanApi+'/installment',treasurer2,deduction,201);
+  assert.equal(withheld.loan.remainingBalance,50000);
+  assert.equal(withheld.installment.expenseId,salary.id);
+  assert.equal(withheld.installment.journalId,undefined);
+  assert.equal(await balance('acc-loan-test'),beforeDeduction);
+  await call(loanApi+'/installment',treasurer2,{...deduction,requestId:'staff-loan-duplicate',installmentAmount:1000},409);
+  assert.match((await invoke('/admin/expenses?expense='+salary.id,treasurer2)).payload,/Potongan gaji/);
+  await call('/api/expenses/delete',treasurer,{id:salary.id,reason:'Tidak bisa sebelum pembalikan'},409);
+  await call(loanApi+'/reverse',treasurer,{loanId:staffLoan.id,reason:'Masih ada angsuran'},409);
+  await call(loanApi+'/reverse',treasurer,{loanId:staffLoan.id,installmentId:withheld.installment.id,reason:'Koreksi potongan'});
+  assert.equal(await balance('acc-loan-test'),beforeDeduction);
+  await call(loanApi+'/reverse',treasurer,{loanId:staffLoan.id,installmentId:staffReceipt.id,reason:'Koreksi transfer'});
+  assert.equal(await balance('acc-loan-test'),beforeDeduction-150000);
+  await call(loanApi+'/reverse',treasurer,{loanId:staffLoan.id,reason:'Dana pencairan kembali'});
+  assert.equal(await balance('acc-loan-test'),1300000);
+  assert.match((await invoke('/admin/staff-loans?receipt='+staffReceipt.id,treasurer2)).payload,/DIBALIK/);
+  const auditCookie=await login('auditor');
+  const auditLoan=(await call(loanApi,auditCookie)).find(item=>item.id===staffLoan.id);
+  assert.equal(auditLoan.baseSalary,null); assert.equal(auditLoan.staffPhone,'');
+  await call(loanApi+'/payroll?month='+month,auditCookie,undefined,403);
+
+  const publicPath='/transparency/'+month.replace('-','/');
+  const summary=await invoke(publicPath+'?tab=cashflow_summary',null);
+  const publicJournal=await invoke(publicPath+'?tab=public_ledger&category=STAFF_LOAN&download=csv',null);
+  const publicDues=await invoke(publicPath+'?tab=dues_breakdown',null);
+  assert.deepEqual([summary.status,publicJournal.status,publicDues.status],[200,200,200]);
+  const cashClosing=Number((await sql(`SELECT (SELECT SUM(balance) FROM accounts)-COALESCE(SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END),0) AS balance
+    FROM ledger_entries WHERE entry_date>=CAST((CAST($1 AS DATE)+INTERVAL '1 month')::date AS TEXT)`,[month+'-01']))[0].balance);
+  const rupiah=new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:2,minimumFractionDigits:0}).format(cashClosing).replace(/\s+/g,'');
+  assert.ok(summary.payload.includes(rupiah));
+  assert.match(publicJournal.payload,/Pencairan kasbon/); assert.match(publicJournal.payload,/Pembalikan pelunasan kasbon/);
+  assert.equal(publicJournal.payload.trim().split('\n').length,5);
+  for(const page of [summary,publicDues,publicJournal,await invoke(publicPath+'?tab=public_ledger',null)])
+    assert.doesNotMatch(page.payload,/PETUGAS-UJI-PRIVAT|TUJUAN-UJI-PRIVAT|JURNAL-GAJI-UJI-PRIVAT|081298765409|U-01|U-02/);
+  assert.ok((await invoke(publicPath+'?tab=public_ledger&page=2',null)).payload.includes('Halaman sebelumnya'));
+  await sql("INSERT INTO settings(id,key,value) VALUES ('fixture-duty','security_shift_roster',$1)",
+    [JSON.stringify({rotationStartDate:'2025-01-01',handoverTime:'07:30',shifts:[{staffName:'NAMA-JAGA-PRIVAT',phone:'085500001234'},{staffName:'PETUGAS-CADANGAN-PRIVAT'}]})]);
+  const helpReport=await invoke(publicPath+'?tab=audit_faq',null);
+  assert.equal(helpReport.status,200);
+  assert.ok(/serah terima 07:30 WIB/.test(helpReport.payload.replace(/<!--[\s\S]*?-->/g,'')),'Public roster must show the configured WIB handover.');
+  assert.doesNotMatch(helpReport.payload,/NAMA-JAGA-PRIVAT|085500001234|PETUGAS-CADANGAN-PRIVAT/);
+  const currentPublic=await invoke('/transparency/current?tab=public_ledger',null);
+  assert.equal(currentPublic.location,publicPath+'?tab=public_ledger');
+  const anonymousDues=await invoke('/warga?tab=iuran&month='+month,null);
+  assert.equal(anonymousDues.location,'/login?portal=resident&tujuan=iuran&month='+month);
+  assert.equal((await invoke('/warga?tab=info&info=complaints',null)).location,'/login?portal=resident&tujuan=aduan');
+  const ownDues=await invoke('/warga?tab=iuran&month='+month,owner2);
+  assert.equal(ownDues.status,200);
+  assert.match(ownDues.payload,/Portal Warga/);
+  console.log('PASS Kasbon dan Transparansi PostgreSQL: kebijakan dan peran, pencairan, angsuran idempoten, potong gaji tanpa arus ganda, pembalikan, kuitansi privat, saldo dan CSV publik.');
 
   await call('/api/users/recovery-code',treasurer,{userId:'chair',identityVerified:true},403);
   await call('/api/users/recovery-code',chair,{userId:'treasurer',identityVerified:true},403);
