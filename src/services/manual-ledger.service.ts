@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { writeTransaction, type Query } from '../db/operational-query';
 import { jakartaDate } from '../lib/billing-data';
 import { isEditableJournal } from '../lib/cash-data';
+import { RESERVE_ACCOUNT } from '../lib/planning-data';
 import type { UserSession } from '../types/auth';
 import { OperationalError, operationalAudit } from './operational-mutation';
 
@@ -24,8 +25,8 @@ function validatePostedDate(date:string) {
 }
 async function lockAccounts(run:Query,lock:string,ids:string[]) {
   const unique = [...new Set(ids)].sort();
-  return run<{id:string;balance:number|string;is_active:boolean|number}>(
-    'SELECT id,balance,is_active FROM accounts WHERE id IN ('+unique.map(()=>'?').join(',')+') ORDER BY id'+lock,unique);
+  return run<{id:string;balance:number|string;is_active:boolean|number;type:string}>(
+    'SELECT id,balance,is_active,type FROM accounts WHERE id IN ('+unique.map(()=>'?').join(',')+') ORDER BY id'+lock,unique);
 }
 async function insertJournal(run:Query,entry:ManualLedgerInput & {id:string; sourceId:string|null; createdBy?:string|null; createdAt:string}) {
   await run(`INSERT INTO ledger_entries (id,account_id,entry_date,direction,amount,source_type,source_id,description,created_by,created_at)
@@ -38,7 +39,8 @@ export async function createManualLedgerEntry(input:ManualLedgerInput,actor?:Use
   editable(input.sourceType);
   const entry = {...input,id:`led-${randomUUID()}`,sourceId:input.referenceNo || null,createdBy:actor?.id || input.createdBy,createdAt:new Date().toISOString()};
   await writeTransaction(async (run,lock)=>{
-    if (!(await lockAccounts(run,lock,[entry.accountId]))[0]?.is_active) throw new OperationalError('Rekening tidak ditemukan atau tidak aktif.');
+    const [account]=await lockAccounts(run,lock,[entry.accountId]);
+    if (!account?.is_active || account.type===RESERVE_ACCOUNT) throw new OperationalError('Pilih rekening kas aktif. Untuk dana cadangan, gunakan menu Anggaran.');
     await insertJournal(run,entry);
     if (actor) await operationalAudit(run,actor,'ledger.manual.create','LEDGER_ENTRY',entry.id,{accountId:entry.accountId,date:entry.entryDate,direction:entry.direction,amount:entry.amount});
   });
@@ -54,7 +56,7 @@ export async function updateManualLedgerEntry(id:string,patch:Partial<ManualLedg
     const next = {accountId:patch.accountId || row.account_id,entryDate:patch.entryDate || row.entry_date,amount:patch.amount ?? Number(row.amount),
       direction:patch.direction || row.direction,description:patch.description ?? row.description,referenceNo:patch.referenceNo ?? row.source_id};
     const accounts = await lockAccounts(run,lock,[row.account_id,next.accountId]);
-    if (!accounts.some(account=>account.id===next.accountId && account.is_active)) throw new OperationalError('Rekening tujuan tidak aktif.');
+    if (!accounts.some(account=>account.id===next.accountId && account.is_active && account.type!==RESERVE_ACCOUNT)) throw new OperationalError('Rekening tujuan harus merupakan rekening kas aktif.');
     await run('UPDATE accounts SET balance=balance-? WHERE id=?',[signed(row.direction,Number(row.amount)),row.account_id]);
     await run('UPDATE accounts SET balance=balance+? WHERE id=?',[signed(next.direction,next.amount),next.accountId]);
     await run('UPDATE ledger_entries SET account_id=?,entry_date=?,direction=?,amount=?,description=?,source_id=? WHERE id=?',
@@ -63,22 +65,25 @@ export async function updateManualLedgerEntry(id:string,patch:Partial<ManualLedg
     return {id,...next};
   });
 }
-export async function transferBetweenAccounts(input:{fromAccountId:string;toAccountId:string;amount:number;description:string;entryDate:string},actor?:UserSession) {
+type TransferInput={fromAccountId:string;toAccountId:string;amount:number;description:string;entryDate:string};
+export async function transferBetweenAccounts(input:TransferInput,actor?:UserSession) {
+  return writeTransaction((run,lock)=>writeAccountTransfer(run,lock,input,actor));
+}
+export async function writeAccountTransfer(run:Query,lock:string,input:TransferInput,actor?:UserSession,reserve=false) {
   validateAmount(input.amount);
   if (actor) validatePostedDate(input.entryDate);
   if (input.fromAccountId===input.toAccountId) throw new OperationalError('Rekening asal dan tujuan harus berbeda.',400);
   const transferId = `transfer-${randomUUID()}`;
   const outEntry = {id:`led-${randomUUID()}`,accountId:input.fromAccountId,entryDate:input.entryDate,direction:'OUT' as const,amount:input.amount,
-    sourceType:'INTERNAL_TRANSFER',sourceId:transferId,description:input.description,createdBy:actor?.id,createdAt:new Date().toISOString()};
+    sourceType:reserve?'RESERVE_TRANSFER':'INTERNAL_TRANSFER',sourceId:transferId,description:input.description,createdBy:actor?.id,createdAt:new Date().toISOString()};
   const inEntry = {...outEntry,id:`led-${randomUUID()}`,accountId:input.toAccountId,direction:'IN' as const};
-  await writeTransaction(async (run,lock)=>{
-    const accounts = await lockAccounts(run,lock,[input.fromAccountId,input.toAccountId]);
-    if (accounts.filter(account=>account.is_active).length!==2) throw new OperationalError('Rekening asal atau tujuan tidak aktif.');
-    if (Number(accounts.find(account=>account.id===input.fromAccountId)?.balance)<input.amount) throw new OperationalError('Saldo rekening asal tidak cukup.');
-    await insertJournal(run,outEntry);
-    await insertJournal(run,inEntry);
-    if (actor) await operationalAudit(run,actor,'ledger.transfer','INTERNAL_TRANSFER',transferId,{...input,entries:[outEntry.id,inEntry.id]});
-  });
+  const accounts = await lockAccounts(run,lock,[input.fromAccountId,input.toAccountId]);
+  if (accounts.filter(account=>account.is_active).length!==2) throw new OperationalError('Rekening asal atau tujuan tidak aktif.');
+  if (accounts.filter(account=>account.type===RESERVE_ACCOUNT).length!==(reserve?1:0)) throw new OperationalError('Mutasi dana cadangan dikelola dari menu Anggaran.');
+  if (Number(accounts.find(account=>account.id===input.fromAccountId)?.balance)<input.amount) throw new OperationalError('Saldo rekening asal tidak cukup.');
+  await insertJournal(run,outEntry);
+  await insertJournal(run,inEntry);
+  if (actor) await operationalAudit(run,actor,'ledger.transfer',outEntry.sourceType,transferId,{...input,entries:[outEntry.id,inEntry.id]});
   return {transferId,outEntry,inEntry};
 }
 export async function deleteManualLedgerEntry(id:string,actor?:UserSession,reason?:string) {

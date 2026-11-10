@@ -1,46 +1,30 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { BudgetManager } from '../../components/admin/BudgetManager';
-import { getProperties } from '../../services/property.service';
-import { getCurrentBillingPeriod, getInvoices } from '../../services/billing.service';
-import { getMainAccountBalance } from '../../services/finance.service';
-import { getExpenseCashTotals } from '../../services/expense-operations.service';
-import { financePath } from '../../lib/billing-data';
-import { cashRupiah, currentFinanceMonth, financeMonth, financeMonthPattern } from '../../lib/cash-data';
+import { BUDGET_TABS, reportMonth } from '../../lib/planning-data';
+import { jakartaDate } from '../../lib/billing-data';
+import { canManageFinance } from '../../lib/access-policy';
+import { canApproveBudget, getBudgetWorkspace, listReserveFunds } from '../../services/budget-planning.service';
+import { getAccounts } from '../../services/finance.service';
+import type { UserSession } from '../../types/auth';
 
-const requestedMonth = Astro.url.searchParams.get('month') || '';
-const month = financeMonthPattern.test(requestedMonth) && requestedMonth>='1900-01' && requestedMonth<='2199-12' ? requestedMonth : currentFinanceMonth();
-const category = Astro.url.searchParams.get('category') || '';
-
-const [properties, currentPeriod, mainBalance, actual] = await Promise.all([
-  getProperties().catch(() => []),
-  getCurrentBillingPeriod().catch(() => null),
-  getMainAccountBalance().catch(() => 0),
-  getExpenseCashTotals(month).catch(()=>null),
-]);
-const filtered = actual?.filter(item=>!category || item.id===category);
-const invoices = currentPeriod ? await getInvoices(currentPeriod.id).catch(() => []) : [];
+const actor=await Astro.session?.get('wargahub_user') as UserSession|undefined;
+if(!actor) return Astro.redirect('/login?portal=admin');
+const params=Astro.url.searchParams;
+const month=reportMonth(params.get('month'));
+const tab=BUDGET_TABS.find(item=>item===params.get('tab')) || 'budget_matrix';
+const data=await Promise.all([getBudgetWorkspace(month),tab==='sinking_fund'?listReserveFunds():[],
+  tab==='sinking_fund'?getAccounts():[]]).then(([budget,funds,accounts])=>({budget,funds,accounts}))
+  .catch(error=>{console.error('Budget workspace could not load',error instanceof Error?error.name:typeof error);return null;});
+if(!data) Astro.response.status=503;
 ---
 
-<AdminLayout title="Anggaran & Realisasi - WargaHub" currentPath="/admin/budget">
-  {(Astro.url.searchParams.get('tab') || 'budget_matrix')==='budget_matrix' && <section id="realisasi-buku-kas" class="workspace-panel mb-5 grid gap-3" aria-label="Realisasi Buku Kas">
-    <div class="flex flex-wrap items-start justify-between gap-2"><div><h2 class="!mb-0">Realisasi Buku Kas · {financeMonth(month)}</h2>
-      <p class="mt-1 text-sm text-ink-muted">Pengeluaran setelah pembatalan, dari jurnal yang dibukukan.</p></div>
-      <a href={financePath('/admin/ledger',{tab:'financial_reports',month})} class="btn-secondary inline-flex min-h-11 items-center">Laporan kas</a></div>
-    <form action="/admin/budget" class="flex flex-wrap items-end gap-2"><input type="hidden" name="tab" value="budget_matrix" />
-      <label class="min-w-0 text-sm font-semibold">Periode<input class="mt-1 block min-h-11 w-full rounded-lg border border-border bg-surface px-3" type="month" name="month" value={month} required /></label>
-      <button class="btn-secondary min-h-11" type="submit">Tampilkan</button></form>
-    {!filtered ? <p role="alert" class="text-sm text-ink-muted">Realisasi Buku Kas belum dapat dimuat.</p> : !filtered.length ? <p class="text-sm text-ink-muted">Belum ada pengeluaran pada pilihan ini.</p> :
-      <ul class="divide-y divide-border">{filtered.map(item=><li class="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
-        <a class="font-semibold text-primary-800 hover:underline [overflow-wrap:anywhere]" href={financePath('/admin/expenses',{month,category:item.id})}>{item.name}</a>
-        <span class="font-bold tabular-nums">{cashRupiah(item.amount)}</span></li>)}</ul>}
+<AdminLayout title="Anggaran & Realisasi · WargaHub" currentPath="/admin/budget">
+  {data ? <BudgetManager {...data} tab={tab} category={params.get('category')?.slice(0,64) || ''}
+    fundFocus={params.get('fund')?.slice(0,64) || ''} moved={params.get('moved')?.slice(0,64) || ''}
+    canWrite={canManageFinance(actor.role)} canApprove={canApproveBudget(actor.role)} today={jakartaDate()} client:load />
+  : <section class="workspace-panel" role="alert"><h1 class="text-xl font-bold">Anggaran</h1>
+    <p class="mt-2 text-sm text-ink-muted">Data anggaran belum dapat dimuat.</p>
+    <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname+Astro.url.search} data-astro-reload>Coba lagi</a>
   </section>}
-  <BudgetManager
-    initialProperties={properties as any}
-    initialInvoices={invoices as any}
-    initialExpenses={(actual || []).map(item=>({categoryName:item.name,amount:item.amount}))}
-    initialPeriod={financeMonth(month)}
-    initialBalance={mainBalance}
-    client:load
-  />
 </AdminLayout>

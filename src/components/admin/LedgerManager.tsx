@@ -4,6 +4,7 @@ import { ArrowDownLeft, ArrowDownToLine, ArrowLeftRight, ArrowUpRight, BookOpen,
 import { downloadFinanceCsv, financeDate, financePath, jakartaDate } from '../../lib/billing-data';
 import { cashRupiah, currentFinanceMonth, financeMonth, isEditableJournal, isInternalTransfer, ledgerSources, type CashJournalRow, type CashPeriodSummary, type CashReconciliation, type LedgerScope, type LedgerSubTab } from '../../lib/cash-data';
 import type { FinanceWhatsAppProfile } from '../../lib/finance-whatsapp';
+import { RESERVE_ACCOUNT } from '../../lib/planning-data';
 import type { FinanceAccount } from '../../services/finance.service';
 import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
 import { FinanceDialog, FinanceEmpty, FinanceHeader, FinanceStatus, FinanceSummary, FinanceTabLinks, financeButton, financeField, financePost, financePrimary } from './FinanceWorkspace';
@@ -14,7 +15,7 @@ const menus = [
   {id:'ledger_list',label:'Jurnal',icon:BookOpen},{id:'accounts_manage',label:'Rekening',icon:WalletCards},
   {id:'bank_reconciliation',label:'Rekonsiliasi',icon:ClipboardCheck},{id:'financial_reports',label:'Laporan kas',icon:ChartNoAxesCombined},
 ] as const;
-const accountTypes:Record<string,string> = {BANK:'Bank',CASH:'Kas tunai',SAVINGS:'Tabungan',PETTY_CASH:'Kas kecil'};
+const accountTypes:Record<string,string> = {BANK:'Bank',CASH:'Kas tunai',SAVINGS:'Tabungan',PETTY_CASH:'Kas kecil',RESERVE:'Dana cadangan'};
 const sourceFilters = {expense:'Pengeluaran',payment:'Iuran',transfer:'Mutasi internal',manual:'Jurnal dan sumber lain'};
 const noticeLabels:Record<string,string> = {journal:'Jurnal tersimpan.',transfer:'Mutasi tersimpan pada kedua rekening.',account:'Rekening tersimpan.',delete:'Pembatalan tersimpan.'};
 const sourceHeadings = {payment:'Jurnal pembayaran',expense:'Jurnal pengeluaran',transfer:'Pasangan mutasi'};
@@ -26,6 +27,7 @@ interface Props {
   accounts:FinanceAccount[];accountId:string;ledger:WorkspaceLedger|null;reconciliation:CashReconciliation|null;
   initialTab:LedgerSubTab;canWrite:boolean;month:string;search:string;source:string;scope?:LedgerScope;journalPageSize:number;initialNotice:string;
   shareProfile:FinanceWhatsAppProfile|null;today:string;
+  category:string;categoryLabel:string;
 }
 
 function Field({label,children}:{label:string;children:ReactNode}) {
@@ -105,7 +107,7 @@ function ReconciliationPanel({initial,canWrite}:{initial:CashReconciliation;canW
   </section>;
 }
 
-export function LedgerManager({accounts,accountId,ledger,reconciliation,initialTab:tab,canWrite,month,search,source,scope,journalPageSize,initialNotice,shareProfile,today}:Props) {
+export function LedgerManager({accounts,accountId,ledger,reconciliation,initialTab:tab,canWrite,month,search,source,scope,journalPageSize,initialNotice,shareProfile,today,category,categoryLabel}:Props) {
   const [modal,setModal] = useState<Modal|null>(null);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
@@ -114,9 +116,11 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
   const shareBank = canWrite && tab==='accounts_manage';
   const shareCash = canWrite && tab==='financial_reports' && !accountId && Boolean(ledger);
   const account = accounts.find(item=>item.id===accountId);
+  const operating=accounts.filter(item=>item.isActive && item.type!==RESERVE_ACCOUNT);
+  const operatingId=operating.find(item=>item.id===accountId)?.id || operating[0]?.id || '';
   const actionRow = modal && 'row' in modal ? modal.row : undefined;
   const actionAccount = modal?.type==='account' ? modal.account : undefined;
-  const query = scope ? {[scope.type]:scope.id} : {month,account:accountId,q:search,source};
+  const query = scope ? {[scope.type]:scope.id} : {month,account:accountId,q:search,source,category};
   const selectedTitle = scope ? sourceHeadings[scope.type] : 'Buku kas';
   const back = scope?.type==='payment' && canWrite ? financePath('/admin/payments',{tab:'history',payment:scope.id}) :
     scope?.type==='expense' ? financePath('/admin/expenses',{expense:scope.id}) : '';
@@ -154,20 +158,20 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
   const monthAccount = (mode:'bank_reconciliation'|'financial_reports')=><form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end" action="/admin/ledger">
     <input type="hidden" name="tab" value={mode} />
     <Field label="Periode"><input className={financeField+' min-w-0'} name="month" type="month" defaultValue={month} max={mode==='bank_reconciliation'?currentFinanceMonth():undefined} required /></Field>
-    <Field label="Rekening"><AccountSelect accounts={accounts} value={accountId} all={mode==='financial_reports'} required={mode==='bank_reconciliation'} /></Field>
+    <Field label="Rekening"><AccountSelect accounts={mode==='financial_reports'?accounts:operating} value={accountId} all={mode==='financial_reports'} required={mode==='bank_reconciliation'} /></Field>
     <button type="submit" className={financeButton}>Tampilkan</button>
   </form>;
 
   return <section className="workspace">
     <FinanceHeader area="ledger" title={selectedTitle} canViewPayments={canWrite}>
       {back && <a className={financePrimary} href={back}>{scope?.type==='payment'?'Lihat pembayaran':'Lihat pengeluaran'} <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
-      {!scope && canWrite && tab==='ledger_list' && accounts.length>0 && <button type="button" className={financePrimary} onClick={()=>open({type:'journal'})}>
+      {!scope && canWrite && tab==='ledger_list' && operating.length>0 && account?.type!==RESERVE_ACCOUNT && <button type="button" className={financePrimary} onClick={()=>open({type:'journal'})}>
         <Plus className="size-4" aria-hidden="true" />Catat jurnal</button>}
       {canWrite && tab==='accounts_manage' && <button type="button" className={financePrimary} onClick={()=>open({type:'account'})}><Plus className="size-4" aria-hidden="true" />Rekening baru</button>}
       {(shareBank || shareCash) && <button type="button" className={financeButton} onClick={()=>setShowReport(true)}>
         <MessageCircle className="size-4" aria-hidden="true" />{shareBank?'Siaran rekening WA':'Laporan WA (wa.me)'}
       </button>}
-      {!scope && canWrite && accounts.length>1 && ['ledger_list','accounts_manage'].includes(tab) && <button type="button" className={financeButton} onClick={()=>open({type:'transfer'})}>
+      {!scope && canWrite && operating.length>1 && account?.type!==RESERVE_ACCOUNT && ['ledger_list','accounts_manage'].includes(tab) && <button type="button" className={financeButton} onClick={()=>open({type:'transfer'})}>
         <ArrowLeftRight className="size-4" aria-hidden="true" />Pindah saldo</button>}
     </FinanceHeader>
     <FinanceTabLinks tabs={menus.map(item=>({...item,href:path({tab:item.id,month:item.id!=='accounts_manage'?month:undefined,account:item.id!=='accounts_manage'?accountId:undefined})}))} active={tab} label="Menu buku kas" />
@@ -175,13 +179,16 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
     {tab==='ledger_list' && ledger && <>
       {scope ? <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-sky-50 px-4 py-2 text-sm text-sky-900">
         <p className="min-w-0 font-medium [overflow-wrap:anywhere]">{scope.id}</p><a href={path()} className={link}>Semua jurnal</a>
+      </div> : category ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-sky-50 px-4 py-2 text-sm text-sky-900">
+        <p className="min-w-0 font-medium [overflow-wrap:anywhere]">{categoryLabel} · {financeMonth(month)}</p><a className={link} href={path({month,account:accountId})}>Hapus kategori</a>
       </div> : <CashSummary summary={ledger.summary} month={month} />}
       <section aria-label="Jurnal kas" className="min-w-0 rounded-2xl border border-border bg-surface">
         {!scope && <form className="grid gap-2 border-b border-border p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-[minmax(9rem,1.5fr)_minmax(8rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)_auto] lg:items-end" action="/admin/ledger">
+          {category && <><input type="hidden" name="category" value={category} /><input type="hidden" name="source" value="expense" /></>}
           <Field label="Cari jurnal"><input className={financeField} name="q" defaultValue={search} placeholder="Deskripsi atau nomor" maxLength={100} /></Field>
           <Field label="Periode"><input className={financeField+' min-w-0'} name="month" type="month" defaultValue={month} /></Field>
           <Field label="Rekening"><AccountSelect accounts={accounts} value={accountId} all /></Field>
-          <Field label="Sumber"><select className={financeField} name="source" defaultValue={source}><option value="">Semua sumber</option>
+          <Field label="Sumber"><select className={financeField} name="source" defaultValue={source} disabled={Boolean(category)}><option value="">Semua sumber</option>
             {Object.entries(sourceFilters).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
           <button type="submit" className={financeButton}>Tampilkan</button>
         </form>}
@@ -214,7 +221,7 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
                   <p className="text-xs tabular-nums text-ink-muted">Saldo setelah {cashRupiah(row.runningBalance)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 md:justify-end">
-                  {destination && !(scope?.type==='transfer' && transfer) && !(scope?.type==='payment' && !canWrite) && <a className={link} href={destination}>{isInternalTransfer(row.sourceType)?'Lihat pasangan':'Lihat sumber'} <ArrowUpRight className="size-3" aria-hidden="true" /></a>}
+                  {destination && !(scope?.type==='transfer' && isInternalTransfer(row.sourceType)) && !(scope?.type==='payment' && !canWrite) && <a className={link} href={destination}>{isInternalTransfer(row.sourceType)?'Lihat pasangan':'Lihat sumber'} <ArrowUpRight className="size-3" aria-hidden="true" /></a>}
                   {canWrite && edit && <button className={link} type="button" onClick={()=>open({type:'journal',row})}>Ubah</button>}
                   {canWrite && (edit || transfer) && <button className={link+' !text-rose-800'} type="button" onClick={()=>open({type:'delete',row})}>Batalkan</button>}
                 </div>
@@ -232,7 +239,7 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
     </>}
     {tab==='accounts_manage' && <section className="grid gap-4" aria-label="Rekening kas">
       <FinanceSummary items={[
-        {label:'Saldo kas aktif',value:cashRupiah(accounts.reduce((sum,item)=>sum+item.balance,0)),tone:'mint'},
+        {label:'Saldo kas aktif',value:cashRupiah(accounts.reduce((sum,item)=>sum+item.balance,0)),detail:accounts.some(item=>item.type===RESERVE_ACCOUNT)?'Termasuk dana cadangan':undefined,tone:'mint'},
         {label:'Rekening bank & tabungan',value:accounts.filter(item=>['BANK','SAVINGS'].includes(item.type)).length,tone:'sky'},
         {label:'Kas tunai & kas kecil',value:accounts.filter(item=>['CASH','PETTY_CASH'].includes(item.type)).length,tone:'amber'},
       ]} />
@@ -246,8 +253,10 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
           <p className="text-2xl font-bold tabular-nums">{cashRupiah(item.balance)}</p>
           <div className="flex flex-wrap items-center gap-2">
             <a href={path({account:item.id})} className={financeButton}>Lihat jurnal</a>
-            <a href={path({tab:'bank_reconciliation',account:item.id})} className={financeButton}>Rekonsiliasi</a>
-            {canWrite && <button className={link+' px-1'} type="button" onClick={()=>open({type:'account',account:item})}>Ubah rekening</button>}
+            {item.type===RESERVE_ACCOUNT ? <a href={financePath('/admin/budget',{tab:'sinking_fund',fund:item.id})} className={financeButton}>Buka dana</a> : <>
+              <a href={path({tab:'bank_reconciliation',account:item.id})} className={financeButton}>Rekonsiliasi</a>
+              {canWrite && <button className={link+' px-1'} type="button" onClick={()=>open({type:'account',account:item})}>Ubah rekening</button>}
+            </>}
           </div>
         </article>)}
       </div>}
@@ -271,6 +280,7 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
         <div className="flex flex-wrap gap-2">
           <a href={path({month,account:accountId})} className={financeButton}>Lihat {ledger.summary.count} jurnal</a>
           {ledger.summary.count>0 && <a data-astro-reload href={path({month,account:accountId,download:'csv'})} className={financeButton}><ArrowDownToLine className="size-4" aria-hidden="true" />Unduh CSV</a>}
+          {!accountId && <a href={financePath('/admin/analytics',{month})} className={financeButton}>Lihat tren</a>}
           {!accountId && month && <a href={'/transparency/'+month.replace('-','/')} className={financeButton}>Laporan warga <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
         </div>
       </section>
@@ -285,7 +295,7 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Kode rekening"><input className={financeField} name="code" pattern="[A-Za-z0-9_\-]{2,40}" maxLength={40} required defaultValue={actionAccount?.code} /></Field>
             <Field label="Jenis rekening"><select className={financeField} value={accountType} onChange={event=>setAccountType(event.target.value)}>
-              {Object.entries(accountTypes).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
+              {Object.entries(accountTypes).filter(([value])=>value!==RESERVE_ACCOUNT).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
             {['BANK','SAVINGS'].includes(accountType) && <>
               <Field label="Nama bank (opsional)"><input className={financeField} name="bankName" maxLength={100} defaultValue={actionAccount?.bankName || ''} /></Field>
               <Field label="Nomor rekening (opsional)"><input className={financeField} name="accountNumber" inputMode="numeric" maxLength={100} defaultValue={actionAccount?.accountNumber || ''} /></Field>
@@ -298,10 +308,10 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
         </> : <>
           <div className="grid gap-3 sm:grid-cols-2">
             {modal.type==='transfer' ? <>
-              <Field label="Rekening asal"><AccountSelect accounts={accounts} name="fromAccountId" value={accountId || accounts[0]?.id || ''} required /></Field>
-              <Field label="Rekening tujuan"><AccountSelect accounts={accounts} name="toAccountId" value="" required /></Field>
+              <Field label="Rekening asal"><AccountSelect accounts={operating} name="fromAccountId" value={operatingId} required /></Field>
+              <Field label="Rekening tujuan"><AccountSelect accounts={operating} name="toAccountId" value="" required /></Field>
             </> : <>
-              <Field label="Rekening"><AccountSelect accounts={accounts} name="accountId" value={actionRow?.accountId || accountId || accounts[0]?.id || ''} required /></Field>
+              <Field label="Rekening"><AccountSelect accounts={operating} name="accountId" value={actionRow?.accountId || operatingId} required /></Field>
               <Field label="Arus kas"><select className={financeField} name="direction" defaultValue={actionRow?.direction || 'IN'}><option value="IN">Masuk</option><option value="OUT">Keluar</option></select></Field>
             </>}
             <Field label="Tanggal transaksi"><input className={financeField+' min-w-0'} name="entryDate" type="date" max={jakartaDate()} required defaultValue={actionRow?.entryDate || jakartaDate()} /></Field>

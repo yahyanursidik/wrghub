@@ -42,6 +42,7 @@ interface Props {
   canManage: boolean;
   initialTab?: string;
   initialHouse: string;
+  initialBlock: string;
   initialPeriodId: string;
   initialInvoiceId: string;
   unknownPeriod: boolean;
@@ -56,12 +57,13 @@ const occupancyFilters = [['','Semua hunian'],['occupied','Dihuni'],['RENTED','D
 
 export function BillingManager({
   periods,invoices:initialInvoices,houses,accounts,tariff:initialTariff,billableIds,shareProfile,today,canManage,
-  initialTab,initialHouse,initialPeriodId,initialInvoiceId,unknownPeriod,
+  initialTab,initialHouse,initialBlock,initialPeriodId,initialInvoiceId,unknownPeriod,
 }: Props) {
   const [tab,setTab]=useUrlTab(tabIds,'invoices','tab',{},initialTab);
   const [periodId,setPeriodId]=useState(initialPeriodId);
   const [focusId,setFocusId]=useState(initialInvoiceId);
   const [search,setSearch]=useState(initialHouse);
+  const [block,setBlock]=useState(initialBlock);
   const [status,setStatus]=useState('');
   const [occupancy,setOccupancy]=useState('');
   const [order,setOrder]=useState('house');
@@ -85,6 +87,7 @@ export function BillingManager({
       const id=params.get('invoice') || '';
       setFocusId(id);
       setSearch(params.get('house') || '');
+      setBlock(params.get('block') || '');
       setPeriodId(invoices.find(item=>item.id===id)?.billingPeriodId ||
         periods.find(item=>item.id===wanted || item.name===wanted)?.id || initialPeriodId);
       setStatus('');setOccupancy('');setPage(1);
@@ -94,7 +97,7 @@ export function BillingManager({
   },[initialPeriodId,invoices,periods]);
 
   const activePeriod=periods.find(item=>item.id===periodId);
-  const periodInvoices=useMemo(()=>periodId ? invoices.filter(item=>item.billingPeriodId===periodId) : [],[invoices,periodId]);
+  const periodInvoices=useMemo(()=>periodId ? invoices.filter(item=>item.billingPeriodId===periodId && (!block || (item.areaLabel || 'Tanpa blok')===block)) : [],[invoices,periodId,block]);
   const collectible=periodInvoices.filter(item=>!cancelled(item.status));
   const paidCount=collectible.filter(item=>item.status==='PAID').length;
   const billed=collectible.reduce((sum,item)=>sum+item.total,0);
@@ -122,9 +125,10 @@ export function BillingManager({
   const paged=visible.slice((safePage-1)*pageSize,safePage*pageSize);
   const focused=periodInvoices.find(item=>item.id===focusId);
 
-  function choosePeriod(value:string) {
+  function choosePeriod(value:string,selectedBlock=block) {
     setPeriodId(value);setFocusId('');setSearch('');setStatus('');setOccupancy('');setShowUnknownPeriod(false);setPage(1);
-    window.history.pushState(window.history.state,'',financePath('/admin/billing',{tab,period:value}));
+    setBlock(selectedBlock);
+    window.history.pushState(window.history.state,'',financePath('/admin/billing',{tab,period:value,block:selectedBlock}));
   }
 
   function openAction(value:InvoiceAction) {
@@ -219,6 +223,7 @@ export function BillingManager({
         {label:'Sisa tagihan',value:formatRupiah(remaining),detail:pendingCount+' pembayaran menunggu cek',tone:'amber'},
       ]} />
       {focusId && <FinanceScope clear={()=>choosePeriod(periodId)}>{focused ? 'Tagihan '+focused.invoiceNumber : 'Tagihan dari tautan'}</FinanceScope>}
+      {block && <FinanceScope clear={()=>choosePeriod(periodId,'')}>{block}</FinanceScope>}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3 rounded-xl border border-border bg-surface p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
         <label className="min-w-0 text-sm font-semibold">Cari tagihan<input type="search" className={financeField} value={search} placeholder="Rumah, nama, nomor" onChange={event=>{setSearch(event.target.value);setPage(1);}} /></label>
         <button className={financeButton+' sm:hidden'} type="button" aria-expanded={showFilters} aria-controls="billing-filters" onClick={()=>setShowFilters(value=>!value)}>

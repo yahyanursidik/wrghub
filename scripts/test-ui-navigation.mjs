@@ -234,6 +234,14 @@ try {
       ['cash-accounts','/admin/ledger?tab=accounts_manage','Rekening kas'],
       ['cash-reconciliation','/admin/ledger?tab=bank_reconciliation','Rekonsiliasi rekening'],
       ['cash-reports','/admin/ledger?tab=financial_reports&month=2026-10','Laporan kas'],
+      ['budget-matrix','/admin/budget?month=2026-10','Realisasi Buku Kas'],
+      ['budget-reserves','/admin/budget?tab=sinking_fund&month=2026-10','Dana cadangan'],
+      ['budget-public','/admin/budget?tab=public_transparency&month=2026-10','Transparansi anggaran'],
+      ['budget-plan','/admin/budget?tab=manual_form&month=2026-10','Susun pagu'],
+      ['analytics-cash','/admin/analytics?month=2026-10','Tren kas'],
+      ['analytics-block','/admin/analytics?tab=block_compliance&month=2026-10','Iuran per blok'],
+      ['analytics-utility','/admin/analytics?tab=utility_efficiency&month=2026-10','Utilitas'],
+      ['analytics-sla','/admin/analytics?tab=security_sla&month=2026-10','Keamanan dan aduan'],
     ];
     for (const [name,route,section] of financeScreens) {
       await navigate(route,'main');
@@ -361,6 +369,49 @@ try {
     assert.doesNotMatch(text,/9876543210/);
     assert.equal(new URL(await evaluate(waHref)).searchParams.get('text'),text);
     console.log('PASS laporan WA dari Tagihan, Pembayaran, Buku Kas, dan Rekening; template, periode, clipboard dan tautan diuji tanpa membuka WhatsApp.');
+
+    const clickNamedButton = (label,selector='main button')=>evaluate(`Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(button=>button.textContent.trim()===${JSON.stringify(label)}).click()`);
+    const fillNativeForm = (selector,values)=>evaluate(`(()=>{const form=document.querySelector(${JSON.stringify(selector)});for(const [key,value] of Object.entries(${JSON.stringify(values)})){form.elements.namedItem(key).value=value;}form.requestSubmit();})()`);
+    await navigate('/admin/budget?tab=manual_form&month=2026-10','main [aria-label="Susun pagu"]');
+    await viewport(320);
+    await fillNativeForm('section[aria-label="Susun pagu"] form',{categoryId:'cat-pemeliharaan',amount:'85000',pic:'Bendahara fixture'});
+    await wait(`document.querySelector('main [role=status]')?.textContent.includes('Pos pagu tersimpan')`);
+    await navigate('/admin/budget?month=2026-10','main [aria-label="Realisasi Buku Kas"]');
+    await clickNamedButton('Sahkan pagu');
+    await wait(`document.querySelector('dialog[open][aria-label="Sahkan pagu bulanan"]')`);
+    await noOverflow('Pengesahan pagu 320');
+    await evaluate(`Promise.all(document.querySelector('dialog[open]').getAnimations().map(animation=>animation.finished)).then(()=>true)`);
+    await screenshot('budget-approve-320');
+    await clickNamedButton('Sahkan','dialog[open] button');
+    await wait(`document.querySelector('main [aria-label="Realisasi Buku Kas"]')?.textContent.includes('Disahkan oleh')`);
+    const budgetHref=await evaluate(`document.querySelector('main a[href^="/api/budget?"]').getAttribute('href')`);
+    assert.match(await evaluate(`fetch(${JSON.stringify(budgetHref)}).then(r=>r.text())`),/"Pemeliharaan","Disahkan","85000","50000","35000"/);
+
+    await navigate('/admin/budget?tab=sinking_fund','main [aria-label="Dana cadangan"]');
+    await clickNamedButton('Dana baru');
+    await wait(`document.querySelector('dialog[open] form')`);
+    await fillNativeForm('dialog[open] form',{name:'Dana taman fixture',target:'150000',purpose:'Perbaikan taman'});
+    await wait(`document.querySelector('article[data-fund-id]')?.textContent.includes('Dana taman fixture') && !document.querySelector('astro-island[ssr][client="load"]')`);
+    await clickNamedButton('Setor','article[data-fund-id] button');
+    await wait(`document.querySelector('dialog[open][aria-label="Setor dana cadangan"]')`);
+    await noOverflow('Mutasi cadangan 320');
+    await fillNativeForm('dialog[open] form',{accountId:'acc-main',amount:'25000'});
+    await wait(`location.search.includes('moved=transfer-') && document.querySelector('article[data-fund-id]')?.textContent.includes('Rp25.000')`);
+    const reserveJournal=await evaluate(`document.querySelector('main a[href*="transfer=transfer-"]').getAttribute('href')`);
+    await navigate(reserveJournal,'main [data-journal-id]');
+    assert.equal(await evaluate(`document.querySelectorAll('[data-journal-id]').length`),2);
+
+    await navigate('/admin/analytics?month=2026-10','main [aria-label="Tren kas"]');
+    await clickNamedButton('Simpan arsip');
+    await wait(`document.querySelector('dialog[open] form')`);
+    await fillNativeForm('dialog[open] form',{notes:'Arsip laporan browser fixture'});
+    await wait(`document.querySelector('[data-snapshot-id]')?.textContent.includes('Arsip laporan browser fixture')`);
+    await navigate('/admin/analytics?month=2026-10&tab=utility_efficiency','main [aria-label="Utilitas"]');
+    await clickNamedButton('Lihat arsip','[data-snapshot-id] button');
+    await wait(`document.querySelector('dialog[open]')?.textContent.includes('Arsip laporan browser fixture')`);
+    await noOverflow('Arsip laporan 320');
+    await viewport(1440);
+    console.log('PASS Anggaran dan Laporan: delapan submenu di lima lebar; formulir pagu dan pengesahan, mutasi dan tautan jurnal, CSV, serta arsip lintas submenu.');
 
     const menus = {
       properties: ['units', 'residents', 'vehicles', 'permits', 'analytics'],

@@ -106,7 +106,7 @@ async function bookPayment(run:Query,lock:string,payment:PendingRow,invoice:Invo
   const amount=Number(payment.amount);
   checkAmount(invoice,amount);
   if(payment.reference) await checkReference(run,invoice,payment.reference);
-  const [account]=await run<{name:string}>(`SELECT name FROM accounts WHERE id=? AND is_active=true
+  const [account]=await run<{name:string}>(`SELECT name FROM accounts WHERE id=? AND is_active=true AND type<>'RESERVE'
     AND (community_id IS NULL OR community_id=(SELECT community_id FROM properties WHERE id=?))`+lock,[accountId,invoice.property_id]);
   if(!account) throw new OperationalError('Rekening kas penerima tidak aktif atau belum dikonfigurasi.');
   const [property]=await run<{code:string}>('SELECT code FROM properties WHERE id=?',[invoice.property_id]);

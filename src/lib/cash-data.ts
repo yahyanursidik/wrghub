@@ -68,11 +68,11 @@ export interface RecurringPreviewRow {
 
 export const ledgerSources: Record<string, string> = {
   PAYMENT: 'Pembayaran iuran', PAYMENT_REVERSAL: 'Pembalikan iuran', EXPENSE: 'Pengeluaran', EXPENSE_REVERSAL: 'Pembatalan pengeluaran',
-  INTERNAL_TRANSFER: 'Mutasi antar rekening', MUTASI_KAS_INTERNAL: 'Mutasi antar rekening', OPENING_BALANCE: 'Saldo awal',
+  INTERNAL_TRANSFER: 'Mutasi antar rekening', MUTASI_KAS_INTERNAL: 'Mutasi antar rekening', RESERVE_TRANSFER: 'Mutasi dana cadangan', OPENING_BALANCE: 'Saldo awal',
   MANUAL_JOURNAL: 'Jurnal manual', ADJUSTMENT: 'Penyesuaian', STAFF_LOAN_DISBURSEMENT: 'Pencairan kasbon', STAFF_LOAN_INSTALLMENT: 'Cicilan kasbon',
 };
 export const isEditableJournal = (source: string) => ['MANUAL_JOURNAL', 'ADJUSTMENT', 'PENERIMAAN_KAS', 'PENGELUARAN_KAS', 'PEMASUKAN_LAIN', 'PENGELUARAN_LAIN'].includes(source);
-export const isInternalTransfer = (source: string) => ['INTERNAL_TRANSFER', 'MUTASI_KAS_INTERNAL'].includes(source);
+export const isInternalTransfer = (source: string) => ['INTERNAL_TRANSFER', 'MUTASI_KAS_INTERNAL', 'RESERVE_TRANSFER'].includes(source);
 export const proofMimes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' } as const;
 export const proofMaxBytes = 1_500_000;
 
