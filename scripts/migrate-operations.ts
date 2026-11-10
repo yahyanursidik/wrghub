@@ -16,6 +16,13 @@ if (target === '--postgres') {
         for (const [name, definition] of Object.entries(columns))
           await tx.unsafe(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${name} ${definition}`);
       for (const statement of operationTables) await tx.unsafe(statement);
+      await tx`CREATE TABLE IF NOT EXISTS public.wargahub_sessions (
+        session_id text PRIMARY KEY,
+        data text,
+        expires_at timestamptz NOT NULL
+      )`;
+      await tx`CREATE INDEX IF NOT EXISTS wargahub_sessions_expiry_idx
+        ON public.wargahub_sessions (expires_at)`;
     });
     console.log('Migrasi modul operasional PostgreSQL selesai.');
   } finally { await sql.end(); }

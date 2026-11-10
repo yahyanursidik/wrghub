@@ -10,7 +10,9 @@ const isVercel = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV) 
 // https://astro.build/config
 export default defineConfig({
   output: 'server',
-  session: { ttl: SESSION_MAX_AGE_SECONDS },
+  session: isVercel
+    ? { ttl: SESSION_MAX_AGE_SECONDS, driver: { entrypoint: new URL('./src/db/postgres-session-driver.ts', import.meta.url) } }
+    : { ttl: SESSION_MAX_AGE_SECONDS },
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'hover'
