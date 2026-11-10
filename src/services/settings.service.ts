@@ -1,6 +1,7 @@
 import { neonSql } from '../db/neon';
 import { query } from '../db/operational-query';
 import { selectReceivingBank } from '../lib/billing-data';
+import type { FinanceWhatsAppProfile } from '../lib/finance-whatsapp';
 import { getBillingTariff } from './billing-tariff.service';
 import { getAccounts } from './finance.service';
 
@@ -75,6 +76,11 @@ export async function getMasterBankAccount(): Promise<{
     accountHolder: profile.accountHolder,
     qrisNmid: profile.qrisNmid || '',
   };
+}
+
+export async function getFinanceWhatsAppProfile(): Promise<FinanceWhatsAppProfile> {
+  const {communityName,bankName,bankAccount,accountHolder} = await getCommunityProfile();
+  return {communityName,bankName,bankAccount,accountHolder};
 }
 
 // ================= ROSTER JADWAL SHIFT & PENUGASAN AREA JAGA =================

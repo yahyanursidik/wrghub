@@ -5,6 +5,7 @@ import { getBillableProperties, getBillingPeriods, getInvoices, selectBillingPer
 import { getBillingTariff } from '../../services/billing-tariff.service';
 import { getProperties } from '../../services/property.service';
 import { getAccounts } from '../../services/finance.service';
+import { getFinanceWhatsAppProfile } from '../../services/settings.service';
 import { canManageFinance } from '../../lib/access-policy';
 import { jakartaDate } from '../../lib/billing-data';
 import type { UserSession } from '../../types/auth';
@@ -13,12 +14,14 @@ const actor = await Astro.session?.get('wargahub_user') as UserSession | undefin
 if (!actor) return Astro.redirect('/login?portal=admin');
 
 const today = jakartaDate();
+const canManage = canManageFinance(actor.role);
 const requested = Astro.url.searchParams.get('period')?.slice(0,100) || '';
 const invoiceId = Astro.url.searchParams.get('invoice')?.slice(0,64) || '';
 const data = await Promise.all([
   getBillingPeriods(), getInvoices('ALL',{details:true}), getProperties(), getAccounts(), getBillingTariff(), getBillableProperties(),
-]).then(([periods,invoices,properties,accounts,tariff,billable]) => ({
-  periods,invoices,accounts,tariff,billableIds:billable.map(item=>item.id),
+  canManage ? getFinanceWhatsAppProfile().catch(()=>null) : null,
+]).then(([periods,invoices,properties,accounts,tariff,billable,shareProfile]) => ({
+  periods,invoices,accounts,tariff,billableIds:billable.map(item=>item.id),shareProfile,
   houses:properties.map(item=>({id:item.id,code:item.code,name:item.occupantName || item.ownerName,block:item.blockName,occupancy:item.occupancyStatus})),
 })).catch(()=>null);
 if (!data) Astro.response.status = 503;
@@ -32,7 +35,7 @@ const unknownPeriod = Boolean(requested && !invoicePeriod && !data?.periods.some
   {data ? <BillingManager
     {...data}
     today={today}
-    canManage={canManageFinance(actor.role)}
+    canManage={canManage}
     initialTab={Astro.url.searchParams.get('tab') || undefined}
     initialHouse={Astro.url.searchParams.get('house')?.slice(0,64) || ''}
     initialPeriodId={current?.id || ''}

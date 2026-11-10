@@ -273,6 +273,10 @@ try {
     await viewport(320);await noOverflow('Kuitansi 320');await screenshot('payments-receipt-open-320');
     await viewport(1440);
     console.log('PASS finance tabs at 320/375/414/768/1440px; exact pending link, unissued months, prefilling, and verified receipt QR');
+    assert.equal(process.env.UI_TEST_ISOLATED,'1','Finance form tests require the isolated fixture.');
+    const fixture = process.env.UI_TEST_FIXTURE_ID;
+    assert.ok(fixture && await evaluate(`fetch('/api/properties').then(r=>r.json()).then(data=>(Array.isArray(data)?data:data.data || []).some(property=>property.notes===${JSON.stringify('fixture:'+fixture)}))`),
+      'Fixture marker did not match; refusing to change expenses or bank details.');
     await navigate('/admin/expenses','main [aria-label="Transaksi pengeluaran"]');
     await viewport(320);
     const expenseJournalLink=await evaluate(`document.querySelector('[data-expense-id="expense-test"] a[href^="/admin/ledger"]')?.getAttribute('href')`);
@@ -295,6 +299,69 @@ try {
     await noOverflow('Linked cash entry 320');
     await viewport(1440);
     console.log('PASS pengeluaran dan buku kas: alur formulir draf → pembukuan → jurnal terkait serta delapan subhalaman di lima lebar.');
+
+    const waDialog = 'dialog[open][aria-label="Laporan WA (wa.me)"]';
+    const waText = `document.querySelector(${JSON.stringify(waDialog+' textarea[name=waMessage]')})?.value`;
+    const waHref = `document.querySelector(${JSON.stringify(waDialog+' a[href^="https://wa.me/"]')})?.href`;
+    const waSelect = (name,value)=>evaluate(`(()=>{const select=document.querySelector(${JSON.stringify(waDialog+' select[name='+name+']')});select.value=${JSON.stringify(value)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    const openWa = async label => {
+      await evaluate(`Array.from(document.querySelectorAll('main button')).find(button=>button.textContent.trim()===${JSON.stringify(label)}).click()`);
+      await wait(`document.querySelector(${JSON.stringify(waDialog)})`);
+    };
+    await navigate('/admin/billing?period=period-test','main [aria-label="Daftar tagihan"]');
+    await viewport(320);
+    await openWa('Laporan WA (wa.me)');
+    assert.match(await evaluate(waText),/Oktober 2026/);
+    assert.match(await evaluate(waText),/Menunggu verifikasi.*\n• A-01/);
+    await noOverflow('Laporan WA 320');
+    await screenshot('finance-wa-report-320');
+    await waSelect('waPeriod','period-wa-test');
+    await wait(`${waText}?.includes('Desember 2025')`);
+    let text = await evaluate(waText);
+    assert.match(text,/Iuran terbayar: \*Rp100\.000\*/);
+    assert.match(text,/Sisa tagihan: \*Rp200\.000\*/);
+    assert.doesNotMatch(text,/Oktober 2026|A-01|PRIVATE-FINANCIAL/);
+    assert.equal(new URL(await evaluate(waHref)).searchParams.get('text'),text);
+    await waSelect('waTemplate','dues_summary');
+    await wait(`${waText}?.includes('Ringkasan iuran')`);
+    assert.doesNotMatch(await evaluate(waText),/A-02/);
+    await waSelect('waTemplate','dues_thr');
+    await wait(`${waText}?.includes('Iuran & THR penjaga')`);
+    await evaluate(`document.querySelector(${JSON.stringify(waDialog+' summary')}).click()`);
+    await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(waDialog+' input[name=waPhone]')});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0812-3456-7890');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await wait(`${waHref}?.includes('/6281234567890?')`);
+    await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__copiedWa=text;}}}); true`);
+    const pressDialogButton = label => evaluate(`Array.from(document.querySelectorAll(${JSON.stringify(waDialog+' button')})).find(button=>button.textContent.trim()===${JSON.stringify(label)}).click()`);
+    await pressDialogButton('Salin pesan');
+    await wait(`window.__copiedWa === ${waText}`);
+    await pressDialogButton('Salin tautan');
+    await wait(`window.__copiedWa === ${waHref}`);
+    await viewport(1440);
+    await screenshot('finance-wa-report-1440');
+    await waSelect('waTemplate','bank');
+    await wait(`document.querySelector(${JSON.stringify(waDialog)})?.innerText.includes('Rekening resmi belum tersedia')`);
+    assert.equal(await evaluate(waHref),undefined);
+    const bankFixture = await evaluate(`fetch('/api/accounts/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'acc-main',name:'Rekening uji',code:'TEST-BANK',type:'BANK',bankName:'Bank uji',accountNumber:'9876543210'})}).then(r=>r.status)`);
+    assert.equal(bankFixture,200);
+
+    await navigate('/admin/payments?period=period-wa-test','main [aria-label="Verifikasi pembayaran"]');
+    await openWa('Laporan WA (wa.me)');
+    assert.match(await evaluate(waText),/Desember 2025/);
+    await waSelect('waTemplate','bank');
+    await wait(`${waText}?.includes('Bank uji · 9876543210')`);
+    assert.match(new URL(await evaluate(waHref)).searchParams.get('text'),/Cantumkan kode rumah/);
+    await navigate('/admin/payments?tab=receiving_channels','main [aria-label="Rekening kas"]','/admin/ledger');
+    await openWa('Siaran rekening WA');
+    assert.match(await evaluate(waText),/Bank uji · 9876543210/);
+    await navigate('/admin/ledger?tab=financial_reports&month=2026-10','main [aria-label="Laporan kas"]');
+    await openWa('Laporan WA (wa.me)');
+    text = await evaluate(waText);
+    assert.match(text,/Pengeluaran bersih: \*Rp50\.000\*/);
+    assert.match(text,/\/transparency\/2026\/10/);
+    assert.doesNotMatch(text,/9876543210/);
+    assert.equal(new URL(await evaluate(waHref)).searchParams.get('text'),text);
+    console.log('PASS laporan WA dari Tagihan, Pembayaran, Buku Kas, dan Rekening; template, periode, clipboard dan tautan diuji tanpa membuka WhatsApp.');
+
     const menus = {
       properties: ['units', 'residents', 'vehicles', 'permits', 'analytics'],
       billing: ['invoices', 'annual_matrix', 'tariffs', 'batch'],

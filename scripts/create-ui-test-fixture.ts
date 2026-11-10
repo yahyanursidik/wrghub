@@ -26,8 +26,10 @@ try {
     INSERT INTO facilities (id,community_id,code,name,category,location,condition) VALUES ('fac-test','comm-01','TEST-FAC','Balai uji','FASUM','Area uji','GOOD');
     INSERT INTO maintenance_requests (id,facility_id,title,description,status) VALUES ('repair-test','fac-test','Perawatan uji','Fixture perawatan','PLANNED');
     INSERT INTO billing_periods (id,community_id,year,month,name,due_date,status) VALUES ('period-test','comm-01',2026,10,'Oktober 2026','2026-10-31','OPEN');
+    INSERT INTO billing_periods (id,community_id,year,month,name,due_date,status) VALUES ('period-wa-test','comm-01',2025,12,'Desember 2025','2025-12-31','CLOSED');
     INSERT INTO invoices (id,property_id,billing_period_id,invoice_number,status,subtotal,total,paid_amount,due_date,issued_at) VALUES ('invoice-a-01','prop-a-01','period-test','INV-TEST-A01','UNPAID',250000,250000,0,'2026-10-31','2026-10-01'),('invoice-a-02','prop-a-02','period-test','INV-TEST-A02','UNPAID',250000,250000,0,'2026-10-31','2026-10-01');
     INSERT INTO payments (id,property_id,billing_period_id,invoice_id,amount,reference,status,paid_at) VALUES ('payment-test','prop-a-01','period-test','invoice-a-01',250000,'PRIVATE-FINANCIAL-FIXTURE-REFERENCE','PENDING','2026-10-10');
+    INSERT INTO invoices (id,property_id,billing_period_id,invoice_number,status,subtotal,total,paid_amount,due_date,issued_at) VALUES ('invoice-wa-test','prop-a-02','period-wa-test','INV-WA-TEST','PARTIAL',300000,300000,100000,'2025-12-31','2025-12-01');
   `);
   const { setLocalCredentialHash } = await import('../src/services/local-credentials.service');
   await setLocalCredentialHash('ui-admin', hashPassword(password));

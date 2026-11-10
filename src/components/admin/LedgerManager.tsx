@@ -1,9 +1,11 @@
 /* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowDownLeft, ArrowDownToLine, ArrowLeftRight, ArrowUpRight, BookOpen, ChartNoAxesCombined, ChevronLeft, ChevronRight, ClipboardCheck, Plus, WalletCards } from 'lucide-react';
+import { ArrowDownLeft, ArrowDownToLine, ArrowLeftRight, ArrowUpRight, BookOpen, ChartNoAxesCombined, ChevronLeft, ChevronRight, ClipboardCheck, MessageCircle, Plus, WalletCards } from 'lucide-react';
 import { downloadFinanceCsv, financeDate, financePath, jakartaDate } from '../../lib/billing-data';
 import { cashRupiah, currentFinanceMonth, financeMonth, isEditableJournal, isInternalTransfer, ledgerSources, type CashJournalRow, type CashPeriodSummary, type CashReconciliation, type LedgerScope, type LedgerSubTab } from '../../lib/cash-data';
+import type { FinanceWhatsAppProfile } from '../../lib/finance-whatsapp';
 import type { FinanceAccount } from '../../services/finance.service';
+import { WhatsAppDuesReportModal } from '../shared/WhatsAppDuesReportModal';
 import { FinanceDialog, FinanceEmpty, FinanceHeader, FinanceStatus, FinanceSummary, FinanceTabLinks, financeButton, financeField, financePost, financePrimary } from './FinanceWorkspace';
 
 const path = (params:Record<string,string|undefined>={})=>financePath('/admin/ledger',params);
@@ -23,6 +25,7 @@ type Modal = {type:'journal'|'delete';row?:CashJournalRow} | {type:'account';acc
 interface Props {
   accounts:FinanceAccount[];accountId:string;ledger:WorkspaceLedger|null;reconciliation:CashReconciliation|null;
   initialTab:LedgerSubTab;canWrite:boolean;month:string;search:string;source:string;scope?:LedgerScope;journalPageSize:number;initialNotice:string;
+  shareProfile:FinanceWhatsAppProfile|null;today:string;
 }
 
 function Field({label,children}:{label:string;children:ReactNode}) {
@@ -102,11 +105,14 @@ function ReconciliationPanel({initial,canWrite}:{initial:CashReconciliation;canW
   </section>;
 }
 
-export function LedgerManager({accounts,accountId,ledger,reconciliation,initialTab:tab,canWrite,month,search,source,scope,journalPageSize,initialNotice}:Props) {
+export function LedgerManager({accounts,accountId,ledger,reconciliation,initialTab:tab,canWrite,month,search,source,scope,journalPageSize,initialNotice,shareProfile,today}:Props) {
   const [modal,setModal] = useState<Modal|null>(null);
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
   const [accountType,setAccountType] = useState('BANK');
+  const [showReport,setShowReport] = useState(false);
+  const shareBank = canWrite && tab==='accounts_manage';
+  const shareCash = canWrite && tab==='financial_reports' && !accountId && Boolean(ledger);
   const account = accounts.find(item=>item.id===accountId);
   const actionRow = modal && 'row' in modal ? modal.row : undefined;
   const actionAccount = modal?.type==='account' ? modal.account : undefined;
@@ -158,6 +164,9 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
       {!scope && canWrite && tab==='ledger_list' && accounts.length>0 && <button type="button" className={financePrimary} onClick={()=>open({type:'journal'})}>
         <Plus className="size-4" aria-hidden="true" />Catat jurnal</button>}
       {canWrite && tab==='accounts_manage' && <button type="button" className={financePrimary} onClick={()=>open({type:'account'})}><Plus className="size-4" aria-hidden="true" />Rekening baru</button>}
+      {(shareBank || shareCash) && <button type="button" className={financeButton} onClick={()=>setShowReport(true)}>
+        <MessageCircle className="size-4" aria-hidden="true" />{shareBank?'Siaran rekening WA':'Laporan WA (wa.me)'}
+      </button>}
       {!scope && canWrite && accounts.length>1 && ['ledger_list','accounts_manage'].includes(tab) && <button type="button" className={financeButton} onClick={()=>open({type:'transfer'})}>
         <ArrowLeftRight className="size-4" aria-hidden="true" />Pindah saldo</button>}
     </FinanceHeader>
@@ -266,6 +275,9 @@ export function LedgerManager({accounts,accountId,ledger,reconciliation,initialT
         </div>
       </section>
     </section>}
+    {showReport && shareBank && <WhatsAppDuesReportModal mode="bank" today={today} profile={shareProfile} onClose={()=>setShowReport(false)} />}
+    {showReport && shareCash && ledger && <WhatsAppDuesReportModal mode="cash" month={month} summary={ledger.summary}
+      today={today} profile={shareProfile} onClose={()=>setShowReport(false)} />}
     <FinanceDialog open={Boolean(modal)} title={title} close={()=>setModal(null)} busy={busy} error={error}>
       {modal && <form className="grid gap-3" onSubmit={submit} key={modal.type+(actionRow?.id || actionAccount?.id || '')}>
         {modal.type==='account' ? <>
