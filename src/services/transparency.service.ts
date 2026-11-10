@@ -7,7 +7,7 @@ import { roundCash } from '../lib/planning-data';
 import { PUBLIC_CSV_LIMIT, PUBLIC_JOURNAL_PAGE_SIZE, publicReportPath,
   type PublicCashCategory, type PublicDuesMonth, type PublicJournalEntry, type PublicReportFilters,
   type PublicReportPeriod, type PublicTransparencyData } from '../lib/transparency-data';
-import { getCashLedger, outgoingSql } from './cash-ledger.service';
+import { getCashLedger, getCashReconciliation, outgoingSql } from './cash-ledger.service';
 import { getCommunityProfile } from './settings.service';
 
 // Project only fields safe for anonymous visitors. Custom category names, notes,
@@ -95,7 +95,7 @@ export async function getPublicMonthlyReport(period:PublicReportPeriod,filters:P
   const [data,profile,qrCode]=await Promise.all([
     readSnapshot(async run=>{
       const {summary}=await getCashLedger({month:key,pageSize:1},run);
-      const [categories,invoices,[housing],journal,duty]=await Promise.all([
+       const [categories,invoices,[housing],journal,duty,accounts]=await Promise.all([
         run<{category:PublicCashCategory;outgoing:number|string;dues:number|string;loan_in:number|string;loan_out:number|string}>(
           "WITH journal AS ("+safeJournal+") SELECT category,COALESCE(SUM("+outgoingSql+"),0) AS outgoing,"+
           "COALESCE(SUM(CASE WHEN source_type='PAYMENT' THEN amount WHEN source_type='PAYMENT_REVERSAL' THEN -amount ELSE 0 END),0) AS dues,"+
@@ -111,15 +111,18 @@ export async function getPublicMonthlyReport(period:PublicReportPeriod,filters:P
           "SELECT month,COUNT(*) AS billed,SUM(CASE WHEN remaining=0 THEN 1 ELSE 0 END) AS paid,SUM(received) AS received,SUM(remaining) AS remaining "+
           "FROM house_month GROUP BY month ORDER BY month",[year,month,BILLING_COMMUNITY_ID]),
         run<{total:number|string}>("SELECT COUNT(*) AS total FROM properties WHERE community_id=? AND is_active=true AND lower(code) NOT LIKE '%dummy%' AND code<>'A-99'",[BILLING_COMMUNITY_ID]),
-        filters.tab==='public_ledger'?readPublicJournal(run,key,summary.opening,filters):{rows:[],total:0,page:1},
-        filters.tab==='audit_faq'?publicDuty(run):null,
-      ]);
+         filters.tab==='public_ledger'?readPublicJournal(run,key,summary.opening,filters):{rows:[],total:0,page:1},
+         filters.tab==='audit_faq'?publicDuty(run):null,
+         run<{id:string}>('SELECT id FROM accounts'),
+       ]);
+       const reconciliations=await Promise.all(accounts.map(account=>getCashReconciliation(account.id,key,run)));
+       const cashReconciled=accounts.length>0 && reconciliations.every(item=>item.status==='MATCHED');
       const dues:PublicDuesMonth[]=Array.from({length:month},(_,index)=>{
         const row=invoices.find(item=>Number(item.month)===index+1);
         return {month:index+1,billed:Number(row?.billed || 0),paid:Number(row?.paid || 0),received:roundCash(Number(row?.received || 0)),remaining:roundCash(Number(row?.remaining || 0))};
       });
       const total=(name:'dues'|'loan_in'|'loan_out')=>roundCash(categories.reduce((sum,row)=>sum+Number(row[name]),0));
-      return {cash:summary,duesCash:total('dues'),loanCashIn:total('loan_in'),loanCashOut:total('loan_out'),homes:Number(housing.total),dues,journal,duty,
+       return {cash:summary,cashReconciled,duesCash:total('dues'),loanCashIn:total('loan_in'),loanCashOut:total('loan_out'),homes:Number(housing.total),dues,journal,duty,
         outgoing:categories.filter(row=>Number(row.outgoing)!==0).map(row=>({category:row.category,amount:roundCash(Number(row.outgoing))})).sort((a,b)=>b.amount-a.amount)};
     }),
     getCommunityProfile(),

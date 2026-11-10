@@ -278,10 +278,11 @@ export function BudgetManager({budget,funds,accounts,tab,category,fundFocus,move
     </section>}
     {tab==='public_transparency' && <section className="grid min-w-0 gap-4" aria-label="Transparansi anggaran">
       <FinanceSummary items={[
-        {label:'Saldo akhir',value:cashRupiah(cash.closing),detail:financeMonth(month),tone:'mint'},
+         {label:'Saldo akhir buku kas',value:cashRupiah(cash.closing),detail:financeMonth(month),tone:'mint'},
         {label:'Pemasukan bersih',value:cashRupiah(cash.income),tone:'sky'},
         {label:'Pengeluaran bersih',value:cashRupiah(cash.outgoing),tone:'rose'},
-      ]} />
+       ]} />
+       <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">Saldo menurut buku kas, belum tentu dana tersedia. Pengeluaran yang belum dicatat belum masuk laporan; cocokkan dengan rekening koran dan kas fisik.</p>
       <div className="workspace-panel grid gap-3">
         <div><h2 className="!mb-0">Laporan untuk warga</h2><p className="mt-1 text-sm text-ink-muted">Ringkasan kas dari jurnal. Catatan pagu dan bukti belanja tetap untuk pengurus.</p></div>
         <div className="flex flex-wrap items-center gap-2">

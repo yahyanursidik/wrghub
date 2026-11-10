@@ -15,7 +15,7 @@ export const workItems = {
   announcements: { label: 'Pengumuman terbit', href: '/admin/announcements?tab=announcements', tone: 'blue' },
   documents: { label: 'Dokumen tersimpan', href: '/admin/documents', tone: 'blue' },
   audit: { label: 'Aktivitas tercatat terbaru', href: '/admin/audit', tone: 'blue' },
-  cash: { label: 'Saldo kas utama', href: '/admin/ledger?tab=accounts_manage', tone: 'mint' },
+   cash: { label: 'Saldo buku kas utama', href: '/admin/ledger?tab=accounts_manage', tone: 'mint' },
   billing: { label: 'Tagihan belum lunas', href: '/admin/billing?tab=invoices', tone: 'amber' },
 } as const;
 export type WorkKey = keyof typeof workItems;

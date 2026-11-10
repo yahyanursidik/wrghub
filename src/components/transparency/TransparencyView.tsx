@@ -80,9 +80,11 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
     {tab==='cashflow_summary' && <section className="grid min-w-0 gap-4" aria-label="Ringkasan arus kas">
       <div className="grid min-w-0 overflow-hidden rounded-2xl border border-border bg-surface md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
         <div className="grid min-w-0 content-center gap-2 bg-primary-900 px-5 py-6 text-white sm:px-7 sm:py-8">
-          <p className="flex items-center gap-2 text-sm font-semibold text-primary-100"><Wallet className="size-4" aria-hidden="true" />Saldo akhir</p>
-          <p className={'text-3xl font-bold tracking-tight sm:text-4xl '+number} data-cash-value="closing">{cashRupiah(data.cash.closing)}</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-primary-100"><Wallet className="size-4" aria-hidden="true" />Saldo akhir kas</p>
+          {data.cashReconciled?<p className={'text-3xl font-bold tracking-tight sm:text-4xl '+number} data-cash-value="closing">{cashRupiah(data.cash.closing)}</p>:
+            <p className="text-2xl font-bold tracking-tight sm:text-3xl">Belum terverifikasi</p>}
           <p className="text-sm text-primary-100">{data.cash.count} jurnal · {data.periodLabel}</p>
+          <p className="text-sm text-primary-100">{data.cashReconciled?'Saldo buku telah dicocokkan dengan saldo rekening/kas yang dimasukkan pengurus.':'Saldo menurut buku: '+cashRupiah(data.cash.closing)+'. Belum dicocokkan dengan rekening/kas fisik; pengeluaran yang belum dicatat belum mengurangi angka ini.'}</p>
           <a href={path('public_ledger')} className="mt-1 inline-flex min-h-11 w-fit items-center gap-2 whitespace-nowrap text-sm font-semibold hover:underline">Buka jurnal <ArrowRight className="size-4" aria-hidden="true" /></a>
         </div>
         <dl className="min-w-0 px-5 py-3 sm:px-6 sm:py-4">
@@ -94,6 +96,7 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
         </dl>
       </div>
       {!data.cash.count && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">Belum ada jurnal pada periode ini.</p>}
+      {data.cash.count>0 && data.cash.outgoing===0 && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Belum ada pengeluaran tercatat pada periode ini. Ini tidak berarti dana belum digunakan; saldo buku bisa lebih tinggi daripada saldo kas sebenarnya sampai pengeluaran bulanan dicatat dan saldo rekening/kas dicocokkan.</p>}
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
         <article className={panel+' grid content-start gap-3'}>
           <h2 className="text-xl font-bold tracking-tight">Iuran warga</h2>
@@ -110,7 +113,7 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
         </article>
         <article className={panel}>
           <h2 className="text-xl font-bold tracking-tight">Kas keluar per kategori</h2>
-          {data.outgoing.length===0?<p className="mt-3 text-sm text-ink-muted">Belum ada kas keluar pada periode ini.</p>:
+          {data.outgoing.length===0?<p className="mt-3 text-sm text-ink-muted">Belum ada kas keluar yang tercatat pada periode ini.</p>:
             <ul className="mt-2 divide-y divide-border">
               {data.outgoing.map(item=><li key={item.category} className="grid min-w-0 gap-1.5 py-2.5">
                 <a href={path('public_ledger',{category:item.category})} className="flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-x-2 rounded-lg text-sm font-semibold hover:text-primary-800">
@@ -150,7 +153,7 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
             <div className="min-w-0"><p className="text-sm font-semibold [overflow-wrap:anywhere]">{row.label}</p>
               <p className="text-xs text-ink-muted [overflow-wrap:anywhere]">{financeDate(row.date)} · {publicCashCategories[row.category]} · {row.reference}</p></div>
             <div className="col-start-2 min-w-0 sm:col-start-3 sm:text-right"><p className={'text-sm font-bold '+number}>{row.direction==='IN'?'+':'−'}{cashRupiah(row.amount)}</p>
-              <p className={'text-xs text-ink-muted '+number}>Saldo {cashRupiah(row.balance)}</p></div>
+              <p className={'text-xs text-ink-muted '+number}>Saldo buku {cashRupiah(row.balance)}</p></div>
           </li>)}
         </ul>}
       {data.journal.total>PUBLIC_JOURNAL_PAGE_SIZE && <nav aria-label="Halaman jurnal publik" className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted">
@@ -206,7 +209,7 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
       <h2 className="text-xl font-bold tracking-tight">Bantuan laporan</h2>
       <div className="mt-2 divide-y divide-border">
         <details className="py-2"><summary className="min-h-11 cursor-pointer py-2.5 font-semibold">Dari mana angka saldo berasal?</summary>
-          <p className="pb-2 text-sm text-ink-muted">Saldo mengikuti Buku Kas. Kas masuk dan keluar memperhitungkan pembalikan. Mutasi antar rekening tidak menambah kas lingkungan.</p>
+          <p className="pb-2 text-sm text-ink-muted">Saldo menurut buku kas berasal dari saldo rekening yang tersimpan, disesuaikan dengan jurnal hingga akhir bulan laporan. Kas masuk dan keluar memperhitungkan pembalikan; mutasi antar rekening tidak menambah kas lingkungan. Pengeluaran yang belum dicatat tidak mengurangi saldo buku. Untuk memastikan saldo riil, pengurus perlu mencatat semua pengeluaran dan mencocokkan saldo buku dengan rekening koran serta kas fisik.</p>
           <a href={path('public_ledger')} className={link}>Buka jurnal publik <ArrowRight className="size-4" aria-hidden="true" /></a></details>
         <details className="py-2"><summary className="min-h-11 cursor-pointer py-2.5 font-semibold">Mengapa iuran berbeda dari kas masuk?</summary>
           <p className="pb-2 text-sm text-ink-muted">Kas masuk mencakup iuran dan penerimaan lain. Rekap iuran mengikuti bulan tagihan, sedangkan arus kas mengikuti tanggal transaksi.</p></details>

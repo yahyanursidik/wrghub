@@ -115,7 +115,7 @@ export function AnalyticsManager({data,canWrite,todayMonth,canOpenUtilities,canO
   function exportSnapshot(item:AnalyticsSnapshot) {
     downloadFinanceCsv('arsip-'+item.month+'-'+item.id.slice(-8)+'.csv',[
       ['Periode','Tanggal arsip','Disimpan oleh','Catatan'],[item.month,item.at,item.by,item.notes],[],
-      ['Indikator','Nilai'],['Saldo akhir (Rp)',item.cash.closing],['Pemasukan bersih (Rp)',item.cash.income],['Pengeluaran bersih (Rp)',item.cash.outgoing],
+       ['Indikator','Nilai'],['Saldo akhir menurut buku kas (Rp)',item.cash.closing],['Pemasukan bersih (Rp)',item.cash.income],['Pengeluaran bersih (Rp)',item.cash.outgoing],
       ['Pagu (Rp)',item.budget.planned],['Realisasi (Rp)',item.budget.actual],['Rumah ditagih',item.compliance.issued],['Rumah lunas',item.compliance.paid],
       ['Kepatuhan (%)',item.compliance.rate ?? ''],['Selisih meter saat diarsipkan (m³)',item.utilities.waterUsage ?? ''],
       ['Aduan masuk',item.security.complaints.total],['Rata-rata penyelesaian (jam)',item.security.complaints.avgHours ?? ''],['Target (jam)',item.target],
@@ -142,10 +142,11 @@ export function AnalyticsManager({data,canWrite,todayMonth,canOpenUtilities,canO
     {notice && <p role="status" className="rounded-lg bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-900">{notice}</p>}
     {tab==='financial_trends' && <section className="grid min-w-0 gap-4" aria-label="Tren kas">
       <FinanceSummary items={[
-        {label:'Saldo akhir',value:cashRupiah(cash.closing),detail:financeMonth(month),tone:'mint'},
+         {label:'Saldo akhir buku kas',value:cashRupiah(cash.closing),detail:financeMonth(month),tone:'mint'},
         {label:'Pemasukan bersih',value:cashRupiah(cash.income),detail:cash.count+' jurnal periode ini',tone:'sky'},
         {label:'Pengeluaran bersih',value:cashRupiah(cash.outgoing),detail:'Setelah pembatalan',tone:'rose'},
-      ]} />
+       ]} />
+       <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">Angka kas mengikuti transaksi yang tercatat, bukan saldo bank/kas terverifikasi. Pastikan pengeluaran bulanan lengkap sebelum memakai laporan ini.</p>
       <TrendChart trends={trends} filters={filters} />
       <section className="workspace-panel grid gap-3">
         <header className="flex flex-wrap items-center justify-between gap-2"><h2 className="!mb-0">Anggaran periode ini</h2>
