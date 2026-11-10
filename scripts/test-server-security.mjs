@@ -19,7 +19,7 @@ assert.equal((await call('/api/users')).status, 401);
 assert.equal((await call('/api/ledger/transfer', { body: {} })).status, 401);
 assert.equal((await call('/api/users', { cookie: `wargahub_user=${encodeURIComponent(JSON.stringify({ id:'ui-admin', role:'CHAIRMAN' }))}` })).status, 401);
 let guardedMethods = 0;
-const publicPaths = ['/api/health', '/api/auth/login', '/api/auth/logout', '/api/receipts/verify', '/api/settings/profile'];
+const publicPaths = ['/api/health', '/api/auth/login', '/api/auth/logout', '/api/auth/recover', '/api/receipts/verify', '/api/settings/profile'];
 for (const file of await readdir('src/pages/api', { recursive: true })) {
   if (!file.endsWith('.ts')) continue;
   const route = '/api/' + file.replaceAll('\\', '/').replace(/\.ts$/, '').replace(/\/index$/, '');
@@ -114,6 +114,14 @@ try {
   assert.equal(audit.rows[0].actor_name, 'Pengurus uji');
   assert.ok(!String(audit.rows[0].new_value_json).includes(resetPassword));
 } finally { fixtureClient.close(); }
+const recovery = await call('/api/users/recovery-code', { cookie: admin.cookie, body:{userId:'ui-owner',identityVerified:true} });
+assert.equal(recovery.status,201);
+const recoveryPassword='New fixture owner recovery phrase';
+assert.equal((await call('/api/auth/recover',{body:{code:recovery.data.data.code,newPassword:recoveryPassword},origin:'https://untrusted.example'})).status,403);
+assert.equal((await call('/api/auth/recover',{body:{code:recovery.data.data.code,newPassword:recoveryPassword}})).status,200);
+assert.equal((await call('/api/auth/recover',{body:{code:recovery.data.data.code,newPassword:recoveryPassword}})).status,400);
+assert.equal((await login('ui_owner',recoveryPassword)).status,200);
 assert.equal((await call('/api/auth/logout', { cookie: admin.cookie, body:{} })).status, 200);
 assert.equal((await call('/api/users', { cookie: admin.cookie })).status, 401);
+console.log('PASS account recovery on SQLite: role gate, origin, one-time code, and login.');
 console.log(`PASS HTTP: ${guardedMethods} private endpoint methods reject anonymous requests; forged cookies, roles/SSR privacy, own-house/invoice scope, CSRF origin, persisted complaints, atomic journal/transfer, hashed reset/audit identity, session revocation on password/role/deactivation, and logout`);

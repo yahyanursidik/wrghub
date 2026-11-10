@@ -1269,7 +1269,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
       {/* ================= SUBTAB 2: KASBON & PINJAMAN PETUGAS SATPAM ================= */}
       {activeSubTab === 'staff_loans' && (
         <div className="space-y-4 animate-in fade-in duration-150">
-          <StaffLoansManager />
+          <a className="btn-secondary" href="/admin/staff-loans">Buka buku kasbon</a>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import { createClient } from '@libsql/client';
 import path from 'node:path';
 import fs from 'node:fs';
+import { migrateSqliteOperations } from './operations-schema';
 
 export async function initializeDatabase(dbPath?: string) {
   const targetPath = dbPath || path.resolve(process.cwd(), 'data/wargahub.db');
@@ -489,5 +490,6 @@ export async function initializeDatabase(dbPath?: string) {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
   `);
 
+  await migrateSqliteOperations(client);
   return client;
 }

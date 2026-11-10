@@ -98,6 +98,7 @@ export interface CleaningTicket {
 }
 
 interface CleaningStaffManagerProps {
+  initialTasks?: DailyCleaningTask[];
   totalProperties?: number;
   properties?: any[];
 }
@@ -120,6 +121,7 @@ const isSampleName = (v: any) => SAMPLE_STAFF_NAMES.some((n) => String(v || '').
 const asArray = (v: any): any[] => (Array.isArray(v) ? v : []);
 
 export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
+  initialTasks = [],
   totalProperties = 0,
   properties = []
 }) => {
@@ -218,9 +220,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   );
 
   // 3. Daily Checklist State
-  const [dailyTasks, setDailyTasks] = useState<DailyCleaningTask[]>(() =>
-    asArray(getPersisted('wargahub_cleaning_tasks', defaultTasks)).filter((t: any) => !isSampleName(t.assignedTo))
-  );
+  const [dailyTasks, setDailyTasks] = useState<DailyCleaningTask[]>(initialTasks);
 
   // 4. Equipment & Vehicles State
   const [equipmentList, setEquipmentList] = useState<CleaningEquipment[]>(() =>
@@ -604,21 +604,22 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
   };
 
   // Toggle Daily Task
-  const handleToggleTask = (taskId: string) => {
-    const updated = dailyTasks.map(t => {
-      if (t.id === taskId) {
-        const nextState = !t.isCompleted;
-        return {
-          ...t,
-          isCompleted: nextState,
-          completedAt: nextState ? new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB' : undefined
-        };
-      }
-      return t;
-    });
-    setDailyTasks(updated);
-    savePersisted('wargahub_cleaning_tasks', updated);
-    showToast('Status checklist kebersihan harian diperbarui.');
+  const handleToggleTask = async (taskId: string) => {
+    const task = dailyTasks.find(item => item.id === taskId);
+    if (!task) return;
+    try {
+      const response = await apiFetch('/api/cleaning/tasks/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, isCompleted: !task.isCompleted, expectedCompleted: task.isCompleted }),
+      });
+      const { data } = await response.json();
+      setDailyTasks(items => items.map(item => item.id === taskId ? data : item));
+      showToast('Checklist diperbarui.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Checklist belum berubah.');
+      const latest = await fetch('/api/cleaning/tasks').then(res => res.ok ? res.json() : null).catch(() => null);
+      if (latest?.data) setDailyTasks(latest.data);
+    }
   };
 
   // Add Daily Task
@@ -626,7 +627,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
     e.preventDefault();
     setIsSaving(true);
     try {
-      await apiFetch('/api/cleaning/tasks/create', {
+      const response = await apiFetch('/api/cleaning/tasks/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -638,19 +639,8 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
         })
       });
 
-      const newTask: DailyCleaningTask = {
-        id: `TSK-${(dailyTasks.length + 1).toString().padStart(2, '0')}`,
-        taskName,
-        category: taskCategory,
-        location: taskLocation,
-        assignedTo: taskAssignedTo,
-        isCompleted: false,
-        notes: taskNotes
-      };
-
-      const updated = [newTask, ...dailyTasks];
-      setDailyTasks(updated);
-      savePersisted('wargahub_cleaning_tasks', updated);
+      const { data } = await response.json();
+      setDailyTasks(items => [data, ...items]);
       showToast(`Tugas checklist "${taskName}" berhasil ditambahkan.`);
       setShowAddTaskModal(false);
       setTaskName('');
@@ -1439,7 +1429,7 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
                     <div className="text-right">
                       {t.isCompleted ? (
                         <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-black rounded text-[10px] border border-emerald-200">
-                          ✓ Selesai {t.completedAt}
+                          ✓ Selesai {t.completedAt && new Date(t.completedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'short', timeStyle: 'short' })}
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 bg-amber-100 text-amber-900 font-black rounded text-[10px] border border-amber-200">
@@ -1928,16 +1918,9 @@ export const CleaningStaffManager: React.FC<CleaningStaffManagerProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="font-bold text-ink block mb-1">Petugas Penanggung Jawab</label>
-                  <select
-                    value={taskAssignedTo}
-                    onChange={(e) => setTaskAssignedTo(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    {staffList.map(s => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
-                    ))}
-                  </select>
+                  <label htmlFor="task-assignee" className="font-bold text-ink block mb-1">Petugas penanggung jawab</label>
+                  <input id="task-assignee" required list="cleaning-staff-names" value={taskAssignedTo} onChange={e => setTaskAssignedTo(e.target.value)} className="w-full p-2.5 bg-canvas border border-border rounded-xl" />
+                  <datalist id="cleaning-staff-names">{staffList.map(staff => <option key={staff.id} value={staff.name} />)}</datalist>
                 </div>
               </div>
 

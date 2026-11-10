@@ -1,3 +1,4 @@
+import { receiptNumber } from '../../lib/receipt-number';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useUrlTab } from '../../lib/use-url-tab';
 import { apiFetch } from '../../lib/api-fetch';
@@ -130,6 +131,7 @@ const CLUSTER_PROPERTIES_FALLBACK = [
 
 interface BillingManagerProps {
   initialPeriodId?: string;
+  initialHouse?: string;
   initialPeriodName: string;
   initialInvoices: InvoiceItem[];
   allInvoices?: any[];
@@ -141,6 +143,7 @@ interface BillingManagerProps {
 
 export const BillingManager: React.FC<BillingManagerProps> = ({
   initialPeriodId,
+  initialHouse = '',
   initialPeriodName,
   initialInvoices,
   allInvoices = [],
@@ -444,7 +447,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     return `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialHouse);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'PENDING'>('ALL');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<'code' | 'invoice' | 'total' | 'status' | 'due' | 'paidAt'>('code');
@@ -808,8 +811,8 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     setFormCleaningFee(50000);
     setFormSinkingFund(50000);
     setFormAdditionalFee(0);
-    setFormDueDate('2026-09-10');
-    setFormStatus('PAID');
+    setFormDueDate(new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Jakarta'}));
+    setFormStatus('UNPAID');
     setFormPaymentMethod('CASH_KEPALA_KOMPLEK');
     setFormPaidAt(new Date().toISOString().slice(0, 10));
     setFormNotes(`Diterima langsung oleh Kepala Komplek (${kepalaKomplekName})`);
@@ -840,7 +843,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
     setFormSinkingFund(inv.sinkingFund ?? 50000);
     setFormAdditionalFee(inv.additionalFee ?? 0);
     setFormDueDate(inv.dueDate || '2026-09-10');
-    setFormStatus(inv.status as any);
+    setFormStatus('UNPAID');
     const isKepalaMethod =
       inv.paymentMethod === 'CASH_KEPALA_KOMPLEK' ||
       Boolean(inv.notes && inv.notes.toLowerCase().includes('kepala komplek'));
@@ -876,50 +879,14 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
       };
 
       if (editingInvoiceId) {
-        const res = await fetch('/api/billing/invoices/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            invoiceId: editingInvoiceId,
-            propertyCode: cleanHouse,
-            status: formStatus,
-            total: calculatedTotal,
-            dueDate: formDueDate,
-            paidAt: formStatus === 'PAID' ? formPaidAt : null,
-            notes: formNotes,
-          })
+        const response = await apiFetch('/api/billing/invoices/update', {
+          method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+            invoiceId:editingInvoiceId,total:calculatedTotal,dueDate:formDueDate,notes:formNotes,
+          }),
         });
-
-        if (res.ok) {
-          const oldInv = invoices.find(i => i.id === editingInvoiceId);
-          const wasPaid = oldInv?.status === 'PAID';
-          const isNowPaid = formStatus === 'PAID';
-
-          setInvoices(invoices.map(inv => inv.id === editingInvoiceId ? {
-            ...inv,
-            ...payload,
-            propertyCode: cleanHouse,
-            paidAmount: isNowPaid ? calculatedTotal : 0,
-            paidAt: isNowPaid ? formPaidAt : null,
-          } : inv));
-
-          if (isNowPaid && !wasPaid) {
-            setCurrentBalance(prev => prev + calculatedTotal);
-            setProgress(prev => ({
-              ...prev,
-              paidCount: prev.paidCount + 1,
-              unpaidCount: Math.max(0, prev.unpaidCount - 1),
-              paidAmount: prev.paidAmount + calculatedTotal,
-              unpaidAmount: Math.max(0, prev.unpaidAmount - calculatedTotal),
-              percentage: prev.total > 0 ? Math.round(((prev.paidCount + 1) / prev.total) * 100) : 0,
-            }));
-          }
-
-          showToast(`Invoice ${cleanHouse} berhasil diperbarui.`);
-          setShowCreateModal(false);
-        } else {
-          showToast('Gagal memperbarui invoice tagihan.');
-        }
+        const {data} = await response.json();
+        setInvoices(items => items.map(item => item.id === data.id ? {...item,...data,billingPeriodName:data.periodName} : item));
+        showToast('Tagihan diperbarui.'); setShowCreateModal(false);
       } else {
         const res = await fetch('/api/billing/invoices/create', {
           method: 'POST',
@@ -932,13 +899,13 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
           const invData = data.data || {};
           const isPaid = formStatus === 'PAID';
           const newInv: InvoiceItem = {
-            id: invData.id || `inv-${Date.now()}`,
-            invoiceNumber: invData.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
-            propertyId: invData.propertyId || `prop-${cleanHouse.toLowerCase()}`,
-            propertyCode: cleanHouse,
+            id: invData.id,
+            invoiceNumber: invData.invoiceNumber,
+            propertyId: invData.propertyId,
+            propertyCode: invData.propertyCode,
             areaLabel: formAreaLabel,
             ownerName: formOwnerName,
-            billingPeriodName: formPeriodName,
+            billingPeriodName: invData.periodName,
             securityFee: payload.securityFee,
             cleaningFee: payload.cleaningFee,
             sinkingFund: payload.sinkingFund,
@@ -946,9 +913,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             total: calculatedTotal,
             paidAmount: isPaid ? calculatedTotal : 0,
             dueDate: formDueDate,
-            issuedAt: new Date().toISOString(),
-            paidAt: isPaid ? formPaidAt : null,
-            status: formStatus,
+            issuedAt: invData.issuedAt,
+            paidAt: invData.paidAt,
+            status: invData.status,
             notes: formNotes,
           };
 
@@ -981,6 +948,8 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
             // Instantly open digital receipt modal for admin!
             setSelectedReceipt({
               invoiceNumber: newInv.invoiceNumber,
+              receiptNumber: receiptNumber('', '', invData.payment.id),
+              items: [{name:'Pembayaran iuran',amount:invData.payment.amount}],
               periodName: newInv.billingPeriodName,
               propertyCode: newInv.propertyCode,
               residentName: newInv.ownerName,
@@ -1020,63 +989,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
       }
     } catch (err) {
       console.error(err);
-      showToast('Gagal menyimpan iuran.');
+      showToast(err instanceof Error ? err.message : 'Iuran belum tersimpan.');
     } finally {
       setSavingInvoice(false);
-    }
-  };
-
-  // Toggle Quick 1-Click Payment Status
-  const handleTogglePaymentStatus = async (inv: InvoiceItem) => {
-    const newStatus = inv.status === 'PAID' ? 'UNPAID' : 'PAID';
-    const newPaidAt = newStatus === 'PAID' ? new Date().toISOString().slice(0, 10) : null;
-    try {
-      await apiFetch('/api/billing/invoices/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          propertyCode: inv.propertyCode,
-          status: newStatus,
-          paidAmount: newStatus === 'PAID' ? inv.total : 0,
-          paidAt: newPaidAt,
-        })
-      });
-
-      setInvoices(invoices.map(item => item.id === inv.id ? {
-        ...item,
-        status: newStatus,
-        paidAmount: newStatus === 'PAID' ? item.total : 0,
-        paidAt: newPaidAt,
-      } : item));
-
-      if (newStatus === 'PAID') {
-        setCurrentBalance(prev => prev + inv.total);
-        setProgress(prev => ({
-          ...prev,
-          paidCount: prev.paidCount + 1,
-          unpaidCount: Math.max(0, prev.unpaidCount - 1),
-          paidAmount: prev.paidAmount + inv.total,
-          unpaidAmount: Math.max(0, prev.unpaidAmount - inv.total),
-          percentage: prev.total > 0 ? Math.round(((prev.paidCount + 1) / prev.total) * 100) : 0,
-        }));
-      } else {
-        setCurrentBalance(prev => Math.max(0, prev - inv.total));
-        setProgress(prev => ({
-          ...prev,
-          paidCount: Math.max(0, prev.paidCount - 1),
-          unpaidCount: prev.unpaidCount + 1,
-          paidAmount: Math.max(0, prev.paidAmount - inv.total),
-          unpaidAmount: prev.unpaidAmount + inv.total,
-          percentage: prev.total > 0 ? Math.round((Math.max(0, prev.paidCount - 1) / prev.total) * 100) : 0,
-        }));
-      }
-
-      showToast(`Status tagihan ${inv.propertyCode} diubah menjadi: ${newStatus === 'PAID' ? 'LUNAS (Saldo Kas Bertambah)' : 'BELUM BAYAR'}`);
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal mengubah status pembayaran.');
     }
   };
 
@@ -1084,7 +999,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
   const handleConfirmDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
     try {
-      const res = await fetch('/api/billing/invoices/delete', {
+      const res = await apiFetch('/api/billing/invoices/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1115,7 +1030,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
       
       let matchStatus = true;
       if (statusFilter === 'PAID') matchStatus = inv.status === 'PAID';
-      else if (statusFilter === 'UNPAID') matchStatus = inv.status === 'UNPAID';
+      else if (statusFilter === 'UNPAID') matchStatus = ['UNPAID','PARTIAL','OVERDUE'].includes(inv.status);
       else if (statusFilter === 'PENDING') matchStatus = inv.status === 'PENDING_VERIFICATION';
 
       let matchArea = true;
@@ -1156,7 +1071,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
 
   // Paid vs Unpaid for Public Transparency
   const paidInvoicesList = useMemo(() => invoices.filter(inv => inv.status === 'PAID'), [invoices]);
-  const unpaidInvoicesList = useMemo(() => invoices.filter(inv => inv.status === 'UNPAID' || inv.status === 'PENDING_VERIFICATION'), [invoices]);
+  const unpaidInvoicesList = useMemo(() => invoices.filter(inv => ['UNPAID','PARTIAL','OVERDUE','PENDING_VERIFICATION'].includes(inv.status)), [invoices]);
 
   // Realtime Live Totals derived directly from active invoices state
   const liveTotalAmount = useMemo(() => {
@@ -1569,7 +1484,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                           <td className="py-3.5 px-4 text-center">
                             {inv.status === 'PENDING_VERIFICATION' ? (
                               <a
-                                href={`/admin/payments?status=PENDING&search=${encodeURIComponent(inv.propertyCode)}`}
+                                href={"/admin/payments?search="+encodeURIComponent(inv.propertyCode)+"&period="+encodeURIComponent(inv.billingPeriodName || initialPeriodName)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-mono font-bold text-[10px] shadow-2xs transition-all active:scale-[0.95]"
                                 title="Buka Antrean Verifikasi Pembayaran"
                               >
@@ -1577,18 +1492,9 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                                 <ExternalLink className="w-3 h-3 text-amber-700" />
                               </a>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleTogglePaymentStatus(inv)}
-                                className={`px-3 py-1 rounded-lg text-[10px] font-mono font-black border transition-all cursor-pointer shadow-2xs active:scale-[0.95] ${
-                                  isPaid
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                    : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                                }`}
-                                title="Klik untuk mengubah status lunas/belum lunas secara cepat"
-                              >
-                                {isPaid ? '✓ LUNAS' : '✗ BELUM BAYAR'}
-                              </button>
+                              <span className={isPaid ? 'text-emerald-800 font-bold' : 'text-ink font-semibold'}>
+                                {isPaid ? 'Lunas' : inv.status === 'PARTIAL' ? 'Dibayar sebagian' : inv.status === 'WAIVED' ? 'Dibebaskan' : ['VOID','CANCELLED'].includes(inv.status) ? 'Dibatalkan' : 'Belum lunas'}
+                              </span>
                             )}
                             {inv.paidAt && (
                               <span className="text-[9px] text-ink-muted font-mono block mt-0.5">{inv.paidAt}</span>
@@ -1601,14 +1507,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                             <div className="inline-flex items-center gap-1">
                               {isPaid ? (
                                 <>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenInvoiceDoc(inv, false)}
-                                    className="px-2.5 py-1.5 text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
-                                    title="Lihat / Cetak Kuitansi Resmi"
-                                  >
-                                    <Printer className="w-3.5 h-3.5" /> Kuitansi
-                                  </button>
+                                  <a className="btn-secondary text-xs" href={"/admin/payments?tab=history&search="+encodeURIComponent(inv.propertyCode)+"&period="+encodeURIComponent(inv.billingPeriodName || initialPeriodName)}>Kuitansi</a>
                                   <button
                                     type="button"
                                     onClick={() => handleOpenInvoiceDoc(inv, true)}
@@ -1620,27 +1519,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                                 </>
                               ) : (
                                 <>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingInvoiceId(inv.id);
-                                      setFormPropertyMode('SELECT');
-                                      setFormSelectedProp(inv.propertyCode);
-                                      setFormHouseCode(inv.propertyCode);
-                                      setFormOwnerName(inv.residentName || inv.ownerName || '');
-                                      setFormPeriodName(inv.billingPeriodName || initialPeriodName);
-                                      setFormTotalAmount(inv.total);
-                                      setFormStatus('PAID');
-                                      setFormPaymentMethod('CASH_KEPALA_KOMPLEK');
-                                      setFormPaidAt(new Date().toISOString().slice(0, 10));
-                                      setFormNotes(`Diterima langsung oleh Bendahara/Pengurus`);
-                                      setShowCreateModal(true);
-                                    }}
-                                    className="px-2.5 py-1.5 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
-                                    title="Catat Pelunasan Iuran Langsung"
-                                  >
-                                    <Check className="w-3.5 h-3.5 text-emerald-600" /> Bayar
-                                  </button>
+                                  {!["WAIVED","CANCELLED","VOID"].includes(inv.status) && <a className="btn-secondary text-xs" href={"/admin/payments?tab=manual_counter&search="+encodeURIComponent(inv.propertyCode)+"&period="+encodeURIComponent(inv.billingPeriodName || initialPeriodName)}>Catat pembayaran</a>}
                                   <button
                                     type="button"
                                     onClick={() => handleOpenInvoiceDoc(inv, true)}
@@ -1663,6 +1542,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
 
                               <button
                                 type="button"
+                                disabled={!["UNPAID","OVERDUE"].includes(inv.status)}
                                 onClick={() => handleOpenEditInvoice(inv)}
                                 className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg active:scale-[0.98] transition-all"
                                 title="Edit Tagihan"
@@ -1671,6 +1551,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
                               </button>
                               <button
                                 type="button"
+                                disabled={!["UNPAID","OVERDUE"].includes(inv.status)}
                                 onClick={() => setInvoiceToDelete(inv)}
                                 className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg active:scale-[0.98] transition-all"
                                 title="Hapus / Batalkan Invoice"
@@ -2365,7 +2246,7 @@ export const BillingManager: React.FC<BillingManagerProps> = ({
               </div>
 
               {/* Status Pembayaran (LUNAS vs BELUM BAYAR) Segmented Control */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5" hidden={!!editingInvoiceId}>
                 <label className="font-bold text-ink block text-xs">Status Pembayaran Saat Ini *</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button

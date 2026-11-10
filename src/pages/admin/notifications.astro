@@ -1,34 +1,31 @@
 ---
+import { ArrowUpRight, Bell } from 'lucide-react';
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { getPendingPaymentsCount } from '../../services/payment.service';
-import { getOpenComplaintsCount } from '../../services/complaint.service';
-import { getNeedingRepairCount } from '../../services/facility.service';
+import { getDashboardCounts } from '../../services/dashboard.service';
+import { getNotificationItems, hasWorkspace, workItems } from '../../lib/dashboard-workspace';
 import { canAccessAdminPage } from '../../lib/access-policy';
 import type { UserSession } from '../../types/auth';
-const currentUser = await Astro.session?.get('wargahub_user') as UserSession;
-const paymentAccess = canAccessAdminPage(currentUser.role, '/admin/payments');
-const complaintAccess = canAccessAdminPage(currentUser.role, '/admin/complaints');
-const facilityAccess = canAccessAdminPage(currentUser.role, '/admin/facilities');
-const [payments, complaints, facilities] = await Promise.all([
-  paymentAccess ? getPendingPaymentsCount().catch(() => null) : null,
-  complaintAccess ? getOpenComplaintsCount().catch(() => null) : null,
-  facilityAccess ? getNeedingRepairCount().catch(() => null) : null,
-]);
-const tasks = [
-  { label: 'Pembayaran menunggu verifikasi', count: payments, href: '/admin/payments?tab=verification', action: 'Periksa pembayaran' },
-  { label: 'Aduan belum selesai', count: complaints, href: '/admin/complaints', action: 'Tindak lanjuti aduan' },
-  { label: 'Fasilitas perlu perbaikan', count: facilities, href: '/admin/facilities?tab=maintenance', action: 'Lihat perawatan' },
-].filter(task => canAccessAdminPage(currentUser.role, task.href.split('?')[0]));
+
+const user = await Astro.session?.get('wargahub_user') as UserSession | undefined;
+if (!user || !hasWorkspace(user.role)) return Astro.redirect('/warga');
+const keys = getNotificationItems(user.role);
+const counts = await getDashboardCounts(keys);
 ---
 <AdminLayout title="Notifikasi - WargaHub" currentPath="/admin/notifications">
-  <section class="space-y-6">
-    <div><h1 class="text-2xl font-semibold tracking-tight">Notifikasi</h1><p class="text-sm text-ink-muted mt-2">Pekerjaan yang perlu ditindaklanjuti. Riwayat perubahan tetap tersedia di menu aktivitas.</p></div>
-    <div class="bg-surface rounded-2xl border border-border divide-y divide-border">
-      {tasks.map(task => <a href={task.href} class="flex flex-wrap items-center justify-between gap-4 p-5 hover:bg-primary-50">
-        <div><p class="text-sm font-semibold">{task.label}</p><p class="text-sm text-ink-muted mt-1">{task.count === null ? 'Data belum bisa dimuat' : task.count === 0 ? 'Tidak ada antrean' : `${task.count} perlu ditindaklanjuti`}</p></div>
-        <span class="text-sm text-primary-700 font-semibold">{task.action} →</span>
-      </a>)}
-    </div>
-    <a href="/admin/audit" class="inline-flex py-3 text-sm font-semibold text-primary-700">Lihat riwayat aktivitas →</a>
-  </section>
+  <div class="workspace">
+    <header class="workspace-heading">
+      <div><p class="workspace-kicker"><Bell size={16} /> Antrean kerja</p><h1>Notifikasi</h1></div>
+    </header>
+    <section class="workspace-panel" aria-label="Antrean yang dapat ditindaklanjuti">
+      {keys.length ? <ul class="workspace-rows">{keys.map(key => <li>
+        <a class="workspace-row" href={workItems[key].href}>
+          <span class="workspace-dot" data-tone={workItems[key].tone}></span>
+          <span>{workItems[key].label}</span>
+          <strong class="workspace-row-value">{counts[key] ?? 'Belum tersedia'}</strong>
+          <ArrowUpRight size={16} />
+        </a>
+      </li>)}</ul> : <p>Tidak ada antrean untuk peran ini.</p>}
+    </section>
+    {canAccessAdminPage(user.role, '/admin/audit') && <a class="workspace-text-link" href="/admin/audit">Riwayat aktivitas <ArrowUpRight size={16} /></a>}
+  </div>
 </AdminLayout>

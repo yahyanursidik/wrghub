@@ -1,55 +1,23 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { recordAuditLog } from '../../../services/audit.service';
+import type { UserSession } from '../../../types/auth';
+import { announcementFields } from '../../../lib/announcement-input';
+import { updateAnnouncement } from '../../../services/announcement.service';
 
-const updateAnnSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().optional(),
-  content: z.string().optional(),
-  category: z.string().optional(),
-  audience: z.string().optional(),
-  scheduledAt: z.string().nullable().optional(),
-  location: z.string().nullable().optional(),
-  isPinned: z.boolean().optional(),
-});
-
-export const POST: APIRoute = async ({ request }) => {
+const input = announcementFields.partial().extend({ id: z.string().min(1).max(180) })
+  .refine(({ id, ...fields }) => Object.keys(fields).length > 0);
+export const POST: APIRoute = async ({ request, session }) => {
+  const actor = await session?.get('wargahub_user') as UserSession | undefined;
+  if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: 'Perubahan pengumuman tidak valid.' } }, { status: 400 });
   try {
-    const body = await request.json();
-    const validated = updateAnnSchema.parse(body);
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Pengurus Komplek',
-        action: 'announcement.update',
-        entityType: 'ANNOUNCEMENT',
-        entityId: validated.id,
-        newValue: {
-          ...validated,
-          updatedAt: new Date().toISOString(),
-        },
-      });
-    }
-
-    return new Response(
-      JSON.stringify({
-        data: {
-          success: true,
-          ...validated,
-          updatedAt: new Date().toISOString(),
-        },
-        meta: {},
-        error: null,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'ANNOUNCEMENT_UPDATE_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    const { id, ...fields } = body.data;
+    const saved = await updateAnnouncement(id, fields, actor);
+    if (!saved) return Response.json({ error: { message: 'Pengumuman aktif tidak ditemukan.' } }, { status: 404 });
+    return Response.json({ data: { id, ...fields }, error: null });
+  } catch (error) {
+    console.error('Pembaruan pengumuman:', error);
+    return Response.json({ error: { message: 'Perubahan belum bisa dipastikan. Muat ulang daftar.' } }, { status: 503 });
   }
 };

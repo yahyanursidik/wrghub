@@ -1,3 +1,4 @@
+import { receiptNumber } from '../../lib/receipt-number';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useUrlTab } from '../../lib/use-url-tab';
 import { apiFetch } from '../../lib/api-fetch';
@@ -116,28 +117,17 @@ interface PaymentsManagerProps {
   initialPayments: PaymentListItem[];
   initialAccounts?: any[];
   initialProperties?: any[];
+  initialPeriods?: string[];
+  initialTab?: string;
+  initialHouse?: string;
+  initialPeriod?: string;
 }
-
-const CLUSTER_PROPERTIES_FALLBACK = [
-  { code: 'Kav A', ownerName: 'Pak Verial', residentName: 'Pak Verial', statusLabel: 'Penghuni', isRented: false },
-  { code: 'Kav B', ownerName: 'Mahasiswa Polban', residentName: 'Mahasiswa Polban', statusLabel: 'Penyewa / Kontrak', isRented: true },
-  { code: 'Kav C', ownerName: 'Bu Rina (Kosong)', residentName: 'Bu Rina (Kosong)', statusLabel: 'Kosong', isRented: false },
-  { code: 'Kav D', ownerName: 'Pak Rieva', residentName: 'Pak Rieva', statusLabel: 'Penghuni', isRented: false },
-  { code: 'Kav E', ownerName: 'Pak Budi', residentName: 'Pak Budi', statusLabel: 'Penghuni', isRented: false },
-  { code: 'Kav F', ownerName: 'Pa Anggia', residentName: 'Pa Anggia', statusLabel: 'Penyewa / Kontrak', isRented: true },
-  { code: 'Kav G', ownerName: 'Pak Misael', residentName: 'Pak Misael', statusLabel: 'Penghuni', isRented: false },
-  { code: 'Kav H', ownerName: 'Pak Fahmi Rizal', residentName: 'Pak Fahmi Rizal', statusLabel: 'Penghuni', isRented: false },
-  { code: 'Kav I', ownerName: 'Pak Yahya', residentName: 'Pak Yahya', statusLabel: 'Penyewa / Kontrak', isRented: true },
-  { code: 'Kav J', ownerName: 'Bu Sofia P (Kosong)', residentName: 'Bu Sofia P (Kosong)', statusLabel: 'Kosong', isRented: false },
-  { code: 'Kav K', ownerName: 'Pak Eky', residentName: 'Pak Eky', statusLabel: 'Penghuni', isRented: false },
-  { code: 'Kav L', ownerName: 'Pak Haji Ano', residentName: 'Pak Haji Ano', statusLabel: 'Penghuni', isRented: false },
-  { code: 'Kav M', ownerName: 'Pak Dedi N / Pak Jaya (Kosong)', residentName: 'Pak Dedi N / Pak Jaya (Kosong)', statusLabel: 'Kosong', isRented: false },
-];
 
 export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   initialPayments,
   initialAccounts = [],
   initialProperties = [],
+  initialPeriods = [], initialTab, initialHouse = '', initialPeriod = '',
 }) => {
   const clusterProperties = useMemo(() => {
     if (initialProperties && initialProperties.length > 0) {
@@ -161,7 +151,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         });
       if (filtered.length > 0) return filtered;
     }
-    return CLUSTER_PROPERTIES_FALLBACK;
+    return [];
   }, [initialProperties]);
 
   // Helper storage persistence
@@ -184,145 +174,24 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     }
   };
 
-  const addDeletedIds = (key: string, ids: string[]) => {
-    if (typeof window === 'undefined') return;
-    try {
-      const existing = localStorage.getItem(key);
-      const list: string[] = existing ? JSON.parse(existing) : [];
-      const updated = Array.from(new Set([...list, ...ids]));
-      localStorage.setItem(key, JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Failed to save deleted IDs:', e);
-    }
-  };
-
-  // 1. PAYMENTS STATE
-  const [payments, setPayments] = useState<PaymentListItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (!initialPayments || initialPayments.length === 0) {
-          localStorage.removeItem('wargahub_payments_data');
-          localStorage.removeItem('wargahub_payments');
-          localStorage.removeItem('wargahub_deleted_payments');
-          return [];
-        }
-        const saved = localStorage.getItem('wargahub_payments_data');
-        const deletedStr = localStorage.getItem('wargahub_deleted_payments');
-        const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
-        const sourceList = saved !== null ? JSON.parse(saved) : initialPayments;
-        if (Array.isArray(sourceList)) {
-          return sourceList.filter((p: any) => !deletedIds.includes(p.id));
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return initialPayments;
-  });
-
-  useEffect(() => {
-    if (!initialPayments || initialPayments.length === 0) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('wargahub_payments_data');
-        localStorage.removeItem('wargahub_payments');
-        localStorage.removeItem('wargahub_deleted_payments');
-      }
-      setPayments([]);
-    } else {
-      setPayments(initialPayments);
-    }
-  }, [initialPayments]);
+  const [payments, setPayments] = useState<PaymentListItem[]>(initialPayments);
 
   // 2. BANK ACCOUNTS & REKENING KAS STATE (From Database or LocalStorage)
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(() => {
-    const persisted = getPersisted<BankAccount[] | null>('wargahub_bank_accounts', null);
-    if (persisted && Array.isArray(persisted) && persisted.length > 0) {
-      return persisted;
-    }
     if (initialAccounts && initialAccounts.length > 0) {
       return initialAccounts.map((acc: any) => ({
         id: acc.id,
-        bankName: acc.bank_name || acc.bankName || acc.name || 'Bank Mandiri',
-        accountNumber: acc.account_number || acc.accountNumber || (acc.code !== 'KAS-KECIL' ? acc.code : '-'),
-        accountHolder: acc.account_holder || acc.accountHolder || 'Paguyuban Grand Sariwangi',
+        bankName: acc.bank_name || acc.bankName || acc.name || 'Rekening kas',
+        accountNumber: acc.account_number || acc.accountNumber || '',
+        accountHolder: acc.account_holder || acc.accountHolder || '',
         balance: Number(acc.balance) || 0,
         isPrimary: Boolean(acc.code === 'BCA-UTAMA' || acc.id === 'acc-main' || acc.code === 'BCA_MAIN'),
         accountType: acc.type === 'BANK' ? 'BANK_OPERASIONAL' : (acc.type === 'QRIS' ? 'QRIS_DINAMIS' : 'KAS_TUNAI'),
         notes: acc.notes || '',
       }));
     }
-    return [
-      {
-        id: 'acc-main',
-        bankName: 'Bank Mandiri',
-        accountNumber: '1300024446419',
-        accountHolder: 'Paguyuban Grand Sariwangi',
-        balance: 21850000,
-        isPrimary: true,
-        accountType: 'BANK_OPERASIONAL',
-        notes: 'Rekening master utama penerimaan iuran IPL warga Komplek Grand Sariwangi.',
-      },
-      {
-        id: 'acc-qris-01',
-        bankName: 'QRIS Dinamis Paguyuban',
-        accountNumber: 'NMID-ID102008891230',
-        accountHolder: 'Paguyuban Grand Sariwangi',
-        balance: 0,
-        isPrimary: false,
-        accountType: 'QRIS_DINAMIS',
-        qrisNmid: 'ID102008891230',
-        notes: 'Menerima pembayaran GoPay, OVO, DANA, BCA Mobile, Livin dll.',
-      },
-      {
-        id: 'acc-petty-01',
-        bankName: 'Kas Tunai Bendahara / Satpam',
-        accountNumber: 'KAS-FISIK',
-        accountHolder: 'BENDAHARA RT/RW',
-        balance: 0,
-        isPrimary: false,
-        accountType: 'KAS_TUNAI',
-        notes: 'Kas tunai darurat & uang operasional fisik.',
-      }
-    ];
+    return [];
   });
-
-  // Reactive listener: when master bank account is edited in Settings or elsewhere
-  useEffect(() => {
-    const handleBankAccountsUpdated = (e: any) => {
-      if (e.detail) {
-        const { bankName, accountNumber, accountHolder, qrisNmid } = e.detail;
-        setBankAccounts((prev) => {
-          let matched = false;
-          const next = prev.map((a) => {
-            if (a.isPrimary || a.id === 'acc-main' || a.id === 'acc-bca' || a.accountType === 'BANK_OPERASIONAL') {
-              matched = true;
-              return {
-                ...a,
-                bankName: bankName || a.bankName,
-                accountNumber: accountNumber || a.accountNumber,
-                accountHolder: accountHolder || a.accountHolder,
-                qrisNmid: qrisNmid || a.qrisNmid,
-                isPrimary: true,
-              };
-            }
-            return a;
-          });
-          if (!matched && next.length > 0) {
-            next[0] = {
-              ...next[0],
-              bankName: bankName || next[0].bankName,
-              accountNumber: accountNumber || next[0].accountNumber,
-              accountHolder: accountHolder || next[0].accountHolder,
-              isPrimary: true,
-            };
-          }
-          return next;
-        });
-      }
-    };
-    window.addEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
-    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
-  }, []);
 
   // Bank Statement Feed (Auto-Recon Feed from storage or live)
   const [statementFeeds, setStatementFeeds] = useState<BankStatementFeed[]>(() =>
@@ -330,11 +199,11 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   );
 
   // Navigation & SubTabs
-  const [activeSubTab, setActiveSubTab] = useUrlTab(['verification', 'history', 'manual_counter', 'receiving_channels'] as const, 'verification');
+  const [activeSubTab, setActiveSubTab] = useUrlTab(['verification', 'history', 'manual_counter', 'receiving_channels'] as const, 'verification', 'tab', {}, initialTab);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('ALL');
-  const [periodFilter, setPeriodFilter] = useState<string>('September 2026');
+  const [periodFilter, setPeriodFilter] = useState<string>(initialPeriod || 'ALL');
   const [areaFilter, setAreaFilter] = useState<string>('ALL');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialHouse);
   const [sortBy, setSortBy] = useState<'date' | 'code' | 'amount' | 'status' | 'method'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -367,13 +236,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   const [pageSize, setPageSize] = useState(10);
 
   // Subtab 2: History (Riwayat Kuitansi) State
-  const [receiptSearch, setReceiptSearch] = useState('');
+  const [receiptSearch, setReceiptSearch] = useState(initialHouse);
   const [receiptMethodFilter, setReceiptMethodFilter] = useState('ALL');
 
   // Subtab 3: Manual Counter (POS Tunai Satpam) State
-  const [counterHouseCode, setCounterHouseCode] = useState(initialProperties[0]?.code || 'Kav A');
+  const [counterHouseCode, setCounterHouseCode] = useState(initialHouse || clusterProperties[0]?.code || '');
   const [counterAmount, setCounterAmount] = useState(250000);
-  const [counterPeriod, setCounterPeriod] = useState('September 2026');
+  const [counterPeriod, setCounterPeriod] = useState(initialPeriod || initialPeriods[0] || '');
   const [counterCollector, setCounterCollector] = useState('Pos Satpam (Petugas Jaga)');
   const [counterPayerName, setCounterPayerName] = useState('');
   const [counterRef, setCounterRef] = useState(`KAS-TUNAI-${Date.now().toString().slice(-6)}`);
@@ -485,21 +354,28 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   };
 
   // Update payments helper with persistence
-  const updatePaymentsState = (newList: PaymentListItem[]) => {
-    setPayments(newList);
-    savePersisted('wargahub_payments', newList);
+  const updatePaymentsState = setPayments;
+  const setSavedPayment = (payment: PaymentListItem) => setPayments(items => items.some(item => item.id === payment.id) ? items.map(item => item.id === payment.id ? {...item,...payment} : item) : [payment,...items]);
+  const updateAccountBalance = (result: {accountId?:string;accountBalance?:number}) => {
+    if (typeof result.accountBalance === 'number') setBankAccounts(items => items.map(item => item.id === result.accountId ? {...item,balance:result.accountBalance!} : item));
   };
+  const openReceipt = (pay: PaymentListItem, name?: string) => setSelectedReceipt({
+    receiptNumber: receiptNumber('', '', pay.id), invoiceNumber: pay.invoiceNumber || pay.invoiceId || '-',
+    periodName: pay.periodName || '-', propertyCode: pay.propertyCode, residentName: name || 'Warga ' + pay.propertyCode,
+    amount: pay.amount, paidAt: pay.paidAt, paymentMethod: pay.method, referenceNumber: pay.reference || '-',
+    kepalaKomplekName, isInvoice: false, items: [{name:'Pembayaran iuran',amount:pay.amount}],
+  });
 
   // Available Periods (Descending sort)
   const availablePeriods = useMemo(() => {
-    const list: string[] = ['September 2026', 'Agustus 2026', 'Juli 2026', 'Juni 2026', 'Mei 2026'];
+    const list: string[] = [...initialPeriods];
     payments.forEach(p => {
       if (p.periodName && !list.includes(p.periodName)) {
         list.push(p.periodName);
       }
     });
     return list;
-  }, [payments]);
+  }, [payments, initialPeriods]);
 
   // Counts filtered by period
   const periodPayments = useMemo(() => {
@@ -517,26 +393,15 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
   const totalAllKas = bankAccounts.reduce((acc, a) => acc + (a.balance || 0), 0);
 
   // ================= VERIFY & REJECT =================
+  const verifyOne = async (paymentId: string) => {
+    const response = await apiFetch('/api/payments/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentId})});
+    const {data} = await response.json();
+    setPayments(items => items.map(item => item.id === paymentId ? {...item,status:data.status,verifiedAt:data.verifiedAt,invoiceId:data.invoiceId} : item));
+    updateAccountBalance(data);
+  };
   const handleVerify = async (paymentId: string) => {
-    try {
-      await apiFetch('/api/payments/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId, verifierUserId: 'user-bendahara', verifierName: 'Hendra Wijaya' }),
-      });
-      const updated = payments.map((p) => {
-        if (p.id === paymentId) {
-          return { ...p, status: 'VERIFIED' as const, verifiedAt: new Date().toISOString() };
-        }
-        return p;
-      });
-      updatePaymentsState(updated);
-      setViewingProof(null);
-      showToast('Pembayaran berhasil diverifikasi & kuitansi resmi diterbitkan!');
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal memverifikasi pembayaran.');
-    }
+    try { await verifyOne(paymentId); setViewingProof(null); showToast('Pembayaran masuk buku kas dan kuitansi diterbitkan.'); }
+    catch (error) { showToast(error instanceof Error ? error.message : 'Pembayaran belum terverifikasi.'); }
   };
 
   const handleReject = async (paymentId: string) => {
@@ -564,42 +429,26 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
   // Bulk Verification
   const handleBulkVerify = async () => {
-    if (selectedPaymentIds.length === 0) return;
+    if (!selectedPaymentIds.length) return;
     setBulkProcessing(true);
-    try {
-      for (const id of selectedPaymentIds) {
-        await apiFetch('/api/payments/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentId: id, verifierUserId: 'user-bendahara', verifierName: 'Hendra Wijaya' }),
-        });
-      }
-      const updated = payments.map((p) => {
-        if (selectedPaymentIds.includes(p.id)) {
-          return { ...p, status: 'VERIFIED' as const, verifiedAt: new Date().toISOString() };
-        }
-        return p;
-      });
-      updatePaymentsState(updated);
-      showToast(`${selectedPaymentIds.length} pembayaran berhasil diverifikasi massal!`);
-      setSelectedPaymentIds([]);
-    } catch (err) {
-      console.error(err);
-      showToast('Terjadi kesalahan verifikasi massal.');
-    } finally {
-      setBulkProcessing(false);
-    }
+    let saved = 0;
+    try { for (const id of selectedPaymentIds) { await verifyOne(id); saved++; }
+      setSelectedPaymentIds([]); showToast(saved + ' pembayaran masuk buku kas.');
+    } catch (error) { setSelectedPaymentIds(selectedPaymentIds.slice(saved));
+      showToast(saved + ' berhasil. ' + (error instanceof Error ? error.message : 'Ada pembayaran yang belum terverifikasi.'));
+    } finally { setBulkProcessing(false); }
   };
+
 
   // Verified Receipts Computed List (for Subtab 2: History)
   const verifiedReceipts = useMemo(() => {
     return payments
-      .filter((p) => p.status === 'VERIFIED')
+      .filter((p) => p.status === 'VERIFIED' && (!initialPeriod || p.periodName === initialPeriod))
       .filter((p) => {
         const query = receiptSearch.toLowerCase().trim();
         const matchedProp = clusterProperties.find((cp) => cp.code.toLowerCase() === p.propertyCode.toLowerCase());
         const resident = (matchedProp?.residentName || matchedProp?.ownerName || '').toLowerCase();
-        const receiptNo = `KWT-${(p.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${p.propertyCode.replace(/[^A-Z0-9]/g, '')}-${p.id.slice(-4)}`.toLowerCase();
+        const receiptNo = receiptNumber('', '', p.id).toLowerCase();
 
         const matchSearch =
           !query ||
@@ -624,14 +473,14 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
         return matchSearch && matchMethod;
       })
       .sort((a, b) => (b.paidAt || '').localeCompare(a.paidAt || ''));
-  }, [payments, receiptSearch, receiptMethodFilter, clusterProperties]);
+  }, [payments, receiptSearch, receiptMethodFilter, clusterProperties, initialPeriod]);
 
   // WhatsApp Message Generator for Receipt & Confirmation
   const getPaymentWaUrl = (pay: PaymentListItem) => {
     const kav = pay.propertyCode;
     const matched = clusterProperties.find((p) => p.code.toLowerCase() === kav.toLowerCase());
     const name = matched ? (matched.residentName || matched.ownerName) : `Warga ${kav}`;
-    const receiptNo = `KWT-${(pay.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${kav.replace(/[^A-Z0-9]/g, '')}-${pay.id.slice(-4)}`;
+    const receiptNo = receiptNumber('', '', pay.id);
 
     if (pay.status === 'VERIFIED') {
       const text = `*KUITANSI PEMBAYARAN IURAN RESMI*\n` +
@@ -657,116 +506,25 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     }
   };
 
-  // WhatsApp Broadcast Text for Receiving Channels
-  const broadcastWaText = `*INFORMASI REKENING RESMI IURAN IPL WARGA*\n` +
-    `*Komplek Grand Sariwangi (RT 01 / RW 08)*\n` +
-    `---------------------------------------\n` +
-    `Bapak/Ibu warga Grand Sariwangi yang kami hormati,\n` +
-    `Berikut saluran resmi pembayaran Iuran Pengelolaan Lingkungan (IPL) komplek:\n\n` +
-    `1. *Transfer Bank Syariah (Utama)*:\n` +
-    `   Bank: Bank Syariah Indonesia (BSI)\n` +
-    `   No. Rekening: 7142-9988-11\n` +
-    `   Atas Nama: PENGURUS KOMPLEK WARGAHUB\n` +
-    `   Kode Bank: 451\n\n` +
-    `2. *QRIS Dinamis Paguyuban*:\n` +
-    `   Scan kode QRIS melalui portal warga https://wrghub.vercel.app/resident atau stiker di pos satpam.\n\n` +
-    `3. *Setoran Tunai Fisik*:\n` +
-    `   Dapat diserahkan langsung ke Petugas Pos Satpam 24 Jam atau ke rumah Bendahara Komplek (disertai kuitansi tunai resmi).\n\n` +
-    `*Catatan*: Mohon sertakan kode kavling (contoh: "Kav A") pada berita transfer demi kelancaran pencatatan kas.\n\n` +
-    `Terima kasih atas kerja sama dan kedisiplinan seluruh warga.\n` +
-    `Pengurus RT/RW Komplek Grand Sariwangi`;
+  const publishedBankAccounts = bankAccounts.filter(account => account.accountType === 'BANK_OPERASIONAL' && account.accountNumber);
+  const broadcastWaText = publishedBankAccounts.length ? ['*Rekening resmi iuran warga*', ...publishedBankAccounts.map(account =>
+    [account.bankName, account.accountNumber, account.accountHolder].filter(Boolean).join(' · ')),
+    'Cantumkan kode rumah saat transfer, lalu konfirmasi pembayaran di portal warga.'].join('\n') : 'Nomor rekening belum tersedia.';
 
   // Quick POS Counter Submission
   const handleQuickCounterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCounterProcessing(true);
+    e.preventDefault(); setCounterProcessing(true);
     try {
-      const matched = clusterProperties.find((p) => p.code.toLowerCase() === counterHouseCode.toLowerCase());
-      const resident = counterPayerName || (matched ? (matched.residentName || matched.ownerName) : `Warga ${counterHouseCode}`);
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const generatedRef = counterRef || `KAS-TUNAI-${Date.now().toString().slice(-6)}`;
-
-      await apiFetch('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          propertyCode: counterHouseCode.toUpperCase(),
-          ownerName: resident,
-          periodName: counterPeriod,
-          amount: Number(counterAmount),
-          method: `Tunai (Diterima ${counterCollector})`,
-          reference: generatedRef,
-          paidAt: todayStr,
-          status: 'VERIFIED',
-          notes: `${counterNotes} (Petugas: ${counterCollector})`,
-        }),
-      });
-
-      const newPay: PaymentListItem = {
-        id: `pay-${Date.now()}`,
-        invoiceId: `inv-${Date.now()}`,
-        propertyCode: counterHouseCode.toUpperCase(),
-        amount: Number(counterAmount),
-        method: `Tunai (Diterima ${counterCollector})`,
-        reference: generatedRef,
-        proofUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
-        proofFileUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
-        status: 'VERIFIED',
-        paidAt: todayStr,
-        notes: `${counterNotes} (Petugas: ${counterCollector})`,
-        verifiedAt: new Date().toISOString(),
-      };
-
-      const updated = [newPay, ...payments];
-      updatePaymentsState(updated);
-
-      // Auto update cash in petty cash account
-      const petty = bankAccounts.find((a) => a.accountType === 'KAS_TUNAI') || bankAccounts[0];
-      if (petty) {
-        const nextAccounts = bankAccounts.map((a) =>
-          a.id === petty.id ? { ...a, balance: a.balance + Number(counterAmount) } : a
-        );
-        setBankAccounts(nextAccounts);
-        savePersisted('wargahub_bank_accounts', nextAccounts);
-      }
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('wargahub_payment_verified', {
-            detail: { propertyCode: counterHouseCode.toUpperCase(), amount: Number(counterAmount), periodName: counterPeriod },
-          })
-        );
-      }
-
-      showToast(`Setoran tunai ${counterHouseCode} sebesar ${formatRupiah(counterAmount)} berhasil dicatat & kuitansi terbit!`);
-
-      // Open Receipt Modal right away for quick print or WhatsApp share
-      setSelectedReceipt({
-        invoiceNumber: `INV-${counterPeriod.replace(/\s+/g, '').toUpperCase()}-${counterHouseCode.replace(/[^A-Z0-9]/g, '')}`,
-        periodName: counterPeriod,
-        propertyCode: counterHouseCode,
-        residentName: resident,
-        amount: Number(counterAmount),
-        paidAt: todayStr,
-        paymentMethod: `Tunai (Diterima ${counterCollector})`,
-        referenceNumber: generatedRef,
-        kepalaKomplekName: kepalaKomplekName,
-        isInvoice: false,
-        items: Number(counterAmount) === 350000 ? [
-          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-        ] : (Number(counterAmount) === 250000 ? [
-          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-        ] : undefined),
-      });
-
-      setCounterRef(`KAS-TUNAI-${Date.now().toString().slice(-6)}`);
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal mencatat setoran tunai.');
-    } finally {
-      setCounterProcessing(false);
-    }
+      const cash = bankAccounts.find(account => account.accountType === 'KAS_TUNAI');
+      const response = await apiFetch('/api/payments/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        propertyCode:counterHouseCode,periodName:counterPeriod,amount:Number(counterAmount),method:'CASH',
+        reference:counterRef || undefined, status:'VERIFIED', notes:[counterNotes,counterCollector].filter(Boolean).join(' · '), accountId:cash?.id,
+      })});
+      const {data} = await response.json();
+      setSavedPayment(data); updateAccountBalance(data); openReceipt(data,counterPayerName); setCounterRef('');
+      showToast('Setoran tunai masuk buku kas dan kuitansi diterbitkan.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Setoran belum dicatat.'); }
+    finally { setCounterProcessing(false); }
   };
 
   // ================= OPEN MODALS =================
@@ -775,7 +533,8 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
     setFormHouseCode(pay.propertyCode);
     const matched = clusterProperties.find(p => p.code.toLowerCase() === pay.propertyCode.toLowerCase());
     setFormOwnerName(matched ? (matched.residentName || matched.ownerName) : `Warga Rumah ${pay.propertyCode}`);
-    setFormPeriod('Agustus 2026');
+    setFormPeriod(pay.periodName || '');
+    setFormStatus('PENDING');
     setFormAmount(pay.amount);
     setFormMethod(pay.method ? formatPaymentMethod(pay.method) : 'Transfer Bank BCA');
     setFormRef(pay.reference || '');
@@ -788,12 +547,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
   const handleOpenCreatePayment = (prefillHouse?: string) => {
     setEditingPaymentId(null);
-    const firstProp = clusterProperties[0] || CLUSTER_PROPERTIES_FALLBACK[0];
-    const targetCode = prefillHouse || firstProp.code;
+    const firstProp = clusterProperties[0];
+    const targetCode = prefillHouse || initialHouse || firstProp?.code || '';
     const matched = clusterProperties.find(p => p.code.toLowerCase() === targetCode.toLowerCase());
     setFormHouseCode(targetCode);
     setFormOwnerName(matched ? (matched.residentName || matched.ownerName) : `Warga ${targetCode}`);
-    setFormPeriod('September 2026');
+    setFormPeriod(initialPeriod || initialPeriods[0] || '');
+    setFormStatus('VERIFIED');
     setFormAmount(250000);
     setFormMethod('Bank Syariah Indonesia (BSI)');
     setShowAddMethodSection(false);
@@ -932,146 +692,36 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
   // Save Payment (Create or Edit)
   const handleSavePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingPayment(true);
+    e.preventDefault(); setSavingPayment(true);
     try {
-      if (editingPaymentId) {
-        const res = await fetch('/api/payments/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            paymentId: editingPaymentId,
-            amount: Number(formAmount),
-            method: formMethod,
-            reference: formRef,
-            status: formStatus,
-            paidAt: formPaidDate,
-            notes: formNotes,
-          }),
-        });
-
-        if (res.ok) {
-          const updated = payments.map((p) =>
-            p.id === editingPaymentId
-              ? {
-                  ...p,
-                  propertyCode: formHouseCode.toUpperCase(),
-                  amount: Number(formAmount),
-                  method: formMethod,
-                  reference: formRef,
-                  status: formStatus,
-                  paidAt: formPaidDate,
-                  notes: formNotes,
-                }
-              : p
-          );
-          updatePaymentsState(updated);
-          showToast(`Data pembayaran Rumah ${formHouseCode} berhasil diperbarui.`);
-          setShowManualModal(false);
-        }
-      } else {
-        const res = await fetch('/api/payments/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            propertyCode: formHouseCode.toUpperCase(),
-            ownerName: formOwnerName,
-            periodName: formPeriod,
-            amount: Number(formAmount),
-            method: formMethod,
-            reference: formRef,
-            paidAt: formPaidDate,
-            status: formStatus,
-            notes: formNotes,
-          }),
-        });
-
-        if (res.ok) {
-          const newPay: PaymentListItem = {
-            id: `pay-${Date.now()}`,
-            invoiceId: `inv-${Date.now()}`,
-            propertyCode: formHouseCode.toUpperCase(),
-            amount: Number(formAmount),
-            method: formMethod,
-            reference: formRef,
-            proofUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
-            proofFileUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
-            status: formStatus,
-            paidAt: formPaidDate,
-            notes: formNotes || null,
-            verifiedAt: formStatus === 'VERIFIED' ? new Date().toISOString() : null,
-          };
-          const updated = [newPay, ...payments];
-          updatePaymentsState(updated);
-          showToast(`Pembayaran manual Rumah ${formHouseCode} berhasil dicatat.`);
-          setShowManualModal(false);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menyimpan data pembayaran.');
-    } finally {
-      setSavingPayment(false);
-    }
+      const response = await apiFetch(editingPaymentId ? '/api/payments/update' : '/api/payments/create', {
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ paymentId:editingPaymentId || undefined,
+          propertyCode:formHouseCode,periodName:formPeriod,amount:Number(formAmount),method:formMethod,reference:formRef || undefined,
+          status:editingPaymentId ? 'PENDING' : formStatus,paidAt:formPaidDate || undefined,notes:formNotes,
+        }),
+      });
+      const {data} = await response.json(); setSavedPayment(data); updateAccountBalance(data); setShowManualModal(false);
+      showToast(data.status === 'VERIFIED' ? 'Pembayaran masuk buku kas.' : 'Pembayaran menunggu verifikasi.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Pembayaran belum tersimpan.'); }
+    finally { setSavingPayment(false); }
   };
 
-  // Confirm Single Delete Payment (Permanent localStorage & API)
+  const deletePayments = async (ids: string[], reason?: string) => {
+    const response = await apiFetch('/api/payments/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids,reason})});
+    const {data} = await response.json(); setPayments(items => items.filter(item => !data.ids.includes(item.id)));
+    showToast(data.ids.length + ' pembayaran dihapus.');
+  };
   const handleConfirmDeletePayment = async () => {
     if (!paymentToDelete) return;
-    try {
-      const res = await fetch('/api/payments/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paymentId: paymentToDelete.id,
-          propertyCode: paymentToDelete.propertyCode,
-          amount: paymentToDelete.amount,
-          reason: deleteReason,
-        }),
-      });
-
-      if (res.ok) {
-        const nextList = payments.filter((p) => p.id !== paymentToDelete.id);
-        updatePaymentsState(nextList);
-        addDeletedIds('wargahub_deleted_payments', [paymentToDelete.id, paymentToDelete.propertyCode]);
-        showToast(`Catatan pembayaran ${paymentToDelete.propertyCode} berhasil dihapus.`);
-        setPaymentToDelete(null);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menghapus pembayaran.');
-    }
+    try { await deletePayments([paymentToDelete.id],deleteReason); setPaymentToDelete(null); }
+    catch (error) { showToast(error instanceof Error ? error.message : 'Pembayaran belum dihapus.'); }
   };
-
-  // Confirm Bulk Delete Payments
   const handleConfirmBulkDelete = async () => {
-    if (selectedPaymentIds.length === 0) return;
+    if (!selectedPaymentIds.length) return;
     setBulkProcessing(true);
-    try {
-      const selectedProps = payments.filter(p => selectedPaymentIds.includes(p.id)).map(p => p.propertyCode);
-      const res = await fetch('/api/payments/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ids: selectedPaymentIds,
-          reason: `Penghapusan massal ${selectedPaymentIds.length} transaksi pembayaran`,
-        }),
-      });
-
-      if (res.ok) {
-        const nextList = payments.filter((p) => !selectedPaymentIds.includes(p.id));
-        updatePaymentsState(nextList);
-        addDeletedIds('wargahub_deleted_payments', [...selectedPaymentIds, ...selectedProps]);
-        showToast(`${selectedPaymentIds.length} data pembayaran berhasil dihapus secara massal.`);
-        setSelectedPaymentIds([]);
-        setShowBulkDeleteModal(false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menghapus pembayaran massal.');
-    } finally {
-      setBulkProcessing(false);
-    }
+    try { await deletePayments(selectedPaymentIds); setSelectedPaymentIds([]); setShowBulkDeleteModal(false); }
+    catch (error) { showToast(error instanceof Error ? error.message : 'Pembayaran belum dihapus.'); }
+    finally { setBulkProcessing(false); }
   };
 
   // Toggle Selection
@@ -1271,7 +921,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
               </span>
               <p className="text-2xl font-black font-mono text-emerald-700 mt-0.5 tabular-nums">{formatRupiah(totalVerifiedAmount)}</p>
               <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block">
-                {verifiedCount} TRANSAKSI LUNAS {periodFilter !== 'ALL' ? `(${periodFilter})` : '(AKUMULASI)'}
+                {verifiedCount} TRANSAKSI TERVERIFIKASI {periodFilter !== 'ALL' ? `(${periodFilter})` : '(AKUMULASI)'}
               </span>
             </div>
 
@@ -1290,16 +940,10 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
             <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider">Saldo Kas Paguyuban</span>
-                <button
-                  type="button"
-                  onClick={() => handleOpenEditBank(primaryAccount)}
-                  className="text-[10px] text-primary-600 font-bold hover:underline"
-                >
-                  Edit
-                </button>
+                <a className="text-xs text-primary-700 font-bold hover:underline" href="/admin/ledger?tab=accounts_manage">Kelola rekening</a>
               </div>
-              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">{formatRupiah(totalAllKas)}</p>
-              <span className="text-[10px] text-primary-600 font-bold font-mono mt-0.5 block truncate">{primaryAccount.bankName} {primaryAccount.accountNumber}</span>
+              <p className="text-2xl font-black font-mono text-primary-700 mt-0.5 tabular-nums">{primaryAccount ? formatRupiah(totalAllKas) : '—'}</p>
+              <span className="text-[10px] text-primary-600 font-bold font-mono mt-0.5 block truncate">{primaryAccount ? [primaryAccount.bankName, primaryAccount.accountNumber].filter(Boolean).join(' · ') : 'Belum ada rekening kas'}</span>
             </div>
           </div>
 
@@ -1559,58 +1203,13 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                                 <>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      setSelectedReceipt({
-                                        invoiceNumber: `INV-202608-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
-                                        periodName: 'Agustus 2026',
-                                        propertyCode: pay.propertyCode,
-                                        residentName: `Warga Rumah ${pay.propertyCode}`,
-                                        amount: pay.amount,
-                                        paidAt: pay.paidAt || '28 Agustus 2026',
-                                        paymentMethod: pay.method,
-                                        referenceNumber: pay.reference || `TRX-${pay.propertyCode}`,
-                                        kepalaKomplekName: kepalaKomplekName,
-                                        isInvoice: false,
-                                        items: pay.amount === 350000 ? [
-                                          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                                          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                                        ] : (pay.amount === 250000 ? [
-                                          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                                        ] : undefined),
-                                      })
-                                    }
+                                    onClick={() => openReceipt(pay)}
                                     className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
                                     title="Lihat / Cetak Kuitansi Resmi"
                                   >
                                     <Printer className="w-3.5 h-3.5" /> Kuitansi
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setSelectedReceipt({
-                                        invoiceNumber: `INV-202608-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
-                                        periodName: 'Agustus 2026',
-                                        propertyCode: pay.propertyCode,
-                                        residentName: `Warga Rumah ${pay.propertyCode}`,
-                                        amount: pay.amount,
-                                        paidAt: pay.paidAt || '28 Agustus 2026',
-                                        paymentMethod: pay.method,
-                                        referenceNumber: pay.reference || `TRX-${pay.propertyCode}`,
-                                        kepalaKomplekName: kepalaKomplekName,
-                                        isInvoice: true,
-                                        items: pay.amount === 350000 ? [
-                                          { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                                          { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                                        ] : (pay.amount === 250000 ? [
-                                          { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                                        ] : undefined),
-                                      })
-                                    }
-                                    className="px-2 py-1.5 bg-canvas hover:bg-surface border border-border text-ink-muted hover:text-ink rounded-lg font-bold inline-flex items-center gap-1 text-[11px] active:scale-[0.98] transition-all"
-                                    title="Lihat Surat Tagihan / Invoice Resmi"
-                                  >
-                                    <FileText className="w-3.5 h-3.5" /> Invoice
-                                  </button>
+                                  <a className="btn-secondary text-xs" href="/admin/billing" title="Lihat tagihan asli">Invoice</a>
                                 </>
                               )}
 
@@ -1626,6 +1225,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
 
                               <button
                                 type="button"
+                                disabled={!isPending}
                                 onClick={() => handleOpenEditPayment(pay)}
                                 className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg font-bold active:scale-[0.98] transition-all"
                                 title="Edit Pembayaran"
@@ -1634,6 +1234,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                               </button>
                               <button
                                 type="button"
+                                disabled={isVerified}
                                 onClick={() => setPaymentToDelete(pay)}
                                 className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg font-bold active:scale-[0.98] transition-all"
                                 title="Hapus Catatan Pembayaran"
@@ -1763,7 +1364,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                     const rows = verifiedReceipts.map((p) => {
                       const matched = clusterProperties.find((cp) => cp.code.toLowerCase() === p.propertyCode.toLowerCase());
                       const res = matched ? (matched.residentName || matched.ownerName) : `Warga ${p.propertyCode}`;
-                      const receiptNo = `KWT-${(p.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${p.propertyCode.replace(/[^A-Z0-9]/g, '')}-${p.id.slice(-4)}`;
+                      const receiptNo = receiptNumber('', '', p.id);
                       return [receiptNo, `"${p.propertyCode}"`, `"${res}"`, p.amount, `"${p.method}"`, `"${p.reference || '-'}"`, `"${p.paidAt}"`];
                     });
                     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -1858,7 +1459,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                     verifiedReceipts.map((pay) => {
                       const matched = clusterProperties.find((cp) => cp.code.toLowerCase() === pay.propertyCode.toLowerCase());
                       const resident = matched ? (matched.residentName || matched.ownerName) : `Warga ${pay.propertyCode}`;
-                      const receiptNo = `KWT-${(pay.periodName || '2026').replace(/\s+/g, '').slice(0, 7).toUpperCase()}-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}-${pay.id.slice(-4)}`;
+                      const receiptNo = receiptNumber('', '', pay.id);
 
                       return (
                         <tr key={pay.id} className="hover:bg-canvas/60 text-ink transition-colors">
@@ -1892,26 +1493,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                             <div className="inline-flex items-center gap-1 justify-end">
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setSelectedReceipt({
-                                    invoiceNumber: `INV-${(pay.periodName || '2026').replace(/\s+/g, '').toUpperCase()}-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
-                                    periodName: pay.periodName || 'September 2026',
-                                    propertyCode: pay.propertyCode,
-                                    residentName: resident,
-                                    amount: pay.amount,
-                                    paidAt: pay.paidAt || '28 September 2026',
-                                    paymentMethod: pay.method,
-                                    referenceNumber: pay.reference || receiptNo,
-                                    kepalaKomplekName: kepalaKomplekName,
-                                    isInvoice: false,
-                                    items: pay.amount === 350000 ? [
-                                      { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                                      { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                                    ] : (pay.amount === 250000 ? [
-                                      { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                                    ] : undefined),
-                                  })
-                                }
+                                onClick={() => openReceipt(pay)}
                                 className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 active:scale-[0.98] transition-all"
                                 title="Buka & Cetak Kuitansi Resmi"
                               >
@@ -1930,33 +1512,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                                 <span>Kirim WA</span>
                               </a>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedReceipt({
-                                    invoiceNumber: `INV-${(pay.periodName || '2026').replace(/\s+/g, '').toUpperCase()}-${pay.propertyCode.replace(/[^A-Z0-9]/g, '')}`,
-                                    periodName: pay.periodName || 'September 2026',
-                                    propertyCode: pay.propertyCode,
-                                    residentName: resident,
-                                    amount: pay.amount,
-                                    paidAt: pay.paidAt || '28 September 2026',
-                                    paymentMethod: pay.method,
-                                    referenceNumber: pay.reference || receiptNo,
-                                    kepalaKomplekName: kepalaKomplekName,
-                                    isInvoice: true,
-                                    items: pay.amount === 350000 ? [
-                                      { name: 'Iuran RT (Sampah, Kebersihan Lingkungan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air & fasum RT' },
-                                      { name: 'Iuran RW (Retribusi Paguyuban & Wilayah RW)', amount: 100000, desc: 'Retribusi paguyuban komplek & koordinasi wilayah RW' },
-                                    ] : (pay.amount === 250000 ? [
-                                      { name: 'Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', amount: 250000, desc: 'Pengangkutan armada sampah dinas LH, saluran air, fasum dan operasional RT' }
-                                    ] : undefined),
-                                  })
-                                }
-                                className="px-2 py-1.5 bg-canvas hover:bg-surface border border-border text-ink-muted hover:text-ink rounded-lg font-bold text-[11px] inline-flex items-center gap-1 active:scale-[0.98] transition-all"
-                                title="Lihat Surat Tagihan / Invoice"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                              </button>
+                              <a className="btn-secondary text-xs" href="/admin/billing" title="Lihat tagihan asli">Invoice</a>
                             </div>
                           </td>
                         </tr>
@@ -2322,6 +1878,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
                 </span>
                 <button
                   type="button"
+                  disabled={!publishedBankAccounts.length}
                   onClick={() => {
                     navigator.clipboard.writeText(broadcastWaText);
                     setCopiedBroadcast(true);
@@ -2889,6 +2446,7 @@ export const PaymentsManager: React.FC<PaymentsManagerProps> = ({
               <div>
                 <label className="font-bold text-ink block mb-1">Status Pembayaran</label>
                 <select
+                  disabled={!!editingPaymentId}
                   value={formStatus}
                   onChange={(e) => setFormStatus(e.target.value as any)}
                   className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"

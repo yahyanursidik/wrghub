@@ -235,24 +235,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
   ];
 
   // 1. Announcements State
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_announcements_data');
-        const deletedStr = localStorage.getItem('wargahub_deleted_announcements');
-        const deletedIds: string[] = deletedStr ? JSON.parse(deletedStr) : [];
-        if (saved !== null) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((a: any) => !deletedIds.includes(a.id));
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return (initialAnnouncements && initialAnnouncements.length > 0) ? initialAnnouncements : [];
-  });
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(initialAnnouncements ?? []);
 
   // 2. Agenda Items (Dynamic from storage)
   const [agendaList, setAgendaList] = useState<AgendaItem[]>(() =>
@@ -461,11 +444,10 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
         });
 
         setAnnouncements(updated);
-        savePersisted('wargahub_announcements', updated);
         showToast(`Pengumuman "${formTitle}" berhasil diperbarui.`);
         setShowCreateModal(false);
       } else {
-        await apiFetch('/api/announcements/create', {
+        const response = await apiFetch('/api/announcements/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -480,9 +462,9 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
           }),
         });
 
-        const newId = `ANN-${Date.now().toString().slice(-4)}`;
+        const { data: published } = await response.json();
         const newAnn: AnnouncementItem = {
-          id: newId,
+          id: published.id,
           title: formTitle,
           content: formContent,
           category: formCategory,
@@ -492,12 +474,11 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
           isPinned: formIsPinned,
           authorName: formAuthor,
           createdAt: new Date().toISOString(),
-          viewCount: 1,
+          viewCount: 0,
         };
 
         const updated = [newAnn, ...announcements];
         setAnnouncements(updated);
-        savePersisted('wargahub_announcements', updated);
         showToast(`Pengumuman baru "${formTitle}" berhasil dipublikasikan.`);
         setShowCreateModal(false);
       }
@@ -520,7 +501,6 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
 
       const updated = announcements.map(a => a.id === ann.id ? { ...a, isPinned: nextPin } : a);
       setAnnouncements(updated);
-      savePersisted('wargahub_announcements', updated);
       showToast(nextPin ? `Pengumuman "${ann.title}" disematkan ke paling atas.` : `Sematkan "${ann.title}" dilepas.`);
     } catch (e) {
       console.error(e);
@@ -538,9 +518,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
 
       const updated = announcements.filter(a => a.id !== annToDelete.id);
       setAnnouncements(updated);
-      savePersisted('wargahub_announcements', updated);
-      addDeletedIds('wargahub_deleted_announcements', [annToDelete.id]);
-      showToast(`Pengumuman "${annToDelete.title}" berhasil dihapus.`);
+      showToast(`Pengumuman "${annToDelete.title}" diarsipkan.`);
       setAnnToDelete(null);
     } catch (e) {
       console.error(e);
@@ -560,9 +538,7 @@ export const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
 
       const updated = announcements.filter(a => !selectedAnnIds.includes(a.id));
       setAnnouncements(updated);
-      savePersisted('wargahub_announcements', updated);
-      addDeletedIds('wargahub_deleted_announcements', selectedAnnIds);
-      showToast(`${selectedAnnIds.length} pengumuman berhasil dihapus.`);
+      showToast(`${selectedAnnIds.length} pengumuman diarsipkan.`);
       setSelectedAnnIds([]);
       setShowBulkDeleteModal(false);
     } catch (e) {

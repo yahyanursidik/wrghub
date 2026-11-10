@@ -1,66 +1,24 @@
 import type { APIRoute } from 'astro';
-import { z } from 'zod';
-import { neonSql } from '../../../db/neon';
-import { db, schema } from '../../../db';
+import { vehicleInput } from '../../../lib/vehicle-input';
+import { saveRegisteredVehicle } from '../../../services/vehicle.service';
 import { recordAuditLog } from '../../../services/audit.service';
+import type { UserSession } from '../../../types/auth';
 
-const vehicleSchema = z.object({
-  propertyId: z.string(),
-  plateNumber: z.string().min(3),
-  type: z.string().default('Mobil'),
-  brand: z.string().min(2),
-  model: z.string().min(2),
-  color: z.string().default('Hitam'),
-  year: z.string().optional(),
-  ownerPersonId: z.string().optional(),
-});
-
-export const POST: APIRoute = async ({ request }) => {
+const input = vehicleInput;
+export const POST: APIRoute = async ({ request, session }) => {
+  const actor = await session?.get('wargahub_user') as UserSession | undefined;
+  if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: body.error.issues[0]?.message } }, { status: 400 });
   try {
-    const body = await request.json();
-    const validated = vehicleSchema.parse(body);
-    const id = `veh-${Date.now()}`;
-
-    if (process.env.DATABASE_URL) {
-      await neonSql`
-        INSERT INTO vehicles (
-          id, property_id, owner_person_id, plate_number, type, brand, model, color, year, is_active
-        ) VALUES (
-          ${id}, ${validated.propertyId}, ${validated.ownerPersonId || 'person-budi'},
-          ${validated.plateNumber.toUpperCase()}, ${validated.type}, ${validated.brand},
-          ${validated.model}, ${validated.color}, ${validated.year || '2022'}, true
-        );
-      `;
-
-      await recordAuditLog({
-        actorName: 'Warga / Penghuni',
-        action: 'vehicle.register',
-        entityType: 'VEHICLE',
-        entityId: id,
-        newValue: { plateNumber: validated.plateNumber, brand: validated.brand, model: validated.model },
-      });
-
-      return new Response(
-        JSON.stringify({
-          data: { id, message: 'Kendaraan baru berhasil didaftarkan ke sistem komplek.' },
-          meta: {},
-          error: null,
-        }),
-        { status: 201, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ data: { id, message: 'Kendaraan terdaftar.' } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'VEHICLE_REGISTRATION_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    const vehicle = await saveRegisteredVehicle(body.data);
+    await recordAuditLog({ actorUserId: actor.id, actorName: actor.fullName, action: 'vehicle.register',
+      entityType: 'PROPERTY_VEHICLE', entityId: vehicle.id, newValue: { plateNumber: vehicle.plateNumber, propertyId: vehicle.propertyId } });
+    return Response.json({ data: vehicle, error: null }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const status = message === 'Plat nomor sudah terdaftar.' ? 409 : message.endsWith('tidak ditemukan.') ? 404 : 503;
+    if (status === 503) console.error('Gagal menyimpan kendaraan:', error);
+    return Response.json({ error: { message: status === 503 ? 'Penyimpanan belum bisa dipastikan. Muat ulang daftar kendaraan.' : message } }, { status });
   }
 };

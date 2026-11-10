@@ -52,7 +52,7 @@ export const adminNavigation: NavigationGroup[] = [
     { label: 'Pengumuman & agenda', href: '/admin/announcements', icon: Megaphone, description: 'Informasi dan kegiatan warga', roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'SECURITY', 'MAINTENANCE'] },
     { label: 'Musyawarah', href: '/admin/voting', icon: Vote, description: 'Pemungutan suara dan jajak pendapat', keywords: 'voting polling', roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY'] },
     { label: 'WhatsApp', href: '/admin/whatsapp-bot', icon: MessageCircle, description: 'Template dan simulator pesan WhatsApp', keywords: 'bot wa', roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER'] },
-    { label: 'Notifikasi', href: '/admin/notifications', icon: Bell, description: 'Pemberitahuan dan aktivitas', roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'SECURITY'] },
+    { label: 'Notifikasi', href: '/admin/notifications', icon: Bell, description: 'Antrean yang perlu ditindaklanjuti', roles: ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'SECURITY', 'MAINTENANCE'] },
   ] },
   { label: 'Administrasi', items: [
     { label: 'Dokumen', href: '/admin/documents', icon: FolderOpen, description: 'Arsip dan dokumen komunitas', roles: governance },

@@ -2,41 +2,26 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { PropertiesManager } from '../../components/admin/PropertiesManager';
 import { getProperties } from '../../services/property.service';
-import { 
-  getInitialResidents, 
-  getInitialVehicles, 
-  getInitialPermits, 
-  getInitialUtilities 
-} from '../../services/property-submodules.service';
+import { getInitialResidents, getInitialVehicles, getInitialPermits, getInitialUtilities } from '../../services/property-submodules.service';
+import { canAccessAdminPage, canEditHousing, canReadHousingBilling, residentsForRole } from '../../lib/access-policy';
+import type { UserSession } from '../../types/auth';
 
-const [properties, residents, vehicles, permits, utilities] = await Promise.all([
-  getProperties().catch(() => []),
-  getInitialResidents().catch(() => []),
-  getInitialVehicles().catch(() => []),
-  getInitialPermits().catch(() => []),
-  getInitialUtilities().catch(() => []),
-]);
-
-const tab = Astro.url.searchParams.get('tab') || 'units';
-
-const pageTitle = tab === 'residents' || tab === 'occupants' ? 'Sensus & Data Penghuni - WargaHub'
-  : tab === 'owners' ? 'Data Pemilik Rumah - WargaHub'
-  : tab === 'vehicles' || tab === 'rfid' ? 'Data Kendaraan & Akses RFID - WargaHub'
-  : tab === 'permits' || tab === 'renovation' ? 'Izin Renovasi & Pekerja - WargaHub'
-  : tab === 'analytics' || tab === 'utilities' ? 'Okupansi & Utilitas - WargaHub'
-  : 'Data Master Rumah & Kavling - WargaHub';
-
-const currentPath = '/admin/properties';
+const actor=await Astro.session?.get('wargahub_user') as UserSession|undefined;
+if(!actor) return Astro.redirect('/login?portal=admin');
+const canEdit=canEditHousing(actor.role);
+const canOpenBilling=canAccessAdminPage(actor.role,'/admin/billing');
+const result=await Promise.allSettled([getProperties(),getInitialResidents(),getInitialVehicles(),getInitialPermits(),getInitialUtilities(canReadHousingBilling(actor.role))] as const);
+const [properties,residents,vehicles,permits,utilities]=result.map(item=>item.status==='fulfilled'?item.value:[]) as [
+  Awaited<ReturnType<typeof getProperties>>,Awaited<ReturnType<typeof getInitialResidents>>,Awaited<ReturnType<typeof getInitialVehicles>>,
+  Awaited<ReturnType<typeof getInitialPermits>>,Awaited<ReturnType<typeof getInitialUtilities>>
+];
+const tab=Astro.url.searchParams.get('tab') || 'units';
+const query=Astro.url.searchParams.get('q')?.slice(0,120) || '';
+const house=Astro.url.searchParams.get('house')?.slice(0,30) || '';
 ---
-
-<AdminLayout title={pageTitle} currentPath={currentPath}>
-  <PropertiesManager 
-    initialProperties={properties} 
-    initialTab={tab} 
-    initialResidents={residents}
-    initialVehicles={vehicles}
-    initialPermits={permits}
-    initialUtilities={utilities}
-    client:load 
-  />
+<AdminLayout title="Rumah & Warga · WargaHub" currentPath="/admin/properties">
+  {result.some(item=>item.status==='rejected') && <p role="alert" class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Sebagian data belum bisa dimuat. Muat ulang sebelum melakukan perubahan.</p>}
+  <PropertiesManager initialProperties={properties} initialTab={tab} initialQuery={query} initialHouse={house}
+    initialResidents={residentsForRole(residents,actor.role)} initialVehicles={vehicles} initialPermits={permits} initialUtilities={utilities}
+    canEdit={canEdit} canOpenBilling={canOpenBilling} client:load />
 </AdminLayout>

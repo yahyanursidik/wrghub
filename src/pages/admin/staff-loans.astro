@@ -2,9 +2,12 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { StaffLoansManager } from '../../components/admin/StaffLoansManager';
 
+import { getLoanPolicy, listStaffLoans } from '../../services/staff-loan.service';
+
+const [loans, policy] = await Promise.all([listStaffLoans(), getLoanPolicy()]);
 const tab = Astro.url.searchParams.get('tab') || 'active_loans';
 ---
 
 <AdminLayout title="Buku Kasbon & Gaji di Awal Petugas - WargaHub" currentPath="/admin/staff-loans">
-  <StaffLoansManager client:load initialTab={tab as any} />
+  <StaffLoansManager client:load initialTab={tab as any} initialLoans={loans} initialPolicy={policy} />
 </AdminLayout>

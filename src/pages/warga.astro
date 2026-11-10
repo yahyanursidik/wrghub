@@ -1,14 +1,21 @@
 ---
 import { ResidentPortalView } from '../components/portal/ResidentPortalView';
-import { getAnnouncements } from '../services/announcement.service';
+import { InformationDashboard } from '../components/portal/InformationDashboard';
+import { PublicNavigation } from '../components/layout/PublicNavigation';
+import { filterAnnouncementsForUser, getAnnouncements } from '../services/announcement.service';
 import { getResidentOverview } from '../services/resident-overview.service';
+import { hasWorkspace } from '../lib/dashboard-workspace';
 import type { UserSession } from '../types/auth';
 import '../styles/global.css';
 
 const currentUser = await Astro.session?.get('wargahub_user') as UserSession | undefined;
-
-const announcements = await getAnnouncements();
-const overview = currentUser ? await getResidentOverview(currentUser).catch(() => undefined) : undefined;
+if (!currentUser) return Astro.redirect('/login?portal=resident');
+const infoOnly = currentUser.role === 'VIEWER' || (hasWorkspace(currentUser.role) && !currentUser.propertyId && !currentUser.propertyCode);
+const [allAnnouncements, overview] = await Promise.all([
+  getAnnouncements().catch(() => null),
+  infoOnly ? undefined : getResidentOverview(currentUser).catch(() => undefined),
+]);
+const announcements = allAnnouncements ? filterAnnouncementsForUser(allAnnouncements, currentUser, overview?.property ?? null) : null;
 ---
 
 <!doctype html>
@@ -16,7 +23,7 @@ const overview = currentUser ? await getResidentOverview(currentUser).catch(() =
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WargaHub - Portal Warga Grand Sariwangi</title>
+    <title>{infoOnly ? 'Informasi Lingkungan - WargaHub' : 'Portal Warga - WargaHub'}</title>
     <meta name="description" content="Cek iuran, informasi lingkungan, data rumah, dan layanan warga Grand Sariwangi." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -33,6 +40,12 @@ const overview = currentUser ? await getResidentOverview(currentUser).catch(() =
     </script>
   </head>
   <body class="bg-canvas text-ink font-sans min-h-screen antialiased selection:bg-primary-100 selection:text-primary-900">
-    <ResidentPortalView initialUser={currentUser} initialAnnouncements={announcements} initialOverview={overview} client:load />
+    {infoOnly ? <>
+      <a href="#main-content" class="skip-link">Lewati menu, ke konten</a>
+      <PublicNavigation currentPath="/warga" signedIn />
+      <main id="main-content" tabindex="-1" class="mx-auto w-full max-w-4xl p-4 pb-24 sm:p-8">
+        <InformationDashboard name={currentUser.fullName} role={currentUser.role} news={announcements} client:load />
+      </main>
+    </> : <ResidentPortalView initialUser={currentUser} initialAnnouncements={announcements ?? []} announcementUnavailable={announcements === null} initialOverview={overview} initialSearch={Astro.url.search} client:load />}
   </body>
 </html>

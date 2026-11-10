@@ -86,7 +86,6 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
   const [successMsg, setSuccessMsg] = useState('');
 
   // Modals State
-  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Dynamic branding
@@ -384,13 +383,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                   <label htmlFor="admin-password" className="block text-sm font-medium text-ink">
                     Kata Sandi
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPasswordModal(true)}
-                    className="text-[11px] font-semibold text-primary-700 hover:text-primary-800 hover:underline"
-                  >
-                    Lupa Password?
-                  </button>
+                  <a href="/pulihkan-akun?portal=admin" className="text-xs font-semibold text-primary-700 underline-offset-4 hover:underline">Lupa kata sandi?</a>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-muted">
@@ -486,45 +479,6 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
           <span>WargaHub Smart Residential • Grand Sariwangi</span>
         </div>
 
-        {/* Forgot Password Modal */}
-        {showForgotPasswordModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-in fade-in">
-            <div className="bg-surface rounded-3xl max-w-sm w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="font-black text-sm text-ink flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-primary-600" />
-                  <span>Bantuan Kata Sandi Pengurus</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPasswordModal(false)}
-                  className="p-1 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-2 text-ink-muted leading-relaxed">
-                <p>
-                  Untuk alasan keamanan data warga dan kas paguyuban, pemulihan kata sandi pengurus dilakukan melalui verifikasi internal.
-                </p>
-                <div className="p-3 bg-canvas rounded-2xl border border-border space-y-1">
-                  <span className="font-bold text-ink block">Kontak Administrator Utama:</span>
-                  <p className="text-[11px]">Sekretaris Paguyuban: <strong>0812-3456-7890</strong></p>
-                  <p className="text-[11px]">Email Resmi: <strong>admin@wargahub.id</strong></p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowForgotPasswordModal(false)}
-                className="w-full py-2.5 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-colors"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -852,13 +806,7 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
                       <label className="text-xs font-bold text-ink">
                         Kata Sandi / PIN Akses
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowForgotPasswordModal(true)}
-                        className="text-[11px] font-bold text-primary-700 hover:text-primary-800 hover:underline"
-                      >
-                        Lupa Kata Sandi?
-                      </button>
+                      <a href="/pulihkan-akun" className="text-xs font-semibold text-primary-700 underline-offset-4 hover:underline">Lupa kata sandi?</a>
                     </div>
 
                     <div className="relative">
@@ -1420,68 +1368,6 @@ export const UnifiedLoginView: React.FC<UnifiedLoginViewProps> = ({
       </footer>
 
       {/* ========================================================================= */}
-      {/* MODAL 1: FORGOT PASSWORD DIALOG                                           */}
-      {/* ========================================================================= */}
-      {showForgotPasswordModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-surface rounded-3xl p-6 sm:p-8 max-w-md w-full border border-border shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-                  <KeyRound className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-base text-ink">Bantuan Lupa Kata Sandi</h3>
-                  <span className="text-[11px] text-ink-muted">Pemulihan Akun Warga & Pengurus</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowForgotPasswordModal(false)}
-                className="w-8 h-8 rounded-full bg-canvas text-ink-muted hover:text-ink flex items-center justify-center font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-ink-muted leading-relaxed">
-              <p>
-                Untuk menjaga keamanan kependudukan dan perlindungan data komplek, reset kata sandi dilakukan melalui verifikasi pengurus RT/RW:
-              </p>
-              <div className="p-3 bg-canvas rounded-2xl border border-border space-y-2">
-                <span className="font-bold text-ink block">Langkah Pemulihan Cepat:</span>
-                <ol className="list-decimal list-inside space-y-1 text-[11px]">
-                  <li>Klik tombol WhatsApp di bawah untuk menghubungi Administrator.</li>
-                  <li>Sebutkan Nomor Unit Rumah Anda (misal: Rumah A-17).</li>
-                  <li>Sertakan nama kepala keluarga yang terdaftar.</li>
-                  <li>Admin akan mereset sandi Anda menjadi sandi sementara dalam 5 menit.</li>
-                </ol>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <a
-                href={`https://api.whatsapp.com/send?phone=6281220082240&text=${encodeURIComponent(
-                  `Halo Admin WargaHub Komplek Grand Sariwangi, saya lupa kata sandi akun untuk Nomor Unit Rumah: ${identifier || '...'}. Mohon bantuan reset password. Terima kasih.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-              >
-                <MessageSquare className="w-4 h-4" />
-                Hubungi via WhatsApp
-              </a>
-              <button
-                type="button"
-                onClick={() => setShowForgotPasswordModal(false)}
-                className="px-4 py-3 bg-canvas border border-border text-ink font-bold text-xs rounded-xl"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* MODAL 2: REGISTRATION SUCCESS CONFIRMATION                                */}

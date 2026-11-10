@@ -1,39 +1,23 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
+import type { UserSession } from '../../../types/auth';
+import { announcementFields } from '../../../lib/announcement-input';
 import { createAnnouncement } from '../../../services/announcement.service';
 
-const annSchema = z.object({
-  title: z.string().min(3),
-  content: z.string().min(5),
-  category: z.string().default('INFO'),
-  audience: z.string().default('ALL'),
-  scheduledAt: z.string().optional(),
-  location: z.string().optional(),
-  isPinned: z.boolean().default(false),
-  createdBy: z.string().default('user-ketua'),
+const input = announcementFields.extend({
+  category: announcementFields.shape.category.default('INFO'), audience: announcementFields.shape.audience.default('ALL'),
+  scheduledAt: announcementFields.shape.scheduledAt.default(null), location: announcementFields.shape.location.default(null), isPinned: z.boolean().default(false),
 });
-
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, session }) => {
+  const actor = await session?.get('wargahub_user') as UserSession | undefined;
+  if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: body.error.issues[0]?.message } }, { status: 400 });
   try {
-    const body = await request.json();
-    const validated = annSchema.parse(body);
-    const id = await createAnnouncement(validated);
-
-    return new Response(
-      JSON.stringify({
-        data: { id, message: 'Pengumuman berhasil dipublikasikan.' },
-        meta: {},
-        error: null,
-      }),
-      { status: 201, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'ANNOUNCEMENT_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    const id = await createAnnouncement(body.data, actor);
+    return Response.json({ data: { id, ...body.data, isPublished: true, createdAt: new Date().toISOString() }, error: null }, { status: 201 });
+  } catch (error) {
+    console.error('Penerbitan pengumuman:', error);
+    return Response.json({ error: { message: 'Penerbitan belum bisa dipastikan. Muat ulang daftar.' } }, { status: 503 });
   }
 };

@@ -1,99 +1,28 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
+import { deactivateRegisteredVehicles } from '../../../../services/vehicle.service';
 import { recordAuditLog } from '../../../../services/audit.service';
+import type { UserSession } from '../../../../types/auth';
 
-const deleteVehicleSchema = z.object({
-  id: z.string().optional(),
-  vehicleId: z.string().optional(),
-  plateNumber: z.string().optional(),
-  houseCode: z.string().optional(),
-  ids: z.array(z.string()).optional(),
-  plateNumbers: z.array(z.string()).optional(),
-  reason: z.string().optional(),
-});
+const id = z.string().min(1).max(180);
+const input = z.object({ id: id.optional(), vehicleId: id.optional(), ids: z.array(id).min(1).max(100).optional(), reason: z.string().trim().max(500).optional() });
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, session }) => {
+  const actor = await session?.get('wargahub_user') as UserSession | undefined;
+  if (!actor) return Response.json({ error: { message: 'Silakan masuk kembali.' } }, { status: 401 });
+  const body = input.safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: 'Data kendaraan tidak valid.' } }, { status: 400 });
+  const { id, vehicleId, ids, reason } = body.data;
+  const selected = [...new Set(ids ?? [vehicleId || id].filter((value): value is string => Boolean(value)))];
+  if (!selected.length) return Response.json({ error: { message: 'Pilih kendaraan yang akan dinonaktifkan.' } }, { status: 400 });
   try {
-    const body = await request.json();
-    const validated = deleteVehicleSchema.parse(body);
-
-    // Case 1: Bulk delete
-    if (validated.ids && validated.ids.length > 0) {
-      const targetIds = validated.ids;
-      const targetPlates = validated.plateNumbers || [];
-
-      if (process.env.DATABASE_URL) {
-        await recordAuditLog({
-          actorName: 'Pengurus Komplek',
-          action: 'property.bulk_delete_vehicle',
-          entityType: 'PROPERTY_VEHICLE',
-          entityId: `BULK-VEH-${targetIds.length}`,
-          newValue: {
-            ids: targetIds,
-            plates: targetPlates,
-            count: targetIds.length,
-            reason: validated.reason || `Penghapusan massal ${targetIds.length} kendaraan`,
-            deletedAt: new Date().toISOString()
-          },
-        });
-      }
-
-      return new Response(
-        JSON.stringify({
-          data: {
-            success: true,
-            deletedCount: targetIds.length,
-            ids: targetIds,
-            message: `Sebanyak ${targetIds.length} kendaraan berhasil dinonaktifkan / dicabut akses RFID-nya.`
-          },
-          meta: {},
-          error: null,
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Case 2: Single delete
-    const targetId = validated.vehicleId || validated.id || '';
-
-    if (!targetId && !validated.plateNumber) {
-      throw new Error('ID kendaraan atau plat nomor wajib disertakan.');
-    }
-
-    if (process.env.DATABASE_URL) {
-      await recordAuditLog({
-        actorName: 'Pengurus Komplek',
-        action: 'property.delete_vehicle',
-        entityType: 'PROPERTY_VEHICLE',
-        entityId: targetId || validated.plateNumber || 'UNKNOWN',
-        newValue: {
-          plate: validated.plateNumber,
-          house: validated.houseCode,
-          reason: validated.reason || 'Dihapus dari master kendaraan',
-          deletedAt: new Date().toISOString()
-        },
-      });
-    }
-
-    return new Response(
-      JSON.stringify({
-        data: {
-          success: true,
-          id: targetId,
-          message: `Kendaraan ${validated.plateNumber || targetId} berhasil dinonaktifkan / dihapus dari master akses gerbang.`
-        },
-        meta: {},
-        error: null,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        data: null,
-        error: { code: 'DELETE_VEHICLE_FAILED', message: err.message },
-      }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    const updated = await deactivateRegisteredVehicles(selected);
+    if (!updated.length) return Response.json({ error: { message: 'Kendaraan aktif tidak ditemukan.' } }, { status: 404 });
+    await recordAuditLog({ actorUserId: actor.id, actorName: actor.fullName, action: 'vehicle.deactivate', entityType: 'PROPERTY_VEHICLE',
+      entityId: updated[0], newValue: { ids: updated, reason } });
+    return Response.json({ data: { ids: updated, deletedCount: updated.length }, error: null });
+  } catch (error) {
+    console.error('Gagal menonaktifkan kendaraan:', error);
+    return Response.json({ error: { message: 'Status belum bisa dipastikan. Muat ulang daftar kendaraan.' } }, { status: 503 });
   }
 };

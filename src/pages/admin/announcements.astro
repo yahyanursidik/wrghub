@@ -1,17 +1,30 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { AnnouncementsManager } from '../../components/admin/AnnouncementsManager';
-import { getAnnouncements } from '../../services/announcement.service';
+import { filterAnnouncementsForUser, getAnnouncements } from '../../services/announcement.service';
 import { getProperties } from '../../services/property.service';
+import { allowedApiRoles } from '../../lib/access-policy';
+import type { UserSession } from '../../types/auth';
 
+const user = await Astro.session?.get('wargahub_user') as UserSession;
+const canPublish = allowedApiRoles('/api/announcements/create', 'POST')?.includes(user.role);
 const [announcements, properties] = await Promise.all([
-  getAnnouncements().catch(() => []),
-  getProperties().catch(() => [])
+  getAnnouncements().catch(() => null),
+  canPublish ? getProperties().catch(() => []) : [],
 ]);
 const tab = Astro.url.searchParams.get('tab') || 'announcements';
+const published = !canPublish && announcements ? filterAnnouncementsForUser(announcements, user, null) : [];
 ---
 
 <AdminLayout title="Pengumuman & Agenda - WargaHub" currentPath="/admin/announcements">
-  <AnnouncementsManager initialAnnouncements={announcements} initialTab={tab} totalProperties={properties.length} client:load />
+  {canPublish && announcements ? <AnnouncementsManager initialAnnouncements={announcements} initialTab={tab} totalProperties={properties.length} client:load />
+  : <div class="workspace">
+    <header class="workspace-heading"><div><p class="workspace-kicker">Informasi lingkungan</p><h1>Pengumuman</h1></div></header>
+    <section class="workspace-panel" aria-label="Pengumuman terbit">
+      {published.length ? <ul class="divide-y divide-border">{published.map(item => <li class="py-3">
+        <h2 class="break-words">{item.title}</h2><p class="whitespace-pre-line break-words text-sm text-ink-muted">{item.content}</p>
+      </li>)}</ul> : <p class="text-sm text-ink-muted">{announcements === null ? 'Pengumuman belum bisa dimuat.' : 'Belum ada pengumuman untuk peran ini.'}</p>}
+    </section>
+  </div>}
 </AdminLayout>
 

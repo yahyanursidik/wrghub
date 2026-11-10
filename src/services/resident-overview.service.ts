@@ -1,55 +1,69 @@
+import { receiptNumber } from '../lib/receipt-number';
 import type { UserSession } from '../types/auth';
 import { getProperties, type PropertyListItem } from './property.service';
 import { getAllInvoices, getBillingPeriods } from './billing.service';
 import { getPayments } from './payment.service';
 import { getInitialResidents, getInitialVehicles, getInitialPermits } from './property-submodules.service';
-import { getComplaints } from './complaint.service';
-import { getFacilities } from './facility.service';
+import { getComplaints, type ComplaintItem } from './complaint.service';
+import type { VehicleItem } from '../types/property-submodules';
+import { getFacilities, getFacilityBookings } from './facility.service';
+import type { ReservationStatus } from '../lib/reservation';
 import { getCommunityProfile, type CommunityProfileSettings } from './settings.service';
 
 export interface ResidentInvoice {
   id: string; code: string; shortLabel: string; name: string;
-  status: 'paid' | 'pending' | 'upcoming'; paidAt: string | null;
+  status: 'paid' | 'pending' | 'upcoming' | 'waived'; paidAt: string | null;
   inv: string; billingPeriodId: string; amount: number; remaining: number;
   dueDate: string; method: string; reference: string;
+  receipts?: {id:string; number:string; amount:number; paidAt:string; method:string; reference:string}[];
 }
 export interface ResidentOverview {
   property: PropertyListItem | null;
   invoices: ResidentInvoice[];
-  occupants: any[]; vehicles: any[]; permits: any[]; complaints: any[];
+  occupants: any[]; vehicles: VehicleItem[]; permits: any[]; complaints: ComplaintItem[];
   facilities: { id: string; name: string; location: string; condition: string }[];
+  bookings: { id: string; facilityName: string; date: string; startTime: string; endTime: string; status: ReservationStatus }[];
   profile?: CommunityProfileSettings;
 }
-export const emptyResidentOverview: ResidentOverview = { property: null, invoices: [], occupants: [], vehicles: [], permits: [], complaints: [], facilities: [] };
+export const emptyResidentOverview: ResidentOverview = { property: null, invoices: [], occupants: [], vehicles: [], permits: [], complaints: [], facilities: [], bookings: [] };
 
 export async function getResidentOverview(user: UserSession): Promise<ResidentOverview> {
+  if (user.role === 'VIEWER' || (!user.propertyId && !user.propertyCode)) return { ...emptyResidentOverview };
   const properties = await getProperties();
-  const property = properties.find(property => (user.propertyId && property.id === user.propertyId) || (user.propertyCode && property.code.toLowerCase() === user.propertyCode.toLowerCase()));
+  const property = properties.find(property => user.propertyId ? property.id === user.propertyId : property.code.toLowerCase() === user.propertyCode?.toLowerCase());
   if (!property) return { ...emptyResidentOverview };
-  const [invoices, periods, payments, occupants, vehicles, permits, complaints, facilities, profile] = await Promise.all([
-    getAllInvoices(), getBillingPeriods(), getPayments(undefined, 'VERIFIED'),
-    getInitialResidents(), getInitialVehicles(), getInitialPermits(), getComplaints(), getFacilities(), getCommunityProfile(),
+  const [invoices, periods, payments, occupants, vehicles, permits, complaints, facilities, profile, bookings] = await Promise.all([
+    getAllInvoices(), getBillingPeriods(), getPayments(undefined, 'VERIFIED', property.id),
+    getInitialResidents(property.id), getInitialVehicles(property.id), getInitialPermits(property.id), getComplaints(property.id), getFacilities(), getCommunityProfile(),
+    getFacilityBookings(property.id),
   ]);
-  const scopedInvoices = invoices.filter(invoice => invoice.propertyId === property.id).map(invoice => {
+  const scopedInvoices = invoices.filter(invoice => invoice.propertyId === property.id && !['VOID','CANCELLED'].includes(invoice.status)).map(invoice => {
     const period = periods.find(period => period.id === invoice.billingPeriodId);
     const name = period?.name || ('billingPeriodName' in invoice ? String(invoice.billingPeriodName) : invoice.billingPeriodId);
-    const payment = payments.find(payment => payment.propertyCode === property.code && payment.periodName === name);
+    const uniquePeriod = invoices.filter(item => item.propertyId === property.id && item.billingPeriodId === invoice.billingPeriodId).length === 1;
+    const related = payments.filter(payment => payment.invoiceId === invoice.id || (!payment.invoiceId && uniquePeriod && payment.billingPeriodId === invoice.billingPeriodId));
+    const payment = related[0];
+    const receipts = related.map(item => ({ id:item.id, number:receiptNumber(name,property.code,item.id), amount:item.amount,
+      paidAt:new Date(item.paidAt).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), method:item.method, reference:item.reference || '-' }));
     return {
       id: invoice.id, code: invoice.id, shortLabel: name,
-      name, status: invoice.status === 'PAID' || invoice.status === 'WAIVED' ? 'paid' as const : 'pending' as const,
+      name, status: invoice.status === 'WAIVED' ? 'waived' as const : invoice.status === 'PAID' ? 'paid' as const : 'pending' as const,
       paidAt: invoice.paidAt ? new Date(invoice.paidAt).toLocaleString('id-ID') : null,
       inv: invoice.invoiceNumber, billingPeriodId: invoice.billingPeriodId,
-      amount: Number(invoice.total), remaining: Math.max(0, Number(invoice.total) - Number(invoice.paidAmount)),
+      amount: Number(invoice.total), remaining: invoice.status === 'WAIVED' ? 0 : Math.max(0, Number(invoice.total) - Number(invoice.paidAmount)),
       dueDate: invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('id-ID') : '-',
-      method: payment?.method || '-', reference: payment?.reference || '-',
+      method: payment?.method || '-', reference: payment?.reference || '-', receipts,
     };
   }).reverse();
   return {
-    property, invoices: scopedInvoices, profile,
-    occupants: occupants.filter(occupant => occupant.propertyId === property.id).map(occupant => ({ ...occupant, idCardNumber: occupant.idCard || '-', isEmergencyContact: occupant.isEmergency })),
-    vehicles: vehicles.filter(vehicle => vehicle.propertyId === property.id),
-    permits: permits.filter(permit => permit.houseCode?.toLowerCase() === property.code.toLowerCase()),
-    complaints: complaints.filter(complaint => complaint.propertyCode === property.code),
+    property:{...property,notes:null}, invoices: scopedInvoices, profile,
+    occupants: occupants.map(({ id, fullName, relation, phone, idCard, isEmergency, birthPlaceDate }) => ({
+      id, fullName, relation: ({ KEPALA_KELUARGA:'Kepala Keluarga', ISTRI:'Istri', ANAK:'Anak', ORANG_TUA:'Orang Tua', FAMILI_LAIN:'Keluarga Lain', ART:'ART / Supir', PENYEWA:'Penyewa' })[relation], phone, idCardNumber: idCard ? '••••' + idCard.slice(-4) : '-', isEmergencyContact: isEmergency, birthDate: birthPlaceDate || '-',
+    })),
+    vehicles,
+    permits,
+    complaints,
+    bookings: bookings.map(({ id, facilityName, date, startTime, endTime, status }) => ({ id, facilityName, date, startTime, endTime, status })),
     facilities: facilities.map(facility => ({ id: facility.id, name: facility.name, location: facility.location || '-', condition: facility.condition })),
   };
 }

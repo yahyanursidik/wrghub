@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { authenticateUser } from '../../../services/auth.service';
+import { hasWorkspace } from '../../../lib/dashboard-workspace';
 
 const loginSchema = z.object({
   identifier: z.string().min(1, 'Username atau No. Rumah wajib diisi').max(200),
@@ -30,19 +31,7 @@ export const POST: APIRoute = async ({ request, cookies, session }) => {
     await session.set('wargahub_user', user);
     await session.set('credential_version', result.credentialVersion);
     await session.set('issued_at', Date.now());
-    const isAdminRole = ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'TREASURER', 'RESIDENT_ADMIN', 'SECURITY', 'MAINTENANCE', 'AUDITOR'].includes(user.role);
-
-    // Determine redirect
-    let redirectUrl = '/warga';
-    if (isAdminRole && portal !== 'resident') {
-      redirectUrl = user.role === 'TREASURER' ? '/admin/payments'
-        : user.role === 'SECURITY' ? '/admin/security-gate'
-        : user.role === 'MAINTENANCE' ? '/admin/cleaning-staff'
-        : user.role === 'SECRETARY' ? '/admin/announcements'
-        : '/admin';
-    } else {
-      redirectUrl = '/warga';
-    }
+    const redirectUrl = hasWorkspace(user.role) && portal !== 'resident' ? '/admin' : '/warga';
 
     // Retire the legacy identity cookie; authorization and SSR use the server session.
     cookies.delete('wargahub_user', { path: '/' });

@@ -77,12 +77,40 @@ try {
   };
   await cdp('Runtime.enable'); await cdp('Page.enable');
   assert.ok(process.env.UI_TEST_USERNAME && process.env.UI_TEST_PASSWORD, 'Use npm run test:ui to create an isolated authenticated fixture, or provide UI_TEST_USERNAME/UI_TEST_PASSWORD.');
+  if (process.env.UI_TEST_ROLE_LAYOUTS === '1') {
+    assert.equal(process.env.UI_TEST_ISOLATED, '1');
+    const profiles = {
+      super: 'SUPER_ADMIN', admin: 'CHAIRMAN', treasurer: 'TREASURER', secretary: 'SECRETARY', people: 'RESIDENT_ADMIN',
+      security: 'SECURITY', maintenance: 'MAINTENANCE', auditor: 'AUDITOR', owner: 'HOUSE_OWNER', resident: 'HOUSEHOLD_HEAD', tenant: 'RESIDENT', viewer: 'VIEWER',
+    };
+    for (const [username, role] of Object.entries(profiles)) {
+      await navigate('/', '#resident-identifier');
+      const isResident = ['owner', 'resident', 'tenant', 'viewer'].includes(username);
+      const expected = isResident ? '/warga' : '/admin';
+      const attribute = isResident ? 'data-resident-workspace' : 'data-workspace-role';
+      const payload = JSON.stringify({ identifier: `ui_${username}`, password: process.env.UI_TEST_PASSWORD });
+      const signedIn = await evaluate(`fetch('/api/auth/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(${payload})}).then(async r => ({status:r.status,data:(await r.json()).data}))`);
+      assert.equal(signedIn.status, 200, `Login ${role}`);
+      assert.equal(signedIn.data.redirectUrl, expected);
+      await navigate(expected, `[${attribute}="${role}"]`);
+      for (const width of [320, 375, 414, 768, 1440]) {
+        await viewport(width);
+        await noOverflow(`${role} ${width}px`);
+        const clipped = await evaluate(`Array.from(document.querySelectorAll('.workspace-button,.workspace-module-group a,.resident-service-button,.workspace-shortcuts a,.workspace-row')).filter(e => e.scrollWidth > e.clientWidth + 1 || e.getBoundingClientRect().right > innerWidth + 1).map(e => e.textContent.trim())`);
+        assert.deepEqual(clipped, [], `Clipped links: ${role} ${width}px`);
+        if ([320, 1440].includes(width)) await screenshot(`role-${role.toLowerCase()}-${width}`);
+      }
+      console.log(`PASS ${role} at 320, 375, 414, 768 and 1440px`);
+    }
+    assert.deepEqual(errors, [], 'Unexpected browser errors in role dashboards');
+    console.log(`Screenshots: ${output}`);
+  } else {
   await navigate('/', '#resident-identifier');
   const login = await evaluate(`fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(${JSON.stringify({ identifier: process.env.UI_TEST_USERNAME, password: process.env.UI_TEST_PASSWORD, portal: 'admin' })}) }).then(async response => ({ status:response.status, body:await response.json() }))`);
   assert.equal(login.status, 200, 'Fixture login failed');
   await evaluate(`localStorage.setItem('wargahub_user', JSON.stringify(${JSON.stringify(login.body.data.user)}))`);
 
-  for (const width of [360, 768, 1440]) {
+  for (const width of [320, 360, 375, 414, 768, 1440]) {
     await viewport(width);
     await navigate('/admin', '.admin-header');
     await wait(`document.querySelector('.admin-sidebar[data-ready="true"]')`);
@@ -143,6 +171,17 @@ try {
   await wait(`location.search.includes('tab=beranda')`);
   await noOverflow('Resident home');
   await screenshot('resident-mobile');
+  const complaintsShortcut = 'Array.from(document.querySelectorAll(".resident-service-button")).find(button => button.textContent.trim() === "Aduan saya")';
+  await evaluate(`${complaintsShortcut}.click()`);
+  await wait(`location.search.includes('tab=info') && location.search.includes('info=complaints')`);
+  await evaluate('history.back()');
+  await wait(`location.search.includes('tab=beranda') && document.querySelector('[data-resident-workspace]')`);
+  for (const width of [320, 375, 414, 768]) {
+    await viewport(width);
+    await noOverflow(`Resident home ${width}px`);
+    assert.equal(await evaluate(`Array.from(document.querySelectorAll('.resident-service-button')).every(button => button.scrollWidth <= button.clientWidth)`), true, `Resident shortcut clips at ${width}px`);
+    await screenshot(`resident-${width}`);
+  }
   await viewport(1440);
   await noOverflow('Resident desktop');
   await screenshot('resident-desktop');
@@ -154,6 +193,22 @@ try {
     const adminLogin = await evaluate(`fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(${JSON.stringify({ identifier: process.env.UI_TEST_USERNAME, password: process.env.UI_TEST_PASSWORD, portal: 'admin' })}) }).then(async response => ({ status:response.status, body:await response.json() }))`);
     assert.equal(adminLogin.status, 200);
     await evaluate(`localStorage.removeItem('wargahub_user')`);
+    await navigate('/admin/properties?tab=units&house=A-01','#registry-heading');
+    assert.equal(await evaluate("document.querySelector('[aria-label=\"Lingkup rumah\"]').value"),'A-01');
+    for (const width of [320,375,414,768]) { await viewport(width); await noOverflow('Rumah & Warga '+width); if(width===375) { assert.ok(await evaluate("document.querySelector('#tab-panel-units table').getClientRects().length===0")); await screenshot('rumah-warga-375'); } }
+    await viewport(1440); await screenshot('rumah-warga-desktop');
+    await evaluate("document.querySelector('#tab-btn-residents').click()");
+    await wait("location.search.includes('tab=residents') && location.search.includes('house=A-01') && document.querySelector('#tab-panel-residents')");
+    await evaluate('history.back()');
+    await wait("location.search.includes('tab=units') && document.querySelector('#tab-panel-units')");
+    await navigate('/admin/passwords?house=A-01','main h1');
+    await wait("document.querySelector('input[type=search]')?.value==='A-01'");
+    await navigate('/pulihkan-akun?portal=admin','input[name=code]');
+    for (const width of [320,375,414,768]) { await viewport(width); await noOverflow('Pemulihan '+width); if(width===375) await screenshot('pemulihan-375'); }
+    assert.equal(await evaluate("document.querySelector('input[name=password]').minLength"),12);
+    assert.ok(await evaluate("Array.from(document.querySelectorAll('main a')).some(link=>link.href.endsWith('/login?portal=admin'))"));
+    await viewport(1440);
+    console.log('PASS house scope, linked accounts, browser Back, and recovery at 320/375/414/768px');
     const menus = {
       properties: ['units', 'residents', 'vehicles', 'permits', 'analytics'],
       billing: ['invoices', 'annual_matrix', 'tariffs', 'batch'],
@@ -181,6 +236,12 @@ try {
           const content = await evaluate(`document.querySelector('main').innerText`);
           assert.ok(content.trim().length > 0, 'Empty content');
           assert.ok(!content.includes('Muat Ulang Halaman'), 'ErrorBoundary fallback');
+          if (menu === 'security-gate' && tab === 'gate') {
+            assert.ok(content.includes('Simulasi palang masuk'), 'Gate controls must be identified as simulations');
+          }
+          if (menu === 'security-gate' && tab === 'emergency') {
+            assert.ok(content.includes('Simulasi di layar ini tidak mengirim notifikasi'), 'Emergency simulator must not imply broadcast');
+          }
           checked++;
           await viewport(360);
           try { await noOverflow(`${menu}/${tab || 'main'} mobile`); } catch (error) { findings.push({ menu, tab, error: error.message }); await screenshot(`overflow-${menu}-${tab || 'main'}`); }
@@ -193,6 +254,7 @@ try {
     assert.deepEqual(errors, [], 'Menu audit has browser errors');
   }
   console.log(`Screenshots: ${output}`);
+  }
 } finally {
   socket?.close();
   chrome.kill();

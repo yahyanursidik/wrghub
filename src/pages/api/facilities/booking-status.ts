@@ -1,28 +1,27 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { db, schema } from '../../../db';
-import { neonSql } from '../../../db/neon';
+import { reservationStatuses } from '../../../lib/reservation';
+import { changeReservationStatus } from '../../../services/facility.service';
 import { recordAuditLog } from '../../../services/audit.service';
 import { authorizeApi } from '../../../lib/api-authorization';
 
-const inputSchema = z.object({ id: z.string().min(1), status: z.enum(['PENDING', 'APPROVED', 'COMPLETED', 'REJECTED']) });
-const storedStatus = { PENDING: 'PLANNED', APPROVED: 'IN_PROGRESS', COMPLETED: 'RESOLVED', REJECTED: 'CANCELLED' };
-export const POST: APIRoute = async (context) => {
+const input = z.object({ id: z.string().min(1).max(180), status: z.enum(reservationStatuses) });
+export const POST: APIRoute = async context => {
   const authorization = await authorizeApi(context, ['SUPER_ADMIN', 'CHAIRMAN', 'SECRETARY', 'MAINTENANCE', 'SECURITY']);
   if (authorization.response) return authorization.response;
-  const { request } = context;
+  const body = input.safeParse(await context.request.json().catch(() => null));
+  if (!body.success) return Response.json({ error: { message: 'Status reservasi tidak valid.' } }, { status: 400 });
+  const { id, status } = body.data;
+  const actor = authorization.user;
   try {
-    const input = inputSchema.parse(await request.json());
-    if (process.env.DATABASE_URL) {
-      const rows = await neonSql`UPDATE maintenance_requests SET status = ${storedStatus[input.status]} WHERE id = ${input.id} AND title LIKE 'Reservasi:%' RETURNING id`;
-      if (!rows.length) throw new Error('Reservasi tidak ditemukan.');
-    } else {
-      const [booking] = await db.select().from(schema.maintenanceRequests).where(eq(schema.maintenanceRequests.id, input.id));
-      if (!booking?.title.startsWith('Reservasi:')) throw new Error('Reservasi tidak ditemukan.');
-      await db.update(schema.maintenanceRequests).set({ status: storedStatus[input.status] }).where(eq(schema.maintenanceRequests.id, input.id));
-    }
-    await recordAuditLog({ actorName: 'Pengurus fasilitas', action: 'facility.booking_status', entityType: 'FACILITY_BOOKING', entityId: input.id, newValue: { status: input.status } });
-    return Response.json({ data: input, error: null });
-  } catch (error) { return Response.json({ error: { message: error instanceof Error ? error.message : 'Status reservasi belum tersimpan.' } }, { status: 400 }); }
+    const result = await changeReservationStatus(id, status);
+    if (result.outcome === 'missing') return Response.json({ error: { message: 'Reservasi tidak ditemukan.' } }, { status: 404 });
+    if (result.outcome === 'conflict') return Response.json({ error: { message: result.message } }, { status: 409 });
+    await recordAuditLog({ actorUserId: actor.id, actorName: actor.fullName, action: 'facility.booking_status',
+      entityType: 'FACILITY_BOOKING', entityId: id, newValue: { status } });
+    return Response.json({ data: { id, status, approvedBy: actor.fullName }, error: null });
+  } catch (error) {
+    console.error('Pembaruan reservasi:', error);
+    return Response.json({ error: { message: 'Perubahan belum bisa dipastikan. Muat ulang daftar.' } }, { status: 503 });
+  }
 };

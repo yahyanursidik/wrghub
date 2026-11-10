@@ -50,7 +50,7 @@ const ReceiptModalContent: React.FC<ReceiptModalProps> = ({ onClose, data }) => 
   };
 
   const receiptNo = data.receiptNumber || receiptNumber(data.periodName || '', data.propertyCode);
-  const verificationQuery = data.referenceNumber && data.referenceNumber !== '-' ? data.referenceNumber : receiptNo;
+  const verificationQuery = data.receiptNumber || (data.referenceNumber && data.referenceNumber !== '-' ? data.referenceNumber : receiptNo);
   const [qrCode, setQrCode] = useState('');
   const [verification, setVerification] = useState<'pending' | 'matched' | 'unmatched' | 'unavailable'>('pending');
   const verificationPath = `/kuitansi?q=${encodeURIComponent(verificationQuery)}`;

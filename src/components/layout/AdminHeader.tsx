@@ -58,8 +58,10 @@ export const AdminHeader: React.FC<Props> = ({ currentUser, currentPath = '/admi
       <nav aria-label="Lokasi halaman" className="flex items-center gap-2 text-sm min-w-0">
         <a href="/admin" className="hidden sm:inline text-ink-muted hover:text-primary-700">Pengurus</a>
         <ChevronRight size={14} className="hidden sm:block text-ink-muted" />
-        <span className="hidden xl:inline text-ink-muted">{context.group}</span>
-        <ChevronRight size={14} className="hidden xl:block text-ink-muted" />
+        {context.group !== 'Pengurus' && <>
+          <span className="hidden xl:inline text-ink-muted">{context.group}</span>
+          <ChevronRight size={14} className="hidden xl:block text-ink-muted" />
+        </>}
         <span aria-current="page" className="font-semibold truncate">{context.label}</span>
       </nav>
     </div>
