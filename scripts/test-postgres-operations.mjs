@@ -12,6 +12,7 @@ import postgres from 'postgres';
 import { inspectAdmin, recoverAdmin } from './recover-admin.ts';
 
 const modulePath = process.env.WARGAHUB_PG_MODULE;
+const vercelEntry = process.env.WARGAHUB_TEST_VERCEL_ENTRY;
 const { default: EmbeddedPostgres } = modulePath
   ? await import(pathToFileURL(path.resolve(modulePath)).href) : await import('embedded-postgres');
 await mkdir('scratch', { recursive:true });
@@ -34,7 +35,8 @@ const db = new EmbeddedPostgres({databaseDir:path.join(directory,'pg'),port:pgPo
   initdbFlags:['--locale=C','--encoding=UTF8'],postgresFlags:['-h','127.0.0.1'],onLog:()=>{}});
 const env = {...process.env,DATABASE_URL:`postgresql://${username}:${password}@127.0.0.1:${pgPort}/postgres?sslmode=disable`,
   WARGAHUB_DATA_DIR:path.join(directory,'app'),HOST:'127.0.0.1',PORT:String(appPort),NODE_ENV:'production'};
-const base = 'http://127.0.0.1:' + appPort;
+const base = vercelEntry ? 'https://wargahub.fixture.invalid' : 'http://127.0.0.1:' + appPort;
+let appFetch = fetch;
 const run = async args => {
   const process = spawn(globalThis.process.execPath,args,{env,stdio:['ignore','ignore','pipe']});
   let errors = '';
@@ -43,7 +45,7 @@ const run = async args => {
   assert.equal(code,0,args.join(' ') + ': ' + errors.replaceAll(password,'[redacted]'));
 };
 const invoke = async (route, cookie, body) => {
-  const response = await fetch(base+route,{redirect:'manual',method:body?'POST':'GET',
+  const response = await appFetch(base+route,{redirect:'manual',method:body?'POST':'GET',
     headers:{...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json',Origin:base}:{})},
     body:body?JSON.stringify(body):undefined});
   const raw = await response.text();
@@ -79,16 +81,35 @@ try {
     await sql('INSERT INTO users (id,username,email,full_name,role,password_hash,property_id,property_code) VALUES ($1,$1,$2,$3,$4,$5,$6,$7)',
       [id,id+'@fixture.invalid','Uji '+id,role,hashed,house,code]);
   }
-  app=spawn(process.execPath,['dist/server/entry.mjs'],{env,stdio:['ignore','pipe','pipe']});
-  app.stdout.on('data',chunk=>{logs+=chunk;}); app.stderr.on('data',chunk=>{logs+=chunk;});
-  const deadline=Date.now()+20000;
-  while (!(await fetch(base+'/api/health').then(res=>res.ok).catch(()=>false))) {
-    if (Date.now()>deadline || app.exitCode!==null) throw Error('Aplikasi uji gagal dimulai.');
-    await delay(150);
+  if (vercelEntry) {
+    Object.assign(process.env, {DATABASE_URL:env.DATABASE_URL,WARGAHUB_DATA_DIR:env.WARGAHUB_DATA_DIR,NODE_ENV:env.NODE_ENV});
+    const { default: handler } = await import(pathToFileURL(path.resolve(vercelEntry)).href);
+    appFetch = (url, options) => handler.fetch(new Request(url,options));
+    assert.equal((await call('/api/health')).database.status,'CONNECTED_HEALTHY');
+  } else {
+    app=spawn(process.execPath,['dist/server/entry.mjs'],{env,stdio:['ignore','pipe','pipe']});
+    app.stdout.on('data',chunk=>{logs+=chunk;}); app.stderr.on('data',chunk=>{logs+=chunk;});
+    const deadline=Date.now()+20000;
+    while (!(await fetch(base+'/api/health').then(res=>res.ok).catch(()=>false))) {
+      if (Date.now()>deadline || app.exitCode!==null) throw Error('Aplikasi uji gagal dimulai.');
+      await delay(150);
+    }
   }
   const [chair,chair2,owner,owner2,neighbor,treasurer,treasurer2,cleaner] = await Promise.all(
     ['chair','chair','owner','owner','neighbor','treasurer','treasurer','cleaner'].map(login));
   assert.notEqual(owner,owner2); assert.notEqual(treasurer,treasurer2);
+  if (vercelEntry) {
+    const loggedOut = await login('super');
+    const sessionId = loggedOut.match(/(?:^|; )astro-session=([^;]+)/)?.[1];
+    assert.ok(sessionId);
+    const readSession = async () => (await sql('SELECT data FROM wargahub_sessions WHERE session_id=$1',[sessionId]))[0];
+    assert.ok((await readSession()).data);
+    await call('/api/properties',loggedOut);
+    await call('/api/auth/logout',loggedOut,{});
+    assert.equal((await readSession()).data,null);
+    await call('/api/properties',loggedOut,undefined,401);
+    console.log('PASS sesi Vercel: login membuat sesi PostgreSQL, permintaan berikutnya membacanya, dan logout mencabutnya.');
+  }
   const overview = cookie => call('/api/resident/overview',cookie);
   assert.equal((await overview(owner)).property.id,'fixture-house-1');
 
