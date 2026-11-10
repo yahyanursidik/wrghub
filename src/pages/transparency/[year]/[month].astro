@@ -1,13 +1,20 @@
 ---
 import PublicLayout from '../../../layouts/PublicLayout.astro';
-import { TransparencyView } from '../../../components/transparency/TransparencyView';
-import { getPublicMonthlyReport } from '../../../services/transparency.service';
+import { TransparencyView, type TransparencySubTab } from '../../../components/transparency/TransparencyView';
+import { getPublicMonthlyReport, publicReportPeriod } from '../../../services/transparency.service';
 
-const { year, month } = Astro.params;
-const reportData = await getPublicMonthlyReport(parseInt(year || '2026', 10), parseInt(month || '9', 10));
+const query = Astro.url.searchParams;
+const requestedTab = query.get('tab') as TransparencySubTab | null;
+const tab = requestedTab && ['cashflow_summary','public_ledger','dues_breakdown','citizen_confirm','audit_faq'].includes(requestedTab) ? requestedTab : 'cashflow_summary';
+const period = publicReportPeriod(Astro.params.year,Astro.params.month);
+const data = await getPublicMonthlyReport(period.year,period.month,Astro.url.origin).catch(()=>null);
+if (!data) Astro.response.status=503;
 ---
 
-<PublicLayout title={`Laporan Transparansi Warga - ${reportData.periodName}`} currentPath="/transparency">
-  <TransparencyView initialData={reportData} client:load />
+<PublicLayout title={data ? 'Laporan Transparansi Warga - '+data.periodName+' - WargaHub' : 'Laporan Transparansi Warga - WargaHub'} currentPath="/transparency">
+  {data ? <TransparencyView initialData={data} initialTab={tab} client:load /> :
+    <section class="mx-auto max-w-5xl p-5" role="alert"><h1 class="text-2xl font-bold">Laporan warga</h1>
+      <p class="mt-2 text-sm text-ink-muted">Data laporan belum bisa dimuat.</p>
+      <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname+Astro.url.search} data-astro-reload>Coba lagi</a>
+    </section>}
 </PublicLayout>
-

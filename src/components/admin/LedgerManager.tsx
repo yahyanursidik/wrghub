@@ -1,2177 +1,309 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useUrlTab } from '../../lib/use-url-tab';
-import { apiFetch } from '../../lib/api-fetch';
-import {
-  Download,
-  Search,
-  Filter,
-  Wallet,
-  ArrowDownRight,
-  ArrowUpRight,
-  CheckCircle2,
-  Share2,
-  Copy,
-  ExternalLink,
-  PlusCircle,
-  Edit3,
-  Trash2,
-  Printer,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ArrowUpDown,
-  Building,
-  Check,
-  Receipt,
-  CreditCard,
-  Layers,
-  Banknote,
-  Eye,
-  AlertTriangle,
-  Clock,
-  Send,
-  Scale,
-  FileSpreadsheet,
-  TrendingUp,
-  TrendingDown,
-  ShieldCheck,
-  CheckCheck,
-  Building2,
-  RotateCcw,
-  ArrowRightLeft,
-  PieChart,
-  Calendar,
-  Info,
-  MessageCircle,
-  Plus
-} from 'lucide-react';
-import { formatRupiah } from '../../lib/format';
+/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4 */
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowDownLeft, ArrowDownToLine, ArrowLeftRight, ArrowUpRight, BookOpen, ChartNoAxesCombined, ChevronLeft, ChevronRight, ClipboardCheck, Plus, WalletCards } from 'lucide-react';
+import { downloadFinanceCsv, financeDate, financePath, jakartaDate } from '../../lib/billing-data';
+import { cashRupiah, currentFinanceMonth, financeMonth, isEditableJournal, isInternalTransfer, ledgerSources, type CashJournalRow, type CashPeriodSummary, type CashReconciliation, type LedgerScope, type LedgerSubTab } from '../../lib/cash-data';
+import type { FinanceAccount } from '../../services/finance.service';
+import { FinanceDialog, FinanceEmpty, FinanceHeader, FinanceStatus, FinanceSummary, FinanceTabLinks, financeButton, financeField, financePost, financePrimary } from './FinanceWorkspace';
 
-export type LedgerSubTab =
-  | 'ledger_list'
-  | 'accounts_manage'
-  | 'bank_reconciliation'
-  | 'financial_reports';
-
-export interface AccountItem {
-  id: string;
-  name: string;
-  code: string;
-  type: string;
-  bankName?: string | null;
-  accountNumber?: string | null;
-  balance: number;
+const path = (params:Record<string,string|undefined>={})=>financePath('/admin/ledger',params);
+const link = 'inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary-800 hover:underline';
+const menus = [
+  {id:'ledger_list',label:'Jurnal',icon:BookOpen},{id:'accounts_manage',label:'Rekening',icon:WalletCards},
+  {id:'bank_reconciliation',label:'Rekonsiliasi',icon:ClipboardCheck},{id:'financial_reports',label:'Laporan kas',icon:ChartNoAxesCombined},
+] as const;
+const accountTypes:Record<string,string> = {BANK:'Bank',CASH:'Kas tunai',SAVINGS:'Tabungan',PETTY_CASH:'Kas kecil'};
+const sourceFilters = {expense:'Pengeluaran',payment:'Iuran',transfer:'Mutasi internal',manual:'Jurnal dan sumber lain'};
+const noticeLabels:Record<string,string> = {journal:'Jurnal tersimpan.',transfer:'Mutasi tersimpan pada kedua rekening.',account:'Rekening tersimpan.',delete:'Pembatalan tersimpan.'};
+const sourceHeadings = {payment:'Jurnal pembayaran',expense:'Jurnal pengeluaran',transfer:'Pasangan mutasi'};
+const str = (data:FormData,key:string)=>String(data.get(key) || '').trim();
+const amount = (data:FormData,key:string)=>Number(str(data,key));
+type WorkspaceLedger = {entries:CashJournalRow[];summary:CashPeriodSummary;total:number;page:number};
+type Modal = {type:'journal'|'delete';row?:CashJournalRow} | {type:'account';account?:FinanceAccount} | {type:'transfer'};
+interface Props {
+  accounts:FinanceAccount[];accountId:string;ledger:WorkspaceLedger|null;reconciliation:CashReconciliation|null;
+  initialTab:LedgerSubTab;canWrite:boolean;month:string;search:string;source:string;scope?:LedgerScope;journalPageSize:number;initialNotice:string;
 }
 
-export interface LedgerEntryItem {
-  id: string;
-  accountId: string | null;
-  entryDate: string;
-  direction: string; // 'IN' | 'OUT'
-  amount: number;
-  sourceType: string;
-  sourceId?: string | null;
-  description: string;
-  createdBy?: string | null;
-  runningBalance?: number;
+function Field({label,children}:{label:string;children:ReactNode}) {
+  return <label className="block min-w-0 text-sm font-semibold">{label}{children}</label>;
+}
+function AccountSelect({accounts,value,name='account',all,required}:{accounts:FinanceAccount[];value:string;name?:string;all?:boolean;required?:boolean}) {
+  return <select name={name} defaultValue={value} required={required} className={financeField}>
+    <option value="" disabled={!all}>{all?'Semua rekening':'Pilih rekening'}</option>
+    {accounts.map(account=><option key={account.id} value={account.id}>{account.name}</option>)}
+  </select>;
+}
+function sourceHref(row:CashJournalRow,canWrite:boolean) {
+  if (!row.sourceId) return null;
+  if (['PAYMENT','PAYMENT_REVERSAL'].includes(row.sourceType)) return canWrite?financePath('/admin/payments',{tab:'history',payment:row.sourceId}):path({payment:row.sourceId});
+  if (['EXPENSE','EXPENSE_REVERSAL'].includes(row.sourceType)) return financePath('/admin/expenses',{expense:row.sourceId});
+  if (isInternalTransfer(row.sourceType)) return path({transfer:row.sourceId});
+  return null;
+}
+function CashSummary({summary,month}:{summary:CashPeriodSummary;month:string}) {
+  return <FinanceSummary items={[
+    {label:'Saldo akhir',value:cashRupiah(summary.closing),detail:financeMonth(month),tone:'mint'},
+    {label:'Pemasukan bersih',value:cashRupiah(summary.income),detail:'Setelah pembalikan',tone:'sky'},
+    {label:'Pengeluaran bersih',value:cashRupiah(summary.outgoing),detail:'Setelah pembatalan',tone:'rose'},
+  ]} />;
 }
 
-export interface LedgerManagerProps {
-  accounts: AccountItem[];
-  entries: LedgerEntryItem[];
-  initialTab?: LedgerSubTab;
-}
-
-export const LedgerManager: React.FC<LedgerManagerProps> = ({
-  accounts: initialAccounts,
-  entries: initialEntries,
-  initialTab = 'ledger_list',
-}) => {
-  const normalizeAccounts = (list: any[]): AccountItem[] =>
-    list.map((a: any) => ({
-      ...a,
-      bankName: a.bank_name || a.bankName || (a.code === 'BCA_MAIN' || a.id === 'acc-main' ? 'Bank Mandiri' : 'Bank Kas'),
-      accountNumber: a.account_number || a.accountNumber || (a.code === 'BCA_MAIN' || a.id === 'acc-main' ? '1300024446419' : '-'),
-      balance: Number(a.balance) || 0,
-    }));
-
-  const [accounts, setAccounts] = useState<AccountItem[]>(normalizeAccounts(initialAccounts));
-
-  // Reactive listener: when master bank account is updated from Settings or Payments
-  useEffect(() => {
-    const handleBankUpdated = (e: any) => {
-      if (e.detail) {
-        const { bankName, accountNumber } = e.detail;
-        setAccounts((prev) =>
-          prev.map((a) =>
-              a.id === 'acc-main' || ['BCA_MAIN', 'BCA-UTAMA'].includes(a.code)
-              ? {
-                  ...a,
-                  bankName: bankName || a.bankName,
-                  accountNumber: accountNumber || a.accountNumber,
-                  name: `Rekening Kas Paguyuban (${bankName || a.bankName})`,
-                }
-              : a
-          )
-        );
-      }
-    };
-    window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
-    return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
-  }, []);
-
-  const [entries, setEntries] = useState<LedgerEntryItem[]>(initialEntries);
-
-  // Subtab State with URL synchronization
-  const [activeSubTab, setActiveSubTab] = useUrlTab<LedgerSubTab>(['ledger_list', 'accounts_manage', 'bank_reconciliation', 'financial_reports'], initialTab);
-  const handleTabChange = setActiveSubTab;
-
-  // State Filters
-  const [monthFilter, setMonthFilter] = useState<string>('ALL');
-  const [accountFilter, setAccountFilter] = useState<string>('ALL');
-  const [directionFilter, setDirectionFilter] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
-  const [sourceTypeFilter, setSourceTypeFilter] = useState<string>('ALL');
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'description' | 'amount' | 'direction' | 'balance'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  // Modals & Drawers
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [showAccountModal, setShowAccountModal] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<AccountItem | null>(null);
-  const [selectedVoucher, setSelectedVoucher] = useState<LedgerEntryItem | null>(null);
-  const [entryToDelete, setEntryToDelete] = useState<LedgerEntryItem | null>(null);
-  const [deleteReason, setDeleteReason] = useState('Koreksi Input Jurnal / Duplikat');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // Form State for Account Management
-  const [formAccName, setFormAccName] = useState('');
-  const [formAccCode, setFormAccCode] = useState('');
-  const [formAccType, setFormAccType] = useState('BANK');
-  const [formAccBankName, setFormAccBankName] = useState('Bank BCA');
-  const [formAccNumber, setFormAccNumber] = useState('');
-  const [formAccBalance, setFormAccBalance] = useState<number>(0);
-
-  // Transfer State
-  const [transferFrom, setTransferFrom] = useState('acc-main');
-  const [transferTo, setTransferTo] = useState('acc-cash');
-  const [transferAmount, setTransferAmount] = useState('');
-  const [transferNotes, setTransferNotes] = useState('');
-  const [isTransferring, setIsTransferring] = useState(false);
-
-  // Bank Reconciliation State
-  const mainBankAcc = accounts.find((a) => a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.code === 'BCA-UTAMA' || a.type === 'BANK') || accounts[0];
-  const mainBankLabel = mainBankAcc ? (mainBankAcc.bankName || mainBankAcc.name || 'Rekening Kas Utama') : 'Rekening Kas Utama';
-  const [bankStatementBalance, setBankStatementBalance] = useState<number>(mainBankAcc ? mainBankAcc.balance : 0);
-  const [reconciliationMonth, setReconciliationMonth] = useState('September 2026');
-  const [reconChecks, setReconChecks] = useState<{ [key: string]: boolean }>({
-    checkQris: false,
-    checkInterest: false,
-    checkAdminFee: false,
-    checkCashWithdrawal: false,
-    checkDisbursement: false,
-  });
-
-  // Persisted Reconciliation Approvals
-  const [reconSavedStatus, setReconSavedStatus] = useState<{ [month: string]: { signedAt: string; signedBy: string } }>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const s = localStorage.getItem('wargahub_recon_approvals');
-        return s ? JSON.parse(s) : {};
-      } catch {
-        return {};
-      }
-    }
-    return {};
-  });
-
-  // Form State for Ledger Entry
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
-  const [formAccountId, setFormAccountId] = useState('acc-main');
-  const [formDirection, setFormDirection] = useState<'IN' | 'OUT'>('IN');
-  const [formAmount, setFormAmount] = useState('');
-  const [formSourceType, setFormSourceType] = useState('MANUAL_JOURNAL');
-  const [formDescription, setFormDescription] = useState('');
-  const [formEntryDate, setFormEntryDate] = useState(new Date().toISOString().slice(0, 10));
-  const [formReferenceNo, setFormReferenceNo] = useState('');
-  const [savingEntry, setSavingEntry] = useState(false);
-
-  // Show Toast
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
-  const [reportPeriod, setReportPeriod] = useState<string>('ALL');
-
-  // Filter-aware Period Metrics
-  const periodEntries = useMemo(() => {
-    if (monthFilter === 'ALL') return entries;
-    return entries.filter((e) => e.entryDate && e.entryDate.startsWith(monthFilter));
-  }, [entries, monthFilter]);
-
-  // Operational Inflow (excludes initial balance in all-time view for accurate operating margin)
-  const periodIn = useMemo(() => {
-    return periodEntries
-      .filter((e) => e.direction === 'IN' && (monthFilter !== 'ALL' || e.sourceType !== 'MODAL_AWAL'))
-      .reduce((sum, e) => sum + e.amount, 0);
-  }, [periodEntries, monthFilter]);
-
-  const periodOut = useMemo(() => {
-    return periodEntries
-      .filter((e) => e.direction === 'OUT')
-      .reduce((sum, e) => sum + e.amount, 0);
-  }, [periodEntries]);
-
-  const periodSurplus = periodIn - periodOut;
-  const isPeriodSurplus = periodSurplus >= 0;
-
-  // Real liquid cash reserves
-  const totalBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
-
-  // Backward-compatible aliases for period calculations
-  const totalIn = periodIn;
-  const totalOut = periodOut;
-
-  // Open Create Modal
-  const handleOpenCreateModal = () => {
-    setEditingEntryId(null);
-    setFormAccountId('acc-main');
-    setFormDirection('IN');
-    setFormAmount('');
-    setFormSourceType('MANUAL_JOURNAL');
-    setFormDescription('');
-    setFormEntryDate(new Date().toISOString().slice(0, 10));
-    setFormReferenceNo(`REF-${Date.now().toString().slice(-4)}`);
-    setShowAddModal(true);
-  };
-
-  // Open Edit Modal
-  const handleOpenEditModal = (entry: LedgerEntryItem) => {
-    setEditingEntryId(entry.id);
-    setFormAccountId(entry.accountId || 'acc-main');
-    setFormDirection((entry.direction as 'IN' | 'OUT') || 'IN');
-    setFormAmount(entry.amount.toString());
-    setFormSourceType(entry.sourceType || 'MANUAL_JOURNAL');
-    setFormDescription(entry.description);
-    setFormEntryDate(entry.entryDate);
-    setFormReferenceNo(entry.sourceId || '');
-    setShowAddModal(true);
-  };
-
-  // Extract unique months from entries for month filter
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    entries.forEach((e) => {
-      if (e.entryDate && e.entryDate.length >= 7) {
-        months.add(e.entryDate.slice(0, 7)); // YYYY-MM
-      }
-    });
-    return Array.from(months).sort((a, b) => b.localeCompare(a));
-  }, [entries]);
-
-  // Real Financial Breakdown per source type
-  const financialBreakdown = useMemo(() => {
-    const inBySource: { [key: string]: number } = {};
-    const outBySource: { [key: string]: number } = {};
-
-    entries.forEach((e) => {
-      const src = e.sourceType || 'MANUAL_JOURNAL';
-      if (e.direction === 'IN') {
-        inBySource[src] = (inBySource[src] || 0) + e.amount;
-      } else {
-        outBySource[src] = (outBySource[src] || 0) + e.amount;
-      }
-    });
-
-    return { inBySource, outBySource };
-  }, [entries]);
-
-  // Handle Save Entry (Create / Update) with Real-Time Account Balance Sync
-  const handleSaveEntry = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formDescription || !formAmount) return;
-    setSavingEntry(true);
-    const numAmount = parseInt(formAmount.replace(/\D/g, ''), 10) || 0;
-
+function ReconciliationPanel({initial,canWrite}:{initial:CashReconciliation;canWrite:boolean}) {
+  const [data,setData] = useState(initial);
+  const [statement,setStatement] = useState(initial.saved ? String(initial.saved.statementBalance) : '');
+  const [note,setNote] = useState(initial.saved?.note || '');
+  const [busy,setBusy] = useState(false);
+  const [feedback,setFeedback] = useState('');
+  const [error,setError] = useState('');
+  const difference = statement.trim() && Number.isFinite(Number(statement)) ? Math.round((Number(statement)-data.summary.closing)*100)/100 : null;
+  async function save(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();setBusy(true);setError('');setFeedback('');
     try {
-      if (editingEntryId) {
-        const res = await apiFetch('/api/ledger/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ledgerId: editingEntryId,
-            description: formDescription,
-            amount: numAmount,
-            direction: formDirection,
-            entryDate: formEntryDate,
-            accountId: formAccountId,
-          }),
-        });
-
-        if (res.ok) {
-          const oldEntry = entries.find((ent) => ent.id === editingEntryId);
-          const oldAmount = oldEntry ? oldEntry.amount : 0;
-          const oldDirection = oldEntry ? oldEntry.direction : 'IN';
-          const oldAccountId = oldEntry ? oldEntry.accountId : formAccountId;
-
-          // Revert old effect & apply new effect to accounts
-          let updatedAccs = accounts.map((acc) => {
-            if (acc.id === oldAccountId) {
-              const revertDelta = oldDirection === 'IN' ? -oldAmount : oldAmount;
-              return { ...acc, balance: acc.balance + revertDelta };
-            }
-            return acc;
-          });
-
-          updatedAccs = updatedAccs.map((acc) => {
-            if (acc.id === formAccountId) {
-              const applyDelta = formDirection === 'IN' ? numAmount : -numAmount;
-              return { ...acc, balance: acc.balance + applyDelta };
-            }
-            return acc;
-          });
-
-          setAccounts(updatedAccs);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updatedAccs));
-          }
-
-          setEntries(
-            entries.map((ent) =>
-              ent.id === editingEntryId
-                ? {
-                    ...ent,
-                    description: formDescription,
-                    amount: numAmount,
-                    direction: formDirection,
-                    entryDate: formEntryDate,
-                    accountId: formAccountId,
-                    sourceId: formReferenceNo || ent.sourceId,
-                  }
-                : ent
-            )
-          );
-          showToast(`Entri jurnal "${formDescription}" berhasil diperbarui.`);
-          setShowAddModal(false);
-        }
-      } else {
-        const res = await apiFetch('/api/ledger/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountId: formAccountId,
-            direction: formDirection,
-            amount: numAmount,
-            sourceType: formSourceType,
-            description: formDescription,
-            entryDate: formEntryDate,
-            referenceNo: formReferenceNo,
-          }),
-        });
-
-        if (res.ok) {
-          const newEnt: LedgerEntryItem = {
-            id: `led-${Date.now()}`,
-            accountId: formAccountId,
-            entryDate: formEntryDate,
-            direction: formDirection,
-            amount: numAmount,
-            sourceType: formSourceType,
-            sourceId: formReferenceNo || `JRN-${Date.now().toString().slice(-4)}`,
-            description: formDescription,
-            createdBy: 'Bendahara Komplek',
-          };
-
-          // Optimistically update account balance
-          const delta = formDirection === 'IN' ? numAmount : -numAmount;
-          const nextAccounts = accounts.map((acc) =>
-            acc.id === formAccountId ? { ...acc, balance: acc.balance + delta } : acc
-          );
-          setAccounts(nextAccounts);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('wargahub_custom_accounts', JSON.stringify(nextAccounts));
-          }
-
-          setEntries([newEnt, ...entries]);
-          showToast(`Mutasi jurnal kas sebesar ${formatRupiah(numAmount)} berhasil dicatat.`);
-          setShowAddModal(false);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menyimpan entri jurnal kas.');
-    } finally {
-      setSavingEntry(false);
-    }
-  };
-
-  // Handle Internal Cash Transfer
-  const handleExecuteTransfer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (transferFrom === transferTo) {
-      showToast('Rekening asal dan tujuan tidak boleh sama!');
-      return;
-    }
-    const num = parseInt(transferAmount.replace(/\D/g, ''), 10) || 0;
-    if (num <= 0) return;
-    setIsTransferring(true);
-
-    try {
-      const response = await apiFetch('/api/ledger/transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromAccountId: transferFrom,
-          toAccountId: transferTo,
-          amount: num,
-          description: `Mutasi internal: ${transferNotes || 'Pemindahan kas'}`,
-          entryDate: new Date().toISOString().slice(0, 10),
-        }),
-      });
-      const payload = await response.json();
-      if (payload.data) {
-        const { outEntry, inEntry } = payload.data;
-
-        const updatedAccs = accounts.map((acc) => {
-          if (acc.id === transferFrom) return { ...acc, balance: acc.balance - num };
-          if (acc.id === transferTo) return { ...acc, balance: acc.balance + num };
-          return acc;
-        });
-
-        setAccounts(updatedAccs);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updatedAccs));
-        }
-
-        setEntries([inEntry, outEntry, ...entries]);
-        showToast(`Mutasi transfer kas sebesar ${formatRupiah(num)} berhasil dibukukan.`);
-        setShowTransferModal(false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal memproses mutasi kas internal.');
-    } finally {
-      setIsTransferring(false);
-    }
-  };
-
-  // Confirm Delete Entry with Balance Reversal
-  const handleConfirmDelete = async () => {
-    if (!entryToDelete) return;
-    try {
-      const res = await apiFetch('/api/ledger/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ledgerId: entryToDelete.id,
-          description: entryToDelete.description,
-          amount: entryToDelete.amount,
-          reason: deleteReason,
-        }),
-      });
-
-      if (res.ok) {
-        const payload = await res.json();
-        const deletedIds: string[] = payload.data.ids || [entryToDelete.id];
-        const deletedEntries = entries.filter(entry => deletedIds.includes(entry.id));
-        const updatedAccs = accounts.map(acc => ({ ...acc, balance: deletedEntries.filter(entry => entry.accountId === acc.id).reduce((balance, entry) => balance + (entry.direction === 'IN' ? -entry.amount : entry.amount), acc.balance) }));
-        setAccounts(updatedAccs);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('wargahub_custom_accounts', JSON.stringify(updatedAccs));
-        }
-
-        setEntries(entries.filter(entry => !deletedIds.includes(entry.id)));
-        showToast(`Entri jurnal kas "${entryToDelete.description}" berhasil dihapus.`);
-        setEntryToDelete(null);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menghapus entri jurnal kas.');
-    }
-  };
-
-  // Account Management Handlers (Subtab 2)
-  const handleOpenAddAccount = () => {
-    setEditingAccount(null);
-    setFormAccName('');
-    setFormAccCode(`ACC-${Date.now().toString().slice(-4)}`);
-    setFormAccType('BANK');
-    setFormAccBankName('Bank BCA');
-    setFormAccNumber('');
-    setFormAccBalance(0);
-    setShowAccountModal(true);
-  };
-
-  const handleOpenEditAccount = (acc: AccountItem) => {
-    setEditingAccount(acc);
-    setFormAccName(acc.name);
-    setFormAccCode(acc.code);
-    setFormAccType(acc.type || 'BANK');
-    setFormAccBankName(acc.bankName || 'Bank BCA');
-    setFormAccNumber(acc.accountNumber || '');
-    setFormAccBalance(acc.balance);
-    setShowAccountModal(true);
-  };
-
-  const handleSaveAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formAccName) return;
-
-    try {
-      const response = await apiFetch('/api/accounts/save', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingAccount?.id, name: formAccName, code: formAccCode, type: formAccType, bankName: formAccBankName, accountNumber: formAccNumber, balance: formAccBalance || 0 }),
-      });
-      const payload = await response.json();
-      const savedAccount = payload.data as AccountItem;
-      setAccounts(previous => editingAccount ? previous.map(account => account.id === savedAccount.id ? savedAccount : account) : [...previous, savedAccount]);
-      if (savedAccount.id === 'acc-main' || ['BCA_MAIN', 'BCA-UTAMA'].includes(savedAccount.code)) {
-        localStorage.setItem('wargahub_set_bankname', JSON.stringify(savedAccount.bankName));
-        localStorage.setItem('wargahub_set_bankacc', JSON.stringify(savedAccount.accountNumber));
-        window.dispatchEvent(new CustomEvent('wargahub_bank_accounts_updated', { detail: { bankName: savedAccount.bankName, accountNumber: savedAccount.accountNumber, isPrimary: true } }));
-      }
-      showToast(`Rekening kas "${formAccName}" tersimpan.`);
-      setShowAccountModal(false);
-    } catch { showToast('Rekening belum tersimpan. Periksa data dan coba lagi.'); }
-  };
-
-  // WhatsApp & Copy Voucher Handlers
-  const handleShareWhatsAppVoucher = (voucher: LedgerEntryItem) => {
-    const isMasuk = voucher.direction === 'IN';
-    const accName =
-      accounts.find((a) => a.id === voucher.accountId)?.name ||
-      (voucher.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel);
-
-    const message =
-      `*${isMasuk ? 'BUKTI KAS MASUK (BKM RESMI)' : 'BUKTI KAS KELUAR (BKK RESMI)'} - WARGAHUB*\n` +
-      `Komplek Grand Sariwangi\n` +
-      `=========================================\n` +
-      `No. Referensi: *${voucher.sourceId || voucher.id}*\n` +
-      `Tanggal: *${voucher.entryDate}*\n` +
-      `Akun Pembukuan: *${accName}*\n` +
-      `Jenis Mutasi: *${isMasuk ? '+ Penerimaan Kas (Debit)' : '- Pengeluaran Kas (Kredit)'}*\n` +
-      `Nominal: *${formatRupiah(voucher.amount)}*\n` +
-      `Kategori: *${voucher.sourceType.replace(/_/g, ' ')}*\n` +
-      `Uraian Transaksi:\n_${voucher.description}_\n` +
-      `-----------------------------------------\n` +
-      `_Tercatat resmi dalam Buku Jurnal Kas Paguyuban Warga Grand Sariwangi._\n` +
-      `_Disahkan oleh: Bendahara Paguyuban_`;
-
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-    showToast('Membuka WhatsApp untuk membagikan voucher jurnal...');
-  };
-
-  const handleCopyVoucherText = (voucher: LedgerEntryItem) => {
-    const isMasuk = voucher.direction === 'IN';
-    const accName =
-      accounts.find((a) => a.id === voucher.accountId)?.name ||
-      (voucher.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel);
-
-    const text =
-      `[${isMasuk ? 'BKM' : 'BKK'} WARGAHUB]\n` +
-      `No: ${voucher.sourceId || voucher.id}\n` +
-      `Tanggal: ${voucher.entryDate}\n` +
-      `Akun: ${accName}\n` +
-      `Nominal: ${formatRupiah(voucher.amount)}\n` +
-      `Uraian: ${voucher.description}`;
-
-    navigator.clipboard.writeText(text);
-    showToast('Ringkasan voucher berhasil disalin ke clipboard.');
-  };
-
-  // Reconciliation Sign Handler
-  const handleApproveReconciliation = () => {
-    const mainAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
-    const systemBalance = mainAcc ? mainAcc.balance : 0;
-    const diff = bankStatementBalance - systemBalance;
-
-    const newApproval = {
-      ...reconSavedStatus,
-      [reconciliationMonth]: {
-        signedAt: new Date().toLocaleDateString('id-ID', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        signedBy: 'Hendra Wijaya (Bendahara)',
-        variance: diff,
-      },
-    };
-
-    setReconSavedStatus(newApproval);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('wargahub_recon_approvals', JSON.stringify(newApproval));
-    }
-    showToast(`✓ Berita acara rekonsiliasi ${reconciliationMonth} berhasil disahkan!`);
-  };
-
-  // Cumulative running balance computation (chronological order)
-  const entriesWithRunningBalance = useMemo(() => {
-    const chrono = [...entries].sort((a, b) => {
-      if (a.entryDate !== b.entryDate) return a.entryDate.localeCompare(b.entryDate);
-      if (a.sourceType === 'MODAL_AWAL') return -1;
-      if (b.sourceType === 'MODAL_AWAL') return 1;
-      if (a.direction !== b.direction) return a.direction === 'IN' ? -1 : 1;
-      return (a.id || '').localeCompare(b.id || '');
-    });
-    let running = 0;
-    const balanceMap = new Map<string, number>();
-    chrono.forEach((e) => {
-      if (e.direction === 'IN') {
-        running += e.amount;
-      } else {
-        running -= e.amount;
-      }
-      balanceMap.set(e.id, running);
-    });
-
-    return entries.map((e) => ({
-      ...e,
-      runningBalance: balanceMap.get(e.id) ?? 0,
-    }));
-  }, [entries]);
-
-  // Filter & Sort
-  const filteredAndSortedEntries = useMemo(() => {
-    const list = entriesWithRunningBalance.filter((e) => {
-      const matchesMonth = monthFilter === 'ALL' || (e.entryDate && e.entryDate.startsWith(monthFilter));
-      const matchesAccount = accountFilter === 'ALL' || e.accountId === accountFilter;
-      const matchesDirection = directionFilter === 'ALL' || e.direction === directionFilter;
-      const matchesSource = sourceTypeFilter === 'ALL' || e.sourceType === sourceTypeFilter;
-      const matchesSearch =
-        e.description.toLowerCase().includes(search.toLowerCase()) ||
-        e.sourceType.toLowerCase().includes(search.toLowerCase()) ||
-        (e.sourceId && e.sourceId.toLowerCase().includes(search.toLowerCase())) ||
-        e.id.toLowerCase().includes(search.toLowerCase());
-      return matchesMonth && matchesAccount && matchesDirection && matchesSource && matchesSearch;
-    });
-
-    list.sort((a, b) => {
-      let comparison = 0;
-      if (sortBy === 'date') comparison = a.entryDate.localeCompare(b.entryDate);
-      else if (sortBy === 'description') comparison = a.description.localeCompare(b.description);
-      else if (sortBy === 'amount') comparison = a.amount - b.amount;
-      else if (sortBy === 'direction') comparison = a.direction.localeCompare(b.direction);
-      else if (sortBy === 'balance') comparison = (a.runningBalance ?? 0) - (b.runningBalance ?? 0);
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-
-    return list;
-  }, [entriesWithRunningBalance, monthFilter, accountFilter, directionFilter, sourceTypeFilter, search, sortBy, sortOrder]);
-
-  // Pagination
-  const totalFiltered = filteredAndSortedEntries.length;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
-  const startIndex = (safeCurrentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalFiltered);
-  const paginatedEntries = filteredAndSortedEntries.slice(startIndex, endIndex);
-
-  // Copy Public Link
-  const publicTransparencyUrl = typeof window !== 'undefined' ? `${window.location.origin}/transparency` : 'https://wrghub.vercel.app/transparency';
-  const handleCopyPublicLink = () => {
-    navigator.clipboard.writeText(publicTransparencyUrl);
-    setCopiedLink(true);
-    showToast('Tautan publik transparansi keuangan berhasil disalin!');
-    setTimeout(() => setCopiedLink(false), 3000);
-  };
-
-  // Download Reconciliation Statement .txt
-  const handleDownloadReconStatement = () => {
-    const mainAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
-    const systemMainBalance = mainAcc ? mainAcc.balance : 0;
-    const diff = bankStatementBalance - systemMainBalance;
-    const isBalanced = diff === 0;
-
-    const content = `BERITA ACARA REKONSILIASI KAS & BANK OPERASIONAL - WARGAHUB\n=======================================================\nPeriode: ${reconciliationMonth}\nTanggal Cetak: ${new Date().toLocaleString(
-      'id-ID'
-    )}\n\nDATA SALDO KAS & BANK:\n-------------------------------------------------------\n1. Saldo Rekening Koran / Mutasi (${mainBankLabel}) : ${formatRupiah(
-      bankStatementBalance
-    )}\n2. Saldo Pembukuan Jurnal Sistem               : ${formatRupiah(
-      systemMainBalance
-    )}\n3. Selisih Rekonsiliasi (Variance)              : ${formatRupiah(
-      diff
-    )}\nSTATUS REKONSILIASI: ${
-      isBalanced ? '✓ TEREKONSILIASI PENUH & SEIMBANG' : '⚠️ TERDAPAT SELISIH / ANOMALI'
-    }\n\nHASIL VERIFIKASI PEMERIKSAAN:\n-------------------------------------------------------\n- Penerimaan Setoran QRIS & Bank/E-Wallet     : Sesuai Rekening Koran\n- Biaya Administrasi & Bagi Hasil/Bunga Bank  : Sesuai Buku Kas\n- Penarikan Kas Tunai Operasional Paguyuban   : Terverifikasi BKK\n- Transaksi Tertunda / Outstanding Check       : Tidak Ada\n\nMengetahui,\nKetua RW 05                      Bendahara Paguyuban`;
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `BERITA_ACARA_REKONSILIASI_${mainBankLabel.replace(/[^a-zA-Z0-9]/g, '_')}_${reconciliationMonth.replace(/\s+/g, '_')}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('Berita acara rekonsiliasi kas bank berhasil diunduh.');
-  };
-
-  // Download Financial Statement Report .txt with Real Breakdown
-  const handleDownloadFinancialStatement = () => {
-    const reportEntries =
-      reportPeriod === 'ALL'
-        ? entries
-        : entries.filter((e) => e.entryDate && e.entryDate.startsWith(reportPeriod));
-
-    const repIn = reportEntries
-      .filter((e) => e.direction === 'IN' && (reportPeriod !== 'ALL' || e.sourceType !== 'MODAL_AWAL'))
-      .reduce((s, e) => s + e.amount, 0);
-
-    const repOut = reportEntries
-      .filter((e) => e.direction === 'OUT')
-      .reduce((s, e) => s + e.amount, 0);
-
-    const repSurplus = repIn - repOut;
-    const isSurplus = repSurplus >= 0;
-
-    const periodLabel =
-      reportPeriod === 'ALL'
-        ? 'Tahun 2026 (Konsolidasi Tahunan)'
-        : reportPeriod;
-
-    const content = `LAPORAN ARUS KAS & HASIL OPERASIONAL PAGUYUBAN - WARGAHUB\n=========================================================\nPeriode Laporan: ${periodLabel}\nTanggal Cetak  : ${new Date().toLocaleString(
-      'id-ID'
-    )}\n\n1. PENERIMAAN OPERASIONAL KAS (ARUS MASUK / OPERATING INFLOW):\n   TOTAL PENERIMAAN KAS             : +${formatRupiah(
-      repIn
-    )}\n\n2. PENGELUARAN BEBAN OPERASIONAL KAS (ARUS KELUAR / OUTFLOW):\n   TOTAL PENGELUARAN KAS            : -${formatRupiah(
-      repOut
-    )}\n\n3. HASIL OPERASIONAL BERSIH (NET SURPLUS / DEFISIT):\n   HASIL BERSIH BULAN BERJALAN      : ${
-      isSurplus ? `+${formatRupiah(repSurplus)}` : `-${formatRupiah(Math.abs(repSurplus))}`
-    } (${isSurplus ? 'SURPLUS BERSIH' : 'DEFISIT SEMENTARA'})\n\n4. POSISI SALDO LIKUIDITAS KAS & BANK:\n${accounts.map((a) => `   - ${a.name} (${a.bankName || a.type}) : ${formatRupiah(a.balance)}`).join('\n')}\n   TOTAL LIKUIDITAS PAGUYUBAN       : ${formatRupiah(
-      totalBalance
-    )}\n\nDisahkan oleh Bendahara & Pengurus Paguyuban Komplek Grand Sariwangi`;
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `LAPORAN_KEUANGAN_${reportPeriod}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('Laporan keuangan kas berhasil diunduh.');
-  };
-
-  // Export CSV
-  const exportCSV = () => {
-    const headers = [
-      'ID Jurnal',
-      'Tanggal',
-      'No. Referensi',
-      'Akun Kas / Bank',
-      'Tipe Sumber',
-      'Uraian Transaksi',
-      'Pemasukan (Debit)',
-      'Pengeluaran (Kredit)',
-      'Saldo Berjalan',
-    ];
-    const rows = filteredAndSortedEntries.map((e) => [
-      e.id,
-      e.entryDate,
-      `"${e.sourceId || ''}"`,
-      e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : (mainBankAcc?.name || 'Rekening Kas Operasional'),
-      e.sourceType,
-      `"${e.description.replace(/"/g, '""')}"`,
-      e.direction === 'IN' ? e.amount : '',
-      e.direction === 'OUT' ? e.amount : '',
-      e.runningBalance ?? '',
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `JURNAL_BUKU_KAS_WARGAHUB_${new Date().toISOString().slice(0, 7)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Jurnal buku kas berhasil diekspor ke CSV.');
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Toast Notification Alert */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-xl font-bold text-xs animate-in fade-in slide-in-from-top-3">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink flex items-center gap-2">
-              <Wallet className="w-6 h-6 text-primary-600" />
-              <span>Buku Kas & Jurnal Transaksi (General Ledger)</span>
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-mono font-black border border-emerald-200">
-              Saldo: {formatRupiah(totalBalance)}
-            </span>
-          </div>
-          <p className="text-xs text-ink-muted mt-1">
-            Rekam mutasi kas debit/kredit secara akurat, terbitkan voucher jurnal kas, rekonsiliasi mutasi rekening kas & bank,
-            dan pantau likuiditas kas komplek secara real-time.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleDownloadFinancialStatement}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-          >
-            <Download className="w-4 h-4 text-ink-muted" />
-            <span>Unduh Laporan (.txt)</span>
-          </button>
-          <button
-            type="button"
-            onClick={exportCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-ink-muted" />
-            <span>Ekspor CSV</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowTransferModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-          >
-            <ArrowRightLeft className="w-4 h-4 text-indigo-700" />
-            <span>Transfer Kas</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Catat Mutasi Jurnal</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 5 Sub-Tabs Navigation Segmented Pill Grid */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold border-b border-border/80">
-        <button
-          type="button"
-          onClick={() => handleTabChange('ledger_list')}
-          className={`px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-2 whitespace-nowrap active:scale-[0.98] ${
-            activeSubTab === 'ledger_list'
-              ? 'bg-slate-900 text-white shadow-2xs'
-              : 'bg-surface text-ink-muted hover:text-ink hover:bg-canvas border border-border/60'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Buku Jurnal Kas</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-              activeSubTab === 'ledger_list' ? 'bg-white/20 text-white' : 'bg-canvas text-ink'
-            }`}
-          >
-            {entries.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('accounts_manage')}
-          className={`px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-2 whitespace-nowrap active:scale-[0.98] ${
-            activeSubTab === 'accounts_manage'
-              ? 'bg-slate-900 text-white shadow-2xs'
-              : 'bg-surface text-ink-muted hover:text-ink hover:bg-canvas border border-border/60'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Rekening Bank & Kas Tunai</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-              activeSubTab === 'accounts_manage' ? 'bg-white/20 text-white' : 'bg-canvas text-ink'
-            }`}
-          >
-            {accounts.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('bank_reconciliation')}
-          className={`px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-2 whitespace-nowrap active:scale-[0.98] ${
-            activeSubTab === 'bank_reconciliation'
-              ? 'bg-slate-900 text-white shadow-2xs'
-              : 'bg-surface text-ink-muted hover:text-ink hover:bg-canvas border border-border/60'
-          }`}
-        >
-          <Scale className="w-4 h-4" />
-          <span>Rekonsiliasi Bank & Kas</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange('financial_reports')}
-          className={`px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-2 whitespace-nowrap active:scale-[0.98] ${
-            activeSubTab === 'financial_reports'
-              ? 'bg-slate-900 text-white shadow-2xs'
-              : 'bg-surface text-ink-muted hover:text-ink hover:bg-canvas border border-border/60'
-          }`}
-        >
-          <PieChart className="w-4 h-4" />
-          <span>Laporan Arus Kas</span>
-        </button>
-      </div>
-
-      {/* ================= SUBTAB 1: BUKU JURNAL KAS ================= */}
-      {activeSubTab === 'ledger_list' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Total Saldo Kas & Bank
-              </span>
-              <p className="text-2xl font-black text-ink mt-0.5 tabular-nums font-mono">
-                {formatRupiah(totalBalance)}
-              </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block truncate">
-                {accounts.length} REKENING TERVERIFIKASI
-              </span>
-            </div>
-
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Penerimaan Kas (+Debit) {monthFilter !== 'ALL' ? 'Bulan Ini' : '2026'}
-              </span>
-              <p className="text-2xl font-black text-emerald-700 mt-0.5 tabular-nums font-mono">
-                +{formatRupiah(periodIn)}
-              </p>
-              <span className="text-[10px] text-emerald-600 font-bold font-mono mt-0.5 block truncate">
-                {monthFilter !== 'ALL'
-                  ? `${periodEntries.filter((e) => e.direction === 'IN').length} TRANSAKSI MASUK`
-                  : 'IURAN WARGA & DONASI'}
-              </span>
-            </div>
-
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                Pengeluaran Kas (-Kredit) {monthFilter !== 'ALL' ? 'Bulan Ini' : '2026'}
-              </span>
-              <p className="text-2xl font-black text-rose-700 mt-0.5 tabular-nums font-mono">
-                -{formatRupiah(periodOut)}
-              </p>
-              <span className="text-[10px] text-rose-600 font-bold font-mono mt-0.5 block truncate">
-                {monthFilter !== 'ALL'
-                  ? `${periodEntries.filter((e) => e.direction === 'OUT').length} TRANSAKSI KELUAR`
-                  : 'OPERASIONAL & PEMELIHARAAN'}
-              </span>
-            </div>
-
-            <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
-              <span className="text-[10px] font-mono uppercase font-bold text-ink-muted tracking-wider block">
-                {isPeriodSurplus ? 'Surplus Operasional' : 'Defisit Sementara'}
-              </span>
-              <p
-                className={`text-2xl font-black mt-0.5 tabular-nums font-mono ${
-                  isPeriodSurplus ? 'text-primary-700' : 'text-amber-700'
-                }`}
-              >
-                {isPeriodSurplus
-                  ? `+${formatRupiah(periodSurplus)}`
-                  : `-${formatRupiah(Math.abs(periodSurplus))}`}
-              </p>
-              <span
-                className={`text-[10px] font-bold font-mono mt-0.5 block truncate ${
-                  isPeriodSurplus ? 'text-primary-600' : 'text-amber-600'
-                }`}
-              >
-                {isPeriodSurplus ? 'NET OPERATING SURPLUS' : 'DEFISIT BERJALAN BULAN INI'}
-              </span>
-            </div>
-          </div>
-
-          {/* Filter Bar & Direction Toggle */}
-          <div className="bg-surface p-4 rounded-2xl border border-border shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between text-xs">
-            <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setDirectionFilter('ALL');
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all active:scale-[0.98] ${
-                  directionFilter === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'bg-canvas text-ink-muted hover:text-ink border border-border'
-                }`}
-              >
-                Semua Arus ({entries.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDirectionFilter('IN');
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all active:scale-[0.98] ${
-                  directionFilter === 'IN'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'bg-canvas text-emerald-800 hover:bg-emerald-50 border border-border'
-                }`}
-              >
-                + Masuk (Debit)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDirectionFilter('OUT');
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all active:scale-[0.98] ${
-                  directionFilter === 'OUT'
-                    ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'bg-canvas text-rose-800 hover:bg-rose-50 border border-border'
-                }`}
-              >
-                - Keluar (Kredit)
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-              <div className="relative w-full sm:w-56">
-                <Search className="w-4 h-4 text-ink-muted absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Cari uraian, no. ref, jurnal..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl text-xs text-ink"
-                />
-              </div>
-
-              <select
-                value={monthFilter}
-                onChange={(e) => {
-                  setMonthFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-                title="Filter Periode Bulan"
-              >
-                <option value="ALL">Semua Periode</option>
-                {availableMonths.map((m) => {
-                  const [y, mo] = m.split('-');
-                  const dateObj = new Date(parseInt(y), parseInt(mo) - 1, 1);
-                  const monthName = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-                  return (
-                    <option key={m} value={m}>
-                      {monthName}
-                    </option>
-                  );
-                })}
-              </select>
-
-              <select
-                value={accountFilter}
-                onChange={(e) => {
-                  setAccountFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="ALL">Semua Rekening</option>
-                {accounts.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={sourceTypeFilter}
-                onChange={(e) => {
-                  setSourceTypeFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="ALL">Semua Kategori</option>
-                <option value="IURAN_WARGA">Iuran Warga</option>
-                <option value="PENGELUARAN_OPS">Pengeluaran Operasional</option>
-                <option value="SANTUNAN_SOSIAL">Santunan Sosial & THR</option>
-                <option value="PROYEK_FASUM">Proyek Perbaikan Fasum</option>
-                <option value="KASBON_PETUGAS">Kasbon & Gaji di Awal</option>
-                <option value="MUTASI_KAS_INTERNAL">Mutasi Transfer Kas</option>
-                <option value="MANUAL_JOURNAL">Jurnal Manual Lainnya</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              >
-                <option value="date">Urut Tanggal</option>
-                <option value="description">Urut Uraian</option>
-                <option value="amount">Urut Nominal</option>
-                <option value="balance">Urut Saldo</option>
-                <option value="direction">Urut Arah Kas</option>
-              </select>
-
-              <button
-                type="button"
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-2 bg-canvas border border-border rounded-xl text-ink-muted hover:text-ink active:scale-[0.98] transition-all"
-                title={`Urutan: ${sortOrder === 'asc' ? 'Menaik' : 'Menurun'}`}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Ledger Table */}
-          <div className="bg-surface rounded-2xl border border-border shadow-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-canvas border-b border-border text-ink-muted font-bold">
-                  <tr>
-                    <th className="py-3.5 px-4">Tanggal & No. Jurnal</th>
-                    <th className="py-3.5 px-4">Akun & Sumber</th>
-                    <th className="py-3.5 px-4">Uraian Transaksi</th>
-                    <th className="py-3.5 px-4 text-right">Debit (+Masuk)</th>
-                    <th className="py-3.5 px-4 text-right">Kredit (-Keluar)</th>
-                    <th className="py-3.5 px-4 text-right">Saldo Berjalan</th>
-                    <th className="py-3.5 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {paginatedEntries.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-16 text-center text-ink-muted">
-                        <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
-                          <Wallet className="w-10 h-10 text-ink-muted/40 mx-auto" />
-                          <p className="font-bold text-sm text-ink">Belum Ada Transaksi Buku Kas Riil</p>
-                          <p className="text-xs text-ink-muted leading-relaxed">
-                            Buku mutasi kas digital dalam kondisi bersih. Setiap mutasi debit/kredit yang Anda catat akan otomatis terdata di sini secara transparan.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={handleOpenCreateModal}
-                            className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-xl shadow-xs active:scale-[0.98] transition-all"
-                          >
-                            <PlusCircle className="w-3.5 h-3.5" />
-                            <span>Catat Mutasi Jurnal Pertama</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedEntries.map((e) => (
-                      <tr key={e.id} className="hover:bg-canvas/50 text-ink transition-colors">
-                        <td className="py-3.5 px-4">
-                          <span className="font-mono font-bold text-ink block">{e.entryDate}</span>
-                          <span className="text-[10px] text-primary-700 font-mono font-bold">
-                            {e.sourceId || e.id}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2 py-0.5 rounded-md bg-canvas border border-border font-bold text-[10px] text-ink block w-fit">
-                            {accounts.find((a) => a.id === e.accountId)?.name || (e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel)}
-                          </span>
-                          <span className="text-[10px] text-ink-muted uppercase tracking-wider font-mono">
-                            {e.sourceType.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-medium text-ink max-w-xs">
-                          <p className="truncate font-semibold" title={e.description}>
-                            {e.description}
-                          </p>
-                          {e.createdBy && (
-                            <span className="text-[10px] text-ink-muted">Oleh: {e.createdBy}</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-black text-emerald-700 font-mono">
-                          {e.direction === 'IN' ? `+ ${formatRupiah(e.amount)}` : '-'}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-black text-rose-700 font-mono">
-                          {e.direction === 'OUT' ? `- ${formatRupiah(e.amount)}` : '-'}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-bold text-ink font-mono">
-                          {e.runningBalance !== undefined ? formatRupiah(e.runningBalance) : '-'}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedVoucher(e)}
-                              className="px-2.5 py-1 bg-primary-50 hover:bg-primary-100 text-primary-800 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 active:scale-[0.98] transition-all"
-                              title="Lihat Voucher Jurnal"
-                            >
-                              <Receipt className="w-3.5 h-3.5" />
-                              <span>Voucher</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const accountName = accounts.find((a) => a.id === e.accountId)?.name || (e.accountId === 'acc-cash' ? 'Kas Tunai Bendahara' : mainBankLabel);
-                                const content = `BUKTI MUTASI JURNAL KAS RESMI - WARGAHUB\n=========================================\nNo. Referensi: ${
-                                  e.sourceId || e.id
-                                }\nTanggal: ${e.entryDate}\nAkun: ${accountName}\nJenis Mutasi: ${
-                                  e.direction === 'IN' ? 'PENERIMAAN KAS (+DEBIT)' : 'PENGELUARAN KAS (-KREDIT)'
-                                }\nNominal: ${formatRupiah(
-                                  e.amount
-                                )}\nUraian Transaksi: ${e.description}\nKategori Sumber: ${
-                                  e.sourceType
-                                }\n\nDicetak pada: ${new Date().toLocaleString(
-                                  'id-ID'
-                                )}\nBendahara Paguyuban Komplek`;
-                                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `VOUCHER_${e.sourceId || e.id}.txt`;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                URL.revokeObjectURL(url);
-                                showToast('Slip bukti transaksi berhasil diunduh.');
-                              }}
-                              className="p-1 text-ink-muted hover:text-ink hover:bg-canvas rounded-lg active:scale-[0.98] transition-all"
-                              title="Cetak Slip (.txt)"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditModal(e)}
-                              className="p-1 text-amber-700 hover:bg-amber-50 rounded-lg active:scale-[0.98] transition-all"
-                              title="Edit Jurnal"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setEntryToDelete(e)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded-lg active:scale-[0.98] transition-all"
-                              title="Hapus Jurnal"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="p-4 border-t border-border bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <span className="text-ink-muted">
-                  Menampilkan <strong className="text-ink">{totalFiltered === 0 ? 0 : startIndex + 1}</strong> -{' '}
-                  <strong className="text-ink">{endIndex}</strong> dari{' '}
-                  <strong className="text-ink">{totalFiltered}</strong> entri jurnal
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-ink-muted">Baris:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="px-2 py-1 bg-surface border border-border rounded-lg font-bold text-ink"
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(1)}
-                  disabled={safeCurrentPage === 1}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Pertama"
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(safeCurrentPage - 1)}
-                  disabled={safeCurrentPage === 1}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Sebelumnya"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-
-                <div className="flex items-center gap-1 px-2">
-                  <span className="px-3 py-1 font-mono font-bold text-ink bg-surface border border-border rounded-lg">
-                    {safeCurrentPage} / {totalPages}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(safeCurrentPage + 1)}
-                  disabled={safeCurrentPage === totalPages}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Berikutnya"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(totalPages)}
-                  disabled={safeCurrentPage === totalPages}
-                  className="p-1.5 rounded-lg border border-border bg-surface text-ink hover:bg-canvas disabled:opacity-40 active:scale-[0.98] transition-all"
-                  title="Halaman Terakhir"
-                >
-                  <ChevronsRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 2: REKENING BANK & KAS TUNAI ================= */}
-      {activeSubTab === 'accounts_manage' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div>
-              <h3 className="font-black text-base text-ink flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-primary-600" />
-                <span>Daftar Akun Kas & Rekening Bank Paguyuban</span>
-              </h3>
-              <p className="text-xs text-ink-muted mt-0.5">
-                Kelola kas tunai fisik di pos satpam/bendahara serta rekening bank dan e-wallet operasional warga.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowTransferModal(true)}
-              className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-1.5 active:scale-[0.98] transition-all"
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              <span>+ Transfer Antar Rekening Kas</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {accounts.map((acc) => (
-              <div
-                key={acc.id}
-                className="p-5 bg-surface rounded-3xl border border-border shadow-card space-y-4 text-xs"
-              >
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center font-bold shadow-2xs">
-                      {acc.type === 'BANK' ? <Building2 className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <h4 className="font-black text-ink text-sm">{acc.name}</h4>
-                      <p className="text-[11px] text-ink-muted font-mono">{acc.code}</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
-                    Aktif Terverifikasi
-                  </span>
-                </div>
-
-                <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-[11px] font-bold text-ink-muted">Saldo Tersedia:</span>
-                    <span className="text-2xl font-black text-ink font-mono tabular-nums">
-                      {formatRupiah(acc.balance)}
-                    </span>
-                  </div>
-                  <div className="pt-2 border-t border-border/80 flex justify-between text-[11px]">
-                    <span className="text-ink-muted">No. Rekening / Simpanan:</span>
-                    <span className="font-mono font-bold text-ink">
-                      {acc.accountNumber || 'Brankas Tunai Pos / Bendahara'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-ink-muted">Nama Bank / Institusi:</span>
-                    <span className="font-bold text-ink">{acc.bankName || 'Kas Tunai Paguyuban'}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAccountFilter(acc.id);
-                      handleTabChange('ledger_list');
-                    }}
-                    className="flex-1 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold rounded-xl active:scale-[0.98] transition-all inline-flex items-center justify-center gap-1.5"
-                  >
-                    <Layers className="w-3.5 h-3.5 text-primary-600" />
-                    <span>Lihat Mutasi Jurnal</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTransferFrom(acc.id);
-                      setShowTransferModal(true);
-                    }}
-                    className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold rounded-xl active:scale-[0.98] transition-all inline-flex items-center gap-1.5"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                    <span>Transfer</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 3: REKONSILIASI BANK & KAS ================= */}
-      {activeSubTab === 'bank_reconciliation' && (
-        <div className="space-y-6 animate-in fade-in duration-150 max-w-4xl">
-          <div className="p-6 bg-surface rounded-3xl border border-border shadow-card space-y-5 text-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-              <div>
-                <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <Scale className="w-5 h-5 text-emerald-600" />
-                  <span>Rekonsiliasi Bank & Kas ({mainBankLabel})</span>
-                </h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Bandingkan saldo pembukuan sistem WargaHub dengan saldo rekening koran atau mutasi fisik {mainBankLabel}.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDownloadReconStatement}
-                className="px-3.5 py-2.5 bg-surface hover:bg-canvas border border-border text-ink font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
-              >
-                <Download className="w-4 h-4 text-ink-muted" />
-                <span>Unduh Berita Acara (.txt)</span>
-              </button>
-            </div>
-
-            {/* Reconciliation Comparison Table */}
-            {(() => {
-              const mainAcc = accounts.find((a) => a.id === 'acc-main') || accounts[0];
-              const systemBalance = mainAcc ? mainAcc.balance : 0;
-              const difference = bankStatementBalance - systemBalance;
-              const isBalanced = difference === 0;
-
-              return (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="p-4 bg-canvas rounded-2xl border border-border space-y-1">
-                      <span className="text-[10px] font-mono uppercase font-bold text-ink-muted block">
-                        Saldo Rekening Koran / Mutasi Fisik
-                      </span>
-                      <p className="text-xl font-black font-mono text-ink tabular-nums">
-                        {formatRupiah(bankStatementBalance)}
-                      </p>
-                      <span className="text-[10px] text-ink-muted block">Sesuai e-Statement {mainBankLabel}</span>
-                    </div>
-
-                    <div className="p-4 bg-canvas rounded-2xl border border-border space-y-1">
-                      <span className="text-[10px] font-mono uppercase font-bold text-ink-muted block">
-                        Saldo Pembukuan Buku Kas Sistem
-                      </span>
-                      <p className="text-xl font-black font-mono text-primary-700 tabular-nums">
-                        {formatRupiah(systemBalance)}
-                      </p>
-                      <span className="text-[10px] text-primary-600 block font-medium">Buku Kas Jurnal Aktif</span>
-                    </div>
-
-                    <div
-                      className={`p-4 rounded-2xl border space-y-1 ${
-                        isBalanced
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-                          : 'bg-rose-50/70 border-rose-200 text-rose-950'
-                      }`}
-                    >
-                      <span className="text-[10px] font-mono uppercase font-bold block">
-                        Selisih Rekonsiliasi (Variance)
-                      </span>
-                      <p className="text-xl font-black font-mono tabular-nums">
-                        {formatRupiah(Math.abs(difference))}
-                      </p>
-                      <span className="text-[10px] font-bold block">
-                        {isBalanced ? '✓ TEREKONSILIASI & SEIMBANG' : '⚠️ TERDAPAT SELISIH'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-canvas rounded-2xl border border-border space-y-3">
-                    <h4 className="font-bold text-ink text-xs">Penyesuaian Saldo Rekening Koran</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="font-bold text-ink block mb-1 text-[11px]">
-                          Periode Bulan Rekonsiliasi
-                        </label>
-                        <select
-                          value={reconciliationMonth}
-                          onChange={(e) => setReconciliationMonth(e.target.value)}
-                          className="w-full p-2 bg-surface border border-border rounded-xl font-bold text-ink"
-                        >
-                          <option value="September 2026">September 2026</option>
-                          <option value="Agustus 2026">Agustus 2026</option>
-                          <option value="Juli 2026">Juli 2026</option>
-                          <option value="Oktober 2026">Oktober 2026</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="font-bold text-ink block mb-1 text-[11px]">
-                          Input Saldo Rekening Koran / Mutasi ({mainBankLabel}) (Rp)
-                        </label>
-                        <input
-                          type="number"
-                          value={bankStatementBalance}
-                          onChange={(e) => setBankStatementBalance(Number(e.target.value))}
-                          className="w-full p-2 bg-surface border border-border rounded-xl font-mono font-bold text-ink"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <h4 className="font-bold text-ink text-xs">Checklist Verifikasi Audit Bulanan:</h4>
-                    <div className="space-y-2">
-                      {[
-                        { key: 'checkQris', label: 'Seluruh setoran QRIS warga telah masuk mutasi bank' },
-                        { key: 'checkInterest', label: 'Bunga tabungan dan PPh jasa giro telah dibukukan' },
-                        { key: 'checkAdminFee', label: 'Biaya administrasi bank bulanan telah dicatat sebagai kredit' },
-                        { key: 'checkCashWithdrawal', label: 'Penarikan tunai operasional sesuai dengan bukti BKK fisik' },
-                        { key: 'checkDisbursement', label: 'Tidak ada cek gantung atau transfer pending antardaerah' },
-                      ].map((item) => (
-                        <label
-                          key={item.key}
-                          className="flex items-center gap-2.5 p-3 bg-surface hover:bg-canvas rounded-xl border border-border cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={reconChecks[item.key] ?? false}
-                            onChange={(e) =>
-                              setReconChecks({ ...reconChecks, [item.key]: e.target.checked })
-                            }
-                            className="w-4 h-4 text-emerald-600 rounded"
-                          />
-                          <span className="font-medium text-ink text-xs">{item.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {reconSavedStatus[reconciliationMonth] && (
-                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-emerald-950 font-bold">
-                      <span className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        Disahkan oleh {reconSavedStatus[reconciliationMonth].signedBy} ({reconSavedStatus[reconciliationMonth].signedAt})
-                      </span>
-                      <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded font-mono font-black">
-                        STATUS: SAH
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="pt-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleApproveReconciliation}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center gap-2 active:scale-[0.98] transition-all"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>Sahkan Rekonsiliasi Periode Ini</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* ================= SUBTAB 4: LAPORAN ARUS KAS ================= */}
-      {activeSubTab === 'financial_reports' && (
-        <div className="space-y-6 animate-in fade-in duration-150 max-w-4xl">
-          <div className="p-6 bg-surface rounded-3xl border border-border shadow-card space-y-5 text-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-              <div>
-                <h3 className="font-black text-base text-ink flex items-center gap-2">
-                  <PieChart className="w-5 h-5 text-indigo-600" />
-                  <span>Laporan Laba Rugi & Arus Kas Paguyuban (Cash Flow Statement)</span>
-                </h3>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  Ringkasan analitik penerimaan operasional, alokasi beban pengeluaran rutin, dan posisi surplus kas.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={reportPeriod}
-                  onChange={(e) => setReportPeriod(e.target.value)}
-                  className="px-3 py-2 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-                  title="Pilih Periode Laporan"
-                >
-                  <option value="ALL">Tahun 2026 (Konsolidasi Tahunan)</option>
-                  {availableMonths.map((m) => {
-                    const [y, mo] = m.split('-');
-                    const dateObj = new Date(parseInt(y), parseInt(mo) - 1, 1);
-                    const monthName = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-                    return (
-                      <option key={m} value={m}>
-                        {monthName}
-                      </option>
-                    );
-                  })}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadFinancialStatement}
-                  className="px-3.5 py-2 bg-surface hover:bg-canvas border border-border text-ink font-bold rounded-xl inline-flex items-center gap-1.5 shadow-xs active:scale-[0.98] transition-all"
-                >
-                  <Download className="w-3.5 h-3.5 text-ink-muted" />
-                  <span>Unduh Ringkasan (.txt)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Income & Expense Breakdown */}
-            {(() => {
-              const repEntries =
-                reportPeriod === 'ALL'
-                  ? entries
-                  : entries.filter((e) => e.entryDate && e.entryDate.startsWith(reportPeriod));
-
-              const repIn = repEntries
-                .filter((e) => e.direction === 'IN' && (reportPeriod !== 'ALL' || e.sourceType !== 'MODAL_AWAL'))
-                .reduce((s, e) => s + e.amount, 0);
-
-              const repOut = repEntries
-                .filter((e) => e.direction === 'OUT')
-                .reduce((s, e) => s + e.amount, 0);
-
-              const repSurplus = repIn - repOut;
-              const isRepSurplus = repSurplus >= 0;
-
-              const iuranWarga = repEntries
-                .filter((e) => e.direction === 'IN' && (e.sourceType === 'IURAN_WARGA' || e.sourceType === 'PAYMENT'))
-                .reduce((s, e) => s + e.amount, 0);
-
-              const donasiLainnya = repEntries
-                .filter((e) => e.direction === 'IN' && e.sourceType !== 'IURAN_WARGA' && e.sourceType !== 'PAYMENT')
-                .reduce((s, e) => s + e.amount, 0);
-
-              const honorSatpam = repEntries
-                .filter(
-                  (e) =>
-                    e.direction === 'OUT' &&
-                    (e.description.toLowerCase().includes('satpam') || e.description.toLowerCase().includes('honor'))
-                )
-                .reduce((s, e) => s + e.amount, 0);
-
-              const retribusiRtRw = repEntries
-                .filter(
-                  (e) =>
-                    e.direction === 'OUT' &&
-                    (e.description.toLowerCase().includes('rt') || e.description.toLowerCase().includes('rw'))
-                )
-                .reduce((s, e) => s + e.amount, 0);
-
-              const operasionalPosPju = repEntries
-                .filter(
-                  (e) =>
-                    e.direction === 'OUT' &&
-                    (e.description.toLowerCase().includes('listrik') ||
-                      e.description.toLowerCase().includes('pos') ||
-                      e.description.toLowerCase().includes('air'))
-                )
-                .reduce((s, e) => s + e.amount, 0);
-
-              const fasumDanLainnya = repEntries
-                .filter(
-                  (e) =>
-                    e.direction === 'OUT' &&
-                    !e.description.toLowerCase().includes('satpam') &&
-                    !e.description.toLowerCase().includes('honor') &&
-                    !e.description.toLowerCase().includes('rt') &&
-                    !e.description.toLowerCase().includes('rw') &&
-                    !e.description.toLowerCase().includes('listrik') &&
-                    !e.description.toLowerCase().includes('pos') &&
-                    !e.description.toLowerCase().includes('air')
-                )
-                .reduce((s, e) => s + e.amount, 0);
-
-              return repEntries.length === 0 ? (
-                <div className="p-8 text-center bg-canvas rounded-2xl border border-border space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-surface border border-border flex items-center justify-center mx-auto text-ink-muted">
-                    <PieChart className="w-6 h-6" />
-                  </div>
-                  <p className="font-bold text-ink text-sm">Belum Ada Transaksi Arus Kas Periode Ini</p>
-                  <p className="text-xs text-ink-muted max-w-sm mx-auto">
-                    Laporan arus kas dan surplus/defisit operasional akan dikalkulasikan secara otomatis setelah transaksi dicatat pada buku jurnal.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
-                    <div className="flex justify-between items-center text-sm font-bold text-ink">
-                      <span className="flex items-center gap-1.5 text-emerald-800">
-                        <TrendingUp className="w-4 h-4 text-emerald-600" />
-                        <span>Penerimaan Operasional Kas (Inflow)</span>
-                      </span>
-                      <span className="font-mono font-black text-emerald-700">+{formatRupiah(repIn)}</span>
-                    </div>
-                    <div className="pl-6 space-y-1.5 text-[11px] text-ink-muted">
-                      <div className="flex justify-between">
-                        <span>- Setoran Iuran Rutin Kas Warga (IPL)</span>
-                        <span className="font-mono text-ink font-bold">{formatRupiah(iuranWarga)}</span>
-                      </div>
-                      {donasiLainnya > 0 && (
-                        <div className="flex justify-between">
-                          <span>- Modal Kas Awal / Donasi & Sumbangan</span>
-                          <span className="font-mono text-ink font-bold">{formatRupiah(donasiLainnya)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2">
-                    <div className="flex justify-between items-center text-sm font-bold text-ink">
-                      <span className="flex items-center gap-1.5 text-rose-800">
-                        <TrendingDown className="w-4 h-4 text-rose-600" />
-                        <span>Pengeluaran Beban Operasional Kas (Outflow)</span>
-                      </span>
-                      <span className="font-mono font-black text-rose-700">-{formatRupiah(repOut)}</span>
-                    </div>
-                    <div className="pl-6 space-y-1.5 text-[11px] text-ink-muted">
-                      <div className="flex justify-between">
-                        <span>- Gaji & Honor Petugas Keamanan Lingkungan</span>
-                        <span className="font-mono text-ink font-bold">{formatRupiah(honorSatpam)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>- Iuran Retribusi RT, RW & Kebersihan Sampah</span>
-                        <span className="font-mono text-ink font-bold">{formatRupiah(retribusiRtRw)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>- Listrik PJU & Operasional Pos Keamanan</span>
-                        <span className="font-mono text-ink font-bold">{formatRupiah(operasionalPosPju)}</span>
-                      </div>
-                      {fasumDanLainnya > 0 && (
-                        <div className="flex justify-between">
-                          <span>- Pemeliharaan Fasum, Kegiatan & Dana Medis Satpam</span>
-                          <span className="font-mono text-ink font-bold">{formatRupiah(fasumDanLainnya)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div
-                    className={`p-4 rounded-2xl border flex justify-between items-center text-sm ${
-                      isRepSurplus
-                        ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-                        : 'bg-amber-50/70 border-amber-200 text-amber-950'
-                    }`}
-                  >
-                    <div>
-                      <span className="font-black block">
-                        {isRepSurplus ? 'Surplus Operasional Bersih' : 'Defisit Sementara Periode Berjalan'}
-                      </span>
-                      <span className="text-[10px] text-ink-muted block mt-0.5">
-                        {isRepSurplus
-                          ? 'Penerimaan iuran kas warga mencukupi seluruh beban operasional berjalan'
-                          : 'Pengeluaran melebihi penerimaan tercatat pada periode ini (sementara)'}
-                      </span>
-                    </div>
-                    <span
-                      className={`font-mono font-black text-lg ${
-                        isRepSurplus ? 'text-emerald-700' : 'text-amber-700'
-                      }`}
-                    >
-                      {isRepSurplus ? `+${formatRupiah(repSurplus)}` : `-${formatRupiah(Math.abs(repSurplus))}`}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: CREATE / EDIT JURNAL ================= */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink flex items-center gap-2">
-                <PlusCircle className="w-4 h-4 text-primary-600" />
-                <span>{editingEntryId ? 'Edit Jurnal Transaksi' : 'Catat Mutasi Jurnal Kas'}</span>
-              </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-ink-muted hover:text-ink">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEntry} className="space-y-3">
-              <div>
-                <label className="font-bold text-ink block mb-1">Uraian Transaksi *</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Penerimaan sumbangan warga / Pembelian semen"
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Arah Arus Kas *</label>
-                  <select
-                    value={formDirection}
-                    onChange={(e) => setFormDirection(e.target.value as any)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="IN">+ Masuk (Debit)</option>
-                    <option value="OUT">- Keluar (Kredit)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Nominal (Rp) *</label>
-                  <input
-                    type="number"
-                    value={formAmount}
-                    onChange={(e) => setFormAmount(e.target.value)}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Akun Kas / Bank *</label>
-                  <select
-                    value={formAccountId}
-                    onChange={(e) => setFormAccountId(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    {accounts.map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Kategori Sumber</label>
-                  <select
-                    value={formSourceType}
-                    onChange={(e) => setFormSourceType(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    <option value="IURAN_WARGA">Iuran Warga</option>
-                    <option value="PENGELUARAN_OPS">Pengeluaran Operasional</option>
-                    <option value="SANTUNAN_SOSIAL">Santunan Sosial</option>
-                    <option value="PROYEK_FASUM">Proyek Fasum</option>
-                    <option value="KASBON_PETUGAS">Kasbon Petugas</option>
-                    <option value="MUTASI_KAS_INTERNAL">Mutasi Kas Internal</option>
-                    <option value="MANUAL_JOURNAL">Jurnal Manual</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Tanggal Transaksi *</label>
-                  <input
-                    type="date"
-                    value={formEntryDate}
-                    onChange={(e) => setFormEntryDate(e.target.value)}
-                    required
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">No. Referensi Bukti</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: REF-1092"
-                    value={formReferenceNo}
-                    onChange={(e) => setFormReferenceNo(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingEntry}
-                  className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-xs disabled:opacity-50 active:scale-[0.98] transition-all"
-                >
-                  {savingEntry ? 'Menyimpan...' : 'Simpan Jurnal'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: TRANSFER DANA ANTAR KAS ================= */}
-      {showTransferModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-black text-sm text-ink flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
-                <span>Transfer Dana Antar Rekening Kas</span>
-              </h3>
-              <button onClick={() => setShowTransferModal(false)} className="text-ink-muted hover:text-ink">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleExecuteTransfer} className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-ink block mb-1">Rekening Asal *</label>
-                  <select
-                    value={transferFrom}
-                    onChange={(e) => setTransferFrom(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({formatRupiah(a.balance)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-ink block mb-1">Rekening Tujuan *</label>
-                  <select
-                    value={transferTo}
-                    onChange={(e) => setTransferTo(e.target.value)}
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
-                  >
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({formatRupiah(a.balance)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Nominal Transfer (Rp) *</label>
-                <input
-                  type="number"
-                  value={transferAmount}
-                  onChange={(e) => setTransferAmount(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Keterangan / Keperluan Transfer *</label>
-                <input
-                  type="text"
-                  value={transferNotes}
-                  onChange={(e) => setTransferNotes(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl text-ink"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowTransferModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isTransferring}
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {isTransferring ? 'Memproses...' : 'Proses Transfer Kas'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: VOUCHER JURNAL KAS ================= */}
-      {selectedVoucher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h3 className="font-black text-sm text-ink">
-                  {selectedVoucher.direction === 'IN'
-                    ? 'Bukti Kas Masuk (BKM Resmi)'
-                    : 'Bukti Kas Keluar (BKK Resmi)'}
-                </h3>
-                <p className="text-[11px] text-ink-muted">
-                  No. Ref: {selectedVoucher.sourceId || selectedVoucher.id}
-                </p>
-              </div>
-              <button onClick={() => setSelectedVoucher(null)} className="text-ink-muted hover:text-ink">
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 bg-canvas rounded-2xl border border-border space-y-2.5">
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Uraian Transaksi:</span>
-                <span className="font-black text-ink">{selectedVoucher.description}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Akun Pembukuan:</span>
-                <span className="font-bold text-ink">
-                  {accounts.find((a) => a.id === selectedVoucher.accountId)?.name ||
-                    (selectedVoucher.accountId === 'acc-cash'
-                      ? 'Kas Tunai Bendahara'
-                      : mainBankLabel)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Arah Transaksi:</span>
-                <span
-                  className={`font-black ${
-                    selectedVoucher.direction === 'IN' ? 'text-emerald-700' : 'text-rose-700'
-                  }`}
-                >
-                  {selectedVoucher.direction === 'IN'
-                    ? '+ PENERIMAAN KAS (DEBIT)'
-                    : '- PENGELUARAN KAS (KREDIT)'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Tanggal Jurnal:</span>
-                <span className="font-mono text-ink">{selectedVoucher.entryDate}</span>
-              </div>
-              <div className="pt-2 border-t border-border flex justify-between items-center">
-                <span className="font-bold text-ink">Nominal Mutasi:</span>
-                <span
-                  className={`font-black text-base font-mono ${
-                    selectedVoucher.direction === 'IN' ? 'text-emerald-700' : 'text-rose-700'
-                  }`}
-                >
-                  {selectedVoucher.direction === 'IN' ? '+' : '-'} {formatRupiah(selectedVoucher.amount)}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-xs inline-flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Cetak PDF</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedVoucher(null)}
-                className="flex-1 py-2.5 border border-border text-ink font-bold rounded-xl hover:bg-canvas active:scale-[0.98] transition-all"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: KONFIRMASI HAPUS JURNAL ================= */}
-      {entryToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-red-200 shadow-modal space-y-4 text-xs">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1">
-              <h3 className="font-black text-base text-ink">Hapus Jurnal "{entryToDelete.description}"?</h3>
-              {entryToDelete.sourceType === 'INTERNAL_TRANSFER' && <p className="text-sm text-ink-muted">Membatalkan mutasi akan menghapus kedua entri yang berpasangan dan mengembalikan saldo kedua rekening.</p>}
-              <p className="text-ink-muted">
-                Mutasi kas sebesar <strong>{formatRupiah(entryToDelete.amount)}</strong> akan dibatalkan/dihapus
-                dari buku kas. Tindakan ini tercatat di Jejak Audit.
-              </p>
-            </div>
-
-            <div>
-              <label className="font-bold text-ink block mb-1">Alasan Pembatalan:</label>
-              <select
-                value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
-                className="w-full p-2 bg-canvas border border-border rounded-xl text-ink font-semibold"
-              >
-                <option value="Koreksi Input Jurnal / Duplikat">Koreksi Input Jurnal / Duplikat</option>
-                <option value="Transaksi Dibatalkan Bank">Transaksi Dibatalkan Bank</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setEntryToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl border border-border text-ink font-bold hover:bg-canvas active:scale-[0.98] transition-all"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-[0.98] transition-all"
-              >
-                Ya, Hapus Jurnal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      setData(await financePost<CashReconciliation>('/api/ledger/reconciliation',{accountId:data.accountId,month:data.month,expectedVersion:data.fingerprint,statementBalance:Number(statement),note}));
+      setFeedback('Rekonsiliasi tersimpan.');
+    } catch(error) {setError(error instanceof Error?error.message:'Rekonsiliasi belum tersimpan.');}
+    finally {setBusy(false);}
+  }
+  function download() {
+    if (!data.saved) return;
+    const record = data.saved;
+    downloadFinanceCsv('rekonsiliasi-'+data.month+'.csv',[['Periode','Rekening','Saldo buku saat diperiksa','Saldo pembanding','Selisih','Pemeriksa','Tanggal','Status','Catatan'],
+      [data.month,data.accountId,record.bookBalance,record.statementBalance,Math.round((record.statementBalance-record.bookBalance)*100)/100,record.by,record.at,
+        data.status==='STALE'?'Perlu cek ulang':data.status==='MATCHED'?'Cocok':'Ada selisih',record.note]]);
+  }
+  return <section className="workspace-panel grid min-w-0 gap-3" aria-label="Rekonsiliasi rekening">
+    <header className="flex flex-wrap items-center justify-between gap-2">
+      <h2 className="!mb-0 text-lg font-bold">Cocokkan saldo</h2>
+      <FinanceStatus value={data.status} />
+    </header>
+    <div className="grid gap-2 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 sm:grid-cols-2 sm:items-center">
+      <p>Saldo buku akhir periode <strong className="block text-lg tabular-nums">{cashRupiah(data.summary.closing)}</strong></p>
+      <a href={path({month:data.month,account:data.accountId})} className={link+' sm:justify-self-end'}>Periksa jurnal periode ini <ArrowUpRight className="size-4" aria-hidden="true" /></a>
     </div>
-  );
-};
+    {data.saved && <div className="grid min-w-0 gap-1 border-b border-border pb-3 text-sm">
+      <p>Terakhir diperiksa {financeDate(data.saved.at)} oleh <strong>{data.saved.by}</strong>.</p>
+      <p className="text-ink-muted [overflow-wrap:anywhere]">Saldo pembanding {cashRupiah(data.saved.statementBalance)}{data.saved.note?' · '+data.saved.note:''}</p>
+      <button type="button" className={link+' justify-self-start'} onClick={download}><ArrowDownToLine className="size-4" aria-hidden="true" />Unduh hasil</button>
+    </div>}
+    {data.status==='STALE' && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Jurnal berubah sejak pemeriksaan terakhir. Cocokkan kembali dengan bukti saldo.</p>}
+    {canWrite && data.month<=currentFinanceMonth() && <form className="grid gap-3" onSubmit={save}>
+      <Field label="Saldo akhir rekening koran atau kas fisik (Rp)"><input className={financeField} type="number" step="0.01" inputMode="decimal" required
+        value={statement} placeholder="Masukkan saldo pembanding" onChange={event=>setStatement(event.target.value)} /></Field>
+      {difference!==null && <p role="status" className={'text-sm font-semibold '+(difference===0?'text-primary-800':'text-rose-800')}>Selisih {cashRupiah(difference)}</p>}
+      <Field label={difference!==null && difference!==0?'Catatan selisih':'Referensi atau catatan (opsional)'}>
+        <textarea className={financeField} maxLength={500} minLength={difference!==null && difference!==0?5:undefined} required={difference!==null && difference!==0}
+          value={note} onChange={event=>setNote(event.target.value)} placeholder="Misalnya tanggal rekening koran" />
+      </Field>
+      {feedback && <p role="status" className="text-sm font-semibold text-primary-800">{feedback}</p>}
+      {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-900">{error}</p>}
+      <button type="submit" className={financePrimary+' justify-self-start'} disabled={busy}>{busy?'Menyimpan…':'Simpan rekonsiliasi'}</button>
+    </form>}
+  </section>;
+}
+
+export function LedgerManager({accounts,accountId,ledger,reconciliation,initialTab:tab,canWrite,month,search,source,scope,journalPageSize,initialNotice}:Props) {
+  const [modal,setModal] = useState<Modal|null>(null);
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState('');
+  const [accountType,setAccountType] = useState('BANK');
+  const account = accounts.find(item=>item.id===accountId);
+  const actionRow = modal && 'row' in modal ? modal.row : undefined;
+  const actionAccount = modal?.type==='account' ? modal.account : undefined;
+  const query = scope ? {[scope.type]:scope.id} : {month,account:accountId,q:search,source};
+  const selectedTitle = scope ? sourceHeadings[scope.type] : 'Buku kas';
+  const back = scope?.type==='payment' && canWrite ? financePath('/admin/payments',{tab:'history',payment:scope.id}) :
+    scope?.type==='expense' ? financePath('/admin/expenses',{expense:scope.id}) : '';
+  const title = modal?.type==='transfer'?'Pindah saldo antar rekening':modal?.type==='account'?(actionAccount?'Ubah rekening':'Rekening baru'):
+    modal?.type==='delete'?(actionRow && isInternalTransfer(actionRow.sourceType)?'Batalkan mutasi':'Batalkan jurnal'):actionRow?'Ubah jurnal':'Catat jurnal manual';
+  const open = (value:Modal)=>{
+    setError('');if(value.type==='account') setAccountType(value.account?.type || 'BANK');setModal(value);
+  };
+
+  async function submit(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!modal || busy) return;
+    const data = new FormData(event.currentTarget);
+    setBusy(true);setError('');
+    try {
+      if (modal.type==='journal') {
+        const result = await financePost<{id:string}>('/api/ledger/'+(actionRow?'update':'create'),{ledgerId:actionRow?.id,accountId:str(data,'accountId'),
+          entryDate:str(data,'entryDate'),direction:str(data,'direction'),amount:amount(data,'amount'),description:str(data,'description'),referenceNo:str(data,'referenceNo')});
+        window.location.assign(path({q:result.id,saved:'journal'}));
+      } else if (modal.type==='transfer') {
+        const result = await financePost<{transferId:string}>('/api/ledger/transfer',{fromAccountId:str(data,'fromAccountId'),toAccountId:str(data,'toAccountId'),
+          amount:amount(data,'amount'),description:str(data,'description'),entryDate:str(data,'entryDate')});
+        window.location.assign(path({transfer:result.transferId,saved:'transfer'}));
+      } else if (modal.type==='account') {
+        await financePost('/api/accounts/save',{id:actionAccount?.id,name:str(data,'name'),code:str(data,'code'),type:accountType,bankName:str(data,'bankName'),
+          accountNumber:str(data,'accountNumber'),balance:actionAccount?0:amount(data,'balance')});
+        window.location.assign(path({tab:'accounts_manage',saved:'account'}));
+      } else if (modal.type==='delete' && actionRow) {
+        await financePost('/api/ledger/delete',{ledgerId:actionRow.id,reason:str(data,'reason')});
+        window.location.assign(path({month,account:accountId,saved:'delete'}));
+      }
+    } catch(error) {setError(error instanceof Error?error.message:'Perubahan belum tersimpan.');setBusy(false);}
+  }
+
+  const monthAccount = (mode:'bank_reconciliation'|'financial_reports')=><form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end" action="/admin/ledger">
+    <input type="hidden" name="tab" value={mode} />
+    <Field label="Periode"><input className={financeField+' min-w-0'} name="month" type="month" defaultValue={month} max={mode==='bank_reconciliation'?currentFinanceMonth():undefined} required /></Field>
+    <Field label="Rekening"><AccountSelect accounts={accounts} value={accountId} all={mode==='financial_reports'} required={mode==='bank_reconciliation'} /></Field>
+    <button type="submit" className={financeButton}>Tampilkan</button>
+  </form>;
+
+  return <section className="workspace">
+    <FinanceHeader area="ledger" title={selectedTitle} canViewPayments={canWrite}>
+      {back && <a className={financePrimary} href={back}>{scope?.type==='payment'?'Lihat pembayaran':'Lihat pengeluaran'} <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
+      {!scope && canWrite && tab==='ledger_list' && accounts.length>0 && <button type="button" className={financePrimary} onClick={()=>open({type:'journal'})}>
+        <Plus className="size-4" aria-hidden="true" />Catat jurnal</button>}
+      {canWrite && tab==='accounts_manage' && <button type="button" className={financePrimary} onClick={()=>open({type:'account'})}><Plus className="size-4" aria-hidden="true" />Rekening baru</button>}
+      {!scope && canWrite && accounts.length>1 && ['ledger_list','accounts_manage'].includes(tab) && <button type="button" className={financeButton} onClick={()=>open({type:'transfer'})}>
+        <ArrowLeftRight className="size-4" aria-hidden="true" />Pindah saldo</button>}
+    </FinanceHeader>
+    <FinanceTabLinks tabs={menus.map(item=>({...item,href:path({tab:item.id,month:item.id!=='accounts_manage'?month:undefined,account:item.id!=='accounts_manage'?accountId:undefined})}))} active={tab} label="Menu buku kas" />
+    {Object.hasOwn(noticeLabels,initialNotice) && <p role="status" className="rounded-xl bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-900">{noticeLabels[initialNotice]}</p>}
+    {tab==='ledger_list' && ledger && <>
+      {scope ? <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-sky-50 px-4 py-2 text-sm text-sky-900">
+        <p className="min-w-0 font-medium [overflow-wrap:anywhere]">{scope.id}</p><a href={path()} className={link}>Semua jurnal</a>
+      </div> : <CashSummary summary={ledger.summary} month={month} />}
+      <section aria-label="Jurnal kas" className="min-w-0 rounded-2xl border border-border bg-surface">
+        {!scope && <form className="grid gap-2 border-b border-border p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-[minmax(9rem,1.5fr)_minmax(8rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)_auto] lg:items-end" action="/admin/ledger">
+          <Field label="Cari jurnal"><input className={financeField} name="q" defaultValue={search} placeholder="Deskripsi atau nomor" maxLength={100} /></Field>
+          <Field label="Periode"><input className={financeField+' min-w-0'} name="month" type="month" defaultValue={month} /></Field>
+          <Field label="Rekening"><AccountSelect accounts={accounts} value={accountId} all /></Field>
+          <Field label="Sumber"><select className={financeField} name="source" defaultValue={source}><option value="">Semua sumber</option>
+            {Object.entries(sourceFilters).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
+          <button type="submit" className={financeButton}>Tampilkan</button>
+        </form>}
+        <header className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
+          <h2 className="font-bold">{scope?'Transaksi terkait':'Transaksi kas'}</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            {!scope && (month || accountId || search || source) && <a className={link} href={path()}>Reset filter</a>}
+            {ledger.total>0 && <a className={link} data-astro-reload href={path({...query,download:'csv'})}><ArrowDownToLine className="size-4" aria-hidden="true" />CSV</a>}
+          </div>
+        </header>
+        {!ledger.entries.length ? <div className="p-4"><FinanceEmpty>{ledger.total?'Halaman ini tidak memiliki transaksi.':scope?'Jurnal terkait belum ditemukan.':'Tidak ada jurnal yang cocok.'}</FinanceEmpty></div> :
+          <ul className="divide-y divide-border px-4">
+            {ledger.entries.map(row=>{
+              const destination = sourceHref(row,canWrite);
+              const incoming = row.direction==='IN';
+              const transfer = row.sourceType==='INTERNAL_TRANSFER';
+              const edit = isEditableJournal(row.sourceType);
+              return <li key={row.id} data-journal-id={row.id} className="grid min-w-0 gap-x-4 gap-y-2 py-3 md:grid-cols-[minmax(0,1.65fr)_minmax(0,0.9fr)_minmax(0,1fr)] md:items-start">
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span className={'mt-0.5 rounded-lg p-2 '+(incoming?'bg-primary-50 text-primary-800':'bg-rose-50 text-rose-800')}>
+                    {incoming?<ArrowDownLeft className="size-4" aria-hidden="true" />:<ArrowUpRight className="size-4" aria-hidden="true" />}
+                  </span>
+                  <div className="min-w-0"><p className="font-semibold [overflow-wrap:anywhere]">{row.description}</p>
+                    <p className="text-sm text-ink-muted [overflow-wrap:anywhere]">{[financeDate(row.entryDate),row.accountName || 'Tanpa rekening',ledgerSources[row.sourceType] || row.sourceType].join(' · ')}</p>
+                    {scope && <p className="mt-0.5 text-xs text-ink-muted [overflow-wrap:anywhere]">{row.id}</p>}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:flex-col md:items-start">
+                  <p className={'font-bold tabular-nums [overflow-wrap:anywhere] '+(incoming?'text-primary-800':'text-rose-800')}>{incoming?'+':'−'}{cashRupiah(row.amount)}</p>
+                  <p className="text-xs tabular-nums text-ink-muted">Saldo setelah {cashRupiah(row.runningBalance)}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 md:justify-end">
+                  {destination && !(scope?.type==='transfer' && transfer) && !(scope?.type==='payment' && !canWrite) && <a className={link} href={destination}>{isInternalTransfer(row.sourceType)?'Lihat pasangan':'Lihat sumber'} <ArrowUpRight className="size-3" aria-hidden="true" /></a>}
+                  {canWrite && edit && <button className={link} type="button" onClick={()=>open({type:'journal',row})}>Ubah</button>}
+                  {canWrite && (edit || transfer) && <button className={link+' !text-rose-800'} type="button" onClick={()=>open({type:'delete',row})}>Batalkan</button>}
+                </div>
+              </li>;
+            })}
+          </ul>}
+        {ledger.total>journalPageSize && <nav aria-label="Halaman jurnal" className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-sm text-ink-muted">
+          <p>{ledger.entries.length?((ledger.page-1)*journalPageSize+1)+'–'+Math.min(ledger.page*journalPageSize,ledger.total)+' dari ':''}{ledger.total} transaksi</p>
+          <div className="flex gap-2">
+            {ledger.page>1 && <a className="icon-button" href={path({...query,page:String(ledger.page-1)})} aria-label="Halaman sebelumnya"><ChevronLeft className="size-5" /></a>}
+            {ledger.page*journalPageSize<ledger.total && <a className="icon-button" href={path({...query,page:String(ledger.page+1)})} aria-label="Halaman berikutnya"><ChevronRight className="size-5" /></a>}
+          </div>
+        </nav>}
+      </section>
+    </>}
+    {tab==='accounts_manage' && <section className="grid gap-4" aria-label="Rekening kas">
+      <FinanceSummary items={[
+        {label:'Saldo kas aktif',value:cashRupiah(accounts.reduce((sum,item)=>sum+item.balance,0)),tone:'mint'},
+        {label:'Rekening bank & tabungan',value:accounts.filter(item=>['BANK','SAVINGS'].includes(item.type)).length,tone:'sky'},
+        {label:'Kas tunai & kas kecil',value:accounts.filter(item=>['CASH','PETTY_CASH'].includes(item.type)).length,tone:'amber'},
+      ]} />
+      {!accounts.length ? <FinanceEmpty>Belum ada rekening kas.</FinanceEmpty> : <div className="grid gap-3 lg:grid-cols-2">
+        {accounts.map(item=><article key={item.id} className="workspace-panel grid gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <WalletCards className="size-10 shrink-0 rounded-lg bg-primary-50 p-2 text-primary-800" aria-hidden="true" />
+            <div className="min-w-0"><h2 className="!mb-0 [overflow-wrap:anywhere]">{item.name}</h2>
+              <p className="text-sm text-ink-muted [overflow-wrap:anywhere]">{[accountTypes[item.type] || item.type,item.bankName,item.accountNumber?'•••• '+item.accountNumber.slice(-4):null,item.code].filter(Boolean).join(' · ')}</p></div>
+          </div>
+          <p className="text-2xl font-bold tabular-nums">{cashRupiah(item.balance)}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={path({account:item.id})} className={financeButton}>Lihat jurnal</a>
+            <a href={path({tab:'bank_reconciliation',account:item.id})} className={financeButton}>Rekonsiliasi</a>
+            {canWrite && <button className={link+' px-1'} type="button" onClick={()=>open({type:'account',account:item})}>Ubah rekening</button>}
+          </div>
+        </article>)}
+      </div>}
+    </section>}
+    {tab==='bank_reconciliation' && (reconciliation ? <div className="grid gap-4">
+      {monthAccount('bank_reconciliation')}
+      <ReconciliationPanel key={reconciliation.accountId+'|'+reconciliation.month} initial={reconciliation} canWrite={canWrite} />
+    </div> : <FinanceEmpty action={<a href={path({tab:'accounts_manage'})} className={financeButton}>Lihat rekening</a>}>Siapkan rekening untuk mulai rekonsiliasi.</FinanceEmpty>)}
+    {tab==='financial_reports' && ledger && <section className="grid gap-4" aria-label="Laporan kas">
+      {monthAccount('financial_reports')}
+      <CashSummary summary={ledger.summary} month={month} />
+      <section className="workspace-panel grid gap-3">
+        <header className="flex flex-wrap items-center justify-between gap-2"><h2 className="!mb-0">Pergerakan saldo · {financeMonth(month)}</h2>
+          <span className="text-sm text-ink-muted [overflow-wrap:anywhere]">{account?.name || 'Semua rekening'}</span></header>
+        <dl className="divide-y divide-border text-sm">
+          {([['Saldo awal',ledger.summary.opening],['Pemasukan bersih',ledger.summary.income],['Pengeluaran bersih',-ledger.summary.outgoing],
+            ['Saldo awal rekening baru',ledger.summary.openingEntries],['Mutasi internal bersih',ledger.summary.transfers],['Saldo akhir',ledger.summary.closing]] as [string,number][]).map(([label,value])=><div key={label} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-1.5">
+            <dt>{label}</dt><dd className="font-semibold tabular-nums">{cashRupiah(value)}</dd>
+          </div>)}
+        </dl>
+        <div className="flex flex-wrap gap-2">
+          <a href={path({month,account:accountId})} className={financeButton}>Lihat {ledger.summary.count} jurnal</a>
+          {ledger.summary.count>0 && <a data-astro-reload href={path({month,account:accountId,download:'csv'})} className={financeButton}><ArrowDownToLine className="size-4" aria-hidden="true" />Unduh CSV</a>}
+          {!accountId && month && <a href={'/transparency/'+month.replace('-','/')} className={financeButton}>Laporan warga <ArrowUpRight className="size-4" aria-hidden="true" /></a>}
+        </div>
+      </section>
+    </section>}
+    <FinanceDialog open={Boolean(modal)} title={title} close={()=>setModal(null)} busy={busy} error={error}>
+      {modal && <form className="grid gap-3" onSubmit={submit} key={modal.type+(actionRow?.id || actionAccount?.id || '')}>
+        {modal.type==='account' ? <>
+          <Field label="Nama rekening"><input className={financeField} name="name" minLength={2} maxLength={120} required defaultValue={actionAccount?.name} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Kode rekening"><input className={financeField} name="code" pattern="[A-Za-z0-9_\-]{2,40}" maxLength={40} required defaultValue={actionAccount?.code} /></Field>
+            <Field label="Jenis rekening"><select className={financeField} value={accountType} onChange={event=>setAccountType(event.target.value)}>
+              {Object.entries(accountTypes).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></Field>
+            {['BANK','SAVINGS'].includes(accountType) && <>
+              <Field label="Nama bank (opsional)"><input className={financeField} name="bankName" maxLength={100} defaultValue={actionAccount?.bankName || ''} /></Field>
+              <Field label="Nomor rekening (opsional)"><input className={financeField} name="accountNumber" inputMode="numeric" maxLength={100} defaultValue={actionAccount?.accountNumber || ''} /></Field>
+            </>}
+          </div>
+          {!actionAccount && <Field label="Saldo awal (Rp)"><input className={financeField} name="balance" type="number" min="0" step="0.01" required defaultValue={0} /></Field>}
+        </> : modal.type==='delete' ? <>
+          <p className="text-sm">{actionRow?.description}. {actionRow && isInternalTransfer(actionRow.sourceType)?'Kedua jurnal mutasi dibatalkan dan saldo dua rekening disesuaikan.':'Saldo rekening disesuaikan dan tindakan masuk ke riwayat audit.'}</p>
+          <Field label="Alasan pembatalan"><textarea className={financeField} name="reason" required minLength={5} maxLength={500} /></Field>
+        </> : <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {modal.type==='transfer' ? <>
+              <Field label="Rekening asal"><AccountSelect accounts={accounts} name="fromAccountId" value={accountId || accounts[0]?.id || ''} required /></Field>
+              <Field label="Rekening tujuan"><AccountSelect accounts={accounts} name="toAccountId" value="" required /></Field>
+            </> : <>
+              <Field label="Rekening"><AccountSelect accounts={accounts} name="accountId" value={actionRow?.accountId || accountId || accounts[0]?.id || ''} required /></Field>
+              <Field label="Arus kas"><select className={financeField} name="direction" defaultValue={actionRow?.direction || 'IN'}><option value="IN">Masuk</option><option value="OUT">Keluar</option></select></Field>
+            </>}
+            <Field label="Tanggal transaksi"><input className={financeField+' min-w-0'} name="entryDate" type="date" max={jakartaDate()} required defaultValue={actionRow?.entryDate || jakartaDate()} /></Field>
+            <Field label="Nominal (Rp)"><input className={financeField} name="amount" type="number" inputMode="decimal" min="0.01" step="0.01" required defaultValue={actionRow?.amount} /></Field>
+          </div>
+          <Field label="Deskripsi"><input className={financeField} name="description" required minLength={3} maxLength={500} defaultValue={actionRow?.description} /></Field>
+          {modal.type==='journal' && <Field label="Nomor referensi (opsional)"><input className={financeField} name="referenceNo" maxLength={64} defaultValue={actionRow?.sourceId || ''} /></Field>}
+          {modal.type==='journal' && !actionRow && <p className="text-sm text-ink-muted">Untuk iuran atau belanja, gunakan menu <a className="font-semibold text-primary-800 underline" href="/admin/payments">Pembayaran</a> atau <a className="font-semibold text-primary-800 underline" href="/admin/expenses">Pengeluaran</a>.</p>}
+        </>}
+        <footer className="flex flex-wrap justify-end gap-2">
+          <button type="button" className={financeButton} disabled={busy} onClick={()=>setModal(null)}>Tutup</button>
+          <button type="submit" className={modal.type==='delete'?'inline-flex min-h-11 items-center rounded-lg bg-rose-700 px-4 font-semibold text-white hover:bg-rose-800':financePrimary} disabled={busy}>{busy?'Menyimpan…':modal.type==='delete'?'Batalkan transaksi':'Simpan'}</button>
+        </footer>
+      </form>}
+    </FinanceDialog>
+  </section>;
+}

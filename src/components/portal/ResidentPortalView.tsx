@@ -46,6 +46,7 @@ import {
   CheckCheck,
 } from 'lucide-react';
 import { formatRupiah, formatRupiahShort } from '../../lib/format';
+import { financeDate, paymentMethodLabel } from '../../lib/billing-data';
 import type { UserSession } from '../../types/auth';
 import { ReceiptModal } from '../shared/ReceiptModal';
 import { WargaAIChatWidget } from '../shared/WargaAIChatWidget';
@@ -98,6 +99,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [overviewError, setOverviewError] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentProofUrl,setPaymentProofUrl] = useState('');
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [complaintSubmitting, setComplaintSubmitting] = useState(false);
   const [vehicleSubmitting, setVehicleSubmitting] = useState(false);
@@ -137,26 +139,10 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const [residentTitle, setResidentTitle] = useState('Portal Warga Komplek');
   const [residentSubtitle, setResidentSubtitle] = useState('Layanan Iuran, Keamanan, Fasilitas & Aduan Warga 24 Jam');
   const [communityName, setCommunityName] = useState('Komplek Grand Sariwangi');
-  const [monthlyFeeRate, setMonthlyFeeRate] = useState(250000);
-  const [tariffComponents, setTariffComponents] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('wargahub_tariff_components');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-    }
-    return [
-      { id: 'tf-rt', name: '1. Iuran RT (Pengangkutan Sampah, Kebersihan & Fasum RT)', fee: 250000, desc: 'Armada pengangkutan sampah dinas LH, kebersihan saluran air, fasum dan operasional RT' },
-      { id: 'tf-rw', name: '2. Iuran RW (Retribusi Paguyuban & Wilayah RW)', fee: 100000, desc: 'Retribusi paguyuban komplek, koordinasi keamanan wilayah RW dan administrasi' },
-    ];
-  });
-  const [bankKasName, setBankKasName] = useState('Bank Mandiri');
-  const [bankKasAcc, setBankKasAcc] = useState('1300024446419');
-  const [bankKasHolder, setBankKasHolder] = useState('Paguyuban Grand Sariwangi');
-  const [qrisNmid, setQrisNmid] = useState('ID102008891230');
+  const [bankKasName, setBankKasName] = useState(initialOverview?.profile?.bankName || '');
+  const [bankKasAcc, setBankKasAcc] = useState(initialOverview?.profile?.bankAccount || '');
+  const [bankKasHolder, setBankKasHolder] = useState(initialOverview?.profile?.accountHolder || '');
+  const [qrisNmid, setQrisNmid] = useState(initialOverview?.profile?.qrisNmid || '');
   const [activeGuardName, setActiveGuardName] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -206,11 +192,6 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
       const savedResTitle = localStorage.getItem('wargahub_set_res_title');
       const savedResSub = localStorage.getItem('wargahub_set_res_subtitle');
       const savedComm = localStorage.getItem('wargahub_set_comm_name');
-      const savedFee = localStorage.getItem('wargahub_set_fee');
-      const savedBank = localStorage.getItem('wargahub_set_bankname');
-      const savedAcc = localStorage.getItem('wargahub_set_bankacc');
-      const savedHolder = localStorage.getItem('wargahub_set_accholder');
-      const savedQris = localStorage.getItem('wargahub_set_qris');
       const savedSecPhone = localStorage.getItem('wargahub_set_secphone');
       const savedActiveGuard = localStorage.getItem('wargahub_set_active_guard_name');
       const savedRwName = localStorage.getItem('wargahub_set_rwheadname');
@@ -230,24 +211,6 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           setCommunityName('Komplek Grand Sariwangi');
         }
       }
-      const savedAccounts = localStorage.getItem('wargahub_bank_accounts');
-      if (savedAccounts) {
-        try {
-          const list = JSON.parse(savedAccounts);
-          const pri = list.find((a: any) => a.isPrimary) || list[0];
-          if (pri && pri.accountNumber && pri.accountNumber !== 'BCA_MAIN') {
-            if (pri.bankName) setBankKasName(pri.bankName);
-            if (pri.accountNumber) setBankKasAcc(pri.accountNumber);
-            if (pri.accountHolder) setBankKasHolder(pri.accountHolder);
-            if (pri.qrisNmid) setQrisNmid(pri.qrisNmid);
-          }
-        } catch (e) {}
-      } else {
-        if (savedBank) setBankKasName(JSON.parse(savedBank));
-        if (savedAcc) setBankKasAcc(JSON.parse(savedAcc));
-        if (savedHolder) setBankKasHolder(JSON.parse(savedHolder));
-        if (savedQris) setQrisNmid(JSON.parse(savedQris));
-      }
       if (savedSecPhone) {
         const parsedP = JSON.parse(savedSecPhone);
         if (parsedP && parsedP !== '0812-3456-7801') setSecurityPhone(parsedP);
@@ -261,23 +224,6 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
       if (savedWasteHours) setWasteHours(JSON.parse(savedWasteHours));
     } catch (e) {}
 
-
-    const handleTariffsChanged = (e: any) => {
-      if (e.detail) {
-        const comps = e.detail.components || (Array.isArray(e.detail) ? e.detail : null);
-        if (comps && Array.isArray(comps)) {
-          setTariffComponents(comps);
-        }
-        const total = e.detail.total || (comps ? comps.reduce((s: number, i: any) => s + (Number(i.fee) || 0), 0) : null);
-        if (typeof total === 'number' && !isNaN(total)) {
-          setMonthlyFeeRate(total);
-        }
-        if (e.detail.kepalaKomplekName) {
-          setKepalaKomplekName(e.detail.kepalaKomplekName);
-        }
-      }
-    };
-    window.addEventListener('wargahub_tariffs_updated', handleTariffsChanged);
 
     const handleCommitteeUpdated = (e: any) => {
       if (e.detail?.kepalaKomplekName) {
@@ -295,21 +241,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
         if (e.detail.guardName) setActiveGuardName(e.detail.guardName);
       }
     };
-    const handleBankAccountsUpdated = (e: any) => {
-      if (e.detail) {
-        if (e.detail.bankName) setBankKasName(e.detail.bankName);
-        if (e.detail.accountNumber) setBankKasAcc(e.detail.accountNumber);
-        if (e.detail.accountHolder) setBankKasHolder(e.detail.accountHolder);
-        if (e.detail.qrisNmid) setQrisNmid(e.detail.qrisNmid);
-      }
-    };
-    window.addEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
-
     return () => {
-      window.removeEventListener('wargahub_tariffs_updated', handleTariffsChanged);
       window.removeEventListener('wargahub_committee_updated', handleCommitteeUpdated);
       window.removeEventListener('wargahub_security_updated', handleSecurityUpdated);
-      window.removeEventListener('wargahub_bank_accounts_updated', handleBankAccountsUpdated);
     };
   }, []);
 
@@ -408,8 +342,8 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   }, [currentUser?.id, activeTab, infoSubTab, rumahSubTab]);
   useEffect(() => {
     if (overview?.profile) {
-      setCommunityName(overview.profile.communityName); setMonthlyFeeRate(overview.profile.monthlyRate);
-      setBankKasName(overview.profile.bankName); setBankKasAcc(overview.profile.bankAccount); setBankKasHolder(overview.profile.accountHolder);
+      setCommunityName(overview.profile.communityName);
+      setBankKasName(overview.profile.bankName); setBankKasAcc(overview.profile.bankAccount); setBankKasHolder(overview.profile.accountHolder); setQrisNmid(overview.profile.qrisNmid || "");
       setSecurityPhone(overview.profile.securityPhone); setRwHeadPhone(overview.profile.rwHeadPhone);
     }
     if (overview?.facilities.length && !overview.facilities.some(facility => facility.id === facId)) {
@@ -419,15 +353,9 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
   const showActualReceipt = (receipt: NonNullable<ResidentInvoice['receipts']>[number]) => {
     setSelectedReceipt({ invoiceNumber: currentSelectedMonthData.inv, receiptNumber: receipt.number, periodName: currentSelectedMonthData.name,
       propertyCode: overview?.property?.code || currentUser?.propertyCode || '-', residentName: currentUser?.fullName || '-',
-      amount: receipt.amount, paidAt: receipt.paidAt, paymentMethod: receipt.method, referenceNumber: receipt.reference, kepalaKomplekName,
+      amount: receipt.amount, paidAt: receipt.paidAt, paymentMethod: paymentMethodLabel(receipt.method), referenceNumber: receipt.reference, accountName:receipt.accountName,
       items: [{ name: 'Pembayaran iuran', amount: receipt.amount }], isInvoice: false });
   };
-
-  // Component breakdown calculation
-  const feeSecurity = Math.round(monthlyFeeRate * 0.46);
-  const feeSanitation = Math.round(monthlyFeeRate * 0.27);
-  const feeMaintenance = Math.round(monthlyFeeRate * 0.17);
-  const feeSocial = monthlyFeeRate - feeSecurity - feeSanitation - feeMaintenance;
 
   // Handlers
   const handleConfirmPayment = async (e: React.FormEvent) => {
@@ -436,6 +364,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
     setPaymentSubmitting(true);
     try {
       if (!propertyId || !currentSelectedMonthData.billingPeriodId || !currentSelectedMonthData.id) throw new Error('Pilih tagihan yang tercatat untuk rumah Anda.');
+      if (currentSelectedMonthData.awaitingVerification) throw new Error('Pembayaran tagihan ini sedang diperiksa.');
       if (!paymentReference.trim()) throw new Error('Masukkan nomor referensi transfer.');
       const amount = Number(paymentAmount);
       if (!Number.isSafeInteger(amount) || amount <= 0 || amount > currentSelectedMonthData.remaining) throw new Error('Periksa nominal transfer dan sisa tagihan.');
@@ -449,10 +378,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
           amount,
           method: 'TRANSFER',
           reference: paymentReference.trim(),
+          proofFileUrl: paymentProofUrl.trim() || undefined,
           notes: `Konfirmasi pembayaran via Portal Warga Mobile (${currentSelectedMonthData.name})`,
         }),
       });
       setPaymentSuccess(true);
+      setPaymentReference('');setPaymentProofUrl('');
+      await refreshOverview();
       setTimeout(() => {
         setPaymentSuccess(false);
         setShowPaymentModal(false);
@@ -774,7 +706,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     onChange={event => { const receipt = currentSelectedMonthData.receipts?.find(item => item.id === event.target.value); if (receipt) showActualReceipt(receipt); }}
                     className="bg-surface text-ink border border-border rounded-lg p-2 text-xs">
                     <option value="" disabled>Pilih kuitansi</option>
-                    {currentSelectedMonthData.receipts?.map(receipt => <option key={receipt.id} value={receipt.id}>{formatRupiah(receipt.amount)} · {receipt.paidAt}</option>)}
+                    {currentSelectedMonthData.receipts?.map(receipt => <option key={receipt.id} value={receipt.id}>{formatRupiah(receipt.amount)} · {financeDate(receipt.paidAt)}</option>)}
                   </select>}
                   <button
                     type="button"
@@ -782,13 +714,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       setSelectedReceipt({
                         invoiceNumber: currentSelectedMonthData.inv,
                         periodName: currentSelectedMonthData.name,
-                        propertyCode: currentUser?.propertyCode || 'A-17',
-                        residentName: currentUser?.fullName || currentUser?.name || 'Warga Komplek',
+                        propertyCode: overview?.property?.code || currentUser?.propertyCode || '—',
+                        residentName: currentUser?.fullName || 'Warga Komplek',
                         amount: currentSelectedMonthData.amount,
-                        paidAt: currentSelectedMonthData.paidAt || '-',
-                        paymentMethod: currentSelectedMonthData.method,
-                        referenceNumber: currentSelectedMonthData.reference,
-                        kepalaKomplekName: kepalaKomplekName,
+                        paidAmount:currentSelectedMonthData.paidAmount,remaining:currentSelectedMonthData.remaining,
+                        dueDate:currentSelectedMonthData.dueDate,items:currentSelectedMonthData.items,
+                        status:currentSelectedMonthData.status==='paid'?'PAID':currentSelectedMonthData.status==='waived'?'WAIVED':'UNPAID',
+                        bankInfo:bankKasAcc ? {bankName:bankKasName,accountNumber:bankKasAcc,accountHolder:bankKasHolder} : undefined,
                         isInvoice: true,
                       })
                     }
@@ -864,7 +796,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                       NO. INVOICE: {currentSelectedMonthData.inv}
                     </span>
                     <h3 className="text-base font-bold text-ink">Tagihan Iuran {currentSelectedMonthData.name}</h3>
-                    <p className="text-xs text-ink-muted">Jatuh tempo: {currentSelectedMonthData.dueDate}</p>
+                    <p className="text-xs text-ink-muted">Jatuh tempo {financeDate(currentSelectedMonthData.dueDate)}</p>
                   </div>
 
                   <span
@@ -878,47 +810,21 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   >
                     {currentSelectedMonthData.status === 'paid'
                       ? 'Lunas'
+                      : currentSelectedMonthData.status === 'waived' ? 'Dibebaskan'
+                      : currentSelectedMonthData.awaitingVerification ? 'Menunggu verifikasi'
                       : currentSelectedMonthData.status === 'pending'
                       ? 'Menunggu Pembayaran'
                       : 'Akan Datang'}
                   </span>
                 </div>
 
-                {/* Breakdown Items */}
-                <div className="space-y-2 text-xs">
-                  <span className="text-[10px] uppercase font-bold text-ink-muted tracking-wide block">
-                      Tarif lingkungan sebagai referensi
-                  </span>
-                  <div className="space-y-1.5">
-                    {tariffComponents && tariffComponents.length > 0 ? (
-                      tariffComponents.map((it: any, idx: number) => (
-                        <div key={it.id || idx} className="flex justify-between items-center text-ink-muted">
-                          <span className="truncate pr-2">{it.name}</span>
-                          <span className="font-mono text-ink font-semibold tabular-nums shrink-0">{formatRupiah(Number(it.fee) || 0)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <>
-                        <div className="flex justify-between items-center text-ink-muted">
-                          <span>1. Jasa Keamanan 24 Jam & Pos Satpam</span>
-                          <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeSecurity)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-ink-muted">
-                          <span>2. Kebersihan Lingkungan & TPS3R Viar Tossa</span>
-                          <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeSanitation)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-ink-muted">
-                          <span>3. Pemeliharaan Fasum, Taman & PJU Listrik</span>
-                          <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeMaintenance)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-ink-muted">
-                          <span>4. Dana Kas Sosial & Musyawarah Paguyuban</span>
-                          <span className="font-mono text-ink font-semibold tabular-nums">{formatRupiah(feeSocial)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
+                <ul className="grid gap-2 text-sm" aria-label="Rincian tagihan">
+                  {(currentSelectedMonthData.items?.length ? currentSelectedMonthData.items :
+                    currentSelectedMonthData.id ? [{name:"Iuran lingkungan",amount:currentSelectedMonthData.amount}] : []).map((item,index)=>
+                    <li key={index} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                      <span className="[overflow-wrap:anywhere]">{item.name}</span><strong className="tabular-nums">{formatRupiah(item.amount)}</strong>
+                    </li>)}
+                </ul>
 
                 {/* Total Billing */}
                 <div className="pt-3 border-t border-dashed border-border flex items-center justify-between">
@@ -930,13 +836,13 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   {currentSelectedMonthData.status === 'paid' || currentSelectedMonthData.status === 'waived' ? (
                     <div className="text-right">
                       <span className="text-[10px] text-emerald-700 font-bold block">{currentSelectedMonthData.status === 'waived' ? 'Dibebaskan' : 'Lunas'}</span>
-                      <span className="text-[10px] text-ink-muted">{currentSelectedMonthData.paidAt}</span>
+                      {currentSelectedMonthData.paidAt && <span className="text-[10px] text-ink-muted">{financeDate(currentSelectedMonthData.paidAt)}</span>}
                     </div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => { setPaymentAmount(String(currentSelectedMonthData.remaining)); setShowPaymentModal(true); }}
-                      disabled={!currentSelectedMonthData.id || currentSelectedMonthData.remaining <= 0}
+                      disabled={!currentSelectedMonthData.id || currentSelectedMonthData.remaining <= 0 || currentSelectedMonthData.awaitingVerification}
                       className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-surface font-bold text-xs rounded-xl shadow-xs active:scale-[0.98] transition-all flex items-center gap-1.5"
                     >
                       <Upload className="w-4 h-4" />
@@ -951,20 +857,19 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                     <span className="text-[10px] text-primary-800 font-bold uppercase tracking-wider">
                       Rekening Resmi Kas Paguyuban
                     </span>
-                    <span className="px-2 py-0.5 bg-primary-100 text-primary-900 rounded text-[10px] font-mono font-bold">
-                      QRIS Ready
-                    </span>
+                    {qrisNmid && <span className="px-2 py-0.5 bg-primary-100 text-primary-900 rounded text-[10px] font-mono font-bold">NMID {qrisNmid}</span>}
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-bold text-ink-muted">{bankKasName}</p>
-                      <p className="text-lg font-black font-mono tracking-wider text-primary-800">{bankKasAcc}</p>
-                      <p className="text-[10px] text-ink-muted">a.n {bankKasHolder}</p>
+                      <p className="text-sm font-semibold text-primary-800 [overflow-wrap:anywhere]">{bankKasAcc || 'Rekening transfer belum tersedia.'}</p>
+                      {bankKasHolder && <p className="text-[10px] text-ink-muted">a.n {bankKasHolder}</p>}
                     </div>
 
                     <button
                       type="button"
+                      disabled={!bankKasAcc}
                       onClick={() => {
                         navigator.clipboard.writeText(bankKasAcc.replace(/[^0-9]/g, ''));
                         setCopiedAcc(true);
@@ -991,7 +896,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(true)}
-                    disabled={!currentSelectedMonthData.id || currentSelectedMonthData.remaining <= 0}
+                    disabled={!currentSelectedMonthData.id || currentSelectedMonthData.remaining <= 0 || currentSelectedMonthData.awaitingVerification}
                     className="flex-1 py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-surface font-semibold text-sm rounded-xl flex items-center justify-center gap-2"
                   >
                     <Upload className="w-4 h-4" />
@@ -1960,7 +1865,7 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={`Rumah ${currentUser?.propertyCode || 'A-17'} (${currentUser?.fullName || 'Warga'})`}
+                    value={`Rumah ${overview?.property?.code || currentUser?.propertyCode || '—'} (${currentUser?.fullName || 'Warga'})`}
                     className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink"
                   />
                 </div>
@@ -1971,13 +1876,15 @@ const ResidentPortalInner: React.FC<ResidentPortalViewProps> = ({
                 </div>
                 <div>
                   <p className="font-semibold text-ink">Transfer ke rekening komunitas</p>
-                  <p className="text-sm text-ink-muted mt-2">{bankKasName} · {bankKasAcc}<br />a.n. {bankKasHolder}</p>
+                  <p className="text-sm text-ink-muted mt-2">{bankKasAcc ? [bankKasName,bankKasAcc,bankKasHolder].filter(Boolean).join(' · ') : 'Rekening transfer belum tersedia.'}</p>
                 </div>
                 <div>
                   <label htmlFor="payment-reference" className="font-semibold text-ink block mb-2">Nomor referensi transfer</label>
                   <input id="payment-reference" required value={paymentReference} onChange={event => setPaymentReference(event.target.value)} placeholder="Nomor transaksi dari aplikasi bank" className="w-full border border-border rounded-xl p-3 text-sm" />
-                  <p className="text-xs text-ink-muted mt-2">Simpan bukti transfer asli. Bendahara dapat memintanya saat verifikasi.</p>
                 </div>
+                <label className="block font-semibold text-ink">Tautan bukti (opsional)
+                  <input type="url" value={paymentProofUrl} maxLength={1500} onChange={event=>setPaymentProofUrl(event.target.value)} className="mt-1 w-full rounded-xl border border-border p-3 text-sm" />
+                </label>
 
                 <div className="pt-2 flex gap-2">
                   <button

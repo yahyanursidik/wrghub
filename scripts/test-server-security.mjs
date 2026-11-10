@@ -92,9 +92,9 @@ assert.equal(created.status, 201);
 const transfer = await call('/api/ledger/transfer', { cookie: admin.cookie, body: { fromAccountId:'acc-main', toAccountId:'acc-cash', amount:250000, description:'Isolated integration transfer', entryDate:'2026-10-12' } });
 assert.equal(transfer.status, 201);
 assert.equal(transfer.data.data.outEntry.sourceId, transfer.data.data.inEntry.sourceId);
-assert.equal((await call('/api/ledger/transfer', { cookie: admin.cookie, body: { fromAccountId:'acc-main', toAccountId:'acc-cash', amount:99999999, description:'Rejected overspend', entryDate:'2026-10-12' } })).status, 400);
-assert.equal((await call('/api/ledger/delete', { cookie: admin.cookie, body: { ledgerId:transfer.data.data.outEntry.id } })).status, 200);
-assert.equal((await call('/api/ledger/delete', { cookie: admin.cookie, body: { ledgerId:created.data.data.id } })).status, 200);
+assert.equal((await call('/api/ledger/transfer', { cookie: admin.cookie, body: { fromAccountId:'acc-main', toAccountId:'acc-cash', amount:99999999, description:'Rejected overspend', entryDate:'2026-10-12' } })).status, 409);
+assert.equal((await call('/api/ledger/delete', { cookie: admin.cookie, body: { ledgerId:transfer.data.data.outEntry.id,reason:'Transfer fixture dibatalkan' } })).status, 200);
+assert.equal((await call('/api/ledger/delete', { cookie: admin.cookie, body: { ledgerId:created.data.data.id,reason:'Jurnal fixture dibatalkan' } })).status, 200);
 assert.deepEqual(await balances(), before);
 
 const resetPassword = 'A changed fixture-only password';

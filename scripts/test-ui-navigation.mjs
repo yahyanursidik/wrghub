@@ -58,7 +58,15 @@ try {
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
     return result.result.value;
   };
-  const wait = condition => evaluate(`new Promise((resolve, reject) => { const start = Date.now(); const check = () => { if (${condition}) resolve(true); else if (Date.now() - start > 60000) reject(new Error('UI condition timed out')); else setTimeout(check, 50); }; check(); })`);
+  const wait = async condition => {
+    const deadline = Date.now()+60_000;
+    do {
+      try { if (await evaluate(`Boolean(${condition})`)) return true; }
+      catch (error) { if (!/navigated|context|target closed/i.test(error.message)) throw error; }
+      await new Promise(resolve=>setTimeout(resolve,50));
+    } while (Date.now()<deadline);
+    throw new Error('UI condition timed out: '+condition);
+  };
   const navigate = async (route, selector, expectedPath = route.split('?')[0]) => {
     await cdp('Page.navigate', { url: `${baseUrl}${route}` });
     await wait(`location.pathname === ${JSON.stringify(expectedPath)} && document.querySelector(${JSON.stringify(selector)}) && !document.querySelector('astro-island[ssr][client="load"]')`);
@@ -209,6 +217,84 @@ try {
     assert.ok(await evaluate("Array.from(document.querySelectorAll('main a')).some(link=>link.href.endsWith('/login?portal=admin'))"));
     await viewport(1440);
     console.log('PASS house scope, linked accounts, browser Back, and recovery at 320/375/414/768px');
+    const financeScreens = [
+      ['billing-list','/admin/billing?period=period-test','Daftar tagihan'],
+      ['billing-year','/admin/billing?tab=annual_matrix','Rekap tahunan'],
+      ['billing-tariff','/admin/billing?tab=tariffs','Tarif iuran'],
+      ['billing-batch','/admin/billing?tab=batch','Penerbitan massal'],
+      ['payments-queue','/admin/payments?tab=verification','Verifikasi pembayaran'],
+      ['payments-receipts','/admin/payments?tab=history','Riwayat kuitansi'],
+      ['payments-record','/admin/payments?tab=manual_counter&invoice=invoice-a-02','Catat pembayaran'],
+      ['public-dues','/rekap-iuran?period=period-test','Halaman rekap'],
+      ['cash-expenses','/admin/expenses','Transaksi pengeluaran'],
+      ['cash-recurring','/admin/expenses?tab=recurring_expenses','Rencana rutin'],
+      ['cash-social','/admin/expenses?tab=social_aid','Riwayat bantuan sosial'],
+      ['cash-projects','/admin/expenses?tab=fasum_projects','Proyek fasum'],
+      ['cash-journal','/admin/ledger','Jurnal kas'],
+      ['cash-accounts','/admin/ledger?tab=accounts_manage','Rekening kas'],
+      ['cash-reconciliation','/admin/ledger?tab=bank_reconciliation','Rekonsiliasi rekening'],
+      ['cash-reports','/admin/ledger?tab=financial_reports&month=2026-10','Laporan kas'],
+    ];
+    for (const [name,route,section] of financeScreens) {
+      await navigate(route,'main');
+      const selector = `main [aria-label="${section}"]`;
+      await wait(`document.querySelector(${JSON.stringify(selector)})`);
+      for (const width of [320,375,414,768,1440]) {
+        await viewport(width);
+        await noOverflow(`${name} ${width}`);
+        const clipped=await evaluate(`Array.from(document.querySelectorAll('main a, main button')).filter(e=>{
+          const rect=e.getBoundingClientRect();return rect.width>0&&(rect.right>innerWidth+1||e.scrollWidth>e.clientWidth+1);
+        }).map(e=>e.textContent.trim())`);
+        assert.deepEqual(clipped,[],`${name} clipped controls at ${width}`);
+        await screenshot(`${name}-${width}`);
+      }
+    }
+    await navigate('/admin/billing?period=period-test','main [aria-label="Daftar tagihan"]');
+    await viewport(320);
+    await evaluate(`document.querySelector('[aria-controls="billing-filters"]').click()`);
+    await wait(`document.querySelector('[aria-controls="billing-filters"]').getAttribute('aria-expanded')==='true'`);
+    assert.ok(await evaluate(`document.querySelector('#billing-filters select').getClientRects().length>0`));
+    await noOverflow('Filter tagihan 320');
+    await viewport(1440);
+    const pendingLink=await evaluate(`Array.from(document.querySelectorAll('main a')).find(link=>link.textContent.trim()==='Cek bukti')?.getAttribute('href')`);
+    assert.ok(pendingLink?.includes('invoice=invoice-a-01') && pendingLink.includes('payment=payment-test'));
+    await navigate(pendingLink,'main [aria-label="Verifikasi pembayaran"]');
+    await evaluate(`Array.from(document.querySelectorAll('main button')).find(button=>button.textContent.trim()==='Cek bukti').click()`);
+    await wait(`document.querySelector('dialog[open]')?.innerText.includes('Belum ada bukti terlampir')`);
+    assert.ok(await evaluate(`Boolean(document.querySelector('dialog[open] a[href*="invoice=invoice-a-01"]'))`));
+    await navigate('/admin/billing?tab=annual_matrix','main [aria-label="Rekap tahunan"]');
+    assert.equal(await evaluate(`document.querySelectorAll('main [data-month-status="unissued"]').length`),22);
+    await navigate('/admin/payments?tab=manual_counter&invoice=invoice-a-02','main [aria-label="Catat pembayaran"]');
+    assert.equal(await evaluate(`document.querySelector('main [aria-label="Catat pembayaran"] select[required]').value`),'invoice-a-02');
+    assert.equal(await evaluate(`document.querySelector('main [aria-label="Catat pembayaran"] input[type="number"]').value`),'250000');
+    await navigate('/admin/payments?tab=history&payment=receipt-test','main [aria-label="Riwayat kuitansi"]');
+    await evaluate(`Array.from(document.querySelectorAll('main button')).filter(button=>button.textContent.trim()==='Kuitansi').at(-1).click()`);
+    await wait(`document.querySelector('dialog[open] img[alt="QR verifikasi kuitansi"]')`);
+    await viewport(320);await noOverflow('Kuitansi 320');await screenshot('payments-receipt-open-320');
+    await viewport(1440);
+    console.log('PASS finance tabs at 320/375/414/768/1440px; exact pending link, unissued months, prefilling, and verified receipt QR');
+    await navigate('/admin/expenses','main [aria-label="Transaksi pengeluaran"]');
+    await viewport(320);
+    const expenseJournalLink=await evaluate(`document.querySelector('[data-expense-id="expense-test"] a[href^="/admin/ledger"]')?.getAttribute('href')`);
+    assert.equal(expenseJournalLink,'/admin/ledger?expense=expense-test');
+    await evaluate(`Array.from(document.querySelectorAll('main button')).find(b=>b.textContent.trim()==='Catat pengeluaran').click()`);
+    await wait(`document.querySelector('dialog[open] input[name=title]')`);
+    await noOverflow('Expense form 320');
+    await screenshot('cash-expense-dialog-320');
+    await evaluate(`(()=>{const form=document.querySelector('dialog[open] form'); form.elements.title.value='Perlengkapan kas uji dari UI'; form.elements.amount.value='20000'; form.elements.categoryId.value='cat-pemeliharaan'; form.elements.bookNow.value='draft'; form.requestSubmit();})()`);
+    await wait(`location.search.includes('saved=expense') && document.querySelector('[data-expense-id]')?.textContent.includes('Draf') && !document.querySelector('astro-island[ssr][client="load"]')`);
+    assert.equal(await evaluate(`Boolean(document.querySelector('[data-expense-id] a[href^="/admin/ledger"]'))`),false);
+    await evaluate(`Array.from(document.querySelectorAll('[data-expense-id] button')).find(b=>b.textContent.trim()==='Bukukan').click()`);
+    await wait(`document.querySelector('dialog[open] form')`);
+    await evaluate(`document.querySelector('dialog[open] form').requestSubmit()`);
+    await wait(`location.search.includes('saved=book') && Boolean(document.querySelector('[data-expense-id] a[href^="/admin/ledger"]')) && !document.querySelector('astro-island[ssr][client="load"]')`);
+    const writtenJournal=await evaluate(`document.querySelector('[data-expense-id] a[href^="/admin/ledger"]').getAttribute('href')`);
+    await navigate(writtenJournal,'main [data-journal-id]');
+    assert.equal(await evaluate(`document.querySelector('main h1').textContent.trim()`),'Jurnal pengeluaran');
+    assert.ok(await evaluate(`document.querySelector('[data-journal-id]').textContent.includes('Perlengkapan kas uji dari UI')`));
+    await noOverflow('Linked cash entry 320');
+    await viewport(1440);
+    console.log('PASS pengeluaran dan buku kas: alur formulir draf → pembukuan → jurnal terkait serta delapan subhalaman di lima lebar.');
     const menus = {
       properties: ['units', 'residents', 'vehicles', 'permits', 'analytics'],
       billing: ['invoices', 'annual_matrix', 'tariffs', 'batch'],

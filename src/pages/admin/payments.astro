@@ -3,18 +3,43 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { PaymentsManager } from '../../components/admin/PaymentsManager';
 import { getPayments } from '../../services/payment.service';
 import { getAccounts } from '../../services/finance.service';
-import { getBillingPeriods } from '../../services/billing.service';
-import { getProperties } from '../../services/property.service';
-if (Astro.url.searchParams.get('tab') === 'receiving_channels') return Astro.redirect('/admin/ledger?tab=accounts_manage', 302);
+import { getBillingPeriods, getInvoices } from '../../services/billing.service';
+import { canReversePayment } from '../../lib/access-policy';
+import { jakartaDate } from '../../lib/billing-data';
+import type { UserSession } from '../../types/auth';
 
-const [payments, accounts, properties, periods] = await Promise.all([
-  getPayments().catch(() => []),
-  getAccounts().catch(() => []),
-  getProperties().catch(() => []),
-  getBillingPeriods(),
-]);
+const actor = await Astro.session?.get('wargahub_user') as UserSession | undefined;
+if (!actor) return Astro.redirect('/login?portal=admin');
+const params = Astro.url.searchParams;
+if (params.get('tab') === 'receiving_channels') return Astro.redirect('/admin/ledger?tab=accounts_manage', 302);
+
+const data = await Promise.all([getPayments(),getAccounts(),getBillingPeriods(),getInvoices('ALL',{details:true})])
+  .then(([payments,accounts,periods,invoices])=>({
+    payments,accounts,periods,
+    invoices:invoices.map(({id,invoiceNumber,propertyCode,propertyId,billingPeriodId,billingPeriodName,residentName,total,paidAmount,status,pendingPaymentId})=>
+      ({id,invoiceNumber,propertyCode,propertyId,billingPeriodId,billingPeriodName,residentName,total,paidAmount,status,pendingPaymentId})),
+  })).catch(()=>null);
+if (!data) Astro.response.status = 503;
+
+const period = params.get('period')?.slice(0,100) || '';
+const periodId = data?.periods.find(item=>item.id===period || item.name.toLowerCase()===period.toLowerCase())?.id || period;
 ---
 
-<AdminLayout title="Pembayaran & Verifikasi - WargaHub" currentPath="/admin/payments">
-  <PaymentsManager initialTab={Astro.url.searchParams.get('tab') || undefined} initialPayments={payments} initialAccounts={accounts} initialProperties={properties} initialPeriods={periods.map(item => String(item.name))} initialHouse={Astro.url.searchParams.get('search') || ''} initialPeriod={Astro.url.searchParams.get('period') || ''} client:load />
+<AdminLayout title="Pembayaran · WargaHub" currentPath="/admin/payments">
+  {data ? <PaymentsManager
+    {...data}
+    today={jakartaDate()}
+    initialTab={params.get('tab') || undefined}
+    initialHouse={params.get('search')?.slice(0,100) || ''}
+    initialPeriod={periodId}
+    initialInvoice={params.get('invoice')?.slice(0,64) || ''}
+    initialPayment={params.get('payment')?.slice(0,64) || ''}
+    initialStatus={params.get('status')?.slice(0,32) || ''}
+    canReverse={canReversePayment(actor.role)}
+    client:load
+  /> : <section class="workspace-panel" role="alert">
+    <h1 class="text-2xl font-bold">Pembayaran</h1>
+    <p class="mt-2 text-ink-muted">Data pembayaran belum bisa dimuat.</p>
+    <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname + Astro.url.search} data-astro-reload>Coba lagi</a>
+  </section>}
 </AdminLayout>

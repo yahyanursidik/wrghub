@@ -43,6 +43,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
+import { billingMonthLabel, downloadFinanceCsv } from '../../lib/billing-data';
 import type { PublicTransparencyData } from '../../services/transparency.service';
 import { ExpenseDetailModal } from '../shared/ExpenseDetailModal';
 
@@ -96,7 +97,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
     }
   };
 
-  const [data, setData] = useState<PublicTransparencyData>(initialData);
+  const data = initialData;
   const [selectedMonth, setSelectedMonth] = useState(initialData.periodName || 'Oktober 2026');
   const [periodDropdown, setPeriodDropdown] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<any>(null);
@@ -104,58 +105,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   const [copied, setCopied] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState(false);
 
-  // Dynamic Bank Info (Sourced from Real Community Profile / Database)
-  const [bankInfo, setBankInfo] = useState({
-    bankName: initialData.bankInfo?.bankName || 'Bank Mandiri',
-    accountNumber: initialData.bankInfo?.accountNumber || '1300024446419',
-    accountHolder: initialData.bankInfo?.accountHolder || 'Paguyuban Grand Sariwangi',
-  });
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedAccounts = localStorage.getItem('wargahub_bank_accounts');
-        if (savedAccounts) {
-          const list = JSON.parse(savedAccounts);
-          const primary = list.find((a: any) => a.isPrimary) || list[0];
-          if (primary && primary.accountNumber && primary.accountNumber !== 'BCA_MAIN') {
-            setBankInfo({
-              bankName: primary.bankName || primary.name,
-              accountNumber: primary.accountNumber,
-              accountHolder: primary.accountHolder || 'Paguyuban Grand Sariwangi',
-            });
-          }
-        } else {
-          const savedBank = localStorage.getItem('wargahub_set_bankname');
-          const savedAcc = localStorage.getItem('wargahub_set_bankacc');
-          const savedHolder = localStorage.getItem('wargahub_set_accholder');
-          if (savedBank || savedAcc) {
-            const parsedAcc = savedAcc ? JSON.parse(savedAcc) : null;
-            if (parsedAcc && parsedAcc !== 'BCA_MAIN') {
-              setBankInfo((prev) => ({
-                bankName: savedBank ? JSON.parse(savedBank) : prev.bankName,
-                accountNumber: parsedAcc || prev.accountNumber,
-                accountHolder: savedHolder ? JSON.parse(savedHolder) : prev.accountHolder,
-              }));
-            }
-          }
-        }
-      } catch (e) {}
-
-      const handleBankUpdated = (e: any) => {
-        if (e.detail) {
-          setBankInfo((prev) => ({
-            bankName: e.detail.bankName || prev.bankName,
-            accountNumber: e.detail.accountNumber || prev.accountNumber,
-            accountHolder: e.detail.accountHolder || prev.accountHolder,
-          }));
-        }
-      };
-      window.addEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
-      return () => window.removeEventListener('wargahub_bank_accounts_updated', handleBankUpdated);
-    }
-  }, []);
-
+  const bankInfo = initialData.bankInfo || {bankName:'',accountNumber:'',accountHolder:''};
   // Digital Clock
   const [currentTime, setCurrentTime] = useState('');
   useEffect(() => {
@@ -184,146 +134,14 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   const [duesFilter, setDuesFilter] = useState<'ALL' | 'UNPAID' | 'PAID'>('ALL');
   const [duesSearch, setDuesSearch] = useState('');
 
-  // Quick Action to Prefill Confirmation
-  const handleQuickConfirm = (propertyCode: string, residentName: string, amount: number, period: string) => {
-    setConfirmUnit(propertyCode);
-    setConfirmName(residentName);
-    setConfirmAmount(amount.toString());
-    setConfirmPeriod(period || (initialData.periodName || 'Oktober 2026'));
+  const handleQuickConfirm = (..._args:unknown[]) => {
     handleTabChange('citizen_confirm');
-    if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    if (typeof window !== 'undefined') window.scrollTo({top:0,behavior:'smooth'});
   };
-
-  // Resident Directory for Accurate Resident Names
-  const RESIDENT_DIRECTORY: Record<string, string> = {
-    'Kav A': 'Pak Verial',
-    'Kav B': 'Mahasiswa Polban',
-    'Kav C': 'Bu Rina',
-    'Kav D': 'Pak Rieva',
-    'Kav E': 'Pak Budi',
-    'Kav F': 'Pa Anggia',
-    'Kav G': 'Pak Misael',
-    'Kav H': 'Pak Fahmi Rizal',
-    'Kav I': 'Pak Yahya',
-    'Kav J': 'Bu Sofia P',
-    'Kav K': 'Pak Eky',
-    'Kav L': 'Pak Haji Ano',
-    'Kav M': 'Pak Dedi N / Pak Jaya',
-  };
-
-  const getCleanResidentName = (code: string, rawName?: string) => {
-    if (!rawName || rawName.toLowerCase().startsWith('no. kavling') || rawName === code) {
-      return RESIDENT_DIRECTORY[code] || rawName || code;
-    }
-    return rawName;
-  };
-
-  // Resolved lists for Unpaid and Household Matrix
-  const resolvedUnpaidList = useMemo(() => {
-    if (data.unpaidDetailedList && data.unpaidDetailedList.length > 0) {
-      return data.unpaidDetailedList.map((u) => ({
-        ...u,
-        residentName: getCleanResidentName(u.propertyCode, u.residentName),
-      }));
-    }
-    if (data.unpaidHouses && data.unpaidHouses.length > 0) {
-      return data.unpaidHouses.map((code) => ({
-        propertyCode: code,
-        residentName: getCleanResidentName(code),
-        unpaidMonths: code === 'Kav J' ? ['Juni 2026', 'Juli 2026', 'Agustus 2026'] : ['Agustus 2026'],
-        arrearsAmount: code === 'Kav J' ? 750000 : 250000,
-        paidMonthsCount: code === 'Kav J' ? 5 : 7,
-        isCurrentMonthPaid: code !== 'Kav J',
-      }));
-    }
-    return [];
-  }, [data.unpaidDetailedList, data.unpaidHouses]);
-
-  const resolvedCurrentMonthUnpaid = useMemo(() => {
-    if (data.currentMonthUnpaidList && data.currentMonthUnpaidList.length > 0) {
-      return data.currentMonthUnpaidList.map((u) => ({
-        ...u,
-        residentName: getCleanResidentName(u.propertyCode, u.residentName),
-      }));
-    }
-    return resolvedUnpaidList.filter((u) => !u.isCurrentMonthPaid);
-  }, [data.currentMonthUnpaidList, resolvedUnpaidList]);
-
-  const resolvedPastArrears = useMemo(() => {
-    if (data.pastArrearsList && data.pastArrearsList.length > 0) {
-      return data.pastArrearsList.map((u) => ({
-        ...u,
-        residentName: getCleanResidentName(u.propertyCode, u.residentName),
-      }));
-    }
-    return resolvedUnpaidList.filter((u) => u.isCurrentMonthPaid);
-  }, [data.pastArrearsList, resolvedUnpaidList]);
-
-  const resolvedHouseholdDues = useMemo(() => {
-    if (data.householdDuesList && data.householdDuesList.length > 0) {
-      return data.householdDuesList.map((h) => ({
-        ...h,
-        residentName: getCleanResidentName(h.propertyCode, h.residentName),
-      }));
-    }
-    const MONTHS = [
-      { index: 1, name: 'Jan', full: 'Januari 2026', amount: 250000 },
-      { index: 2, name: 'Feb', full: 'Februari 2026', amount: 250000 },
-      { index: 3, name: 'Mar', full: 'Maret 2026', amount: 365000 },
-      { index: 4, name: 'Apr', full: 'April 2026', amount: 250000 },
-      { index: 5, name: 'Mei', full: 'Mei 2026', amount: 250000 },
-      { index: 6, name: 'Jun', full: 'Juni 2026', amount: 250000 },
-      { index: 7, name: 'Jul', full: 'Juli 2026', amount: 250000 },
-      { index: 8, name: 'Agu', full: 'Agustus 2026', amount: 250000 },
-      { index: 9, name: 'Sep', full: 'September 2026', amount: 250000 },
-      { index: 10, name: 'Okt', full: 'Oktober 2026', amount: 250000 },
-    ];
-    const isOct = (data.month || 10) === 10;
-    const DEFAULT_KAVS = [
-      { code: 'Kav A', name: 'Pak Verial', unpaid: [] },
-      { code: 'Kav B', name: 'Mahasiswa Polban', unpaid: isOct ? ['Oktober 2026'] : [] },
-      { code: 'Kav C', name: 'Bu Rina', unpaid: isOct ? ['Oktober 2026'] : [] },
-      { code: 'Kav D', name: 'Pak Rieva', unpaid: [] },
-      { code: 'Kav E', name: 'Pak Budi', unpaid: [] },
-      { code: 'Kav F', name: 'Pa Anggia', unpaid: isOct ? ['Oktober 2026'] : [] },
-      { code: 'Kav G', name: 'Pak Misael', unpaid: isOct ? ['Oktober 2026'] : [] },
-      { code: 'Kav H', name: 'Pak Fahmi Rizal', unpaid: [] },
-      { code: 'Kav I', name: 'Pak Yahya', unpaid: [] },
-      { code: 'Kav J', name: 'Bu Sofia P', unpaid: isOct ? ['Juni 2026', 'Juli 2026', 'Agustus 2026', 'September 2026', 'Oktober 2026'] : ['Juni 2026', 'Juli 2026', 'Agustus 2026', 'September 2026'] },
-      { code: 'Kav K', name: 'Pak Eky', unpaid: isOct ? ['Oktober 2026'] : [] },
-      { code: 'Kav L', name: 'Pak Haji Ano', unpaid: isOct ? ['Oktober 2026'] : [] },
-      { code: 'Kav M', name: 'Pak Dedi N / Pak Jaya', unpaid: isOct ? ['Oktober 2026'] : [] },
-    ];
-    const activeMonths = MONTHS.slice(0, data.month || 10);
-    return DEFAULT_KAVS.map((k, idx) => {
-      const months = activeMonths.map((m) => ({
-        monthIndex: m.index,
-        monthCode: m.index.toString().padStart(2, '0'),
-        monthName: m.name,
-        fullName: m.full,
-        isPaid: !k.unpaid.includes(m.full),
-        amount: m.amount,
-      }));
-      const totalPaid = months.filter((m) => m.isPaid).reduce((s, m) => s + m.amount, 0);
-      const totalArrears = months.filter((m) => !m.isPaid).reduce((s, m) => s + m.amount, 0);
-      return {
-        propertyId: `prop-${idx + 1}`,
-        propertyCode: k.code,
-        residentName: k.name,
-        months,
-        paidMonthsCount: months.filter((m) => m.isPaid).length,
-        totalMonthsCount: data.month || 10,
-        unpaidMonths: k.unpaid,
-        totalPaidAmount: totalPaid,
-        totalArrearsAmount: totalArrears,
-        isFullyPaid: k.unpaid.length === 0,
-        isCurrentMonthPaid: !k.unpaid.includes(data.periodName || 'Oktober 2026'),
-      };
-    });
-  }, [data.householdDuesList]);
-
+  const resolvedUnpaidList = data.unpaidDetailedList;
+  const resolvedCurrentMonthUnpaid = data.currentMonthUnpaidList || [];
+  const resolvedPastArrears = data.pastArrearsList || [];
+  const resolvedHouseholdDues = data.householdDuesList;
   const filteredHouseholdDues = useMemo(() => {
     return resolvedHouseholdDues.filter((item) => {
       const matchSearch =
@@ -338,27 +156,14 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   }, [resolvedHouseholdDues, duesFilter, duesSearch]);
 
   // Citizen Quick Checker State (Default: Kav E / Pak Budi)
-  const [checkedKavling, setCheckedKavling] = useState<string>('Kav E');
+  const [checkedKavling, setCheckedKavling] = useState<string>('');
   const checkedKavlingData = useMemo(() => {
     return (
       resolvedHouseholdDues.find((h) => h.propertyCode === checkedKavling) ||
-      resolvedHouseholdDues.find((h) => h.propertyCode === 'Kav E') ||
+
       resolvedHouseholdDues[0]
     );
   }, [resolvedHouseholdDues, checkedKavling]);
-
-  // Confirmation Form State
-  const [confirmUnit, setConfirmUnit] = useState('');
-  const [confirmName, setConfirmName] = useState('');
-  const [confirmPeriod, setConfirmPeriod] = useState(initialData.periodName || 'Oktober 2026');
-  const [confirmAmount, setConfirmAmount] = useState('250000');
-  const [confirmMethod, setConfirmMethod] = useState<'BANK_TRF' | 'EWALLET' | 'QRIS' | 'CASH'>('BANK_TRF');
-  const [confirmSenderRef, setConfirmSenderRef] = useState('');
-  const [confirmNotes, setConfirmNotes] = useState('');
-  const [confirmFileUploaded, setConfirmFileUploaded] = useState(false);
-  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
-  const [confirmSuccessModal, setConfirmSuccessModal] = useState(false);
-  const [confirmError, setConfirmError] = useState('');
 
   // Share Link Handler
   const handleCopyLink = () => {
@@ -377,15 +182,11 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
     }
   };
 
-  const periodsList = [
-    { name: 'Oktober 2026', year: 2026, month: 10 },
-    { name: 'September 2026', year: 2026, month: 9 },
-    { name: 'Agustus 2026', year: 2026, month: 8 },
-    { name: 'Juli 2026', year: 2026, month: 7 },
-    { name: 'Juni 2026', year: 2026, month: 6 },
-    { name: 'Mei 2026', year: 2026, month: 5 },
-  ];
-
+  const newest = new Date(data.year,data.month-1,1);
+  const periodsList = Array.from({length:12},(_,index)=>{
+    const date = new Date(newest.getFullYear(),newest.getMonth()-index,1);
+    return {year:date.getFullYear(),month:date.getMonth()+1,name:billingMonthLabel(date.getFullYear(),date.getMonth()+1)};
+  });
   const getCategoryIcon = (name: string) => {
     const n = name.toLowerCase();
     if (n.includes('gaji') || n.includes('satpam') || n.includes('keamanan') || n.includes('honor')) {
@@ -412,29 +213,10 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
   // Realistic Public Ledger Mutasi Kas
   const sampleLedgerEntries: LedgerEntry[] = useMemo(() => (initialData.ledgerEntries || []), [initialData.ledgerEntries]);
 
-  // Export CSV handler
-  const handleExportLedgerCSV = () => {
-    if (typeof window === 'undefined') return;
-    const headers = ['Tanggal', 'No. Voucher / Ref', 'Uraian Transaksi', 'Kategori Pos', 'Arus Kas', 'Nominal (Rp)', 'Status Verifikasi'];
-    const rows = filteredLedger.map((row) => [
-      `"${row.date}"`,
-      `"${row.voucherRef}"`,
-      `"${row.description.replace(/"/g, '""')}"`,
-      `"${row.category}"`,
-      row.type === 'INCOME' ? 'MASUK' : 'KELUAR',
-      row.amount,
-      row.reconciled ? 'TERVERIFIKASI' : 'PENDING',
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Mutasi_Kas_${(selectedMonth || 'Oktober_2026').replace(/\s+/g, '_')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
+  const handleExportLedgerCSV = () => downloadFinanceCsv('Buku-Kas-'+selectedMonth.replace(/\s+/g,'-')+'.csv',[
+    ['Tanggal','No. Jurnal','Uraian','Kategori','Arus Kas','Nominal (Rp)'],
+    ...filteredLedger.map(row=>[row.date,row.voucherRef,row.description,row.category,row.type==='INCOME'?'MASUK':'KELUAR',row.amount]),
+  ]);
   // Filtered Ledger
   const filteredLedger = useMemo(() => {
     return sampleLedgerEntries.filter(entry => {
@@ -452,22 +234,6 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
       return matchSearch && matchType && matchCategory;
     });
   }, [sampleLedgerEntries, ledgerSearch, ledgerTypeFilter, ledgerCategoryFilter]);
-
-  // Handle Form Submission
-  const handleConfirmSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!confirmUnit.trim() || !confirmName.trim() || !confirmAmount.trim()) {
-      setConfirmError('Nomor Unit Rumah, Nama Warga, dan Nominal wajib diisi.');
-      return;
-    }
-    setConfirmSubmitting(true);
-    setConfirmError('');
-
-    setTimeout(() => {
-      setConfirmSubmitting(false);
-      setConfirmSuccessModal(true);
-    }, 700);
-  };
 
   return (
     <div className="space-y-6 pb-16 font-sans">
@@ -538,9 +304,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                     onClick={() => {
                       setSelectedMonth(p.name);
                       setPeriodDropdown(false);
-                      const targetPath = (p.month === 10 && p.year === 2026)
-                        ? '/transparency'
-                        : `/transparency/${p.year}/${p.month.toString().padStart(2, '0')}`;
+                      const targetPath = `/transparency/${p.year}/${p.month.toString().padStart(2, '0')}`;
                       const currentTabParam = activeTab !== 'cashflow_summary' ? `?tab=${activeTab}` : '';
                       window.location.href = `${targetPath}${currentTabParam}`;
                     }}
@@ -686,7 +450,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 </div>
               </div>
               <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
-                Penerimaan iuran warga yang telah diverifikasi dan masuk ke rekening kas koran paguyuban.
+                Iuran yang sudah dibukukan pada periode ini, termasuk pembayaran tunai dan koreksi.
               </p>
             </div>
 
@@ -710,7 +474,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 </div>
               </div>
               <p className="text-[11px] text-ink-muted leading-relaxed pt-2 border-t border-border/70">
-                Total pembiayaan operasional komplek yang telah dibayarkan oleh bendahara pada periode berjalan.
+                Kas keluar yang dibukukan, setelah pembatalan dan tanpa mutasi antar rekening.
               </p>
             </div>
           </div>
@@ -754,6 +518,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 {resolvedHouseholdDues.map((item) => {
                   const isSelected = checkedKavling === item.propertyCode;
                   const isCurrentPaid = item.isCurrentMonthPaid;
+                  const isBilled = item.months[data.month-1]?.isBilled;
 
                   return (
                     <button
@@ -778,7 +543,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                           ? 'text-emerald-700'
                           : 'text-amber-800'
                       }`}>
-                        {isCurrentPaid ? '✓ Lunas' : 'Menunggu'}
+                        {isCurrentPaid ? '✓ Lunas' : isBilled ? 'Menunggu' : 'Belum terbit'}
                       </span>
                     </button>
                   );
@@ -789,7 +554,9 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             {/* Dynamic Status Card for Selected Kavling */}
             {checkedKavlingData && (
               <div className="animate-in fade-in zoom-in-95 duration-150">
-                {checkedKavlingData.isCurrentMonthPaid ? (
+                {!checkedKavlingData.months[data.month-1]?.isBilled ? (
+                  <p className="rounded-xl bg-surface p-4 text-sm text-ink-muted">Belum ada tagihan untuk {checkedKavlingData.propertyCode} pada periode ini.</p>
+                ) : checkedKavlingData.isCurrentMonthPaid ? (
                   /* KAVLING LUNAS CARD */
                   <div className="p-5 sm:p-6 rounded-3xl bg-emerald-50/70 border-2 border-emerald-300 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
                     <div className="flex items-start gap-4">
@@ -809,7 +576,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                           {checkedKavlingData.residentName} ({checkedKavlingData.propertyCode})
                         </h3>
                         <p className="text-xs text-emerald-950 leading-relaxed max-w-xl">
-                          Alhamdulillah, iuran pemeliharaan lingkungan (IPL) sebesar <strong>Rp 250.000</strong> telah diterima dan dicatat lunas di kas paguyuban. Terima kasih atas partisipasi Bapak/Ibu dalam menjaga keamanan 24 jam dan kebersihan komplek kita!
+                          Alhamdulillah, iuran pemeliharaan lingkungan (IPL) sebesar <strong>{formatRupiah(checkedKavlingData.months[data.month-1]?.amount || 0)}</strong> telah diterima dan dicatat lunas di kas paguyuban. Terima kasih atas partisipasi Bapak/Ibu dalam menjaga keamanan 24 jam dan kebersihan komplek kita!
                         </p>
                       </div>
                     </div>
@@ -818,7 +585,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          setLedgerSearch(checkedKavlingData.propertyCode);
+                          setLedgerSearch('');
                           handleTabChange('public_ledger');
                         }}
                         className="px-4 py-2.5 rounded-xl bg-white hover:bg-emerald-100/50 text-emerald-900 border border-emerald-300 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] flex items-center justify-center gap-1.5"
@@ -827,16 +594,10 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                         <span>Lihat di Buku Kas</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (typeof window !== 'undefined') window.print();
-                        }}
-                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs active:scale-[0.98] flex items-center justify-center gap-1.5"
-                      >
+                      <a href="/warga" className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5">
                         <Download className="w-3.5 h-3.5" />
-                        <span>Unduh Bukti</span>
-                      </button>
+                        <span>Kuitansi di portal warga</span>
+                      </a>
                     </div>
                   </div>
                 ) : (
@@ -852,14 +613,14 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                             ⏳ MENUNGGU PEMBAYARAN
                           </span>
                           <span className="text-xs font-bold text-amber-900">
-                            Jatuh Tempo: 10 {selectedMonth.split(' ')[0]} 2026
+                            Periode: {selectedMonth}
                           </span>
                         </div>
                         <h3 className="text-lg sm:text-xl font-black text-ink">
                           {checkedKavlingData.residentName} ({checkedKavlingData.propertyCode})
                         </h3>
                         <p className="text-xs text-amber-950 leading-relaxed max-w-xl">
-                          Iuran pemeliharaan lingkungan ({selectedMonth}) sebesar <strong>Rp 250.000</strong> belum tercatat masuk. Jika Anda sudah transfer, mohon konfirmasi agar status unit langsung lunas.
+                          Iuran pemeliharaan lingkungan ({selectedMonth}) sebesar <strong>{formatRupiah(checkedKavlingData.months[data.month-1]?.amount || 0)}</strong> belum lunas. Jika sudah membayar, kirim bukti melalui portal warga.
                         </p>
                         {checkedKavlingData.unpaidMonths && checkedKavlingData.unpaidMonths.length > 1 && (
                           <p className="text-[11px] text-rose-800 font-bold mt-1">
@@ -872,7 +633,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => handleCopyAccount(bankInfo.accountNumber.replace(/[^0-9]/g, ''))}
+                        disabled={!bankInfo.accountNumber} onClick={() => handleCopyAccount(bankInfo.accountNumber)}
                         className="px-4 py-2.5 rounded-xl bg-white hover:bg-amber-100/50 text-amber-950 border border-amber-300 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] flex items-center justify-center gap-1.5"
                       >
                         {copiedAccount ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-amber-700" />}
@@ -946,7 +707,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                         key={item.name}
                         onClick={() => setSelectedExpenseCategory(item)}
                         className="p-3 rounded-2xl bg-canvas hover:bg-primary-50/70 border border-border hover:border-primary-300 transition-all cursor-pointer group active:scale-[0.98]"
-                        title="Klik untuk melihat bukti nota dan kuitansi belanja"
+                        title="Lihat rincian pengeluaran yang dibukukan"
                       >
                         <div className="flex items-center justify-between text-xs font-bold text-ink">
                           <div className="flex items-center gap-2.5">
@@ -1002,13 +763,13 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 <div className="p-4 rounded-2xl bg-surface border border-primary-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <span className="text-[11px] text-ink-muted">{bankInfo.bankName}</span>
-                    <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber}</p>
-                    <p className="text-xs font-bold text-primary-900">a.n {bankInfo.accountHolder}</p>
+                    <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber || 'Belum dikonfigurasi'}</p>
+                    <p className="text-xs font-bold text-primary-900">{bankInfo.accountHolder ? 'a.n '+bankInfo.accountHolder : ''}</p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => handleCopyAccount(bankInfo.accountNumber.replace(/[^0-9]/g, ''))}
+                    disabled={!bankInfo.accountNumber} onClick={() => handleCopyAccount(bankInfo.accountNumber)}
                     className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
                   >
                     {copiedAccount ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -1345,7 +1106,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                 Catatan Transaksi Masuk & Keluar Lengkap
               </h2>
               <p className="text-xs text-ink-muted mt-0.5">
-                Setiap mutasi kas dilengkapi nomor voucher referensi dan status rekonsiliasi rekening resmi.
+                Jurnal yang sudah dibukukan. Rincian pribadi dan bukti transaksi tersedia melalui akun yang berwenang.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1361,7 +1122,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               <Search className="w-4 h-4 text-ink-muted absolute left-3.5 top-3" />
               <input
                 type="text"
-                placeholder="Cari uraian transaksi, no voucher (cth: TRF-BANK, QRIS, VCH-SEC)..."
+                placeholder="Cari uraian atau nomor jurnal"
                 value={ledgerSearch}
                 onChange={(e) => setLedgerSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-canvas border border-border rounded-xl text-xs font-medium text-ink focus:outline-hidden focus:ring-2 focus:ring-primary-500"
@@ -1430,6 +1191,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             </div>
           </div>
 
+          {data.journalCount > sampleLedgerEntries.length && <p className="text-sm text-ink-muted">Menampilkan {sampleLedgerEntries.length} jurnal terbaru dari {data.journalCount} transaksi.</p>}
           {/* Ledger Table */}
           <div className="border border-border rounded-2xl overflow-hidden overflow-x-auto text-xs shadow-2xs">
             <table className="w-full text-left">
@@ -1439,7 +1201,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                   <th className="py-3.5 px-4">Uraian Transaksi</th>
                   <th className="py-3.5 px-4">Kategori Pos</th>
                   <th className="py-3.5 px-4 text-right">Nominal (Rp)</th>
-                  <th className="py-3.5 px-4 text-center">Status Audit</th>
+                  <th className="py-3.5 px-4 text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -1485,7 +1247,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
                       <td className="py-3.5 px-4 text-center">
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                           <Check className="w-3 h-3 text-emerald-600" />
-                          Terverifikasi
+                          Dibukukan
                         </span>
                       </td>
                     </tr>
@@ -1510,7 +1272,7 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
               </span>
             </div>
             <div>
-              <span className="text-ink-muted block">Arus Bersih Periode Ini:</span>
+              <span className="text-ink-muted block">Arus Bersih yang Ditampilkan:</span>
               <span className={`text-sm font-black tabular-nums ${(filteredLedger.filter((e) => e.type === 'INCOME').reduce((sum, e) => sum + e.amount, 0) - filteredLedger.filter((e) => e.type === 'EXPENSE').reduce((sum, e) => sum + e.amount, 0)) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                 {formatRupiah(filteredLedger.filter((e) => e.type === 'INCOME').reduce((sum, e) => sum + e.amount, 0) - filteredLedger.filter((e) => e.type === 'EXPENSE').reduce((sum, e) => sum + e.amount, 0))}
               </span>
@@ -2128,213 +1890,12 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
       {/* SUBTAB 4: CITIZEN SELF-PAYMENT CONFIRMATION FORM                          */}
       {/* ========================================================================= */}
       {activeTab === 'citizen_confirm' && (
-        <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-6 animate-in fade-in">
-          <div className="border-b border-border pb-4 flex items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                Layanan Konfirmasi Mandiri Warga
-              </span>
-              <h2 className="text-xl font-black text-ink mt-1">
-                Formulir Konfirmasi Pembayaran Iuran
-              </h2>
-              <p className="text-xs text-ink-muted mt-0.5">
-                Kirim data transfer Bank (Syariah/Nasional), Dompet Digital (GoPay/DANA), atau QRIS Anda agar bendahara segera memverifikasi kuitansi lunas.
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
-              <CreditCard className="w-6 h-6" />
-            </div>
-          </div>
-
-          {confirmError && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{confirmError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleConfirmSubmit} className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Unit Code */}
-              <div>
-                <label className="block font-bold text-ink mb-1.5">Nomor Unit Rumah / Kavling:</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Kav E, Kav A, Kav J"
-                  value={confirmUnit}
-                  onChange={(e) => setConfirmUnit(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
-                />
-              </div>
-
-              {/* Citizen Name */}
-              <div>
-                <label className="block font-bold text-ink mb-1.5">Nama Lengkap Pembayar:</label>
-                <input
-                  type="text"
-                  placeholder="Nama pemilik / penghuni yang mentransfer"
-                  value={confirmName}
-                  onChange={(e) => setConfirmName(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink focus:ring-2 focus:ring-primary-500 focus:outline-hidden"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Period */}
-              <div>
-                <label className="block font-bold text-ink mb-1.5">Periode Tagihan Iuran:</label>
-                <select
-                  value={confirmPeriod}
-                  onChange={(e) => setConfirmPeriod(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-                >
-                  <option value="Oktober 2026">Oktober 2026 (Bulan Berjalan)</option>
-                  <option value="September 2026">September 2026</option>
-                  <option value="Agustus 2026">Agustus 2026</option>
-                  <option value="Juli 2026">Juli 2026</option>
-                  <option value="Juni 2026">Juni 2026</option>
-                  <option value="November 2026 (Di Muka)">November 2026 (Di Muka)</option>
-                </select>
-              </div>
-
-              {/* Amount */}
-              <div>
-                <label className="block font-bold text-ink mb-1.5">Nominal Transfer (Rp):</label>
-                <input
-                  type="number"
-                  placeholder="250000"
-                  value={confirmAmount}
-                  onChange={(e) => setConfirmAmount(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink font-mono"
-                />
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <div>
-              <label className="block font-bold text-ink mb-1.5">Metode / Saluran Pembayaran:</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setConfirmMethod('BANK_TRF')}
-                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
-                    confirmMethod === 'BANK_TRF'
-                      ? 'bg-primary-50 border-primary-500 text-primary-900 shadow-2xs'
-                      : 'bg-canvas border-border text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  🌙 / 🏦 Transfer Bank / Syariah
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmMethod('EWALLET')}
-                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
-                    confirmMethod === 'EWALLET'
-                      ? 'bg-blue-50 border-blue-500 text-blue-900 shadow-2xs'
-                      : 'bg-canvas border-border text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  💳 Dompet Digital / E-Wallet
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmMethod('QRIS')}
-                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
-                    confirmMethod === 'QRIS'
-                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-2xs'
-                      : 'bg-canvas border-border text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  📱 QRIS Paguyuban
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmMethod('CASH')}
-                  className={`py-2.5 px-3 rounded-xl border text-center font-bold text-xs transition-all ${
-                    confirmMethod === 'CASH'
-                      ? 'bg-amber-50 border-amber-500 text-amber-900 shadow-2xs'
-                      : 'bg-canvas border-border text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  💵 Tunai ke Pengurus / Kepala Komplek
-                </button>
-              </div>
-            </div>
-
-            {/* Sender Reference */}
-            <div>
-              <label className="block font-bold text-ink mb-1.5">Nomor Referensi / 4 Digit Akhir Rekening Pengirim:</label>
-              <input
-                type="text"
-                placeholder="Contoh: Ref BSI #99214 / GoPay / m-Banking a.n. Warga"
-                value={confirmSenderRef}
-                onChange={(e) => setConfirmSenderRef(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-              />
-            </div>
-
-            {/* Simulated File Upload Dropzone */}
-            <div>
-              <label className="block font-bold text-ink mb-1.5">Unggah Bukti Struk Transfer (Foto / Tangkapan Layar):</label>
-              <div
-                onClick={() => setConfirmFileUploaded(!confirmFileUploaded)}
-                className={`p-6 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${
-                  confirmFileUploaded
-                    ? 'border-emerald-500 bg-emerald-50/50'
-                    : 'border-border hover:border-primary-400 bg-canvas'
-                }`}
-              >
-                <UploadCloud className={`w-8 h-8 mx-auto mb-2 ${confirmFileUploaded ? 'text-emerald-600' : 'text-ink-muted'}`} />
-                {confirmFileUploaded ? (
-                  <p className="text-xs font-bold text-emerald-800">
-                    ✓ Berkas Bukti Transfer Terlampir: <span className="font-mono">struk-transfer-warga.jpg</span>
-                  </p>
-                ) : (
-                  <p className="text-xs text-ink-muted">
-                    Klik di sini untuk mengunggah foto struk transfer / screenshot m-Banking
-                  </p>
-                )}
-                <span className="text-[10px] text-ink-muted block mt-1">Format didukung: JPG, PNG, PDF (Maks. 5 MB)</span>
-              </div>
-            </div>
-
-            {/* Additional Notes */}
-            <div>
-              <label className="block font-bold text-ink mb-1.5">Catatan Tambahan (Opsional):</label>
-              <textarea
-                rows={2}
-                placeholder="Misal: Termasuk pelunasan denda sampah bulan lalu..."
-                value={confirmNotes}
-                onChange={(e) => setConfirmNotes(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-canvas border border-border rounded-xl text-xs font-medium text-ink"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={confirmSubmitting}
-              className="w-full py-3.5 px-4 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 text-white font-bold rounded-2xl shadow-xs transition-all flex items-center justify-center gap-2 text-sm"
-            >
-              {confirmSubmitting ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span>Kirim Konfirmasi Pembayaran ke Bendahara</span>
-                </>
-              )}
-            </button>
-          </form>
-        </div>
+        <section className="workspace-panel grid gap-3">
+          <h2>Konfirmasi pembayaran iuran</h2>
+          <p className="text-sm text-ink-muted">Masuk ke portal warga untuk memilih tagihan, mengunggah bukti, dan melihat hasil verifikasi.</p>
+          <a href="/warga" className="btn-primary inline-flex min-h-11 w-fit items-center gap-2">Buka portal warga <ArrowRight className="size-4" aria-hidden="true" /></a>
+        </section>
       )}
-
-      {/* ========================================================================= */}
-      {/* SUBTAB 5: AUDIT STANDARDS & OFFICIAL ACCOUNTS                             */}
-      {/* ========================================================================= */}
       {activeTab === 'audit_faq' && (
         <div className="bg-surface rounded-3xl p-6 sm:p-8 border border-border shadow-card space-y-6 animate-in fade-in">
           <div className="border-b border-border pb-4 flex items-center justify-between gap-3">
@@ -2368,13 +1929,13 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-surface border border-primary-200/80">
               <div className="space-y-1">
                 <span className="text-[11px] text-ink-muted">{bankInfo.bankName}</span>
-                <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber}</p>
-                <p className="text-xs font-bold text-primary-900">a.n {bankInfo.accountHolder}</p>
+                <p className="text-2xl font-black font-mono text-ink tracking-tight">{bankInfo.accountNumber || 'Belum dikonfigurasi'}</p>
+                <p className="text-xs font-bold text-primary-900">{bankInfo.accountHolder ? 'a.n '+bankInfo.accountHolder : ''}</p>
               </div>
 
               <button
                 type="button"
-                onClick={() => handleCopyAccount(bankInfo.accountNumber.replace(/[^0-9]/g, ''))}
+                disabled={!bankInfo.accountNumber} onClick={() => handleCopyAccount(bankInfo.accountNumber)}
                 className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
               >
                 {copiedAccount ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -2453,75 +2014,6 @@ export const TransparencyView: React.FC<TransparencyViewProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 6. CONFIRMATION SUCCESS MODAL                                             */}
-      {/* ========================================================================= */}
-      {confirmSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-surface rounded-3xl max-w-md w-full p-6 border border-border shadow-modal space-y-4 text-center">
-            <div className="w-14 h-14 rounded-3xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center border border-emerald-200">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-
-            <div>
-              <h3 className="text-lg font-black text-ink">Konfirmasi Pembayaran Terkirim!</h3>
-              <p className="text-xs text-ink-muted mt-1 leading-relaxed">
-                Data pembayaran untuk unit <strong>{confirmUnit}</strong> sebesar <strong>Rp {Number(confirmAmount).toLocaleString('id-ID')}</strong> telah masuk ke antrean verifikasi kasir/bendahara.
-              </p>
-            </div>
-
-            <div className="p-3.5 bg-canvas rounded-2xl border border-border text-left text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Pembayar:</span>
-                <span className="font-bold text-ink">{confirmName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Periode:</span>
-                <span className="font-bold text-ink">{confirmPeriod}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-muted">Metode:</span>
-                <span className="font-bold text-primary-700">
-                  {confirmMethod === 'BANK_TRF'
-                    ? 'Transfer Bank / Syariah'
-                    : confirmMethod === 'EWALLET'
-                    ? 'Dompet Digital / E-Wallet'
-                    : confirmMethod === 'QRIS'
-                    ? 'QRIS Paguyuban'
-                    : 'Tunai'}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 flex flex-col gap-2">
-              <a
-                href={`https://api.whatsapp.com/send?phone=6281234567802&text=${encodeURIComponent(
-                  `Halo Bendahara Komplek, saya telah mengirim konfirmasi transfer iuran via portal WargaHub:\n- Unit: ${confirmUnit}\n- Nama: ${confirmName}\n- Periode: ${confirmPeriod}\n- Nominal: Rp ${Number(confirmAmount).toLocaleString('id-ID')}\nMohon diverifikasi.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>Kirim Bukti ke WhatsApp Bendahara</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmSuccessModal(false);
-                  setConfirmUnit('');
-                  setConfirmName('');
-                  setConfirmSenderRef('');
-                  setConfirmFileUploaded(false);
-                }}
-                className="w-full py-2.5 bg-canvas hover:bg-surface border border-border text-ink font-bold text-xs rounded-xl transition-colors"
-              >
-                Tutup Jendela
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

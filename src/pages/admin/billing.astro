@@ -1,60 +1,47 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { BillingManager } from '../../components/admin/BillingManager';
-import { getCurrentBillingPeriod, getInvoices, getBillingProgress, getBillingPeriods, getAllInvoices } from '../../services/billing.service';
+import { getBillableProperties, getBillingPeriods, getInvoices, selectBillingPeriod } from '../../services/billing.service';
+import { getBillingTariff } from '../../services/billing-tariff.service';
 import { getProperties } from '../../services/property.service';
-import { getMainAccountBalance } from '../../services/finance.service';
+import { getAccounts } from '../../services/finance.service';
+import { canManageFinance } from '../../lib/access-policy';
+import { jakartaDate } from '../../lib/billing-data';
+import type { UserSession } from '../../types/auth';
 
-const periodParam = Astro.url.searchParams.get('period');
-const [
-  allPeriods,
-  allInvoices,
-  properties,
-  currentBalance
-] = await Promise.all([
-  getBillingPeriods().catch(() => []),
-  getAllInvoices().catch(() => []),
-  getProperties().catch(() => []),
-  getMainAccountBalance().catch(() => 0),
-]);
+const actor = await Astro.session?.get('wargahub_user') as UserSession | undefined;
+if (!actor) return Astro.redirect('/login?portal=admin');
 
-// Prefer requested periodParam, then current month period (e.g. period-2026-10), then latest open period, then first
-const now = new Date();
-const currentMonthPeriodId = `period-${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-const currentPeriod = periodParam
-  ? allPeriods.find((p: any) => p.id === periodParam || p.name === periodParam)
-  : (allPeriods.find((p: any) => p.id === currentMonthPeriodId) || allPeriods.find((p: any) => p.id === 'period-2026-10') || allPeriods.find((p: any) => p.status === 'OPEN') || allPeriods[0]);
+const today = jakartaDate();
+const requested = Astro.url.searchParams.get('period')?.slice(0,100) || '';
+const invoiceId = Astro.url.searchParams.get('invoice')?.slice(0,64) || '';
+const data = await Promise.all([
+  getBillingPeriods(), getInvoices('ALL',{details:true}), getProperties(), getAccounts(), getBillingTariff(), getBillableProperties(),
+]).then(([periods,invoices,properties,accounts,tariff,billable]) => ({
+  periods,invoices,accounts,tariff,billableIds:billable.map(item=>item.id),
+  houses:properties.map(item=>({id:item.id,code:item.code,name:item.occupantName || item.ownerName,block:item.blockName,occupancy:item.occupancyStatus})),
+})).catch(()=>null);
+if (!data) Astro.response.status = 503;
 
-const [invoices, progress] = currentPeriod
-  ? await Promise.all([
-      getInvoices(currentPeriod.id).catch(() => []),
-      getBillingProgress(currentPeriod.id).catch(() => null),
-    ])
-  : [[], null];
-
-const safeProgress = progress || {
-  total: 0,
-  paidCount: 0,
-  unpaidCount: 0,
-  percentage: 0,
-  totalAmount: 0,
-  paidAmount: 0,
-  unpaidAmount: 0,
-  monthlyRatePerHouse: 250000,
-};
+const invoicePeriod = data?.invoices.find(item=>item.id===invoiceId)?.billingPeriodId;
+const current = data ? selectBillingPeriod(data.periods,invoicePeriod || requested,today) : undefined;
+const unknownPeriod = Boolean(requested && !invoicePeriod && !data?.periods.some(item=>item.id===requested || item.name===requested));
 ---
 
-<AdminLayout title="Iuran & Billing - WargaHub" currentPath="/admin/billing">
-  <BillingManager
-    initialHouse={Astro.url.searchParams.get('house')?.slice(0,30) || ''}
-    initialPeriodId={currentPeriod?.id || 'period-2026-10'}
-    initialPeriodName={currentPeriod?.name || 'Oktober 2026'}
-    initialInvoices={invoices as any}
-    allInvoices={allInvoices as any}
-    initialProgress={safeProgress}
-    initialProperties={properties as any}
-    allPeriods={allPeriods as any}
-    initialBalance={currentBalance}
+<AdminLayout title="Tagihan iuran · WargaHub" currentPath="/admin/billing">
+  {data ? <BillingManager
+    {...data}
+    today={today}
+    canManage={canManageFinance(actor.role)}
+    initialTab={Astro.url.searchParams.get('tab') || undefined}
+    initialHouse={Astro.url.searchParams.get('house')?.slice(0,64) || ''}
+    initialPeriodId={current?.id || ''}
+    initialInvoiceId={invoiceId}
+    unknownPeriod={unknownPeriod}
     client:load
-  />
+  /> : <section class="workspace-panel" role="alert">
+    <h1 class="text-2xl font-bold">Tagihan iuran</h1>
+    <p class="mt-2 text-ink-muted">Data tagihan belum bisa dimuat.</p>
+    <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname + Astro.url.search} data-astro-reload>Coba lagi</a>
+  </section>}
 </AdminLayout>

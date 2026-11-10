@@ -20,7 +20,8 @@ try {
     const fixture = JSON.parse(await run(['--import', 'tsx', 'scripts/create-ui-test-fixture.ts'], process.env, true));
     const port = process.env.UI_AUDIT_PORT || '4330';
     const env = { ...process.env, DATABASE_URL: '', WARGAHUB_DATA_DIR: fixture.directory, HOST: '127.0.0.1', PORT: port };
-    server = spawn(process.execPath, ['dist/server/entry.mjs'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const entry = process.env.WARGAHUB_TEST_NODE_ENTRY || 'dist/server/entry.mjs';
+    server = spawn(process.execPath, [entry], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Isolated UI server did not start. Build the app first.')), 20000);
       server.once('error', reject);

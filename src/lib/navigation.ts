@@ -36,7 +36,7 @@ export const adminNavigation: NavigationGroup[] = [
   { label: 'Keuangan', items: [
     { label: 'Tagihan iuran', href: '/admin/billing', icon: Receipt, description: 'Tagihan bulanan dan status pembayaran', keywords: 'ipl invoice tunggakan', roles: finance },
     { label: 'Pembayaran', href: '/admin/payments', icon: CreditCard, description: 'Catat pembayaran dan verifikasi bukti transfer', keywords: 'bayar kuitansi transfer', roles: financeWrite },
-    { label: 'Pengeluaran', href: '/admin/expenses', icon: FileMinus, description: 'Pengeluaran operasional dan bukti belanja', roles: financeWrite },
+    { label: 'Pengeluaran', href: '/admin/expenses', icon: FileMinus, description: 'Pengeluaran operasional dan bukti belanja', roles: finance },
     { label: 'Buku kas', href: '/admin/ledger', icon: Wallet, description: 'Saldo, mutasi dan rekonsiliasi kas', keywords: 'ledger buku besar bank', roles: finance },
     { label: 'Anggaran', href: '/admin/budget', icon: Calendar, description: 'Rencana dan realisasi anggaran', keywords: 'apb budget cadangan', roles: finance },
     { label: 'Laporan & tren', href: '/admin/analytics', icon: BarChart3, description: 'Analisis iuran dan keuangan', keywords: 'analitik grafik statistik', roles: finance },

@@ -54,20 +54,6 @@ import {
 import { formatRupiah } from '../../lib/format';
 import type { SecurityShiftEntry, SecurityShiftRoster } from '../../services/settings.service';
 
-export interface TariffComponent {
-  id: string;
-  name: string;
-  fee: number;
-  desc: string;
-}
-
-export const GRAND_SARIWANGI_TARIFF_COMPONENTS: TariffComponent[] = [
-  { id: 'tf-rt', name: '1. Iuran RT (Pengangkutan Sampah, Kebersihan Lingkungan & Fasum RT)', fee: 250000, desc: 'Pengangkutan armada sampah dinas LH, kebersihan saluran air, pemotongan rumput dan operasional RT' },
-  { id: 'tf-rw', name: '2. Iuran RW (Retribusi Paguyuban & Wilayah RW)', fee: 100000, desc: 'Retribusi paguyuban komplek, koordinasi keamanan wilayah RW dan administrasi' },
-];
-
-export const DEFAULT_TARIFF_COMPONENTS: TariffComponent[] = GRAND_SARIWANGI_TARIFF_COMPONENTS;
-
 export interface ExpenseComponentConfig {
   id: string;
   name: string;
@@ -188,7 +174,6 @@ interface SettingsManagerProps {
 export const SettingsManager: React.FC<SettingsManagerProps> = ({
   initialTab = 'branding',
   initialSettings,
-  initialAccounts,
 }) => {
   // Persistence helpers
   const getPersisted = <T,>(key: string, fallback: T): T => {
@@ -253,141 +238,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
   const [motto, setMotto] = useState(() => getPersisted('wargahub_set_motto', 'Guyub Rukun, Aman, Asri, dan Transparan Berbasis Digital'));
 
   // ================= 3. KEUANGAN, TARIF & REKENING BANK =================
-  // Mode Tarif: 'FLAT' (Tarif Tunggal Langsung All-in) vs 'DETAILED' (Rincian Komponen Multi-Pos)
-  const [tariffMode, setTariffMode] = useState<'FLAT' | 'DETAILED'>(() => {
-    return getPersisted<'FLAT' | 'DETAILED'>('wargahub_set_tariff_mode', 'FLAT');
-  });
-
-  const [flatFee, setFlatFee] = useState<number>(() => {
-    return getPersisted<number>('wargahub_set_flat_fee', 250000);
-  });
-
-  const [flatFeeName, setFlatFeeName] = useState<string>(() => {
-    return getPersisted<string>('wargahub_set_flat_name', 'Iuran Pengelolaan Lingkungan (IPL) Bulanan Warga');
-  });
-
-  const [flatFeeDesc, setFlatFeeDesc] = useState<string>(() => {
-    return getPersisted<string>('wargahub_set_flat_desc', 'Iuran standar bulanan klaster per unit rumah (All-in)');
-  });
-
-  // Komponen pos terinci (Satpam, Sampah, Fasum, dll.)
-  const [detailedComponents, setDetailedComponents] = useState<TariffComponent[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedDetailed = localStorage.getItem('wargahub_detailed_tariff_components');
-        if (savedDetailed) {
-          const parsed = JSON.parse(savedDetailed);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-        const saved = localStorage.getItem('wargahub_tariff_components');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 1) {
-            const total = parsed.reduce((a: number, b: any) => a + (Number(b.fee) || 0), 0);
-            if (total === 750000) return DEFAULT_TARIFF_COMPONENTS;
-            return parsed;
-          }
-        }
-      } catch (e) {}
-    }
-    return DEFAULT_TARIFF_COMPONENTS;
-  });
-
-  const [tariffNote, setTariffNote] = useState<string>(() => {
-    return getPersisted<string>('wargahub_tariff_note', 'Tarif iuran standar disepakati bersama dalam Musyawarah Warga RT 01 / RW 08 (Komplek Grand Sariwangi)');
-  });
-
-  const totalDetailedTariff = useMemo(() => {
-    return detailedComponents.reduce((sum, item) => sum + (Number(item.fee) || 0), 0);
-  }, [detailedComponents]);
-
-  // Nominal tarif aktif yang berlaku (Flat Rp 250.000 vs Rincian Pos)
-  const totalTariff = useMemo(() => {
-    return tariffMode === 'FLAT' ? flatFee : totalDetailedTariff;
-  }, [tariffMode, flatFee, totalDetailedTariff]);
-
-  // Unified components list for external listeners / sync
-  const currentTariffComponents = useMemo<TariffComponent[]>(() => {
-    if (tariffMode === 'FLAT') {
-      return [{
-        id: 'tf-flat',
-        name: flatFeeName || 'Iuran Pengelolaan Lingkungan (IPL)',
-        fee: flatFee,
-        desc: flatFeeDesc || 'Iuran standar bulanan warga (All-in)',
-      }];
-    }
-    return detailedComponents;
-  }, [tariffMode, flatFee, flatFeeName, flatFeeDesc, detailedComponents]);
-
-  const [monthlyFee, setMonthlyFee] = useState(() => String(totalTariff));
-
-  // Keep monthlyFee in sync with totalTariff
-  useEffect(() => {
-    setMonthlyFee(String(totalTariff));
-  }, [totalTariff]);
-
-  // Reactive listener to keep Settings and Billing 100% in sync
-  useEffect(() => {
-    const handleTariffsUpdated = (e: any) => {
-      if (e.detail) {
-        if (e.detail.mode) {
-          setTariffMode(e.detail.mode);
-        }
-        if (e.detail.mode === 'FLAT' && typeof e.detail.total === 'number') {
-          setFlatFee(e.detail.total);
-        }
-        const comps = e.detail.components || (Array.isArray(e.detail) ? e.detail : null);
-        if (comps && Array.isArray(comps)) {
-          if (e.detail.mode === 'DETAILED' || comps.length > 1) {
-            setDetailedComponents(comps);
-          } else if (comps.length === 1) {
-            setFlatFee(comps[0].fee);
-            if (comps[0].name) setFlatFeeName(comps[0].name);
-            if (comps[0].desc) setFlatFeeDesc(comps[0].desc);
-          }
-        }
-        if (e.detail.note) {
-          setTariffNote(e.detail.note);
-        }
-      }
-    };
-    window.addEventListener('wargahub_tariffs_updated', handleTariffsUpdated);
-    return () => window.removeEventListener('wargahub_tariffs_updated', handleTariffsUpdated);
-  }, []);
-
-  const [dueDay, setDueDay] = useState(() => getPersisted('wargahub_set_dueday', '10'));
-  const [gracePeriodDays, setGracePeriodDays] = useState(() => getPersisted('wargahub_set_grace_days', '5'));
-  const [latePenaltyType, setLatePenaltyType] = useState(() => getPersisted('wargahub_set_penalty_type', 'NONE'));
-  const [bankName, setBankName] = useState(() => {
-    const saved = getPersisted<string>('wargahub_set_bankname', '');
-    if (saved && !saved.includes('Bank Kas Paguyuban (Bank Syariah / Kas Utama)')) return saved;
-    if (initialSettings?.bankName) return initialSettings.bankName;
-    const mainAcc = initialAccounts?.find((a: any) => a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.type === 'BANK');
-    if (mainAcc && (mainAcc.bank_name || mainAcc.bankName)) return mainAcc.bank_name || mainAcc.bankName;
-    return 'Bank Mandiri';
-  });
-  const [bankAccount, setBankAccount] = useState(() => {
-    const saved = getPersisted<string>('wargahub_set_bankacc', '');
-    if (saved && saved !== '8830-1928-33') return saved;
-    if (initialSettings?.bankAccount) return initialSettings.bankAccount;
-    const mainAcc = initialAccounts?.find((a: any) => a.id === 'acc-main' || a.code === 'BCA_MAIN' || a.type === 'BANK');
-    if (mainAcc && (mainAcc.account_number || mainAcc.accountNumber) && (mainAcc.account_number || mainAcc.accountNumber) !== '-') {
-      return mainAcc.account_number || mainAcc.accountNumber;
-    }
-    return '1300024446419';
-  });
-  const [accountHolder, setAccountHolder] = useState(() => {
-    const saved = getPersisted<string>('wargahub_set_accholder', '');
-    if (saved && !saved.includes('PENGURUS KOMPLEK WARGAHUB')) return saved;
-    if (initialSettings?.accountHolder) return initialSettings.accountHolder;
-    return 'Paguyuban Grand Sariwangi';
-  });
-  const [qrisNmid, setQrisNmid] = useState(() => {
-    const saved = getPersisted<string>('wargahub_set_qris', '');
-    if (saved) return saved;
-    if (initialSettings?.qrisNmid) return initialSettings.qrisNmid;
-    return 'ID102008891230';
-  });
+  const totalTariff = initialSettings?.monthlyRate ?? 250000;
+  const bankName = initialSettings?.bankName || "";
+  const bankAccount = initialSettings?.bankAccount || "";
+  const [accountHolder,setAccountHolder] = useState(initialSettings?.accountHolder || "");
+  const [qrisNmid,setQrisNmid] = useState(initialSettings?.qrisNmid || "");
 
   // Master Komponen Alokasi Pengeluaran Riil (Khusus Grand Sariwangi)
   const [expenseComponents, setExpenseComponents] = useState<ExpenseComponentConfig[]>(() => {
@@ -693,10 +548,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           communityName,
           rtRw,
           address,
-          monthlyRate: totalTariff,
-          bankName,
-          bankAccount,
-          accountHolder,
+          ...(activeTab === "finances" ? { accountHolder, qrisNmid } : {}),
           securityPhone,
           rwHeadPhone,
         }),
@@ -722,27 +574,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       savePersisted('wargahub_set_sk_number', skNumber);
       savePersisted('wargahub_set_motto', motto);
 
-      // 4. Persist Finances & Tariff Structure (Unified Single Source of Truth)
-      savePersisted('wargahub_set_tariff_mode', tariffMode);
-      savePersisted('wargahub_set_flat_fee', flatFee);
-      savePersisted('wargahub_set_flat_name', flatFeeName);
-      savePersisted('wargahub_set_flat_desc', flatFeeDesc);
-      savePersisted('wargahub_detailed_tariff_components', detailedComponents);
-      savePersisted('wargahub_tariff_components', currentTariffComponents);
-      savePersisted('wargahub_tariff_note', tariffNote);
-      savePersisted('wargahub_set_fee', String(totalTariff));
-
-      // Synchronize legacy keys so there is no inconsistency anywhere in older views
-      const secComp = currentTariffComponents.find(c => c.name.toLowerCase().includes('satpam') || c.name.toLowerCase().includes('aman'))?.fee ?? (tariffMode === 'FLAT' ? Math.round(flatFee * 0.6) : 150000);
-      const trshComp = currentTariffComponents.find(c => c.name.toLowerCase().includes('sampah') || c.name.toLowerCase().includes('bersih'))?.fee ?? (tariffMode === 'FLAT' ? Math.round(flatFee * 0.2) : 50000);
-      const resComp = currentTariffComponents.find(c => c.name.toLowerCase().includes('kas') || c.name.toLowerCase().includes('perawatan') || c.name.toLowerCase().includes('fasum'))?.fee ?? (tariffMode === 'FLAT' ? Math.round(flatFee * 0.2) : 50000);
-
-      savePersisted('wargahub_set_trash_fee', String(trshComp));
-      savePersisted('wargahub_set_security_fee', String(secComp));
-      savePersisted('wargahub_set_reserve_fee', String(resComp));
-      savePersisted('wargahub_set_dueday', dueDay);
-      savePersisted('wargahub_set_grace_days', gracePeriodDays);
-      savePersisted('wargahub_set_penalty_type', latePenaltyType);
+      // 4. Persist display settings
       savePersisted('wargahub_set_bankname', bankName);
       savePersisted('wargahub_set_bankacc', bankAccount);
       savePersisted('wargahub_set_accholder', accountHolder);
@@ -752,18 +584,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('wargahub_expense_components_updated', {
           detail: expenseComponents
-        }));
-      }
-
-      // Dispatch global event for instantaneous synchronization across open pages/tabs
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('wargahub_tariffs_updated', {
-          detail: {
-            mode: tariffMode,
-            components: currentTariffComponents,
-            total: totalTariff,
-            note: tariffNote,
-          }
         }));
       }
 
@@ -1024,9 +844,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
         <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
           <span className="text-[11px] text-ink-muted font-bold block">Iuran Default Bulanan</span>
           <p className="text-xl font-black text-ink mt-1 font-mono">
-            {formatRupiah(Number(monthlyFee))}
+            {formatRupiah(totalTariff)}
           </p>
-          <span className="text-[10px] text-primary-600 font-bold">Jatuh Tempo: Tgl {dueDay}</span>
+          <a href="/admin/billing?tab=tariffs" className="text-[10px] font-bold text-primary-700 hover:underline">Tarif dan jatuh tempo</a>
         </div>
 
         <div className="p-4 bg-surface rounded-2xl border border-border shadow-xs">
@@ -1420,537 +1240,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               </div>
             </div>
 
-            {/* Flexible Tariff Mode Switcher (Flat Single Fee vs Detailed Multi-Pos) */}
-            <div className="bg-canvas p-4 sm:p-5 rounded-2xl border border-border space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/80">
-                <div>
-                  <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-ink-muted block">
-                    SKEMA STRUKTUR TARIF IURAN LINGKUNGAN (IPL)
-                  </span>
-                  <h4 className="font-black text-sm text-ink flex items-center gap-2 mt-0.5">
-                    <Sliders className="w-4 h-4 text-primary-600" />
-                    Pilih Format Penagihan Iuran Warga
-                  </h4>
-                </div>
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-200">
-                    Tersinkronisasi Otomatis ke Billing
-                  </span>
-                  <a
-                    href="/admin/billing"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-2.5 py-1 bg-surface hover:bg-canvas border border-border text-ink-muted hover:text-ink font-semibold rounded-lg text-[10px] inline-flex items-center gap-1 transition-all"
-                  >
-                    <span>Cek Menu Tagihan</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-
-              {/* Mode Selection Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Mode 1: FLAT / LANGSUNG */}
-                <button
-                  type="button"
-                  onClick={() => setTariffMode('FLAT')}
-                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
-                    tariffMode === 'FLAT'
-                      ? 'bg-primary-50/70 border-primary-600 ring-2 ring-primary-500/20 shadow-xs'
-                      : 'bg-surface border-border hover:bg-canvas text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0 w-full sm:w-auto">
-                      <div className={`p-2 rounded-xl ${tariffMode === 'FLAT' ? 'bg-primary-600 text-white shadow-2xs' : 'bg-canvas text-ink-muted border border-border'}`}>
-                        <Wallet className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="font-black text-xs text-ink block">Tarif Tunggal Langsung (All-in)</span>
-                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/80 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
-                          Pilihan Klaster (Rp 250.000)
-                        </span>
-                      </div>
-                    </div>
-                    {tariffMode === 'FLAT' && (
-                      <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
-                    )}
-                  </div>
-                  <p className="text-[11px] text-ink-muted mt-2.5 leading-relaxed">
-                    Satu nominal tagihan bulanan langsung tanpa pecahan pos terpisah. Sangat cocok untuk komplek/klaster yang memberlakukan iuran bersih <strong>Rp 250.000 / bulan</strong>.
-                  </p>
-                </button>
-
-                {/* Mode 2: DETAILED / MULTI-POS */}
-                <button
-                  type="button"
-                  onClick={() => setTariffMode('DETAILED')}
-                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
-                    tariffMode === 'DETAILED'
-                      ? 'bg-primary-50/70 border-primary-600 ring-2 ring-primary-500/20 shadow-xs'
-                      : 'bg-surface border-border hover:bg-canvas text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`p-2 rounded-xl ${tariffMode === 'DETAILED' ? 'bg-primary-600 text-white shadow-2xs' : 'bg-canvas text-ink-muted border border-border'}`}>
-                        <Layers className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="font-black text-xs text-ink block">Rincian Komponen Pos (Terinci)</span>
-                        <span className="text-[10px] text-ink-muted block mt-0.5">Satpam, Sampah, Kas & Fasum</span>
-                      </div>
-                    </div>
-                    {tariffMode === 'DETAILED' && (
-                      <CheckCircle2 className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
-                    )}
-                  </div>
-                  <p className="text-[11px] text-ink-muted mt-2.5 leading-relaxed">
-                    Bagi komplek yang mewajibkan invoice iuran dirinci ke dalam pecahan pos spesifik (seperti Satpam Rp 150rb, Sampah Rp 50rb, Fasum Rp 50rb).
-                  </p>
-                </button>
-              </div>
-
-              {/* View 1: FLAT SINGLE FEE EDITOR */}
-              {tariffMode === 'FLAT' && (
-                <div className="p-4 sm:p-5 bg-surface rounded-2xl border border-border space-y-4 mt-2">
-                  <div className="flex items-center justify-between pb-2 border-b border-border/80">
-                    <div>
-                      <h4 className="font-black text-xs text-ink uppercase tracking-wider flex items-center gap-1.5">
-                        <DollarSign className="w-4 h-4 text-emerald-600" />
-                        Konfigurasi Tarif Tunggal Bulanan (Tanpa Pecahan Pos)
-                      </h4>
-                      <p className="text-[11px] text-ink-muted mt-0.5">
-                        Tagihan dibuat bulat utuh per unit rumah warga tanpa membagi ke pos satpam/kebersihan/kas terpisah.
-                      </p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-200">
-                      All-in Klaster
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-end">
-                    <div className="sm:col-span-6 space-y-1">
-                      <label className="text-[11px] font-bold text-ink block">
-                        Nama Tagihan Resmi Warga *
-                      </label>
-                      <input
-                        type="text"
-                        value={flatFeeName}
-                        onChange={(e) => setFlatFeeName(e.target.value)}
-                        placeholder="Contoh: Iuran Pengelolaan Lingkungan (IPL) Bulanan Warga"
-                        className="w-full p-2.5 bg-canvas border border-border rounded-xl text-xs font-bold text-ink"
-                      />
-                      <span className="text-[10px] text-ink-muted block">Tercetak pada invoice tagihan dan kwitansi warga</span>
-                    </div>
-
-                    <div className="sm:col-span-6 space-y-1">
-                      <label className="text-[11px] font-bold text-ink block">
-                        Nominal Iuran Bulanan Per Unit Rumah (Rp) *
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 font-mono text-xs font-bold text-ink-muted">Rp</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="5000"
-                          value={flatFee}
-                          onChange={(e) => setFlatFee(Math.max(0, Number(e.target.value) || 0))}
-                          className="w-full pl-9 pr-3 py-2 bg-canvas border border-border rounded-xl font-mono text-base font-black text-primary-800 text-right tabular-nums focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-1 pt-0.5">
-                        <span className="text-[10px] text-ink-muted">Preset Cepat:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {[250000, 350000, 200000, 150000].map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => setFlatFee(preset)}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all ${
-                                flatFee === preset
-                                  ? 'bg-primary-600 text-white'
-                                  : 'bg-canvas hover:bg-surface border border-border text-ink-muted hover:text-ink'
-                              }`}
-                            >
-                              {formatRupiah(preset)}{preset === 250000 ? ' (RT)' : preset === 350000 ? ' (RT+RW)' : ''}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="sm:col-span-12 space-y-1">
-                      <label className="text-[11px] font-bold text-ink block">
-                        Keterangan Tagihan / Peruntukan Ringkas (Opsional)
-                      </label>
-                      <input
-                        type="text"
-                        value={flatFeeDesc}
-                        onChange={(e) => setFlatFeeDesc(e.target.value)}
-                        placeholder="Contoh: Iuran standar bulanan warga (All-in keamanan pos satpam, sampah dinas LH & pemeliharaan klaster)"
-                        className="w-full p-2 bg-canvas border border-border rounded-xl text-xs text-ink-muted"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Total Calculation Card for Flat */}
-                  <div className="p-4 bg-primary-50 rounded-2xl border border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-black text-primary-950 text-xs uppercase tracking-wide">
-                          Total Iuran Flat Per Unit Rumah
-                        </h4>
-                        <span className="px-2 py-0.5 bg-white text-primary-900 rounded font-mono font-bold text-[10px] border border-primary-200">
-                          14 Kavling Klaster
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-primary-800 mt-0.5">
-                        Diterbitkan langsung bulat ke seluruh kavling warga tiap tanggal 1 awal bulan.
-                      </p>
-                      <p className="text-[10px] text-primary-700 mt-0.5">
-                        Akumulasi potensi kas klaster: 14 unit × {formatRupiah(flatFee)} = <strong>{formatRupiah(flatFee * 14)} / bulan</strong>.
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right shrink-0">
-                      <span className="text-2xl font-black font-mono text-primary-900 block tabular-nums">
-                        {formatRupiah(flatFee)} <span className="text-xs font-normal text-primary-700">/ bln</span>
-                      </span>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-300">
-                        Sesuai Karakter Klaster (Flat)
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Clarification Alert */}
-                  <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-start gap-2.5 text-[11px] text-blue-950">
-                    <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                    <div className="leading-relaxed">
-                      <strong>Model Tarif Tunggal Aktif:</strong> Warga melihat tagihan langsung sebesar <strong>{formatRupiah(flatFee)}</strong> pada invoice tagihan dan Portal Warga tanpa pembagian pecahan komponen satpam/sampah/fasum. Pengeluaran riil satpam (Rp 2.450.000) dan vendor sampah (Rp 350.000) dikelola utuh pada menu <strong>Buku Kas & Pengeluaran (`/admin/expenses`)</strong>.
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* View 2: DETAILED MULTI-POS COMPONENT MATRIX */}
-              {tariffMode === 'DETAILED' && (
-                <div className="p-4 sm:p-5 bg-surface rounded-2xl border border-border space-y-4 mt-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/80">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-black text-xs text-ink uppercase tracking-wider flex items-center gap-1.5">
-                          <Layers className="w-4 h-4 text-primary-600" />
-                          Rincian Struktur Komponen Pos Iuran (Terinci)
-                        </h4>
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-md border border-blue-200">
-                          Mode Multi-Pos
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-ink-muted mt-0.5">
-                        Setiap komponen pos memiliki nominal tersendiri dan otomatis dijumlahkan menjadi total tagihan bulanan.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newId = `tf-${Date.now()}`;
-                        setDetailedComponents([
-                          ...detailedComponents,
-                          { id: newId, name: `${detailedComponents.length + 1}. Komponen Pos Baru`, fee: 50000, desc: 'Alokasi pemeliharaan/sarana komplek' },
-                        ]);
-                      }}
-                      className="px-2.5 py-1 bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 font-bold rounded-lg text-[10px] inline-flex items-center gap-1 active:scale-[0.96] transition-all self-start sm:self-auto"
-                    >
-                      <PlusCircle className="w-3 h-3" />
-                      <span>Tambah Pos Iuran</span>
-                    </button>
-                  </div>
-
-                  {/* Quick Preset Buttons */}
-                  <div className="flex flex-wrap items-center gap-2 p-2.5 bg-canvas/80 rounded-xl border border-border">
-                    <span className="text-[10px] font-bold text-ink-muted">Preset Struktur:</span>
-                    <button
-                      type="button"
-                      onClick={() => setDetailedComponents([
-                        { id: 'tf-rt', name: '1. Iuran RT (Pengangkutan Sampah, Fasum & Operasional RT)', fee: 250000, desc: 'Armada sampah dinas LH, kebersihan saluran air, pemotongan rumput dan operasional RT' },
-                        { id: 'tf-rw', name: '2. Iuran RW (Retribusi Paguyuban & Wilayah RW)', fee: 100000, desc: 'Retribusi paguyuban komplek, koordinasi keamanan wilayah RW dan administrasi' },
-                      ])}
-                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold rounded-lg text-[10px] inline-flex items-center gap-1 active:scale-95 transition-all shadow-2xs"
-                    >
-                      ⭐ Khusus Grand Sariwangi (RT 250rb + RW 100rb)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDetailedComponents([
-                        { id: 'tf-1', name: '1. Iuran Pengamanan Pos Satpam 24 Jam', fee: 150000, desc: 'Operasional pos satpam, barrier gate RFID, HT, dan pemantauan keamanan' },
-                        { id: 'tf-2', name: '2. Iuran Pengangkutan Sampah & Kebersihan', fee: 50000, desc: 'Armada pengangkutan sampah dinas LH dan pemotongan rumput berkala' },
-                        { id: 'tf-3', name: '3. Dana Kas Operasional & Perawatan Komplek', fee: 50000, desc: 'Penerangan jalan PJU, genset darurat, dan sarana balai warga' },
-                      ])}
-                      className="px-2 py-1 bg-surface hover:bg-canvas text-ink-muted border border-border font-bold rounded-lg text-[10px] inline-flex items-center gap-1 active:scale-95 transition-all"
-                    >
-                      Standar 3 Pos (250rb)
-                    </button>
-                  </div>
-
-                  {/* Editable Component Rows */}
-                  <div className="space-y-2.5">
-                    {detailedComponents.map((item, idx) => (
-                      <div key={item.id || idx} className="p-3 bg-canvas rounded-xl border border-border space-y-2 shadow-2xs">
-                        <div className="flex items-center justify-between gap-2">
-                          <input
-                            type="text"
-                            value={item.name}
-                            onChange={(e) => {
-                              const updated = [...detailedComponents];
-                              updated[idx].name = e.target.value;
-                              setDetailedComponents(updated);
-                            }}
-                            placeholder="Nama Komponen Pos (Contoh: 1. Iuran Satpam 24 Jam)"
-                            className="flex-1 p-1.5 bg-surface border border-border rounded-lg text-xs font-bold text-ink"
-                          />
-                          {detailedComponents.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDetailedComponents(detailedComponents.filter((_, i) => i !== idx));
-                              }}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                              title="Hapus Pos Iuran Ini"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-
-                        <input
-                          type="text"
-                          value={item.desc}
-                          onChange={(e) => {
-                            const updated = [...detailedComponents];
-                            updated[idx].desc = e.target.value;
-                            setDetailedComponents(updated);
-                          }}
-                          placeholder="Keterangan alokasi/peruntukan biaya bagi warga"
-                          className="w-full p-1.5 bg-surface border border-border rounded-lg text-[11px] text-ink-muted"
-                        />
-
-                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
-                          <span className="text-[11px] font-bold text-ink-muted">Tarif Per Unit Rumah (Rp):</span>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              step="1000"
-                              value={item.fee}
-                              onChange={(e) => {
-                                const updated = [...detailedComponents];
-                                updated[idx].fee = Number(e.target.value) || 0;
-                                setDetailedComponents(updated);
-                              }}
-                              className="w-36 p-1.5 bg-surface border border-border rounded-lg text-right font-mono font-bold text-primary-700 text-xs"
-                            />
-                            <span className="text-[11px] font-mono text-ink-muted font-bold min-w-[75px] text-right">
-                              {formatRupiah(item.fee)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Total Calculation Card for Detailed */}
-                  <div className="p-4 bg-primary-50 rounded-2xl border border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-black text-primary-950 text-xs uppercase tracking-wide">
-                          Total Akumulasi Komponen Pos
-                        </h4>
-                        <span className="px-2 py-0.5 bg-white text-primary-900 rounded font-mono font-bold text-[10px] border border-primary-200">
-                          14 Kavling Klaster
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-primary-800 mt-0.5">
-                        Dihitung otomatis dari akumulasi {detailedComponents.length} pos iuran di atas.
-                      </p>
-                      <p className="text-[10px] text-primary-700 mt-0.5">
-                        Akumulasi potensi penerimaan kas: 14 unit × {formatRupiah(totalDetailedTariff)} = <strong>{formatRupiah(totalDetailedTariff * 14)} / bulan</strong>.
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right shrink-0">
-                      <span className="text-xl font-black font-mono text-primary-900 block">
-                        {formatRupiah(totalDetailedTariff)} <span className="text-xs font-normal text-primary-700">/ bln</span>
-                      </span>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-300">
-                        Total {detailedComponents.length} Pos Terinci
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Clarification Alert */}
-                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-start gap-2.5 text-[11px] text-amber-900">
-                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="leading-relaxed">
-                      <strong>Penting untuk Diketahui Pengurus:</strong> Rincian di atas adalah tarif yang dibebankan per unit rumah warga ({formatRupiah(totalDetailedTariff)}/rumah), <em>bukan</em> total pengeluaran belanja/vendor klaster (seperti tagihan vendor sampah klaster Rp 350.000 atau gaji satpam Rp 2.450.000). Total pengeluaran operasional klaster dikelola pada menu <strong>Pengeluaran & Buku Kas (`/admin/expenses`)</strong>.
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-50 p-4">
+              <div><p className="font-semibold text-primary-800">Tarif per rumah</p><p className="mt-1 text-lg font-bold tabular-nums">{formatRupiah(totalTariff)}</p></div>
+              <a href="/admin/billing?tab=tariffs" className="btn-primary inline-flex min-h-11 items-center whitespace-nowrap">Kelola tarif</a>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="font-bold text-ink block mb-1">Tanggal Jatuh Tempo *</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="28"
-                  value={dueDay}
-                  onChange={(e) => setDueDay(e.target.value)}
-                  required
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink font-mono"
-                />
-                <span className="text-[10px] text-ink-muted mt-1 block">Tiap tgl {dueDay} per bulan</span>
+            <div id="bank-account" className="grid gap-3 rounded-xl border border-border p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0"><p className="font-semibold">Rekening penerima</p><p className="mt-1 text-ink-muted [overflow-wrap:anywhere]">{bankAccount ? bankName + " · " + bankAccount : "Belum ada rekening transfer aktif."}</p></div>
+                <a href="/admin/ledger?tab=accounts_manage" className="btn-secondary inline-flex min-h-11 items-center whitespace-nowrap">Kelola rekening</a>
               </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Masa Tenggang (Hari)</label>
-                <input
-                  type="number"
-                  value={gracePeriodDays}
-                  onChange={(e) => setGracePeriodDays(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono text-ink"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-ink block mb-1">Kode QRIS NMID Nasional</label>
-                <input
-                  type="text"
-                  value={qrisNmid}
-                  onChange={(e) => setQrisNmid(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono font-bold text-ink"
-                />
-              </div>
-            </div>
-
-            {/* MASTER REKENING KAS PAGUYUBAN (SINGLE SOURCE OF TRUTH) */}
-            <div id="bank-account" className="mt-4 pt-4 border-t border-border space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-primary-50/60 p-4 rounded-2xl border border-primary-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
-                    <CreditCard className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-black text-sm text-primary-950">Rekening Bank Kas Utama Paguyuban (Master)</h4>
-                      <span className="text-[10px] font-bold bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full border border-primary-300">
-                        Single Source of Truth
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-primary-800 mt-0.5 leading-relaxed">
-                      Pengaturan rekening master ini tersinkronisasi otomatis ke: <strong>Transparansi Publik</strong> (/transparency), <strong>Rekap Iuran Warga</strong> (/rekap-iuran), <strong>WhatsApp Tagihan & Bot</strong> (/admin/billing), <strong>AI Chatbot</strong>, <strong>Portal Warga</strong>, <strong>Slip Kuitansi</strong>, serta <strong>Buku Kas Ledger</strong>.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0">
-                  <a
-                    href="/transparency"
-                    target="_blank"
-                    className="px-2.5 py-1.5 bg-white border border-primary-200 hover:bg-primary-50 text-primary-700 text-[11px] font-bold rounded-lg inline-flex items-center gap-1 transition-all shadow-2xs"
-                  >
-                    <span>Cek /transparency</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <a
-                    href="/rekap-iuran"
-                    target="_blank"
-                    className="px-2.5 py-1.5 bg-white border border-primary-200 hover:bg-primary-50 text-primary-700 text-[11px] font-bold rounded-lg inline-flex items-center gap-1 transition-all shadow-2xs"
-                  >
-                    <span>Cek /rekap-iuran</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-ink block text-xs">Nama Bank Kas Paguyuban *</label>
-                    <span className="text-[10px] text-ink-muted">Pilihan Bank:</span>
-                  </div>
-                  <input
-                    type="text"
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    required
-                    placeholder="Contoh: Bank Mandiri / Bank Syariah Indonesia"
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-sm focus:ring-2 focus:ring-primary-500/20"
-                  />
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {[
-                      { label: '🏦 Mandiri', val: 'Bank Mandiri' },
-                      { label: '🌙 BSI', val: 'Bank Syariah Indonesia (BSI)' },
-                      { label: '🏦 BCA', val: 'Bank Central Asia (BCA)' },
-                      { label: '🏦 BRI', val: 'Bank Rakyat Indonesia (BRI)' },
-                      { label: '💳 Jago Syariah', val: 'Bank Jago Syariah' },
-                      { label: '💳 GoPay Kas', val: 'GoPay Kas Paguyuban' },
-                    ].map((p, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setBankName(p.val)}
-                        className={`px-2 py-0.5 border rounded text-[10px] font-semibold transition-all ${
-                          bankName === p.val
-                            ? 'bg-primary-100 border-primary-300 text-primary-900 font-bold'
-                            : 'bg-surface hover:bg-canvas border-border text-ink-muted hover:text-ink'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-ink block text-xs">Nomor Rekening Bank *</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(bankAccount);
-                        showToast(`Nomor rekening ${bankAccount} disalin ke clipboard!`);
-                      }}
-                      className="text-[10px] text-primary-700 hover:underline font-semibold"
-                    >
-                      Salin Rekening
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={bankAccount}
-                    onChange={(e) => setBankAccount(e.target.value)}
-                    required
-                    placeholder="Contoh: 1300024446419"
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-mono font-black text-ink text-sm tracking-wider focus:ring-2 focus:ring-primary-500/20"
-                  />
-                  <span className="text-[10px] text-ink-muted mt-1 block">Nomor rekening kas aktif yang menerima setoran warga</span>
-                </div>
-
-                <div>
-                  <label className="font-bold text-ink block mb-1 text-xs">Nama Pemilik Rekening (Atas Nama) *</label>
-                  <input
-                    type="text"
-                    value={accountHolder}
-                    onChange={(e) => setAccountHolder(e.target.value)}
-                    required
-                    placeholder="Contoh: Paguyuban Grand Sariwangi"
-                    className="w-full p-2.5 bg-canvas border border-border rounded-xl font-bold text-ink text-sm focus:ring-2 focus:ring-primary-500/20"
-                  />
-                  <span className="text-[10px] text-ink-muted mt-1 block">Nama resmi akun kas atau nama bendahara/paguyuban</span>
-                </div>
-              </div>
+              {bankAccount && <div className="grid gap-3 sm:grid-cols-2">
+                <label className="font-semibold">Atas nama<input type="text" value={accountHolder} onChange={event=>setAccountHolder(event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2" /></label>
+                <label className="font-semibold">NMID QRIS<input type="text" value={qrisNmid} onChange={event=>setQrisNmid(event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2" /></label>
+              </div>}
             </div>
           </div>
 
@@ -2011,18 +1313,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                 <p className="text-xs text-emerald-950 font-bold">
                   Total anggaran operasional rutin: <strong>{formatRupiah(totalExpenseBudget)} / bulan</strong>
                 </p>
-                <p className="text-[11px] text-emerald-800 leading-relaxed">
-                  Dengan tarif iuran {formatRupiah(totalTariff)} × 14 unit rumah = <strong>{formatRupiah(totalTariff * 14)}</strong> potensi kas masuk/bulan.
-                  {totalTariff * 14 >= totalExpenseBudget ? (
-                    <span className="text-emerald-700 font-bold ml-1">
-                      (Surplus Kas: +{formatRupiah(totalTariff * 14 - totalExpenseBudget)}/bulan untuk tabungan cadangan komplek)
-                    </span>
-                  ) : (
-                    <span className="text-amber-700 font-bold ml-1">
-                      (Defisit Kas Operasional: -{formatRupiah(totalExpenseBudget - totalTariff * 14)}/bulan)
-                    </span>
-                  )}
-                </p>
               </div>
 
               <div className="text-left md:text-right shrink-0 bg-surface/80 p-3 rounded-xl border border-emerald-200/60 shadow-2xs">
@@ -2030,9 +1320,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                 <span className="text-xl font-black font-mono text-emerald-900 block tabular-nums">
                   {formatRupiah(totalExpenseBudget)}
                   <span className="text-xs font-normal text-ink-muted"> / bln</span>
-                </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300 inline-block mt-0.5">
-                  100% Tercover Kas Warga
                 </span>
               </div>
             </div>

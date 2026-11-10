@@ -11,6 +11,8 @@ const peopleRead: UserRole[] = [...people, 'TREASURER', 'SECURITY', 'AUDITOR'];
 const residentRoles: UserRole[] = ['HOUSE_OWNER', 'HOUSEHOLD_HEAD', 'RESIDENT'];
 export const canEditHousing = (role:UserRole) => people.includes(role);
 export const canReadHousingBilling = (role:UserRole) => financeRead.includes(role);
+export const canManageFinance = (role: UserRole) => finance.includes(role);
+export const canReversePayment = (role: UserRole) => role === 'SUPER_ADMIN' || role === 'TREASURER';
 export function residentsForRole(items:ResidentItem[],role:UserRole):ResidentItem[] {
   if(canEditHousing(role)) return items;
   return items.map(item=>({...item,birthPlaceDate:'',religion:'',idCard:'',familyCard:'',phone:'',email:'',bloodType:'',notes:undefined}));
@@ -27,6 +29,7 @@ export function allowedApiRoles(path: string, method: string): UserRole[] | null
   const read = ['GET', 'HEAD'].includes(method);
   if (['/api/health', '/api/auth/login', '/api/auth/logout', '/api/auth/recover', '/api/receipts/verify', '/api/settings/profile'].includes(path)) return null;
   if (path === '/api/payments/submit') return [...finance, ...residentRoles];
+  if (path === '/api/payments/reverse') return finance.filter(canReversePayment);
   if (path === '/api/settings/security-roster') return read ? [...leaders, 'SECRETARY', 'SECURITY', 'MAINTENANCE'] : [...leaders, 'SECURITY'];
   if (path === '/api/complaints/create') return [...people, 'SECURITY', 'MAINTENANCE', ...residentRoles];
   if (path === '/api/facilities/book' || path === '/api/voting/cast-vote') return [...people, 'TREASURER', 'SECURITY', 'MAINTENANCE', ...residentRoles];

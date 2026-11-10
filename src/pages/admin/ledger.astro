@@ -1,15 +1,54 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { LedgerManager } from '../../components/admin/LedgerManager';
-import { getLedgerEntries, getAccounts } from '../../services/finance.service';
+import { getAccounts } from '../../services/finance.service';
+import { CASH_CSV_LIMIT, CASH_PAGE_SIZE, getCashLedger, getCashReconciliation } from '../../services/cash-ledger.service';
+import { financeCsv } from '../../lib/billing-data';
+import { currentFinanceMonth, financeMonthPattern, ledgerSources, LEDGER_TABS, type LedgerScope, type LedgerSubTab } from '../../lib/cash-data';
+import { canManageFinance } from '../../lib/access-policy';
+import type { UserSession } from '../../types/auth';
 
-const [entries, accounts] = await Promise.all([
-  getLedgerEntries(500).catch(() => []),
-  getAccounts().catch(() => []),
-]);
-const tab = Astro.url.searchParams.get('tab') || 'ledger_list';
+const params = Astro.url.searchParams;
+const requested = params.get('tab');
+const tab = LEDGER_TABS.includes(requested as LedgerSubTab) ? requested as LedgerSubTab : 'ledger_list';
+const actor = await Astro.session?.get('wargahub_user') as UserSession | undefined;
+if (!actor) return Astro.redirect('/login?portal=admin');
+const canWrite = canManageFinance(actor.role);
+const rawMonth = params.get('month') || '';
+const month = financeMonthPattern.test(rawMonth) && rawMonth>='1900-01' && rawMonth<='2199-12' ? rawMonth :
+  tab==='bank_reconciliation' || tab==='financial_reports' ? currentFinanceMonth() : '';
+const search = params.get('q')?.trim().slice(0,100) || '';
+const source = params.get('source') || '';
+const filterSource = ['expense','payment','transfer','manual'].includes(source) ? source : '';
+const page = /^\d{1,6}$/.test(params.get('page') || '') ? Number(params.get('page')) : 1;
+const scope = tab==='ledger_list' ? (['payment','expense','transfer'] as const).reduce<LedgerScope|undefined>((found,type)=>{
+  const id = params.get(type)?.trim().slice(0,64);
+  return found || (id ? {type,id} : undefined);
+},undefined) : undefined;
+const csv = tab==='ledger_list' && params.get('download')==='csv';
+const data = await getAccounts().then(async accounts=>{
+  const selected = accounts.find(account=>account.id===params.get('account'));
+  const accountId = selected?.id || (tab==='bank_reconciliation' ? accounts[0]?.id : '') || '';
+  const ledger = tab==='ledger_list' || tab==='financial_reports' ?
+    await getCashLedger({month,accountId,search,source:filterSource,page,scope,export:csv}) : null;
+  const reconciliation = tab==='bank_reconciliation' && accountId ? await getCashReconciliation(accountId,month) : null;
+  return {accounts,accountId,ledger,reconciliation};
+}).catch(error=>{console.error('Cash workspace query failed',error instanceof Error?error.message:typeof error);return null;});
+if (!data) Astro.response.status=503;
+if (csv && data?.ledger) {
+  if (data.ledger.total>CASH_CSV_LIMIT) return new Response('Pilih periode atau rekening yang lebih sempit sebelum mengunduh.',{status:422,headers:{'Cache-Control':'private, no-store'}});
+  const csvText = financeCsv([['Tanggal','Deskripsi','Rekening','Sumber','Kas masuk','Kas keluar','Saldo setelah','ID jurnal','ID sumber'],
+    ...data.ledger.entries.map(entry=>[entry.entryDate,entry.description,entry.accountName || '',ledgerSources[entry.sourceType] || entry.sourceType,
+      entry.direction==='IN'?entry.amount:'',entry.direction==='OUT'?entry.amount:'',entry.runningBalance,entry.id,entry.sourceId || ''])]);
+  return new Response(csvText,{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="buku-kas-wargahub.csv"','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
+}
 ---
 
-<AdminLayout title="Buku Kas & Ledger - WargaHub" currentPath="/admin/ledger">
-  <LedgerManager accounts={accounts as any} entries={entries as any} initialTab={tab as any} client:load />
+<AdminLayout title="Buku Kas - WargaHub" currentPath="/admin/ledger">
+  {data ? <LedgerManager {...data} initialTab={tab} canWrite={canWrite} month={month} search={search} source={filterSource}
+    scope={scope} journalPageSize={CASH_PAGE_SIZE} initialNotice={params.get('saved') || ''} client:load />
+  : <section class="workspace-panel" role="alert">
+    <h1 class="text-xl font-bold">Buku kas</h1><p class="mt-2 text-sm text-ink-muted">Data buku kas belum dapat dimuat.</p>
+    <a class="btn-secondary mt-3 inline-flex min-h-11 items-center" href={Astro.url.pathname + Astro.url.search} data-astro-reload>Coba lagi</a>
+  </section>}
 </AdminLayout>
