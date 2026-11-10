@@ -377,7 +377,12 @@ try {
     console.log('PASS laporan WA dari Tagihan, Pembayaran, Buku Kas, dan Rekening; template, periode, clipboard dan tautan diuji tanpa membuka WhatsApp.');
 
     const clickNamedButton = (label,selector='main button')=>evaluate(`Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(button=>button.textContent.trim()===${JSON.stringify(label)}).click()`);
-    const fillNativeForm = (selector,values)=>evaluate(`(()=>{const form=document.querySelector(${JSON.stringify(selector)});for(const [key,value] of Object.entries(${JSON.stringify(values)})){form.elements.namedItem(key).value=value;}form.requestSubmit();})()`);
+    const fillNativeForm = async (selector,values)=>{
+      // Astro can remove the SSR marker while React is still attaching the form.
+      const target=`document.querySelector(${JSON.stringify(selector)})`;
+      await wait(`(()=>{const form=${target};return form && Object.keys(form).some(key=>key.startsWith('__reactProps$') && typeof form[key]?.onSubmit==='function');})()`);
+      return evaluate(`(()=>{const form=${target};for(const [key,value] of Object.entries(${JSON.stringify(values)})){form.elements.namedItem(key).value=value;}form.requestSubmit();})()`);
+    };
     await navigate('/admin/budget?tab=manual_form&month=2026-10','main [aria-label="Susun pagu"]');
     await viewport(320);
     await fillNativeForm('section[aria-label="Susun pagu"] form',{categoryId:'cat-pemeliharaan',amount:'85000',pic:'Bendahara fixture'});
