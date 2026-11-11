@@ -2,9 +2,9 @@
 import { useState } from 'react';
 import { ArrowDownLeft, ArrowDownToLine, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronLeft, ChevronRight, CircleHelp, Copy, Receipt, Share2, Wallet } from 'lucide-react';
 import { billingMonthKey, billingMonthLabel, financeDate } from '../../lib/billing-data';
-import { cashRupiah } from '../../lib/cash-data';
-import { PUBLIC_CSV_LIMIT, PUBLIC_JOURNAL_PAGE_SIZE, publicCashCategories, publicReportPath,
-  type PublicReportFilters, type PublicTransparencyData, type TransparencySubTab } from '../../lib/transparency-data';
+import { cashRupiah, financeMonth } from '../../lib/cash-data';
+import { PUBLIC_CSV_LIMIT, PUBLIC_JOURNAL_PAGE_SIZE, publicCashCategories, publicJournalParams, publicReportPath,
+  type PublicDuesMonth, type PublicExpenseReport, type PublicReportFilters, type PublicTransparencyData, type TransparencySubTab } from '../../lib/transparency-data';
 import { ModalDialog } from '../shared/ModalDialog';
 
 const tabs = [
@@ -24,6 +24,35 @@ function CashLine({label,amount,tone='text-ink'}:{label:string;amount:number;ton
     <dt className="text-sm font-medium text-ink-muted">{label}</dt><dd className={'text-sm font-bold '+tone+' '+number}>{cashRupiah(amount)}</dd>
   </div>;
 }
+function DuesAmounts({dues}:{dues:PublicDuesMonth}) {
+  return <dl className="grid min-w-0 gap-2 sm:grid-cols-3" aria-label="Nominal tagihan">
+    {([['Total tagihan',dues.billedAmount],['Sudah diterima',dues.received],['Sisa tagihan',dues.remaining]] as const).map(([label,amount])=>
+      <div key={label} className="min-w-0 rounded-xl bg-canvas p-3"><dt className="text-sm font-medium text-ink-muted">{label}</dt>
+        <dd className={'mt-1 text-lg font-bold '+number}>{cashRupiah(amount)}</dd></div>)}
+  </dl>;
+}
+function ExpenseCard({report,month,periodLabel}:{report:PublicExpenseReport|null;month:string;periodLabel:string}) {
+  const archived=Boolean(report && report.month!==month);
+  return <article className={panel+' grid content-start gap-3'} aria-label="Pengeluaran yang dibukukan">
+    <h2 className="text-xl font-bold tracking-tight">Pengeluaran {periodLabel}</h2>
+    {(!report || archived) && <p className="text-sm text-ink-muted">Belum ada pengeluaran yang dibukukan pada periode ini.</p>}
+    {report && <div className={'grid min-w-0 gap-2 '+(archived?'rounded-xl border border-border bg-canvas p-3':'')}>
+      {archived && <h3 className="text-sm font-semibold">Terakhir dibukukan: {financeMonth(report.month)}</h3>}
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-1" aria-label="Total pengeluaran tercatat">
+        <p className={'text-xl font-bold text-rose-800 '+number}>{cashRupiah(report.net)}</p>
+        <p className="text-xs text-ink-muted">{report.total} entri · bersih setelah pembalikan</p>
+      </div>
+      <ul className="divide-y divide-border" aria-label="Rincian pengeluaran">
+        {report.recent.map(row=><li key={row.reference} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2">
+          <div className="min-w-0"><p className="text-sm font-semibold [overflow-wrap:anywhere]">{publicCashCategories[row.category]}</p>
+            <p className="text-xs text-ink-muted">{financeDate(row.date)}{row.reversal?' · Pembalikan':''}</p></div>
+          <p className={'text-right text-sm font-semibold '+number}>{row.reversal?'−':''}{cashRupiah(row.amount)}</p>
+        </li>)}
+      </ul>
+      <a href={publicReportPath(report.month,'public_ledger',{scope:'expenses'})} className={link+' w-fit'}>Semua pengeluaran <ArrowRight className="size-4" aria-hidden="true" /></a>
+    </div>}
+  </article>;
+}
 export function TransparencyView({data,filters}:{data:PublicTransparencyData;filters:PublicReportFilters}) {
   const [share,setShare]=useState(false);
   const [copied,setCopied]=useState('');
@@ -31,11 +60,11 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
   const {tab}=filters;
   const key=billingMonthKey(data.period.year,data.period.month);
   const path=(section:TransparencySubTab=tab,params:Record<string,string|number|undefined>={})=>publicReportPath(data.period,section,params);
-  const journalParams={direction:filters.direction,category:filters.category};
+  const journalParams=publicJournalParams(filters);
+  const monthParams:Record<string,string>=tab==='public_ledger'?journalParams:{};
   const dues=data.dues.at(-1)!;
   const notPaid=dues.billed-dues.paid;
   const unbilled=Math.max(0,data.homes-dues.billed);
-  const ratio=dues.billed?Math.round(100*dues.paid/dues.billed):null;
   const outgoingPositive=data.outgoing.reduce((sum,item)=>sum+Math.max(0,item.amount),0);
   const canDownload=data.journal.total>0 && data.journal.total<=PUBLIC_CSV_LIMIT;
   const wargaDues='/warga?'+new URLSearchParams({tab:'iuran',month:key});
@@ -56,12 +85,13 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
       </div>
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-3 rounded-xl border border-border bg-surface p-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-1">
-          {data.previousMonth && <a className="icon-button" aria-label="Bulan sebelumnya" href={publicReportPath(data.previousMonth,tab)}><ChevronLeft className="size-5" aria-hidden="true" /></a>}
+          {data.previousMonth && <a className="icon-button" aria-label="Bulan sebelumnya" href={publicReportPath(data.previousMonth,tab,monthParams)}><ChevronLeft className="size-5" aria-hidden="true" /></a>}
           <div className="min-w-0 px-1"><p className="text-xs font-medium text-ink-muted">Periode laporan</p><p className="text-base font-bold">{data.periodLabel}</p></div>
-          {data.nextMonth && <a className="icon-button" aria-label="Bulan berikutnya" href={publicReportPath(data.nextMonth,tab)}><ChevronRight className="size-5" aria-hidden="true" /></a>}
+          {data.nextMonth && <a className="icon-button" aria-label="Bulan berikutnya" href={publicReportPath(data.nextMonth,tab,monthParams)}><ChevronRight className="size-5" aria-hidden="true" /></a>}
         </div>
         <form action="/transparency" className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 max-sm:w-full">
           <input type="hidden" name="tab" value={tab} />
+          {Object.entries(monthParams).filter(([,value])=>value).map(([name,value])=><input key={name} type="hidden" name={name} value={value} />)}
           <label className="block min-w-0 text-xs font-semibold">Pilih bulan
             <input aria-label="Pilih bulan" type="month" name="period" min="1900-01" max={data.currentMonth} defaultValue={key} required className={field+' mt-1'} />
           </label>
@@ -78,43 +108,53 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
     </nav>
 
     {tab==='cashflow_summary' && <section className="grid min-w-0 gap-4" aria-label="Ringkasan arus kas">
-      <div className="grid min-w-0 overflow-hidden rounded-2xl border border-border bg-surface md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-        <div className="grid min-w-0 content-center gap-2 bg-primary-900 px-5 py-6 text-white sm:px-7 sm:py-8">
-          <p className="flex items-center gap-2 text-sm font-semibold text-primary-100"><Wallet className="size-4" aria-hidden="true" />Saldo akhir kas</p>
-          {data.cashReconciled?<p className={'text-3xl font-bold tracking-tight sm:text-4xl '+number} data-cash-value="closing">{cashRupiah(data.cash.closing)}</p>:
-            <p className="text-2xl font-bold tracking-tight sm:text-3xl">Belum terverifikasi</p>}
-          <p className="text-sm text-primary-100">{data.cash.count} jurnal · {data.periodLabel}</p>
-          <p className="text-sm text-primary-100">{data.cashReconciled?'Saldo buku telah dicocokkan dengan saldo rekening/kas yang dimasukkan pengurus.':'Saldo menurut buku: '+cashRupiah(data.cash.closing)+'. Belum dicocokkan dengan rekening/kas fisik; pengeluaran yang belum dicatat belum mengurangi angka ini.'}</p>
-          <a href={path('public_ledger')} className="mt-1 inline-flex min-h-11 w-fit items-center gap-2 whitespace-nowrap text-sm font-semibold hover:underline">Buka jurnal <ArrowRight className="size-4" aria-hidden="true" /></a>
-        </div>
-        <dl className="min-w-0 px-5 py-3 sm:px-6 sm:py-4">
-          <CashLine label="Saldo awal" amount={data.cash.opening} />
-          <CashLine label="Kas masuk bersih" amount={data.cash.income} tone="text-primary-800" />
-          <CashLine label="Kas keluar bersih" amount={data.cash.outgoing} tone="text-rose-800" />
-          {data.cash.openingEntries!==0 && <CashLine label="Saldo awal rekening baru" amount={data.cash.openingEntries} />}
-          {data.cash.transfers!==0 && <CashLine label="Mutasi internal bersih" amount={data.cash.transfers} />}
-        </dl>
-      </div>
-      {!data.cash.count && <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900">Belum ada jurnal pada periode ini.</p>}
-      {data.cash.count>0 && data.cash.outgoing===0 && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Belum ada pengeluaran tercatat pada periode ini. Ini tidak berarti dana belum digunakan; saldo buku bisa lebih tinggi daripada saldo kas sebenarnya sampai pengeluaran bulanan dicatat dan saldo rekening/kas dicocokkan.</p>}
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
-        <article className={panel+' grid content-start gap-3'}>
-          <h2 className="text-xl font-bold tracking-tight">Iuran warga</h2>
-          <dl className="grid gap-1 rounded-xl bg-primary-50 p-4 text-primary-900"><dt className="text-sm font-semibold">Iuran masuk bulan ini</dt>
-            <dd className={'text-2xl font-bold '+number}>{cashRupiah(data.duesCash)}</dd></dl>
-          <div>
-            <p className="text-sm font-medium">{dues.billed?dues.paid+' dari '+dues.billed+' rumah yang ditagih sudah lunas':'Belum ada tagihan terbit'}</p>
-            {ratio!==null && <progress className="public-report-progress mt-2 h-2 w-full" value={dues.paid} max={dues.billed} aria-label="Rumah lunas" />}
-          </div>
+      <div className="grid min-w-0 items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <article className="grid min-w-0 content-start gap-3 rounded-2xl bg-primary-900 px-5 py-5 text-white sm:p-6" aria-label="Target dan penerimaan iuran">
+          <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight"><Receipt className="size-5 shrink-0 text-primary-100" aria-hidden="true" />Iuran {data.periodLabel}</h2>
+          {dues.billed>0 ? <>
+            <p className="text-sm text-primary-100">Total yang harus diterima <strong className={'text-white '+number}>{cashRupiah(dues.billedAmount)}</strong>.</p>
+            <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <strong className={'text-3xl tracking-tight sm:text-4xl '+number}>{cashRupiah(dues.received)}</strong>
+              <span className="text-sm font-medium text-primary-100">sudah diterima</span>
+            </p>
+            <p className="text-sm text-primary-100">Sisa tagihan <strong className={'text-white '+number}>{cashRupiah(dues.remaining)}</strong>.</p>
+            {dues.billedAmount>0 && <progress className="public-report-progress h-2 w-full" value={dues.received} max={dues.billedAmount} aria-label="Penerimaan iuran dari total tagihan" />}
+            <p className="text-sm text-primary-100">{dues.paid} dari {dues.billed} rumah yang ditagih sudah lunas.</p>
+          </> : <p className="text-sm text-primary-100">Belum ada tagihan iuran yang terbit pada periode ini.</p>}
           <div className="flex flex-wrap gap-x-4">
-            <a href={path('dues_breakdown')} className={link}>Rekap iuran <ArrowRight className="size-4" aria-hidden="true" /></a>
-            <a href={path('citizen_confirm')} className={link}>Cek iuran saya <ArrowRight className="size-4" aria-hidden="true" /></a>
+            <a href={path('dues_breakdown')} className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-semibold hover:underline">Rekap iuran <ArrowRight className="size-4" aria-hidden="true" /></a>
+            <a href={path('citizen_confirm')} className="inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap text-sm font-semibold hover:underline">Cek iuran saya <ArrowRight className="size-4" aria-hidden="true" /></a>
           </div>
         </article>
-        <article className={panel}>
-          <h2 className="text-xl font-bold tracking-tight">Kas keluar per kategori</h2>
-          {data.outgoing.length===0?<p className="mt-3 text-sm text-ink-muted">Belum ada kas keluar yang tercatat pada periode ini.</p>:
-            <ul className="mt-2 divide-y divide-border">
+        <ExpenseCard report={data.expenses} month={key} periodLabel={data.periodLabel} />
+      </div>
+      <article className={panel+' grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]'} aria-label="Saldo dan arus kas menurut buku">
+        <div className="grid min-w-0 content-start gap-2">
+          <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight"><Wallet className="size-5 shrink-0 text-primary-800" aria-hidden="true" />Saldo menurut Buku Kas</h2>
+          <p className={'text-2xl font-bold '+number} data-cash-value={data.cashReconciled?'closing':undefined}>{cashRupiah(data.cash.closing)}</p>
+          <span className={'w-fit rounded-lg px-2.5 py-1 text-xs font-semibold '+(data.cashReconciled?'bg-primary-50 text-primary-900':'bg-amber-50 text-amber-900')}>
+            {data.cashReconciled?'Sudah dicocokkan':'Belum terverifikasi'}
+          </span>
+          {!data.cashReconciled && <p className="text-sm text-ink-muted">Saldo ini belum dicocokkan dengan rekening atau kas fisik.</p>}
+          <a href={path('public_ledger')} className={link+' w-fit'}>Buka jurnal <ArrowRight className="size-4" aria-hidden="true" /></a>
+        </div>
+        <div className="min-w-0">
+          <dl>
+            <CashLine label="Saldo awal" amount={data.cash.opening} />
+            <CashLine label="Kas masuk bersih" amount={data.cash.income} tone="text-primary-800" />
+            <CashLine label="Kas keluar bersih" amount={data.cash.outgoing} tone="text-rose-800" />
+            {data.cash.openingEntries!==0 && <CashLine label="Saldo awal rekening baru" amount={data.cash.openingEntries} />}
+            {data.cash.transfers!==0 && <CashLine label="Mutasi internal bersih" amount={data.cash.transfers} />}
+          </dl>
+          {!data.cash.count && <p className="text-sm text-ink-muted">Belum ada jurnal pada periode ini.</p>}
+          {data.duesCash!==dues.received && <p className="mt-2 text-sm text-ink-muted">
+            Kas iuran pada periode ini <strong className={number}>{cashRupiah(data.duesCash)}</strong>. Kas mengikuti tanggal pembayaran, sedangkan rekap iuran mengikuti bulan tagihan.
+          </p>}
+        </div>
+      </article>
+      {(data.outgoing.length>0 || data.loanCashIn!==0 || data.loanCashOut!==0) && <details className={panel}>
+          <summary className="min-h-11 cursor-pointer py-2 text-base font-semibold">Kas keluar per kategori</summary>
+          {data.outgoing.length>0 && <ul className="divide-y divide-border">
               {data.outgoing.map(item=><li key={item.category} className="grid min-w-0 gap-1.5 py-2.5">
                 <a href={path('public_ledger',{category:item.category})} className="flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-x-2 rounded-lg text-sm font-semibold hover:text-primary-800">
                   <span className="inline-flex min-w-0 items-center gap-1.5">{publicCashCategories[item.category]}<ArrowUpRight className="size-3 shrink-0 text-primary-700" aria-hidden="true" /></span>
@@ -124,17 +164,20 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
               </li>)}
             </ul>}
           {(data.loanCashIn!==0 || data.loanCashOut!==0) && <p className="mt-3 text-xs text-ink-muted">Pokok kasbon: {cashRupiah(data.loanCashOut)} dicairkan, {cashRupiah(data.loanCashIn)} kembali ke kas, setelah pembalikan.</p>}
-        </article>
-      </div>
+      </details>}
     </section>}
 
     {tab==='public_ledger' && <section className={panel+' grid gap-3'} aria-label="Jurnal publik">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div><h2 className="text-xl font-bold tracking-tight">Jurnal publik</h2><p className="text-sm text-ink-muted">Uraian pribadi tidak ditampilkan.</p></div>
-        {canDownload && <a className={button} href={path('public_ledger',{...journalParams,download:'csv'})} download data-astro-reload><ArrowDownToLine className="size-4" aria-hidden="true" />Unduh CSV</a>}
+        <div><h2 className="text-xl font-bold tracking-tight">{filters.scope==='expenses'?'Jurnal pengeluaran':'Jurnal publik'}</h2><p className="text-sm text-ink-muted">Uraian pribadi tidak ditampilkan.</p></div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {filters.scope==='expenses' && <a className={link} href={path('public_ledger')}>Semua jurnal</a>}
+          {canDownload && <a className={button} href={path('public_ledger',{...journalParams,download:'csv'})} download data-astro-reload><ArrowDownToLine className="size-4" aria-hidden="true" />Unduh CSV</a>}
+        </div>
       </div>
       <form action={path('public_ledger').split('?')[0]} className="grid min-w-0 gap-2 rounded-xl bg-canvas p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-end">
         <input type="hidden" name="tab" value="public_ledger" />
+        {filters.scope && <input type="hidden" name="scope" value={filters.scope} />}
         <label className="grid min-w-0 gap-1 text-sm font-semibold">Arah
           <select name="direction" defaultValue={filters.direction} className={field}><option value="">Semua arah</option><option value="IN">Kas masuk</option><option value="OUT">Kas keluar</option></select>
         </label>
@@ -171,6 +214,7 @@ export function TransparencyView({data,filters}:{data:PublicTransparencyData;fil
           <div><h2 className="text-xl font-bold tracking-tight">Rekap iuran</h2><p className="text-sm text-ink-muted">Status tagihan {data.periodLabel} saat laporan dibuka.</p></div>
           <a href={path('citizen_confirm')} className={primary}>Cek iuran saya <ArrowRight className="size-4" aria-hidden="true" /></a>
         </div>
+        <DuesAmounts dues={dues} />
         <dl className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ['Ditagih',dues.billed,'bg-sky-50 text-sky-900'],['Lunas',dues.paid,'bg-primary-50 text-primary-900'],

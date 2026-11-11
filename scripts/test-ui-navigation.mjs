@@ -370,7 +370,7 @@ try {
     await navigate('/admin/ledger?tab=financial_reports&month=2026-10','main [aria-label="Laporan kas"]');
     await openWa('Laporan WA (wa.me)');
     text = await evaluate(waText);
-    assert.match(text,/Pengeluaran bersih: \*Rp50\.000\*/);
+    assert.match(text,/Pengeluaran bersih tercatat: \*Rp50\.000\*/);
     assert.match(text,/\/transparency\/2026\/10/);
     assert.doesNotMatch(text,/9876543210/);
     assert.equal(new URL(await evaluate(waHref)).searchParams.get('text'),text);
@@ -443,6 +443,17 @@ try {
         if([320,1440].includes(width)) await screenshot(name+'-'+width);
       }
     }
+    await viewport(320);
+    await navigate('/transparency/2026/10?tab=cashflow_summary','main [aria-label="Target dan penerimaan iuran"]');
+    const publicSummary=await evaluate(`document.querySelector('[aria-label="Target dan penerimaan iuran"]').innerText.replace(/\\s+/g,' ')`);
+    assert.match(publicSummary,/Total yang harus diterima Rp500\.000/);
+    assert.match(publicSummary,/sudah diterima.*Sisa tagihan/);
+    const expenseLink=await evaluate(`document.querySelector('[aria-label="Pengeluaran yang dibukukan"] a').getAttribute('href')`);
+    assert.equal(expenseLink,'/transparency/2026/10?tab=public_ledger&scope=expenses');
+    await navigate(expenseLink,'main [aria-label="Entri jurnal"]');
+    assert.match(await evaluate(`document.querySelector('main h2').textContent`),/Jurnal pengeluaran/);
+    assert.ok(await evaluate(`document.querySelector('main a[download]').href.includes('scope=expenses')`));
+    await noOverflow('Jurnal pengeluaran publik 320');
     await viewport(320);
     await navigate('/admin/staff-loans?tab=new_requests','main [aria-label="Pengajuan kasbon"]');
     await clickNamedButton('Ajukan kasbon');

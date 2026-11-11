@@ -218,6 +218,13 @@ try {
   assert.equal(afterPartial.remaining,150000);
   assert.equal(afterPartial.awaitingVerification,false);
   assert.equal(afterPartial.receipts[0].amount,100000);
+  const publicPartial=await invoke('/transparency/2026/11?tab=cashflow_summary',null);
+  assert.equal(publicPartial.status,200);
+  const duesSummary=publicPartial.payload.match(/<article[^>]*aria-label="Target dan penerimaan iuran"[^>]*>([\s\S]*?)<\/article>/)?.[1]
+    ?.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ') || '';
+  assert.match(duesSummary,/Total yang harus diterima Rp500\.000/);
+  assert.match(duesSummary,/Rp100\.000 sudah diterima/);
+  assert.match(duesSummary,/Sisa tagihan Rp400\.000/);
   assert.equal((await call(receiptRoute(first.id))).amount,100000);
   const second=await call('/api/payments/submit',owner2,{...payment,amount:150000,reference:'FIXTURE-SECOND'},201);
   const paid=await call('/api/payments/verify',treasurer2,{paymentId:second.id});
@@ -396,6 +403,15 @@ try {
   assert.deepEqual(generated.map(item=>item.status).sort(),[201,409]);
   assert.deepEqual((await call(recurringRoute+'/process?month='+recurringMonth,treasurer2)).rows.map(row=>row.state),['BOOKED']);
   assert.equal((await expenseJournal(generated.find(item=>item.status===201).payload.data.ids[0])).length,1);
+  const previousExpenses=await invoke('/transparency/2025/03?tab=cashflow_summary',null);
+  assert.equal(previousExpenses.status,200);
+  assert.match(previousExpenses.payload.replace(/<!--[\s\S]*?-->/g,''),/Terakhir dibukukan: Februari 2025/);
+  assert.match(previousExpenses.payload,/Belum ada pengeluaran yang dibukukan pada periode ini/);
+  assert.match(previousExpenses.payload,/\/transparency\/2025\/02\?tab=public_ledger&amp;scope=expenses/);
+  assert.doesNotMatch(previousExpenses.payload,/Biaya rutin uji/);
+  const publicExpenseArchive=await invoke('/transparency/2025/02?tab=public_ledger&scope=expenses&download=csv',null);
+  assert.equal(publicExpenseArchive.status,200);
+  assert.match(publicExpenseArchive.payload,/"Pengeluaran","Fasilitas umum","Keluar","15000"/);
   await call(recurringRoute+'/config',treasurer,{items:[],expectedVersion:savedConfig.version});
   assert.deepEqual((await call(recurringRoute+'/config',treasurer2)).items,[]);
 
@@ -636,7 +652,12 @@ try {
     FROM ledger_entries WHERE entry_date>=CAST((CAST($1 AS DATE)+INTERVAL '1 month')::date AS TEXT)`,[month+'-01']))[0].balance);
   const rupiah=new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:2,minimumFractionDigits:0}).format(cashClosing).replace(/\s+/g,'');
   assert.ok(summary.payload.includes(rupiah));
+  assert.match(summary.payload,/Rincian pengeluaran/);
   assert.match(publicJournal.payload,/Pencairan kasbon/); assert.match(publicJournal.payload,/Pembalikan pelunasan kasbon/);
+  const expenseOnly=await invoke(publicPath+'?tab=public_ledger&scope=expenses&download=csv',null);
+  assert.equal(expenseOnly.status,200);
+  assert.match(expenseOnly.payload,/Pembatalan pengeluaran/);
+  assert.doesNotMatch(expenseOnly.payload,/Kasbon|Pembayaran iuran|JURNAL-GAJI-UJI-PRIVAT|PENERIMA-UJI-PRIVAT/);
   assert.equal(publicJournal.payload.trim().split('\n').length,5);
   for(const page of [summary,publicDues,publicJournal,await invoke(publicPath+'?tab=public_ledger',null)])
     assert.doesNotMatch(page.payload,/PETUGAS-UJI-PRIVAT|TUJUAN-UJI-PRIVAT|JURNAL-GAJI-UJI-PRIVAT|081298765409|U-01|U-02/);

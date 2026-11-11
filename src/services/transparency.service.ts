@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import QRCode from 'qrcode';
 import { readSnapshot, type Query } from '../db/operational-query';
 import { BILLING_COMMUNITY_ID, billingMonthKey, billingMonthLabel } from '../lib/billing-data';
-import { currentFinanceMonth, ledgerSources, monthBounds } from '../lib/cash-data';
+import { currentFinanceMonth, financeMonthPattern, ledgerSources, monthBounds } from '../lib/cash-data';
 import { roundCash } from '../lib/planning-data';
-import { PUBLIC_CSV_LIMIT, PUBLIC_JOURNAL_PAGE_SIZE, publicReportPath,
-  type PublicCashCategory, type PublicDuesMonth, type PublicJournalEntry, type PublicReportFilters,
+import { PUBLIC_CSV_LIMIT, PUBLIC_JOURNAL_PAGE_SIZE, publicJournalParams, publicReportPath,
+  type PublicCashCategory, type PublicDuesMonth, type PublicExpenseReport, type PublicJournalEntry, type PublicReportFilters,
   type PublicReportPeriod, type PublicTransparencyData } from '../lib/transparency-data';
 import { getCashLedger, getCashReconciliation, outgoingSql } from './cash-ledger.service';
 import { getCommunityProfile } from './settings.service';
@@ -30,11 +30,13 @@ const safeJournal =
 const safeSources = new Map(Object.entries(ledgerSources));
 const stableOrder='entry_date,CASE WHEN created_at IS NULL THEN 0 ELSE 1 END,created_at,id';
 const newestFirst='entry_date DESC,CASE WHEN created_at IS NULL THEN 0 ELSE 1 END DESC,created_at DESC,id DESC';
+const expenseSources="source_type IN ('EXPENSE','EXPENSE_REVERSAL')";
+const publicReference=(id:string)=>'JRN-'+createHash('sha256').update('public-report:'+id).digest('hex').slice(0,12).toUpperCase();
 
 type CashRow={id:string|null;entry_date:string;direction:'IN'|'OUT';amount:number|string;source_type:string;category:PublicCashCategory;
   running_balance:number|string;total_count:number|string;page:number|string};
 async function readPublicJournal(run:Query,month:string,opening:number,filters:PublicReportFilters,download=false) {
-  const where=(filters.direction?' AND direction=?':'')+(filters.category?' AND category=?':'');
+  const where=(filters.direction?' AND direction=?':'')+(filters.category?' AND category=?':'')+(filters.scope==='expenses'?' AND '+expenseSources:'');
   const flags=[filters.direction,filters.category].filter(Boolean);
   const limit=download?PUBLIC_CSV_LIMIT:PUBLIC_JOURNAL_PAGE_SIZE;
   const rows=await run<CashRow>("WITH journal AS ("+safeJournal+"), with_balances AS ("+
@@ -46,7 +48,7 @@ async function readPublicJournal(run:Query,month:string,opening:number,filters:P
     "ON n.row_no>(b.page-1)*? AND n.row_no<=b.page*? ORDER BY n.row_no",
     [...monthBounds(month),opening,...flags,(download?1:filters.page)*limit,limit,limit,download?1:filters.page,limit,limit]);
   const entries:PublicJournalEntry[]=rows.flatMap(row=>row.id?[{
-    reference:'JRN-'+createHash('sha256').update('public-report:'+row.id).digest('hex').slice(0,12).toUpperCase(),
+    reference:publicReference(row.id),
     date:row.entry_date,direction:row.direction,amount:Number(row.amount),balance:roundCash(Number(row.running_balance)),category:row.category,
     label:safeSources.get(row.source_type) || (row.direction==='IN'?'Penerimaan kas':'Pengeluaran kas'),
   }]:[]);
@@ -61,7 +63,23 @@ export async function getPublicJournalExport(period:PublicReportPeriod,filters:P
   });
 }
 
-type DuesRow={month:number;billed:number|string;paid:number|string;received:number|string;remaining:number|string};
+async function expenseReport(run:Query,month:string):Promise<PublicExpenseReport|null> {
+  const rows=await run<{id:string;entry_date:string;source_type:string;category:PublicCashCategory;amount:string|number;total:string|number;net:string|number}>(
+    "WITH journal AS ("+safeJournal+") SELECT id,entry_date,source_type,category,amount,COUNT(*) OVER () AS total,"+
+    "SUM(CASE WHEN source_type='EXPENSE_REVERSAL' THEN -amount ELSE amount END) OVER () AS net "+
+    "FROM journal WHERE "+expenseSources+" ORDER BY "+newestFirst+" LIMIT 5",monthBounds(month));
+  if(!rows.length) return null;
+  return {month,total:Number(rows[0].total),net:roundCash(Number(rows[0].net)),
+    recent:rows.map(row=>({reference:publicReference(row.id),date:row.entry_date,category:row.category,
+      amount:Number(row.amount),reversal:row.source_type==='EXPENSE_REVERSAL'}))};
+}
+async function publicExpenses(run:Query,month:string) {
+  const selected=await expenseReport(run,month);
+  if(selected) return selected;
+  const [prior]=await run<{month:string|null}>("SELECT MAX(SUBSTR(entry_date,1,7)) AS month FROM ledger_entries WHERE source_type='EXPENSE' AND entry_date<?",[month+'-01']);
+  return prior?.month && financeMonthPattern.test(prior.month) && prior.month>='1900-01' ? expenseReport(run,prior.month) : null;
+}
+type DuesRow={month:number;billed:number|string;paid:number|string;billed_amount:number|string;received:number|string;remaining:number|string};
 async function publicDuty(run:Query):Promise<PublicTransparencyData['duty']> {
   const [row]=await run<{value:string}>("SELECT value FROM settings WHERE key='security_shift_roster'");
   if(!row) return null;
@@ -90,39 +108,40 @@ export async function getPublicMonthlyReport(period:PublicReportPeriod,filters:P
   const {year,month}=period;
   const key=billingMonthKey(year,month);
   const currentMonth=currentFinanceMonth();
-  const shareUrl=new URL(publicReportPath(period,filters.tab,{direction:filters.tab==='public_ledger'?filters.direction:undefined,
-    category:filters.tab==='public_ledger'?filters.category:undefined}),origin).toString();
+  const shareUrl=new URL(publicReportPath(period,filters.tab,filters.tab==='public_ledger'?publicJournalParams(filters):{}),origin).toString();
   const [data,profile,qrCode]=await Promise.all([
     readSnapshot(async run=>{
       const {summary}=await getCashLedger({month:key,pageSize:1},run);
-       const [categories,invoices,[housing],journal,duty,accounts]=await Promise.all([
+      const [categories,invoices,[housing],journal,duty,accounts,expenses]=await Promise.all([
         run<{category:PublicCashCategory;outgoing:number|string;dues:number|string;loan_in:number|string;loan_out:number|string}>(
           "WITH journal AS ("+safeJournal+") SELECT category,COALESCE(SUM("+outgoingSql+"),0) AS outgoing,"+
           "COALESCE(SUM(CASE WHEN source_type='PAYMENT' THEN amount WHEN source_type='PAYMENT_REVERSAL' THEN -amount ELSE 0 END),0) AS dues,"+
           "COALESCE(SUM(CASE WHEN source_type='STAFF_LOAN_INSTALLMENT' THEN amount WHEN source_type='STAFF_LOAN_INSTALLMENT_REVERSAL' THEN -amount ELSE 0 END),0) AS loan_in,"+
           "COALESCE(SUM(CASE WHEN source_type='STAFF_LOAN_DISBURSEMENT' THEN amount WHEN source_type='STAFF_LOAN_DISBURSEMENT_REVERSAL' THEN -amount ELSE 0 END),0) AS loan_out "+
           "FROM journal GROUP BY category",monthBounds(key)),
-        run<DuesRow>("WITH house_month AS (SELECT p.month,i.property_id,"+
+        run<DuesRow>("WITH house_month AS (SELECT p.month,i.property_id,SUM(i.total) AS billed_amount,"+
           "SUM(CASE WHEN i.status='PAID' THEN 0 ELSE CASE WHEN i.total>i.paid_amount THEN i.total-i.paid_amount ELSE 0 END END) AS remaining,"+
           "SUM(CASE WHEN i.status='PAID' OR i.paid_amount>i.total THEN i.total WHEN i.paid_amount<0 THEN 0 ELSE i.paid_amount END) AS received "+
           "FROM invoices i JOIN billing_periods p ON p.id=i.billing_period_id JOIN properties h ON h.id=i.property_id "+
           "WHERE p.year=? AND p.month<=? AND h.community_id=? AND h.is_active=true AND lower(h.code) NOT LIKE '%dummy%' AND h.code<>'A-99' "+
           "AND i.status NOT IN ('VOID','WAIVED','CANCELLED') GROUP BY p.month,i.property_id) "+
-          "SELECT month,COUNT(*) AS billed,SUM(CASE WHEN remaining=0 THEN 1 ELSE 0 END) AS paid,SUM(received) AS received,SUM(remaining) AS remaining "+
+          "SELECT month,COUNT(*) AS billed,SUM(CASE WHEN remaining=0 THEN 1 ELSE 0 END) AS paid,SUM(billed_amount) AS billed_amount,SUM(received) AS received,SUM(remaining) AS remaining "+
           "FROM house_month GROUP BY month ORDER BY month",[year,month,BILLING_COMMUNITY_ID]),
         run<{total:number|string}>("SELECT COUNT(*) AS total FROM properties WHERE community_id=? AND is_active=true AND lower(code) NOT LIKE '%dummy%' AND code<>'A-99'",[BILLING_COMMUNITY_ID]),
-         filters.tab==='public_ledger'?readPublicJournal(run,key,summary.opening,filters):{rows:[],total:0,page:1},
-         filters.tab==='audit_faq'?publicDuty(run):null,
-         run<{id:string}>('SELECT id FROM accounts'),
-       ]);
-       const reconciliations=await Promise.all(accounts.map(account=>getCashReconciliation(account.id,key,run)));
-       const cashReconciled=accounts.length>0 && reconciliations.every(item=>item.status==='MATCHED');
+        filters.tab==='public_ledger'?readPublicJournal(run,key,summary.opening,filters):{rows:[],total:0,page:1},
+        filters.tab==='audit_faq'?publicDuty(run):null,
+        run<{id:string}>('SELECT id FROM accounts'),
+        filters.tab==='cashflow_summary'?publicExpenses(run,key):null,
+      ]);
+      const reconciliations=await Promise.all(accounts.map(account=>getCashReconciliation(account.id,key,run)));
+      const cashReconciled=accounts.length>0 && reconciliations.every(item=>item.status==='MATCHED');
       const dues:PublicDuesMonth[]=Array.from({length:month},(_,index)=>{
         const row=invoices.find(item=>Number(item.month)===index+1);
-        return {month:index+1,billed:Number(row?.billed || 0),paid:Number(row?.paid || 0),received:roundCash(Number(row?.received || 0)),remaining:roundCash(Number(row?.remaining || 0))};
+        return {month:index+1,billed:Number(row?.billed || 0),paid:Number(row?.paid || 0),billedAmount:roundCash(Number(row?.billed_amount || 0)),
+          received:roundCash(Number(row?.received || 0)),remaining:roundCash(Number(row?.remaining || 0))};
       });
       const total=(name:'dues'|'loan_in'|'loan_out')=>roundCash(categories.reduce((sum,row)=>sum+Number(row[name]),0));
-       return {cash:summary,cashReconciled,duesCash:total('dues'),loanCashIn:total('loan_in'),loanCashOut:total('loan_out'),homes:Number(housing.total),dues,journal,duty,
+      return {cash:summary,cashReconciled,duesCash:total('dues'),loanCashIn:total('loan_in'),loanCashOut:total('loan_out'),homes:Number(housing.total),dues,journal,duty,expenses,
         outgoing:categories.filter(row=>Number(row.outgoing)!==0).map(row=>({category:row.category,amount:roundCash(Number(row.outgoing))})).sort((a,b)=>b.amount-a.amount)};
     }),
     getCommunityProfile(),
