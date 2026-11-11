@@ -370,7 +370,7 @@ try {
     await navigate('/admin/ledger?tab=financial_reports&month=2026-10','main [aria-label="Laporan kas"]');
     await openWa('Laporan WA (wa.me)');
     text = await evaluate(waText);
-    assert.match(text,/Pengeluaran bersih: \*Rp50\.000\*/);
+    assert.match(text,/Pengeluaran bersih tercatat: \*Rp50\.000\*/);
     assert.match(text,/\/transparency\/2026\/10/);
     assert.doesNotMatch(text,/9876543210/);
     assert.equal(new URL(await evaluate(waHref)).searchParams.get('text'),text);
