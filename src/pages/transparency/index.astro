@@ -1,14 +1,14 @@
 ---
 import PublicLayout from '../../layouts/PublicLayout.astro';
 import { TransparencyView } from '../../components/transparency/TransparencyView';
-import { publicReportFilters, publicReportPath, publicReportPeriod } from '../../lib/transparency-data';
+import { publicJournalParams, publicReportFilters, publicReportPath, publicReportPeriod } from '../../lib/transparency-data';
 import { getPublicMonthlyReport } from '../../services/transparency.service';
 
 const query = Astro.url.searchParams;
 const filters = publicReportFilters(query);
 const period = publicReportPeriod(query.get('year'),query.get('month'),query.get('period'));
 if (filters.tab==='public_ledger' && query.get('download')==='csv')
-  return Astro.redirect(publicReportPath(period,filters.tab,{direction:filters.direction,category:filters.category,download:'csv'}),302);
+  return Astro.redirect(publicReportPath(period,filters.tab,{...publicJournalParams(filters),download:'csv'}),302);
 Astro.response.headers.set('Cache-Control','no-store');
 const data = await getPublicMonthlyReport(period,filters,Astro.url.origin).catch(()=>null);
 if (!data) Astro.response.status=503;

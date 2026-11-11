@@ -12,14 +12,18 @@ export type PublicCashCategory = keyof typeof publicCashCategories;
 export const PUBLIC_JOURNAL_PAGE_SIZE = 20;
 export const PUBLIC_CSV_LIMIT = 10_000;
 export interface PublicReportPeriod {year:number;month:number}
-export interface PublicReportFilters {tab:TransparencySubTab;direction:''|'IN'|'OUT';category:PublicCashCategory|'';page:number}
+export interface PublicReportFilters {tab:TransparencySubTab;direction:''|'IN'|'OUT';category:PublicCashCategory|'';scope:''|'expenses';page:number}
 export interface PublicJournalEntry {reference:string;date:string;direction:'IN'|'OUT';category:PublicCashCategory;label:string;amount:number;balance:number}
-export interface PublicDuesMonth {month:number;billed:number;paid:number;received:number;remaining:number}
+export interface PublicDuesMonth {month:number;billed:number;paid:number;billedAmount:number;received:number;remaining:number}
+export interface PublicExpenseReport {
+  month:string;total:number;net:number;
+  recent:{reference:string;date:string;category:PublicCashCategory;amount:number;reversal:boolean}[];
+}
 export interface PublicTransparencyData {
   period:PublicReportPeriod;periodLabel:string;currentMonth:string;previousMonth:string|null;nextMonth:string|null;
   communityName:string;bank:{name:string;number:string;holder:string}|null;
   cash:CashPeriodSummary;cashReconciled:boolean;duesCash:number;loanCashIn:number;loanCashOut:number;homes:number;dues:PublicDuesMonth[];
-  outgoing:{category:PublicCashCategory;amount:number}[];journal:{rows:PublicJournalEntry[];total:number;page:number};
+  outgoing:{category:PublicCashCategory;amount:number}[];journal:{rows:PublicJournalEntry[];total:number;page:number};expenses:PublicExpenseReport|null;
   shareUrl:string;qrCode:string;
   duty:{handover:string;current:number;upcoming:{date:string;turn:number}[]}|null;
 }
@@ -40,7 +44,11 @@ export function publicReportFilters(params:URLSearchParams):PublicReportFilters 
   const page=params.get('page') || '';
   return {tab:transparencyTabs.includes(tab)?tab:'cashflow_summary',direction:dir==='IN'||dir==='OUT'?dir:'',
     category:Object.hasOwn(publicCashCategories,category)?category as PublicCashCategory:'',
+    scope:params.get('scope')==='expenses'?'expenses':'',
     page:/^\d{1,5}$/.test(page)?Math.max(1,Number(page)):1};
+}
+export function publicJournalParams({scope,direction,category}:PublicReportFilters) {
+  return {scope,direction,category};
 }
 export function publicReportPath(period:PublicReportPeriod|string,tab:TransparencySubTab='cashflow_summary',params:Record<string,string|number|null|undefined>={}) {
   const month=typeof period==='string'?period:billingMonthKey(period.year,period.month);
